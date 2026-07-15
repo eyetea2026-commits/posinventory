@@ -7,8 +7,11 @@ use App\Models\ActivityLog;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\StockAdjustment;
+use App\Models\User;
+use App\Notifications\StockAdjustmentRecorded;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 class StockAdjustmentController extends Controller
 {
@@ -93,9 +96,17 @@ class StockAdjustmentController extends Controller
             $inventory->save();
         });
 
-        $productName = Product::find($data['ProductID'])?->ProductName ?? 'Unknown product';
+        $product = Product::find($data['ProductID']);
+        $productName = $product?->ProductName ?? 'Unknown product';
         $sign = $data['QuantityAdjust'] >= 0 ? '+' : '';
         ActivityLog::record('stock.adjusted', "Adjusted \"{$productName}\" by {$sign}{$data['QuantityAdjust']} (new total: {$newQty})");
+
+        if ($product) {
+            Notification::send(
+                User::admins(),
+                new StockAdjustmentRecorded($product, (int) $data['QuantityAdjust'], $newQty, $data['Reason'])
+            );
+        }
 
         return redirect()->route('admin.stock-adjustments.index')->with('status', 'Stock adjustment saved successfully.');
     }

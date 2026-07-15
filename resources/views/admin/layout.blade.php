@@ -263,35 +263,57 @@
                     <div style="position: relative;" @click.outside="notifOpen = false">
                         <button type="button" class="header-icon-btn" @click="notifOpen = !notifOpen; profileOpen = false">
                             <i class="fas fa-bell"></i>
-                            @php $__notifTotal = $headerPendingPurchaseOrders + $headerPendingReturns + $headerOutOfStockCount; @endphp
-                            @if($__notifTotal > 0)
-                                <span class="header-badge">{{ $__notifTotal > 99 ? '99+' : $__notifTotal }}</span>
+                            @if($headerUnreadCount > 0)
+                                <span class="header-badge">{{ $headerUnreadCount > 99 ? '99+' : $headerUnreadCount }}</span>
                             @endif
                         </button>
                         <div class="header-dropdown" x-show="notifOpen" x-cloak>
-                            <div class="header-dropdown-header">Notifications</div>
-                            @if($__notifTotal === 0)
+                            <div class="header-dropdown-header" style="display:flex;align-items:center;justify-content:space-between;">
+                                <span>Notifications</span>
+                                @if($headerUnreadCount > 0)
+                                    <form method="POST" action="{{ route('admin.notifications.read-all') }}">
+                                        @csrf
+                                        <button type="submit" style="background:none;border:none;color:var(--text-secondary);font-size:.75rem;cursor:pointer;">Mark all read</button>
+                                    </form>
+                                @endif
+                            </div>
+                            @if($headerUnreadNotifications->isEmpty())
                                 <div class="header-dropdown-empty">You're all caught up.</div>
                             @else
-                                @if($headerOutOfStockCount > 0)
-                                    <a href="{{ route('admin.inventory.index') }}" class="header-dropdown-item">
-                                        <span><i class="fas fa-triangle-exclamation" style="color:#f87171;"></i> Out of stock products</span>
-                                        <span class="badge badge-danger" style="background:rgba(239,68,68,.15);color:#f87171;border-radius:8px;padding:2px 8px;font-size:.75rem;">{{ $headerOutOfStockCount }}</span>
+                                @php
+                                    $__notifIcons = [
+                                        'triangle-alert' => 'fa-triangle-exclamation',
+                                        'sliders-horizontal' => 'fa-sliders',
+                                        'clipboard-check' => 'fa-clipboard-check',
+                                        'rotate-ccw' => 'fa-rotate-left',
+                                    ];
+                                    $__notifColors = [
+                                        'danger' => '#f87171',
+                                        'warning' => '#fbbf24',
+                                        'info' => '#60a5fa',
+                                        'success' => '#34d399',
+                                    ];
+                                @endphp
+                                @foreach($headerUnreadNotifications as $notification)
+                                    @php
+                                        $__color = $__notifColors[$notification->data['color'] ?? 'info'] ?? '#60a5fa';
+                                        $__icon = $__notifIcons[$notification->data['icon'] ?? ''] ?? 'fa-circle-info';
+                                    @endphp
+                                    <a href="{{ route('admin.notifications.read', $notification->id) }}"
+                                       onclick="event.preventDefault(); document.getElementById('notif-read-{{ $notification->id }}').submit();"
+                                       class="header-dropdown-item">
+                                        <span><i class="fas {{ $__icon }}" style="color:{{ $__color }};"></i> {{ $notification->data['title'] ?? 'Notification' }}
+                                            <br><small style="color:var(--text-secondary);">{{ Str::limit($notification->data['description'] ?? '', 60) }}</small>
+                                        </span>
                                     </a>
-                                @endif
-                                @if($headerPendingPurchaseOrders > 0)
-                                    <a href="{{ route('admin.purchase-orders.index') }}" class="header-dropdown-item">
-                                        <span><i class="fas fa-cart-shopping" style="color:#fbbf24;"></i> Pending purchase orders</span>
-                                        <span class="badge" style="background:rgba(251,191,36,.15);color:#fbbf24;border-radius:8px;padding:2px 8px;font-size:.75rem;">{{ $headerPendingPurchaseOrders }}</span>
-                                    </a>
-                                @endif
-                                @if($headerPendingReturns > 0)
-                                    <a href="{{ route('admin.sales-returns.index') }}" class="header-dropdown-item">
-                                        <span><i class="fas fa-rotate-left" style="color:#60a5fa;"></i> Pending return approvals</span>
-                                        <span class="badge" style="background:rgba(59,130,246,.15);color:#60a5fa;border-radius:8px;padding:2px 8px;font-size:.75rem;">{{ $headerPendingReturns }}</span>
-                                    </a>
-                                @endif
+                                    <form id="notif-read-{{ $notification->id }}" method="POST" action="{{ route('admin.notifications.read', $notification->id) }}" style="display:none;">
+                                        @csrf
+                                    </form>
+                                @endforeach
                             @endif
+                            <a href="{{ route('admin.notifications.index') }}" class="header-dropdown-item" style="justify-content:center;color:var(--text-secondary);font-size:.8rem;">
+                                View all notifications
+                            </a>
                         </div>
                     </div>
 

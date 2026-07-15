@@ -11,9 +11,12 @@ use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
+use App\Models\User;
+use App\Notifications\NewRefundRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 class CashierReturnController extends Controller
 {
@@ -248,6 +251,8 @@ class CashierReturnController extends Controller
         ]);
 
         ActivityLog::record('return.requested', "Requested {$data['return_type']} #{$salesReturn->SalesReturnID} for {$data['quantity']} x \"{$salesItem->product?->ProductName}\" (Txn #{$data['transaction_id']})");
+
+        Notification::send(User::admins(), new NewRefundRequest($salesReturn));
 
         return response()->json([
             'success' => true,

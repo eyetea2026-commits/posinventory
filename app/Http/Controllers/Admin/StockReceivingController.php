@@ -8,8 +8,11 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\StockReceiving;
 use App\Models\Supplier;
+use App\Models\User;
+use App\Notifications\ProductReceived;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 class StockReceivingController extends Controller
 {
@@ -87,9 +90,15 @@ class StockReceivingController extends Controller
             $inventory->save();
         });
 
-        $productName = Product::find($data['ProductID'])?->ProductName ?? 'Unknown product';
-        $supplierName = Supplier::find($data['SupplierID'])?->SupplierName ?? 'Unknown supplier';
+        $product = Product::find($data['ProductID']);
+        $supplier = Supplier::find($data['SupplierID']);
+        $productName = $product?->ProductName ?? 'Unknown product';
+        $supplierName = $supplier?->SupplierName ?? 'Unknown supplier';
         ActivityLog::record('stock.received', "Received {$data['Quantity']} x \"{$productName}\" from \"{$supplierName}\"");
+
+        if ($product && $supplier) {
+            Notification::send(User::admins(), new ProductReceived($product, $supplier, (int) $data['Quantity']));
+        }
 
         return redirect()->route('admin.stock-receivings.index')->with('status', 'Stock receiving recorded successfully.');
     }

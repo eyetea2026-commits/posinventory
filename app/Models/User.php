@@ -46,6 +46,14 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class);
     }
 
+    // All users with the admin role — the recipient list for system notifications.
+    public static function admins()
+    {
+        return static::whereHas('role', function ($query) {
+            $query->whereRaw('LOWER(role_name) = ?', ['admin']);
+        })->get();
+    }
+
     public function isAdmin(): bool
     {
         // Check if role is already loaded, if not try to load it

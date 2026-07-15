@@ -246,6 +246,13 @@ Route::prefix('admin')->group(function () {
     Route::post('sales-returns/{salesReturn}/decline', [App\Http\Controllers\Admin\SalesReturnController::class, 'decline'])
         ->name('admin.sales-returns.decline')->middleware(['auth', 'role:admin']);
 
+    Route::get('notifications', [App\Http\Controllers\Admin\NotificationController::class, 'index'])
+        ->name('admin.notifications.index')->middleware(['auth', 'role:admin']);
+    Route::post('notifications/{notification}/read', [App\Http\Controllers\Admin\NotificationController::class, 'markAsRead'])
+        ->name('admin.notifications.read')->middleware(['auth', 'role:admin']);
+    Route::post('notifications/read-all', [App\Http\Controllers\Admin\NotificationController::class, 'markAllAsRead'])
+        ->name('admin.notifications.read-all')->middleware(['auth', 'role:admin']);
+
     Route::get('reports', [App\Http\Controllers\Admin\ReportController::class, 'index'])
         ->name('admin.reports.index');
     Route::get('reports/export', [App\Http\Controllers\Admin\ReportController::class, 'export'])

@@ -3,9 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Inventory;
-use App\Models\PurchaseOrder;
-use App\Models\SalesReturn;
-use Illuminate\Support\Facades\DB;
+use App\Observers\InventoryObserver;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -24,11 +22,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Inventory::observe(InventoryObserver::class);
+
         View::composer('admin.layout', function ($view) {
+            $user = auth()->user();
+
             $view->with([
-                'headerPendingPurchaseOrders' => PurchaseOrder::where('Status', 'pending')->count(),
-                'headerPendingReturns' => SalesReturn::where('Status', 'pending')->count(),
-                'headerOutOfStockCount' => Inventory::where('Quantity', '<=', 0)->count(),
+                'headerUnreadNotifications' => $user
+                    ? $user->unreadNotifications()->latest()->take(8)->get()
+                    : collect(),
+                'headerUnreadCount' => $user ? $user->unreadNotifications()->count() : 0,
             ]);
         });
     }
