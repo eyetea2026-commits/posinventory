@@ -377,7 +377,7 @@
             <div class="stat-icon purple"><i class="fas fa-boxes"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Products</div>
-                <div class="stat-value" data-counter data-value="{{ $totalProducts }}">0</div>
+                <div class="stat-value" id="statTotalProducts" data-counter data-value="{{ $totalProducts }}">0</div>
                 <div class="stat-subtitle">Total registered</div>
             </div>
         </div>
@@ -385,7 +385,7 @@
             <div class="stat-icon cyan"><i class="fas fa-warehouse"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Inventory Value</div>
-                <div class="stat-value" data-counter data-value="{{ $inventoryValue }}" data-prefix="&#8369;" data-decimals="0">&#8369;0</div>
+                <div class="stat-value" id="statInventoryValue" data-counter data-value="{{ $inventoryValue }}" data-prefix="&#8369;" data-decimals="0">&#8369;0</div>
                 <div class="stat-subtitle">At cost price</div>
             </div>
         </div>
@@ -449,33 +449,9 @@
             <div class="chart-card-header">
                 <h3 class="chart-title">Stock Alerts</h3>
             </div>
-            @if($stockAlerts->isEmpty())
-                <div class="empty-state">
-                    <div class="empty-icon"><i class="fas fa-circle-check"></i></div>
-                    <p class="empty-title">All Stocked Up</p>
-                    <p class="empty-text">No products are low or out of stock right now.</p>
-                </div>
-            @else
-                <div class="stock-alert-list">
-                    @foreach($stockAlerts as $alert)
-                        <div class="stock-alert-item">
-                            <div class="stat-icon {{ $alert['quantity'] <= 0 ? 'red' : 'yellow' }}" style="width:40px;height:40px;font-size:1rem;">
-                                <i class="fas {{ $alert['status']['icon'] }}"></i>
-                            </div>
-                            <div class="stat-content">
-                                <div class="stock-alert-name">{{ $alert['product']?->ProductName ?? 'Unknown product' }}</div>
-                                <div class="stock-alert-qty">{{ $alert['quantity'] }} units remaining</div>
-                            </div>
-                            <span class="badge {{ $alert['status']['class'] === 'badge-out-of-stock' ? 'badge-danger' : ($alert['status']['class'] === 'badge-replenish' ? 'badge-replenish' : 'badge-warning') }}">{{ $alert['status']['label'] }}</span>
-                            @if($alert['product'])
-                                <a href="{{ route('admin.inventory.show', $alert['product']) }}" class="stock-alert-view" title="View Details">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
-            @endif
+            <div id="stockAlertsContainer">
+                @include('admin.dashboard.partials.stock-alerts', ['stockAlerts' => $stockAlerts])
+            </div>
         </div>
     </div>
 
@@ -756,8 +732,9 @@
 
         // Inventory Status (horizontal bar)
         const inventoryCanvas = document.getElementById('inventoryStatusChart');
+        let inventoryStatusChartInstance = null;
         if (inventoryCanvas) {
-            new Chart(inventoryCanvas, {
+            inventoryStatusChartInstance = new Chart(inventoryCanvas, {
                 type: 'bar',
                 data: {
                     labels: inventoryStatusData.labels,
@@ -851,6 +828,37 @@
                 },
             });
         }
+
+        // Poll inventory-derived widgets (Products, Inventory Value, Inventory
+        // Status chart, Stock Alerts) so sales/refunds/receiving/adjustments/
+        // damage recording made elsewhere show up here without a page reload.
+        // Pauses while the tab is hidden to avoid pointless requests.
+        function refreshInventoryWidgets() {
+            if (document.hidden) return;
+
+            fetch('{{ route('admin.dashboard.live-inventory') }}', { headers: { 'Accept': 'application/json' } })
+                .then((response) => response.json())
+                .then((data) => {
+                    const productsEl = document.getElementById('statTotalProducts');
+                    if (productsEl) productsEl.textContent = Number(data.totalProducts).toLocaleString('en-US');
+
+                    const valueEl = document.getElementById('statInventoryValue');
+                    if (valueEl) valueEl.textContent = '₱' + Number(data.inventoryValue).toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+                    if (inventoryStatusChartInstance) {
+                        inventoryStatusChartInstance.data.labels = data.inventoryStatusChart.labels;
+                        inventoryStatusChartInstance.data.datasets[0].data = data.inventoryStatusChart.data;
+                        inventoryStatusChartInstance.update();
+                    }
+
+                    const alertsContainer = document.getElementById('stockAlertsContainer');
+                    if (alertsContainer) alertsContainer.innerHTML = data.stockAlertsHtml;
+                })
+                .catch(() => {
+                    // Non-fatal — keep showing the last known values.
+                });
+        }
+        setInterval(refreshInventoryWidgets, 10000);
     })();
     </script>
 @endpush

@@ -94,6 +94,9 @@ Route::prefix('admin')->group(function () {
     Route::get('dashboard', [App\Http\Controllers\Admin\DashboardController::class, 'index'])
         ->name('admin.dashboard')
         ->middleware(['auth', 'role:admin']);
+    Route::get('dashboard/live-inventory', [App\Http\Controllers\Admin\DashboardController::class, 'liveInventory'])
+        ->name('admin.dashboard.live-inventory')
+        ->middleware(['auth', 'role:admin']);
 
     Route::get('users', [App\Http\Controllers\Admin\UserController::class, 'index'])
         ->name('admin.users.index')

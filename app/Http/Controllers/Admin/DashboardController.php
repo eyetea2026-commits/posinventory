@@ -41,43 +41,13 @@ class DashboardController extends Controller
             : null;
 
         $transactionsToday = Billing::whereDate('BillingDate', $today)->count();
-        $totalProducts = Product::count();
-        $inventoryValue = (float) Inventory::join('Product', 'Inventory.ProductID', '=', 'Product.ProductID')
-            ->sum(DB::raw('Inventory.Quantity * Product.CostPrice'));
         $totalSuppliers = Supplier::count();
 
-        // Inventory status (computed live from Quantity vs. ReorderThreshold —
-        // same convention as ReportController/the old DashboardController,
-        // since the stored Status string uses inconsistent vocabulary across
-        // write paths). Damaged is supplementary info from DamagedProduct,
-        // not a re-slice of the same Quantity total (damaged units are
-        // already subtracted out of Inventory.Quantity by DamageController).
-        $totalInventoryRows = Inventory::count();
-        $lowStockCount = Inventory::where('Quantity', '>', 0)
-            ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
-            ->count();
-        $outOfStockCount = Inventory::where('Quantity', '<=', 0)->count();
-        $inStockCount = max(0, $totalInventoryRows - $lowStockCount - $outOfStockCount);
-        $damagedCount30d = (int) DamagedProduct::where('DateRecorded', '>=', now()->subDays(30))->sum('Quantity');
-
-        $inventoryStatusChart = [
-            'labels' => ['In Stock', 'Low Stock', 'Out of Stock', 'Damaged (30d)'],
-            'data' => [$inStockCount, $lowStockCount, $outOfStockCount, $damagedCount30d],
-        ];
-
-        // Stock alerts — most critical (lowest quantity) first
-        $stockAlerts = Inventory::with('product')
-            ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
-            ->orderBy('Quantity')
-            ->take(10)
-            ->get()
-            ->map(function ($row) {
-                return [
-                    'product' => $row->product,
-                    'quantity' => $row->Quantity,
-                    'status' => ProductController::resolveStockStatus($row->Quantity, $row->ReorderThreshold),
-                ];
-            });
+        $inventorySnapshot = $this->buildInventorySnapshot();
+        $totalProducts = $inventorySnapshot['totalProducts'];
+        $inventoryValue = $inventorySnapshot['inventoryValue'];
+        $inventoryStatusChart = $inventorySnapshot['inventoryStatusChart'];
+        $stockAlerts = $inventorySnapshot['stockAlerts'];
 
         // Sales trend — all four granularities pre-computed, gap-filled, so
         // the client can switch datasets with no server round-trip.
@@ -171,6 +141,67 @@ class DashboardController extends Controller
             'txnSearch' => $txnSearch,
             'txnSort' => $txnSort,
         ]);
+    }
+
+    /**
+     * Polled by the dashboard so inventory-derived widgets (Products count,
+     * Inventory Value, Inventory Status chart, Stock Alerts) update without
+     * a page reload whenever a sale/refund/receiving/adjustment/damage
+     * record changes stock elsewhere.
+     */
+    public function liveInventory()
+    {
+        $snapshot = $this->buildInventorySnapshot();
+
+        return response()->json([
+            'totalProducts' => $snapshot['totalProducts'],
+            'inventoryValue' => $snapshot['inventoryValue'],
+            'inventoryStatusChart' => $snapshot['inventoryStatusChart'],
+            'stockAlertsHtml' => view('admin.dashboard.partials.stock-alerts', ['stockAlerts' => $snapshot['stockAlerts']])->render(),
+        ]);
+    }
+
+    /**
+     * Computed live from Quantity vs. ReorderThreshold rather than the
+     * stored Inventory.Status string, since that string uses inconsistent
+     * vocabulary across write paths. Damaged is supplementary info from
+     * DamagedProduct, not a re-slice of the same Quantity total (damaged
+     * units are already subtracted out of Inventory.Quantity by
+     * DamageController).
+     */
+    private function buildInventorySnapshot(): array
+    {
+        $totalProducts = Product::count();
+        $inventoryValue = (float) Inventory::join('Product', 'Inventory.ProductID', '=', 'Product.ProductID')
+            ->sum(DB::raw('Inventory.Quantity * Product.CostPrice'));
+
+        $totalInventoryRows = Inventory::count();
+        $lowStockCount = Inventory::where('Quantity', '>', 0)
+            ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
+            ->count();
+        $outOfStockCount = Inventory::where('Quantity', '<=', 0)->count();
+        $inStockCount = max(0, $totalInventoryRows - $lowStockCount - $outOfStockCount);
+        $damagedCount30d = (int) DamagedProduct::where('DateRecorded', '>=', now()->subDays(30))->sum('Quantity');
+
+        $inventoryStatusChart = [
+            'labels' => ['In Stock', 'Low Stock', 'Out of Stock', 'Damaged (30d)'],
+            'data' => [$inStockCount, $lowStockCount, $outOfStockCount, $damagedCount30d],
+        ];
+
+        $stockAlerts = Inventory::with('product')
+            ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
+            ->orderBy('Quantity')
+            ->take(10)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'product' => $row->product,
+                    'quantity' => $row->Quantity,
+                    'status' => ProductController::resolveStockStatus($row->Quantity, $row->ReorderThreshold),
+                ];
+            });
+
+        return compact('totalProducts', 'inventoryValue', 'inventoryStatusChart', 'stockAlerts');
     }
 
     private function dailyTrend(int $days): array

@@ -606,6 +606,7 @@
 
         let debounceTimer = null;
         let currentController = null;
+        let currentPage = 1;
 
         // Build URL query string from current filter state
         function buildQuery(page = 1) {
@@ -620,16 +621,19 @@
             return params.toString();
         }
 
-        // Apply filters via AJAX and update table + pagination
-        async function applyFilters(page = 1) {
+        // Apply filters via AJAX and update table + pagination.
+        // `silent: true` (used by the background poll) skips the URL sync
+        // and loading spinner so it doesn't visually interrupt the page.
+        async function applyFilters(page = 1, { silent = false } = {}) {
+            currentPage = page;
             const query = buildQuery(page);
             const url = `${filterForm.action}${query ? '?' + query : ''}`;
 
-            // Sync URL bar (no scroll)
-            window.history.replaceState({}, '', url);
-
-            // Show loader
-            tableLoader.classList.add('active');
+            if (!silent) {
+                // Sync URL bar (no scroll)
+                window.history.replaceState({}, '', url);
+                tableLoader.classList.add('active');
+            }
 
             // Cancel previous in-flight request
             if (currentController) {
@@ -655,8 +659,10 @@
                 tbody.innerHTML = data.rows || '';
                 paginationWrapper.innerHTML = data.pagination || '';
                 rebindPagination();
+                updatePillCounts(data.counts);
             } catch (err) {
                 if (err.name === 'AbortError') return;
+                if (silent) return; // keep showing the last known table on a failed background poll
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="6">
@@ -672,6 +678,17 @@
                 tableLoader.classList.remove('active');
                 initTooltips();
             }
+        }
+
+        function updatePillCounts(counts) {
+            if (!counts) return;
+            statusPills.querySelectorAll('.status-pill').forEach((pill) => {
+                const key = pill.dataset.status || 'all';
+                const countEl = pill.querySelector('.pill-count');
+                if (countEl && counts[key] !== undefined) {
+                    countEl.textContent = counts[key];
+                }
+            });
         }
 
         // Re-bind click handlers for newly rendered pagination links
@@ -727,6 +744,14 @@
         // Initial bindings
         rebindPagination();
         initTooltips();
+
+        // Poll for stock changes made elsewhere (sales, refunds, receiving,
+        // adjustments, damage recording) so the table and pill counts stay
+        // current without a manual refresh. Pauses while the tab is hidden.
+        setInterval(function () {
+            if (document.hidden) return;
+            applyFilters(currentPage, { silent: true });
+        }, 8000);
     })();
 </script>
 @endsection

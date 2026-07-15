@@ -65,6 +65,9 @@ class InventoryController extends Controller
 
         $products = $query->paginate(15)->withQueryString();
 
+        // Recomputed on every request (not just the initial page load) so a
+        // background poll can keep the pill counts current alongside the
+        // table rows — see resources/views/admin/inventory/index.blade.php.
         $counts = $this->buildStatusCounts();
 
         // AJAX request — return just the table rows + pagination as partials
@@ -72,6 +75,7 @@ class InventoryController extends Controller
             return response()->json([
                 'rows' => view('admin.inventory.partials.rows', ['products' => $products])->render(),
                 'pagination' => view('admin.inventory.partials.pagination', ['products' => $products])->render(),
+                'counts' => $counts,
             ]);
         }
 
@@ -176,9 +180,9 @@ class InventoryController extends Controller
     }
 
     /**
-     * Compute the live count for each status pill. Runs once per full
-     * request, not on AJAX pagination, so the badge numbers stay stable
-     * as the user paginates.
+     * Compute the live count for each status pill. Runs on every request
+     * (including AJAX pagination/search and the background poll) so the
+     * pill numbers reflect current stock, not just the initial page load.
      */
     private function buildStatusCounts(): array
     {
