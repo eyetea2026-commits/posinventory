@@ -93,7 +93,7 @@
     </div>
     <div class="stat-card processed">
         <div class="number" id="processed-refunds">0</div>
-        <div class="label">Processed</div>
+        <div class="label">Refunded/Completed</div>
     </div>
     <div class="stat-card awaiting">
         <div class="number" id="awaiting-action">0</div>
@@ -117,7 +117,7 @@
                 <option value="pending" {{ ($status ?? '') === 'pending' ? 'selected' : '' }}>Pending</option>
                 <option value="approved" {{ ($status ?? '') === 'approved' ? 'selected' : '' }}>Approved</option>
                 <option value="declined" {{ ($status ?? '') === 'declined' ? 'selected' : '' }}>Declined</option>
-                <option value="processed" {{ ($status ?? '') === 'processed' ? 'selected' : '' }}>Processed/Completed</option>
+                <option value="processed" {{ ($status ?? '') === 'processed' ? 'selected' : '' }}>Refunded/Completed</option>
             </select>
             <select name="return_type" onchange="this.form.submit()">
                 <option value="">All Types</option>
@@ -155,7 +155,7 @@
                     <td>
                         <span class="status status-{{ strtolower($refund->Status) }}">
                             @if($refund->Status === 'processed')
-                                {{ $refund->ReturnType === 'replacement' ? 'Completed' : 'Processed' }}
+                                {{ $refund->ReturnType === 'replacement' ? 'Completed' : 'Refunded' }}
                             @else
                                 {{ ucfirst($refund->Status) }}
                             @endif

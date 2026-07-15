@@ -13,6 +13,27 @@
 @endsection
 
 @section('content')
+    <div class="status-tabs" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+        @php
+            $tabs = [
+                '' => ['label' => 'All', 'count' => array_sum($statusCounts)],
+                'pending' => ['label' => 'Pending', 'count' => $statusCounts['pending']],
+                'approved' => ['label' => 'Approved', 'count' => $statusCounts['approved']],
+                'declined' => ['label' => 'Declined', 'count' => $statusCounts['declined']],
+                'processed' => ['label' => 'Refunded', 'count' => $statusCounts['processed']],
+            ];
+        @endphp
+        @foreach($tabs as $value => $tab)
+            <a
+                href="{{ route('admin.sales-returns.index', array_filter(['status' => $value, 'search' => $search, 'return_type' => $returnType])) }}"
+                class="btn {{ ($status ?? '') === $value ? 'btn-primary' : 'btn-secondary' }}"
+                style="text-decoration: none;"
+            >
+                {{ $tab['label'] }} <span style="opacity: 0.75;">({{ $tab['count'] }})</span>
+            </a>
+        @endforeach
+    </div>
+
     <div class="card">
         <div class="toolbar">
             <form method="GET" action="{{ route('admin.sales-returns.index') }}" style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1;">
@@ -22,7 +43,7 @@
                 </div>
                 <select name="status" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
                     <option value="">All Statuses</option>
-                    @foreach(['pending' => 'Pending', 'approved' => 'Approved', 'declined' => 'Declined', 'processed' => 'Processed'] as $value => $label)
+                    @foreach(['pending' => 'Pending', 'approved' => 'Approved', 'declined' => 'Declined', 'processed' => 'Refunded'] as $value => $label)
                         <option value="{{ $value }}" {{ $status === $value ? 'selected' : '' }}>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -92,7 +113,7 @@
                                 @elseif($return->Status === 'declined')
                                     <span class="badge badge-danger">Declined</span>
                                 @elseif($return->Status === 'processed')
-                                    <span class="badge badge-secondary">{{ $return->ReturnType === 'replacement' ? 'Completed' : 'Processed' }}</span>
+                                    <span class="badge badge-secondary">{{ $return->ReturnType === 'replacement' ? 'Completed' : 'Refunded' }}</span>
                                 @else
                                     <span class="badge badge-warning">Pending</span>
                                 @endif
@@ -199,6 +220,13 @@
 
 @push('scripts')
 <script>
+function statusLabel(status, returnType) {
+    if (status === 'processed') {
+        return returnType === 'replacement' ? 'Completed' : 'Refunded';
+    }
+    return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
 function viewReturnDetails(id) {
     const modal = document.getElementById('detailsModal');
     const body = document.getElementById('detailsBody');
@@ -229,7 +257,7 @@ function viewReturnDetails(id) {
                 <p><strong>Quantity Requested:</strong> ${r.Quantity}</p>
                 <p><strong>Reason:</strong> ${r.Reason}</p>
                 <p><strong>Date Requested:</strong> ${r.ReturnDate}</p>
-                <p><strong>Status:</strong> ${r.Status}</p>
+                <p><strong>Status:</strong> ${statusLabel(r.Status, r.ReturnType)}</p>
                 <p><strong>Return Policy:</strong> ${r.DaysSincePurchase !== null
                     ? `${r.DaysSincePurchase} day(s) since purchase — ` + (r.EligibleForReturn
                         ? `<span style="color: var(--success);">within the ${r.ReturnWindowDays}-day window</span>`

@@ -30,6 +30,13 @@ class SalesReturnController extends Controller
         $status = $request->query('status');
         $returnType = $request->query('return_type');
 
+        $statusCounts = [
+            'pending' => SalesReturn::where('Status', SalesReturn::STATUS_PENDING)->count(),
+            'approved' => SalesReturn::where('Status', SalesReturn::STATUS_APPROVED)->count(),
+            'declined' => SalesReturn::where('Status', SalesReturn::STATUS_DECLINED)->count(),
+            'processed' => SalesReturn::where('Status', SalesReturn::STATUS_PROCESSED)->count(),
+        ];
+
         $returns = SalesReturn::with([
                 'transaction.billing.payment',
                 'transaction.staff.user',
@@ -61,6 +68,7 @@ class SalesReturnController extends Controller
             'search' => $search,
             'status' => $status,
             'returnType' => $returnType,
+            'statusCounts' => $statusCounts,
         ]);
     }
 
