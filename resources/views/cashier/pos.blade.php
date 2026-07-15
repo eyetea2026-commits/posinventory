@@ -12,11 +12,6 @@
     .pos-products { background: #1a1d2d; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow: hidden; }
     .pos-cart { background: #1a1d2d; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow-y: auto; }
 
-    .product-type-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-    .product-type-tab { padding: 10px 16px; background: #2d3748; border: none; color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
-    .product-type-tab:hover { background: #4a5568; }
-    .product-type-tab.active { background: linear-gradient(135deg, #3b82f6, #10b981); }
-
     .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
     .search-bar input { flex: 1; padding: 14px 18px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 10px; font-size: 0.95rem; }
     .search-bar input:focus { outline: none; border-color: #3b82f6; }
@@ -122,18 +117,6 @@
 
 <div class="pos-grid">
     <div class="pos-products">
-        <div class="product-type-tabs">
-            <button class="product-type-tab active" onclick="setProductType('individual')">
-                <i class="fas fa-box"></i> Individual
-            </button>
-            <button class="product-type-tab" onclick="setProductType('customized')">
-                <i class="fas fa-tools"></i> Customized
-            </button>
-            <button class="product-type-tab" onclick="setProductType('package')">
-                <i class="fas fa-gift"></i> Package
-            </button>
-        </div>
-
         <div class="barcode-scanner">
             <input type="text" id="barcode-input" placeholder="Scan or enter barcode..." onkeypress="handleBarcode(event)">
             <button onclick="scanBarcode()"><i class="fas fa-barcode"></i> Scan</button>
@@ -281,15 +264,8 @@
     })();
 
     let cart = [];
-    let currentProductType = 'individual';
     let selectedPaymentMethod = 'cash';
     let currentTotal = 0;
-
-    function setProductType(type) {
-        currentProductType = type;
-        document.querySelectorAll('.product-type-tab').forEach(tab => tab.classList.remove('active'));
-        event.target.closest('.product-type-tab').classList.add('active');
-    }
 
     function handleBarcode(event) {
         if (event.key === 'Enter') {

@@ -60,6 +60,15 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">Return Type <span style="color: var(--danger);">*</span></label>
+                    <select name="ReturnType" class="form-select" required>
+                        <option value="refund" {{ old('ReturnType', 'refund') === 'refund' ? 'selected' : '' }}>Refund</option>
+                        <option value="replacement" {{ old('ReturnType') === 'replacement' ? 'selected' : '' }}>Replacement</option>
+                    </select>
+                    @error('ReturnType') <span class="form-error">{{ $message }}</span> @enderror
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">Return Date <span style="color: var(--danger);">*</span></label>
                     <input type="date" name="ReturnDate" class="form-input" value="{{ old('ReturnDate', now()->toDateString()) }}" required>
                     @error('ReturnDate') <span class="form-error">{{ $message }}</span> @enderror

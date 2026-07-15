@@ -156,6 +156,10 @@
         <span class="detail-value">{{ $purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</span>
     </div>
     <div class="detail-row">
+        <span class="detail-label">Expected Delivery</span>
+        <span class="detail-value">{{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('M d, Y') : 'Not set' }}</span>
+    </div>
+    <div class="detail-row">
         <span class="detail-label">Status</span>
         <span class="detail-value">
             @php
@@ -177,9 +181,7 @@
             <thead>
                 <tr>
                     <th>Product</th>
-                    <th>Qty</th>
-                    <th>Unit Price</th>
-                    <th>Total</th>
+                    <th>Quantity Ordered</th>
                 </tr>
             </thead>
             <tbody>
@@ -187,16 +189,10 @@
                     <tr>
                         <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
                         <td>{{ $item->Quantity }}</td>
-                        <td>₱{{ number_format($item->UnitPrice, 2) }}</td>
-                        <td>₱{{ number_format($item->Quantity * $item->UnitPrice, 2) }}</td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
-    </div>
-
-    <div class="items-total">
-        Total: ₱{{ number_format($purchaseOrder->items->sum(fn($item) => $item->Quantity * $item->UnitPrice), 2) }}
     </div>
 
     <div class="detail-actions">

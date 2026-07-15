@@ -30,4 +30,9 @@ class Supplier extends Model
     {
         return $this->hasMany(PurchaseOrder::class, 'SupplierID', 'SupplierID');
     }
+
+    public function damagedProducts()
+    {
+        return $this->hasMany(DamagedProduct::class, 'SupplierID', 'SupplierID');
+    }
 }

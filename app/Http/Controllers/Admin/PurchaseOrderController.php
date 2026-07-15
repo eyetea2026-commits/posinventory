@@ -67,16 +67,17 @@ class PurchaseOrderController extends Controller
         $data = $request->validate([
             'SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
             'PurchaseDate' => ['required', 'date'],
+            'ExpectedDeliveryDate' => ['nullable', 'date', 'after_or_equal:PurchaseDate'],
             'Status' => ['required', 'string', 'in:pending,approved'],
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_id' => ['required', 'integer', 'exists:Product,ProductID'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
-            'products.*.unit_price' => ['required', 'numeric', 'min:0'],
         ]);
 
         DB::transaction(function () use ($data) {
             $purchaseOrder = PurchaseOrder::create([
                 'PurchaseDate' => $data['PurchaseDate'],
+                'ExpectedDeliveryDate' => $data['ExpectedDeliveryDate'] ?? null,
                 'Status' => $data['Status'],
                 'SupplierID' => $data['SupplierID'],
             ]);
@@ -90,7 +91,6 @@ class PurchaseOrderController extends Controller
                     'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                     'ProductID' => $item['product_id'],
                     'Quantity' => $item['quantity'],
-                    'UnitPrice' => $item['unit_price'],
                 ]);
             }
         });

@@ -16,6 +16,7 @@ class PurchaseOrder extends Model
 
     protected $fillable = [
         'PurchaseDate',
+        'ExpectedDeliveryDate',
         'Status',
         'SupplierID',
     ];
@@ -28,5 +29,10 @@ class PurchaseOrder extends Model
     public function items()
     {
         return $this->hasMany(PurchaseOrderItem::class, 'PurchaseOrderID', 'PurchaseOrderID');
+    }
+
+    public function damagedProducts()
+    {
+        return $this->hasMany(DamagedProduct::class, 'PurchaseOrderID', 'PurchaseOrderID');
     }
 }

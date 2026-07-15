@@ -207,8 +207,23 @@
                 @enderror
             </div>
 
+            <div class="form-group full-width">
+                <label for="PurchaseOrderID">Purchase Order <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
+                <select id="PurchaseOrderID" name="PurchaseOrderID" class="form-control">
+                    <option value="">None / Not linked to a PO</option>
+                    @foreach($purchaseOrders as $po)
+                        <option value="{{ $po->PurchaseOrderID }}" {{ old('PurchaseOrderID') == $po->PurchaseOrderID ? 'selected' : '' }}>
+                            PO #{{ $po->PurchaseOrderID }} &mdash; {{ $po->supplier?->SupplierName }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('PurchaseOrderID')
+                    <span class="error">{{ $message }}</span>
+                @enderror
+            </div>
+
             <div class="form-group">
-                <label for="Quantity">Quantity <span class="required">*</span></label>
+                <label for="Quantity">Quantity Damaged <span class="required">*</span></label>
                 <input type="number" id="Quantity" name="Quantity" class="form-control"
                        value="{{ old('Quantity') }}" required min="1">
                 @error('Quantity')
@@ -226,10 +241,50 @@
             </div>
 
             <div class="form-group full-width">
+                <label for="DamageType">Damage Type / Reason <span class="required">*</span></label>
+                <select id="DamageType" name="DamageType" class="form-control" required>
+                    <option value="">Select Damage Type</option>
+                    @foreach(\App\Models\DamagedProduct::DAMAGE_TYPES as $value => $label)
+                        <option value="{{ $value }}" {{ old('DamageType') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                    @endforeach
+                </select>
+                @error('DamageType')
+                    <span class="error">{{ $message }}</span>
+                @enderror
+            </div>
+
+            <div class="form-group full-width">
                 <label for="Description">Damage Description <span class="required">*</span></label>
-                <textarea id="Description" name="Description" class="form-control" rows="4"
+                <textarea id="Description" name="Description" class="form-control" rows="3"
                           required maxlength="500" placeholder="Describe the damage...">{{ old('Description') }}</textarea>
                 @error('Description')
+                    <span class="error">{{ $message }}</span>
+                @enderror
+            </div>
+
+            <div class="form-group full-width">
+                <label for="InspectionNotes">Inspection Notes</label>
+                <textarea id="InspectionNotes" name="InspectionNotes" class="form-control" rows="3"
+                          maxlength="1000" placeholder="Optional inspection findings...">{{ old('InspectionNotes') }}</textarea>
+                @error('InspectionNotes')
+                    <span class="error">{{ $message }}</span>
+                @enderror
+            </div>
+
+            <div class="form-group">
+                <label for="WarehouseLocation">Warehouse Location</label>
+                <input type="text" id="WarehouseLocation" name="WarehouseLocation" class="form-control"
+                       value="{{ old('WarehouseLocation') }}" maxlength="100" placeholder="e.g. Aisle 3, Shelf B">
+                @error('WarehouseLocation')
+                    <span class="error">{{ $message }}</span>
+                @enderror
+            </div>
+
+            <div class="form-group full-width">
+                <label for="Remarks">Remarks</label>
+                <textarea id="Remarks" name="Remarks" class="form-control" rows="2"
+                          maxlength="500" placeholder="Optional remarks...">{{ old('Remarks') }}</textarea>
+                @error('Remarks')
                     <span class="error">{{ $message }}</span>
                 @enderror
             </div>

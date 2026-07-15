@@ -5,7 +5,7 @@
     <style>
         .order-item-row {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr auto;
+            grid-template-columns: 2fr 1fr auto;
             gap: 16px;
             align-items: end;
             padding: 16px;
@@ -74,6 +74,12 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">Expected Delivery Date</label>
+                    <input type="date" name="ExpectedDeliveryDate" class="form-input" value="{{ old('ExpectedDeliveryDate') }}">
+                    @error('ExpectedDeliveryDate') <span class="form-error">{{ $message }}</span> @enderror
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">Status <span style="color: var(--danger);">*</span></label>
                     <select name="Status" class="form-select" required>
                         <option value="pending" {{ old('Status') === 'pending' ? 'selected' : '' }}>Pending</option>
@@ -103,12 +109,8 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Quantity</label>
+                            <label class="form-label">Quantity Ordered</label>
                             <input type="number" name="products[][quantity]" min="1" class="form-input" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Unit Price</label>
-                            <input type="number" name="products[][unit_price]" step="0.01" min="0" class="form-input" required>
                         </div>
                         <button type="button" onclick="removeOrderItem(this)" class="btn btn-danger btn-icon" title="Remove item">
                             <i class="fas fa-trash"></i>
