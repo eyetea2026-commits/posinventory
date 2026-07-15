@@ -227,6 +227,16 @@ function statusLabel(status, returnType) {
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function viewReturnDetails(id) {
     const modal = document.getElementById('detailsModal');
     const body = document.getElementById('detailsBody');
@@ -237,36 +247,41 @@ function viewReturnDetails(id) {
         .then(res => res.json())
         .then(data => {
             const t = data.transaction, p = data.product, r = data.return;
+            // Customer name, reason text, and decline reason all originate as
+            // free text from the cashier/admin request forms — escape every
+            // server-supplied string before it goes into innerHTML so a
+            // return submitted with an HTML/script payload in its Reason or
+            // Customer Name can't execute in this admin session.
             body.innerHTML = `
                 <h4>Transaction Information</h4>
-                <p><strong>Receipt Number:</strong> ${t.ReceiptNumber ?? 'N/A'}</p>
-                <p><strong>Invoice Number:</strong> ${t.InvoiceNumber ?? 'N/A'}</p>
-                <p><strong>Transaction Date:</strong> ${t.TransactionDate ?? 'N/A'}</p>
-                <p><strong>Customer:</strong> ${t.CustomerName ?? 'N/A'}</p>
-                <p><strong>Cashier:</strong> ${t.OriginalCashier ?? 'N/A'}</p>
+                <p><strong>Receipt Number:</strong> ${escapeHtml(t.ReceiptNumber ?? 'N/A')}</p>
+                <p><strong>Invoice Number:</strong> ${escapeHtml(t.InvoiceNumber ?? 'N/A')}</p>
+                <p><strong>Transaction Date:</strong> ${escapeHtml(t.TransactionDate ?? 'N/A')}</p>
+                <p><strong>Customer:</strong> ${escapeHtml(t.CustomerName ?? 'N/A')}</p>
+                <p><strong>Cashier:</strong> ${escapeHtml(t.OriginalCashier ?? 'N/A')}</p>
                 <hr style="border-color: var(--border); margin: 16px 0;">
                 <h4>Product Information</h4>
-                <p><strong>Product Name:</strong> ${p.ProductName ?? 'N/A'}</p>
-                <p><strong>Barcode:</strong> ${p.Barcode ?? 'N/A'}</p>
-                <p><strong>SKU:</strong> ${p.SKU ?? 'N/A'}</p>
-                <p><strong>Category:</strong> ${p.Category ?? 'N/A'}</p>
-                <p><strong>Selling Price:</strong> ₱${p.SellingPrice ?? '0.00'}</p>
+                <p><strong>Product Name:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>
+                <p><strong>Barcode:</strong> ${escapeHtml(p.Barcode ?? 'N/A')}</p>
+                <p><strong>SKU:</strong> ${escapeHtml(p.SKU ?? 'N/A')}</p>
+                <p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>
+                <p><strong>Selling Price:</strong> ₱${escapeHtml(p.SellingPrice ?? '0.00')}</p>
                 <hr style="border-color: var(--border); margin: 16px 0;">
                 <h4>Return Information</h4>
-                <p><strong>Return Type:</strong> ${r.ReturnType}</p>
-                <p><strong>Quantity Requested:</strong> ${r.Quantity}</p>
-                <p><strong>Reason:</strong> ${r.Reason}</p>
-                <p><strong>Date Requested:</strong> ${r.ReturnDate}</p>
-                <p><strong>Status:</strong> ${statusLabel(r.Status, r.ReturnType)}</p>
+                <p><strong>Return Type:</strong> ${escapeHtml(r.ReturnType)}</p>
+                <p><strong>Quantity Requested:</strong> ${escapeHtml(r.Quantity)}</p>
+                <p><strong>Reason:</strong> ${escapeHtml(r.Reason)}</p>
+                <p><strong>Date Requested:</strong> ${escapeHtml(r.ReturnDate)}</p>
+                <p><strong>Status:</strong> ${escapeHtml(statusLabel(r.Status, r.ReturnType))}</p>
                 <p><strong>Return Policy:</strong> ${r.DaysSincePurchase !== null
-                    ? `${r.DaysSincePurchase} day(s) since purchase — ` + (r.EligibleForReturn
-                        ? `<span style="color: var(--success);">within the ${r.ReturnWindowDays}-day window</span>`
-                        : `<span style="color: var(--danger);">outside the ${r.ReturnWindowDays}-day window</span>`)
+                    ? `${escapeHtml(r.DaysSincePurchase)} day(s) since purchase — ` + (r.EligibleForReturn
+                        ? `<span style="color: var(--success);">within the ${escapeHtml(r.ReturnWindowDays)}-day window</span>`
+                        : `<span style="color: var(--danger);">outside the ${escapeHtml(r.ReturnWindowDays)}-day window</span>`)
                     : 'N/A'}</p>
-                ${r.DeclineReason ? `<p><strong>Decline Reason:</strong> ${r.DeclineReason}</p>` : ''}
-                ${r.ApprovedBy ? `<p><strong>Approved/Declined By:</strong> ${r.ApprovedBy}</p>` : ''}
-                ${r.ProcessedBy ? `<p><strong>Processed By:</strong> ${r.ProcessedBy}</p>` : ''}
-                ${r.Replacement ? `<p><strong>Replacement:</strong> ${r.Replacement.Quantity} x ${r.Replacement.ProductName} (Slip ${r.Replacement.SlipNumber})</p>` : ''}
+                ${r.DeclineReason ? `<p><strong>Decline Reason:</strong> ${escapeHtml(r.DeclineReason)}</p>` : ''}
+                ${r.ApprovedBy ? `<p><strong>Approved/Declined By:</strong> ${escapeHtml(r.ApprovedBy)}</p>` : ''}
+                ${r.ProcessedBy ? `<p><strong>Processed By:</strong> ${escapeHtml(r.ProcessedBy)}</p>` : ''}
+                ${r.Replacement ? `<p><strong>Replacement:</strong> ${escapeHtml(r.Replacement.Quantity)} x ${escapeHtml(r.Replacement.ProductName)} (Slip ${escapeHtml(r.Replacement.SlipNumber)})</p>` : ''}
             `;
         })
         .catch(() => {

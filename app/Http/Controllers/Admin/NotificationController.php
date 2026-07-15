@@ -47,7 +47,9 @@ class NotificationController extends Controller
 
     public function markAllAsRead()
     {
-        auth()->user()->unreadNotifications->markAsRead();
+        // A bulk UPDATE instead of unreadNotifications->markAsRead(), which
+        // loads every unread row into memory and issues one UPDATE each.
+        auth()->user()->unreadNotifications()->update(['read_at' => now()]);
 
         if (request()->wantsJson()) {
             return response()->json(['success' => true]);

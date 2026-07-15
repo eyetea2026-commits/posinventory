@@ -374,6 +374,20 @@ let currentReplacementCategoryId = null;
 let selectedReplacementProduct = null;
 let currentMaxReplacementQty = 1;
 
+// Customer names, return reasons, and product/category text all originate
+// as free text from request forms — escape every server-supplied string
+// before it goes into innerHTML so a value containing an HTML/script
+// payload can't execute in this cashier session.
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadRefundStats();
 });
@@ -442,9 +456,9 @@ function showMatchPicker(matches) {
     const picker = document.getElementById('match-picker');
     const list = document.getElementById('match-list');
     list.innerHTML = matches.map(m => `
-        <div class="refund-product-row" onclick='selectMatch(${m.SalesTransactionID})'>
-            <div><strong>${m.ReceiptNumber}</strong> — ${m.CustomerName ?? 'N/A'}</div>
-            <div>${m.TransactionDate ?? ''}</div>
+        <div class="refund-product-row" onclick='selectMatch(${Number(m.SalesTransactionID)})'>
+            <div><strong>${escapeHtml(m.ReceiptNumber)}</strong> — ${escapeHtml(m.CustomerName ?? 'N/A')}</div>
+            <div>${escapeHtml(m.TransactionDate ?? '')}</div>
         </div>
     `).join('');
     picker.style.display = 'block';
@@ -464,24 +478,24 @@ function selectMatch(transactionId) {
 
 function populateTransactionDetails(transaction) {
     document.getElementById('transaction-info').innerHTML = `
-        <strong>Customer:</strong> ${transaction.CustomerName || 'N/A'}<br>
-        <strong>Receipt Number:</strong> ${transaction.ReceiptNumber}<br>
-        <strong>Invoice Number:</strong> ${transaction.InvoiceNumber}<br>
-        <strong>Transaction Date:</strong> ${transaction.TransactionDate}<br>
-        <strong>Payment Method:</strong> ${transaction.PaymentMethod || 'N/A'}<br>
-        <strong>Original Cashier:</strong> ${transaction.OriginalCashier || 'N/A'}<br>
-        <strong>Original Transaction ID:</strong> #${transaction.OriginalTransactionID}
+        <strong>Customer:</strong> ${escapeHtml(transaction.CustomerName || 'N/A')}<br>
+        <strong>Receipt Number:</strong> ${escapeHtml(transaction.ReceiptNumber)}<br>
+        <strong>Invoice Number:</strong> ${escapeHtml(transaction.InvoiceNumber)}<br>
+        <strong>Transaction Date:</strong> ${escapeHtml(transaction.TransactionDate)}<br>
+        <strong>Payment Method:</strong> ${escapeHtml(transaction.PaymentMethod || 'N/A')}<br>
+        <strong>Original Cashier:</strong> ${escapeHtml(transaction.OriginalCashier || 'N/A')}<br>
+        <strong>Original Transaction ID:</strong> #${Number(transaction.OriginalTransactionID)}
     `;
 
     document.getElementById('create-refund-form').dataset.transactionId = transaction.SalesTransactionID;
 
     const productsContainer = document.getElementById('transaction-products');
     productsContainer.innerHTML = transaction.items.map(item => `
-        <div class="refund-product-row" onclick='selectRefundProduct(${item.ProductID}, ${item.UnitPrice}, ${item.RemainingReturnableQty}, ${item.CategoryID ?? "null"})'>
+        <div class="refund-product-row" onclick='selectRefundProduct(${Number(item.ProductID)}, ${Number(item.UnitPrice)}, ${Number(item.RemainingReturnableQty)}, ${item.CategoryID ?? "null"})'>
             <div>
-                <strong>${item.ProductName}</strong><br>
-                <small>Barcode: ${item.Barcode ?? 'N/A'} | SKU: ${item.SKU ?? 'N/A'} | Category: ${item.Category ?? 'N/A'}</small><br>
-                <small>Qty Purchased: ${item.QuantityPurchased} | Unit Price: ₱${Number(item.UnitPrice).toFixed(2)} | Returnable: ${item.RemainingReturnableQty}</small>
+                <strong>${escapeHtml(item.ProductName)}</strong><br>
+                <small>Barcode: ${escapeHtml(item.Barcode ?? 'N/A')} | SKU: ${escapeHtml(item.SKU ?? 'N/A')} | Category: ${escapeHtml(item.Category ?? 'N/A')}</small><br>
+                <small>Qty Purchased: ${Number(item.QuantityPurchased)} | Unit Price: ₱${Number(item.UnitPrice).toFixed(2)} | Returnable: ${Number(item.RemainingReturnableQty)}</small>
             </div>
             <div style="text-align: right;">
                 <strong>₱${Number(item.TotalPrice).toFixed(2)}</strong>
@@ -566,19 +580,19 @@ function viewRefundDetails(refundId) {
                 const r = data.refund;
                 document.getElementById('refund-details-content').innerHTML = `
                     <div class="refund-details">
-                        <div class="refund-details-row"><span>Request ID:</span><span>#${String(r.id).padStart(6, '0')}</span></div>
-                        <div class="refund-details-row"><span>Transaction ID:</span><span>#${String(r.transaction_id).padStart(6, '0')}</span></div>
-                        <div class="refund-details-row"><span>Product:</span><span>${r.product_name}</span></div>
-                        <div class="refund-details-row"><span>Quantity:</span><span>${r.quantity}</span></div>
-                        <div class="refund-details-row"><span>Return Type:</span><span>${r.return_type}</span></div>
-                        <div class="refund-details-row"><span>Reason:</span><span>${r.reason}</span></div>
-                        <div class="refund-details-row"><span>Return Date:</span><span>${r.return_date}</span></div>
-                        <div class="refund-details-row"><span>Status:</span><span class="status status-${r.status.toLowerCase()}">${r.status}</span></div>
-                        ${r.decline_reason ? `<div class="refund-details-row"><span>Decline Reason:</span><span>${r.decline_reason}</span></div>` : ''}
+                        <div class="refund-details-row"><span>Request ID:</span><span>#${String(Number(r.id)).padStart(6, '0')}</span></div>
+                        <div class="refund-details-row"><span>Transaction ID:</span><span>#${String(Number(r.transaction_id)).padStart(6, '0')}</span></div>
+                        <div class="refund-details-row"><span>Product:</span><span>${escapeHtml(r.product_name)}</span></div>
+                        <div class="refund-details-row"><span>Quantity:</span><span>${Number(r.quantity)}</span></div>
+                        <div class="refund-details-row"><span>Return Type:</span><span>${escapeHtml(r.return_type)}</span></div>
+                        <div class="refund-details-row"><span>Reason:</span><span>${escapeHtml(r.reason)}</span></div>
+                        <div class="refund-details-row"><span>Return Date:</span><span>${escapeHtml(r.return_date)}</span></div>
+                        <div class="refund-details-row"><span>Status:</span><span class="status status-${escapeHtml(r.status.toLowerCase())}">${escapeHtml(r.status)}</span></div>
+                        ${r.decline_reason ? `<div class="refund-details-row"><span>Decline Reason:</span><span>${escapeHtml(r.decline_reason)}</span></div>` : ''}
                         ${r.return_type === 'refund' ? `<div class="refund-details-row total"><span>Refund Amount:</span><span>₱${parseFloat(r.refund_amount).toFixed(2)}</span></div>` : ''}
-                        ${r.refund_method ? `<div class="refund-details-row"><span>Refund Method:</span><span>${r.refund_method}</span></div>` : ''}
-                        ${r.refund_date ? `<div class="refund-details-row"><span>Refund Date:</span><span>${r.refund_date}</span></div>` : ''}
-                        ${r.replacement ? `<div class="refund-details-row"><span>Replacement:</span><span>${r.replacement.quantity} x ${r.replacement.product_name} (Slip ${r.replacement.slip_number})</span></div>` : ''}
+                        ${r.refund_method ? `<div class="refund-details-row"><span>Refund Method:</span><span>${escapeHtml(r.refund_method)}</span></div>` : ''}
+                        ${r.refund_date ? `<div class="refund-details-row"><span>Refund Date:</span><span>${escapeHtml(r.refund_date)}</span></div>` : ''}
+                        ${r.replacement ? `<div class="refund-details-row"><span>Replacement:</span><span>${Number(r.replacement.quantity)} x ${escapeHtml(r.replacement.product_name)} (Slip ${escapeHtml(r.replacement.slip_number)})</span></div>` : ''}
                     </div>
                 `;
                 document.getElementById('view-refund-modal').classList.add('active');
@@ -673,12 +687,12 @@ function searchReplacementInventory() {
             .then(data => {
                 const list = document.getElementById('replacement-product-list');
                 list.innerHTML = data.products.map(p => `
-                    <div class="refund-product-row" onclick='selectReplacementProduct(${p.ProductID}, "${p.ProductName.replace(/"/g, '&quot;')}", ${p.Stock})'>
+                    <div class="refund-product-row" onclick='selectReplacementProduct(${Number(p.ProductID)}, "${escapeHtml(p.ProductName).replace(/"/g, '&quot;')}", ${Number(p.Stock)})'>
                         <div>
-                            <strong>${p.ProductName}</strong><br>
-                            <small>SKU: ${p.SKU ?? 'N/A'} | Barcode: ${p.Barcode ?? 'N/A'}</small>
+                            <strong>${escapeHtml(p.ProductName)}</strong><br>
+                            <small>SKU: ${escapeHtml(p.SKU ?? 'N/A')} | Barcode: ${escapeHtml(p.Barcode ?? 'N/A')}</small>
                         </div>
-                        <div style="text-align:right;">Stock: ${p.Stock}</div>
+                        <div style="text-align:right;">Stock: ${Number(p.Stock)}</div>
                     </div>
                 `).join('');
             });

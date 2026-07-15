@@ -16,7 +16,9 @@ use App\Notifications\NewRefundRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class CashierReturnController extends Controller
 {
@@ -252,7 +254,19 @@ class CashierReturnController extends Controller
 
         ActivityLog::record('return.requested', "Requested {$data['return_type']} #{$salesReturn->SalesReturnID} for {$data['quantity']} x \"{$salesItem->product?->ProductName}\" (Txn #{$data['transaction_id']})");
 
-        Notification::send(User::admins(), new NewRefundRequest($salesReturn));
+        // The return request record already committed above — a
+        // notification failure (broken mail transport, queue connection
+        // down) must not turn a successful submission into a 500 response
+        // that could prompt the cashier to retry and create a duplicate
+        // request.
+        try {
+            Notification::send(User::admins(), new NewRefundRequest($salesReturn));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch NewRefundRequest notification', [
+                'sales_return_id' => $salesReturn->SalesReturnID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'success' => true,
@@ -282,38 +296,57 @@ class CashierReturnController extends Controller
             return response()->json(['success' => false, 'message' => 'Refund must be an approved refund-type request before processing.'], 400);
         }
 
-        // Recompute the payout from the original sale instead of trusting the
-        // client-submitted amount — that field is only pre-filled for display
-        // and is editable in the browser before this request is sent.
-        $salesItem = SalesItem::where('SalesTransactionID', $salesReturn->SalesTransactionID)
-            ->where('ProductID', $salesReturn->ProductID)
-            ->first();
-        $refundAmount = $salesItem ? ($salesItem->UnitPrice * $salesReturn->Quantity) : 0;
+        try {
+            $refundAmount = DB::transaction(function () use ($salesReturnId, $data) {
+                // Re-fetch and lock the SalesReturn row itself (the earlier
+                // check above is only a fast-fail before the lock exists).
+                // Without this, two near-simultaneous requests for the same
+                // return can both read Status=approved before either commits,
+                // and both process the same refund — this lock plus the
+                // re-check below serializes them so only the first succeeds.
+                $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->lockForUpdate()->first();
 
-        DB::transaction(function () use ($salesReturn, $data, $refundAmount) {
-            $inventory = Inventory::where('ProductID', $salesReturn->ProductID)->lockForUpdate()->first();
-            if (!$inventory) {
-                $inventory = Inventory::firstOrCreate(
-                    ['ProductID' => $salesReturn->ProductID],
-                    ['Quantity' => 0, 'Status' => 'Out of Stock']
-                );
-            }
+                if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
+                    throw new \RuntimeException('This refund has already been processed or is no longer approved.');
+                }
 
-            $inventory->Quantity += $salesReturn->Quantity;
-            $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
-            $inventory->save();
+                // Recompute the payout from the original sale instead of
+                // trusting the client-submitted amount — that field is only
+                // pre-filled for display and is editable in the browser
+                // before this request is sent.
+                $salesItem = SalesItem::where('SalesTransactionID', $salesReturn->SalesTransactionID)
+                    ->where('ProductID', $salesReturn->ProductID)
+                    ->first();
+                $refundAmount = $salesItem ? ($salesItem->UnitPrice * $salesReturn->Quantity) : 0;
 
-            $salesReturn->update([
-                'RefundMethod' => $data['refund_method'],
-                'RefundAmount' => $refundAmount,
-                'RefundAccountNumber' => $data['account_number'] ?? null,
-                'RefundDate' => now()->format('Y-m-d'),
-                'Status' => SalesReturn::STATUS_PROCESSED,
-                'ProcessedBy' => auth()->id(),
-            ]);
-        });
+                $inventory = Inventory::where('ProductID', $salesReturn->ProductID)->lockForUpdate()->first();
+                if (!$inventory) {
+                    $inventory = Inventory::firstOrCreate(
+                        ['ProductID' => $salesReturn->ProductID],
+                        ['Quantity' => 0, 'Status' => 'Out of Stock']
+                    );
+                }
 
-        ActivityLog::record('return.refund_processed', "Processed refund #{$salesReturn->SalesReturnID} — ₱{$refundAmount} via {$data['refund_method']} (Txn #{$salesReturn->SalesTransactionID})");
+                $inventory->Quantity += $salesReturn->Quantity;
+                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                $inventory->save();
+
+                $salesReturn->update([
+                    'RefundMethod' => $data['refund_method'],
+                    'RefundAmount' => $refundAmount,
+                    'RefundAccountNumber' => $data['account_number'] ?? null,
+                    'RefundDate' => now()->format('Y-m-d'),
+                    'Status' => SalesReturn::STATUS_PROCESSED,
+                    'ProcessedBy' => auth()->id(),
+                ]);
+
+                return $refundAmount;
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        }
+
+        ActivityLog::record('return.refund_processed', "Processed refund #{$salesReturnId} — ₱{$refundAmount} via {$data['refund_method']} (Txn #{$salesReturn->SalesTransactionID})");
 
         return response()->json([
             'success' => true,
@@ -386,7 +419,24 @@ class CashierReturnController extends Controller
         }
 
         try {
-            $replacement = DB::transaction(function () use ($salesReturn, $data) {
+            $replacement = DB::transaction(function () use ($salesReturnId, $data) {
+                // Re-fetch and lock the SalesReturn row itself (the earlier
+                // check above is only a fast-fail before the lock exists).
+                // Without this, two near-simultaneous requests for the same
+                // return can both read Status=approved before either
+                // commits, and both process the same replacement — this
+                // lock plus the re-check below serializes them so only the
+                // first succeeds.
+                $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->lockForUpdate()->first();
+
+                if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REPLACEMENT) {
+                    throw new \RuntimeException('This return has already been processed or is no longer approved.');
+                }
+
+                if ($data['quantity'] > $salesReturn->Quantity) {
+                    throw new \RuntimeException('Replacement quantity cannot exceed the approved return quantity.');
+                }
+
                 $inventory = Inventory::where('ProductID', $data['replacement_product_id'])->lockForUpdate()->first();
 
                 if (!$inventory || $inventory->Quantity < $data['quantity']) {

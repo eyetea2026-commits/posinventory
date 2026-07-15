@@ -11,7 +11,9 @@ use App\Models\User;
 use App\Notifications\StockAdjustmentRecorded;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class StockAdjustmentController extends Controller
 {
@@ -101,11 +103,21 @@ class StockAdjustmentController extends Controller
         $sign = $data['QuantityAdjust'] >= 0 ? '+' : '';
         ActivityLog::record('stock.adjusted', "Adjusted \"{$productName}\" by {$sign}{$data['QuantityAdjust']} (new total: {$newQty})");
 
+        // The adjustment itself already committed above — a notification
+        // failure (broken mail transport, queue connection down) must not
+        // turn a successful adjustment into a 500 response.
         if ($product) {
-            Notification::send(
-                User::admins(),
-                new StockAdjustmentRecorded($product, (int) $data['QuantityAdjust'], $newQty, $data['Reason'])
-            );
+            try {
+                Notification::send(
+                    User::admins(),
+                    new StockAdjustmentRecorded($product, (int) $data['QuantityAdjust'], $newQty, $data['Reason'])
+                );
+            } catch (Throwable $e) {
+                Log::error('Failed to dispatch StockAdjustmentRecorded notification', [
+                    'product_id' => $product->ProductID,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
         }
 
         return redirect()->route('admin.stock-adjustments.index')->with('status', 'Stock adjustment saved successfully.');

@@ -5,7 +5,9 @@ namespace App\Observers;
 use App\Models\Inventory;
 use App\Models\User;
 use App\Notifications\LowStockAlert;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class InventoryObserver
 {
@@ -35,6 +37,19 @@ class InventoryObserver
             return;
         }
 
-        Notification::send($admins, new LowStockAlert($product, $inventory->Quantity, $inventory->Status));
+        // This observer runs synchronously inside every Inventory::save() —
+        // including ones nested in a DB::transaction() (sale, refund,
+        // replacement, adjustment, receiving). A notification-dispatch
+        // failure (broken mail transport, queue connection down) must never
+        // roll back an otherwise-valid stock write, so it's caught and
+        // logged here rather than allowed to propagate.
+        try {
+            Notification::send($admins, new LowStockAlert($product, $inventory->Quantity, $inventory->Status));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch LowStockAlert notification', [
+                'product_id' => $product->ProductID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 }

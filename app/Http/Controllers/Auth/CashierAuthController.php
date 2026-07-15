@@ -15,6 +15,7 @@ use App\Models\Discount;
 use App\Models\Staff;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
@@ -220,6 +221,18 @@ class CashierAuthController extends Controller
 
         $user = Auth::user();
 
+        // Guards against duplicate submissions the disabled-checkout-button
+        // client-side guard can't catch on its own (a second browser tab, a
+        // fast double-tap before the button disables, a replayed request) —
+        // only one checkout per cashier can be in flight at a time.
+        $lock = Cache::lock("checkout:user:{$user->id}", 10);
+        if (! $lock->get()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A checkout is already being processed for your account. Please wait a moment and try again.',
+            ], 409);
+        }
+
         try {
             $result = DB::transaction(function () use ($items, $quantitiesByProduct, $customerName, $discountId, $paymentMethod, $accountNumber, $paymentAmount, $user) {
                 // Lock the inventory rows involved so a concurrent sale can't
@@ -341,6 +354,8 @@ class CashierAuthController extends Controller
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 400);
+        } finally {
+            $lock->release();
         }
 
         return response()->json([

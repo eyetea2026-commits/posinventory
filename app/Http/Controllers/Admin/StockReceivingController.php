@@ -12,7 +12,9 @@ use App\Models\User;
 use App\Notifications\ProductReceived;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class StockReceivingController extends Controller
 {
@@ -96,8 +98,18 @@ class StockReceivingController extends Controller
         $supplierName = $supplier?->SupplierName ?? 'Unknown supplier';
         ActivityLog::record('stock.received', "Received {$data['Quantity']} x \"{$productName}\" from \"{$supplierName}\"");
 
+        // The receiving record itself already committed above — a
+        // notification failure (broken mail transport, queue connection
+        // down) must not turn a successful receipt into a 500 response.
         if ($product && $supplier) {
-            Notification::send(User::admins(), new ProductReceived($product, $supplier, (int) $data['Quantity']));
+            try {
+                Notification::send(User::admins(), new ProductReceived($product, $supplier, (int) $data['Quantity']));
+            } catch (Throwable $e) {
+                Log::error('Failed to dispatch ProductReceived notification', [
+                    'product_id' => $product->ProductID,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
         }
 
         return redirect()->route('admin.stock-receivings.index')->with('status', 'Stock receiving recorded successfully.');
