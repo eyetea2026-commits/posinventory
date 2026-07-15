@@ -289,14 +289,13 @@
             <div class="form-group">
                 <label class="form-label">Cost Price (₱) <span class="required">*</span></label>
                 <input type="number" name="CostPrice" id="CostPrice" class="form-input @error('CostPrice') is-invalid @enderror"
-                       value="{{ old('CostPrice', $product->CostPrice ?? 0) }}" step="0.01" min="0" required placeholder="e.g., 12000">
+                       value="{{ old('CostPrice', $product->CostPrice ?? 0) }}" step="0.01" min="0.01" required placeholder="e.g., 12000">
                 @error('CostPrice') <span class="form-error">{{ $message }}</span> @enderror
             </div>
 
             <div class="form-group">
-                <label class="form-label">Selling Price (₱) <span class="required">*</span></label>
-                <input type="number" name="Price" id="SellingPrice" class="form-input @error('Price') is-invalid @enderror"
-                       value="{{ old('Price', $product->Price) }}" step="0.01" min="0" required placeholder="e.g., 13000">
+                <label class="form-label">Selling Price (₱) — auto-calculated at 45% margin</label>
+                <input type="number" id="SellingPrice" class="form-input" value="{{ $product->Price }}" step="0.01" readonly tabindex="-1">
                 @error('Price') <span class="form-error">{{ $message }}</span> @enderror
             </div>
 
@@ -344,9 +343,12 @@
     const markupPercentEl = document.getElementById('markupPercent');
     const profitMarginEl = document.getElementById('profitMargin');
 
+    const PROFIT_MARGIN = 0.45; // Store policy — mirrors Product::PROFIT_MARGIN server-side.
+
     function calculatePrices() {
         const costPrice = parseFloat(costPriceInput.value) || 0;
-        const sellingPrice = parseFloat(sellingPriceInput.value) || 0;
+        const sellingPrice = costPrice > 0 ? (costPrice / (1 - PROFIT_MARGIN)) : 0;
+        sellingPriceInput.value = sellingPrice > 0 ? sellingPrice.toFixed(2) : '';
 
         const markupPrice = sellingPrice - costPrice;
         const markupPercent = costPrice > 0 ? ((markupPrice / costPrice) * 100) : 0;
@@ -363,7 +365,6 @@
     }
 
     costPriceInput.addEventListener('input', calculatePrices);
-    sellingPriceInput.addEventListener('input', calculatePrices);
 
     // Initial calculation
     calculatePrices();

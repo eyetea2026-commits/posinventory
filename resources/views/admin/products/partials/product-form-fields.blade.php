@@ -42,14 +42,13 @@
     <div class="form-group">
         <label class="form-label">Cost Price (₱) <span class="required">*</span></label>
         <input type="number" name="CostPrice" id="CostPrice" class="form-input @error('CostPrice') is-invalid @enderror"
-               value="{{ old('CostPrice') }}" step="0.01" min="0" required placeholder="e.g., 12000">
+               value="{{ old('CostPrice') }}" step="0.01" min="0.01" required placeholder="e.g., 12000">
         <span class="form-error" id="error-CostPrice">@error('CostPrice'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
-        <label class="form-label">Selling Price (₱) <span class="required">*</span></label>
-        <input type="number" name="Price" id="SellingPrice" class="form-input @error('Price') is-invalid @enderror"
-               value="{{ old('Price') }}" step="0.01" min="0" required placeholder="e.g., 13000">
+        <label class="form-label">Selling Price (₱) — auto-calculated at 45% margin</label>
+        <input type="number" id="SellingPrice" class="form-input" value="" step="0.01" readonly tabindex="-1">
         <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
     </div>
 

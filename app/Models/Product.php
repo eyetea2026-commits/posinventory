@@ -26,6 +26,16 @@ class Product extends Model
         'CategoryID',
     ];
 
+    // Store policy: every product's selling price is derived from its cost
+    // at a fixed 45% profit margin -- (Price - Cost) / Price = 0.45, so
+    // Price = Cost / (1 - 0.45). Selling price is never entered directly.
+    const PROFIT_MARGIN = 0.45;
+
+    public static function computeSellingPrice(float $costPrice): float
+    {
+        return round($costPrice / (1 - self::PROFIT_MARGIN), 2);
+    }
+
     public function brand()
     {
         return $this->belongsTo(Brand::class, 'BrandID', 'BrandID');

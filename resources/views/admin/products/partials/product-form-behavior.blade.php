@@ -33,9 +33,12 @@ window.initProductAddForm = function (formId, options) {
 
     form.addEventListener('submit', function (e) { e.preventDefault(); });
 
+    var PROFIT_MARGIN = 0.45; // Store policy — mirrors Product::PROFIT_MARGIN server-side.
+
     function calculatePrices() {
         var costPrice = parseFloat(costPriceInput.value) || 0;
-        var sellingPrice = parseFloat(sellingPriceInput.value) || 0;
+        var sellingPrice = costPrice > 0 ? (costPrice / (1 - PROFIT_MARGIN)) : 0;
+        sellingPriceInput.value = sellingPrice > 0 ? sellingPrice.toFixed(2) : '';
 
         var markupPrice = sellingPrice - costPrice;
         var markupPercent = costPrice > 0 ? ((markupPrice / costPrice) * 100) : 0;
