@@ -83,7 +83,10 @@ class DamageModuleTest extends TestCase
         $this->actingAs($this->admin)->delete(route('admin.damages.destroy', $damage));
 
         $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
-        $this->assertDatabaseMissing('DamagedProduct', ['DamageID' => $damage->DamageID]);
+        // Soft delete: the row stays in the table (recoverable) but drops out of default queries.
+        $this->assertDatabaseHas('DamagedProduct', ['DamageID' => $damage->DamageID]);
+        $this->assertNotNull($damage->fresh()->deleted_at);
+        $this->assertNull(DamagedProduct::find($damage->DamageID));
         $this->assertTrue(ActivityLog::where('Action', 'damage.deleted')->exists());
     }
 
