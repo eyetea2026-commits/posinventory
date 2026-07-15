@@ -6,7 +6,8 @@
 
 @section('header')
     <div class="header-title">
-        <h1>Return Approval</h1>
+        <p style="margin: 0 0 4px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Return / Approval</p>
+        <h1>Approval</h1>
         <p>Review and approve return/refund/replacement requests from cashiers</p>
     </div>
 @endsection

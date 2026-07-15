@@ -41,17 +41,50 @@
 
             <div class="flex flex-col gap-1">
                 @foreach ($section['items'] as $item)
-                    @php $isActive = request()->routeIs($item['pattern']); @endphp
-                    <a
-                        href="{{ route($item['route']) }}"
-                        class="group flex h-10 items-center gap-3 rounded-lg px-4 text-sm transition-colors duration-200 {{ $isActive ? 'bg-[#273449] font-medium text-white' : 'text-gray-300 hover:bg-white/5' }}"
-                    >
-                        <x-icon
-                            name="{{ $item['icon'] }}"
-                            class="h-[18px] w-[18px] shrink-0 {{ $isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200' }}"
-                        />
-                        <span>{{ $item['label'] }}</span>
-                    </a>
+                    @if (isset($item['children']))
+                        @php
+                            $isChildActive = request()->routeIs(...array_column($item['children'], 'pattern'));
+                        @endphp
+                        <div x-data="{ open: {{ $isChildActive ? 'true' : 'false' }} }">
+                            <button
+                                type="button"
+                                @click="open = !open"
+                                class="group flex h-10 w-full items-center gap-3 rounded-lg px-4 text-sm transition-colors duration-200 {{ $isChildActive ? 'bg-[#273449] font-medium text-white' : 'text-gray-300 hover:bg-white/5' }}"
+                            >
+                                <x-icon
+                                    name="{{ $item['icon'] }}"
+                                    class="h-[18px] w-[18px] shrink-0 {{ $isChildActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200' }}"
+                                />
+                                <span class="flex-1 text-left">{{ $item['label'] }}</span>
+                                <span class="shrink-0 text-gray-500 transition-transform duration-200" :class="open ? 'rotate-180' : ''">
+                                    <x-icon name="chevron-down" class="h-4 w-4" />
+                                </span>
+                            </button>
+                            <div x-show="open" x-transition class="mt-1 flex flex-col gap-1 pl-6">
+                                @foreach ($item['children'] as $child)
+                                    @php $isChildItemActive = request()->routeIs($child['pattern']); @endphp
+                                    <a
+                                        href="{{ route($child['route']) }}"
+                                        class="flex h-9 items-center rounded-lg px-4 text-sm transition-colors duration-200 {{ $isChildItemActive ? 'bg-[#273449] font-medium text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200' }}"
+                                    >
+                                        <span>{{ $child['label'] }}</span>
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        @php $isActive = request()->routeIs($item['pattern']); @endphp
+                        <a
+                            href="{{ route($item['route']) }}"
+                            class="group flex h-10 items-center gap-3 rounded-lg px-4 text-sm transition-colors duration-200 {{ $isActive ? 'bg-[#273449] font-medium text-white' : 'text-gray-300 hover:bg-white/5' }}"
+                        >
+                            <x-icon
+                                name="{{ $item['icon'] }}"
+                                class="h-[18px] w-[18px] shrink-0 {{ $isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200' }}"
+                            />
+                            <span>{{ $item['label'] }}</span>
+                        </a>
+                    @endif
                 @endforeach
             </div>
         @endforeach

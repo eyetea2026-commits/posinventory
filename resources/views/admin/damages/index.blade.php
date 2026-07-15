@@ -4,7 +4,8 @@
 
 @section('header')
     <div class="header-title">
-        <h1>Damage Records</h1>
+        <p style="margin: 0 0 4px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Return / Damage</p>
+        <h1>Damage</h1>
         <p>Track products damaged in transit or storage</p>
     </div>
 @endsection

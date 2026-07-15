@@ -55,14 +55,21 @@ class Sidebar extends Component
                     ['label' => 'Stock Receiving', 'route' => 'admin.stock-receivings.index', 'pattern' => 'admin.stock-receivings.*', 'icon' => 'clipboard-check'],
                     ['label' => 'Purchase Orders', 'route' => 'admin.purchase-orders.index', 'pattern' => 'admin.purchase-orders.*', 'icon' => 'shopping-cart'],
                     ['label' => 'Stock Adjustments', 'route' => 'admin.stock-adjustments.index', 'pattern' => 'admin.stock-adjustments.*', 'icon' => 'sliders-horizontal'],
-                    ['label' => 'Damage', 'route' => 'admin.damages.index', 'pattern' => 'admin.damages.*', 'icon' => 'triangle-alert'],
                 ],
             ],
             [
                 'label' => 'Operations',
                 'items' => [
                     ['label' => 'Reports', 'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*', 'icon' => 'bar-chart-3'],
-                    ['label' => 'Return Approval', 'route' => 'admin.sales-returns.index', 'pattern' => 'admin.sales-returns.*', 'icon' => 'rotate-ccw'],
+                    [
+                        'label' => 'Return',
+                        'patterns' => ['admin.sales-returns.*', 'admin.damages.*'],
+                        'icon' => 'rotate-ccw',
+                        'children' => [
+                            ['label' => 'Approval', 'route' => 'admin.sales-returns.index', 'pattern' => 'admin.sales-returns.*'],
+                            ['label' => 'Damage', 'route' => 'admin.damages.index', 'pattern' => 'admin.damages.*'],
+                        ],
+                    ],
                 ],
             ],
         ];
