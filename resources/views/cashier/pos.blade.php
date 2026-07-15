@@ -190,8 +190,14 @@
         </div>
 
         <div class="form-group">
-            <label>Apply Discount (%)</label>
-            <input type="number" id="discount-rate" placeholder="0" min="0" max="100" value="0" onchange="updateTotals()">
+            <label>Apply Discount</label>
+            <select id="discount-select" onchange="updateTotals()">
+                @foreach($discounts as $discount)
+                    <option value="{{ $discount->DiscountID }}" data-rate="{{ $discount->DiscountRate }}" {{ (float) $discount->DiscountRate === 0.0 ? 'selected' : '' }}>
+                        {{ (float) $discount->DiscountRate === 0.0 ? 'No Discount' : rtrim(rtrim(number_format($discount->DiscountRate, 2), '0'), '.') . '%' }}
+                    </option>
+                @endforeach
+            </select>
         </div>
 
         <div class="form-group">
@@ -262,6 +268,43 @@
         tick();
         setInterval(tick, 1000);
     })();
+
+    // Poll for discount changes so a policy an admin creates/updates/deletes
+    // mid-shift shows up here without the cashier reloading the page.
+    // Pauses while the tab is hidden to avoid pointless requests.
+    function refreshDiscounts() {
+        if (document.hidden) return;
+
+        fetch('{{ route('cashier.pos.discounts') }}', { headers: { 'Accept': 'application/json' } })
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('discount-select');
+                const previousValue = select.value;
+                select.innerHTML = '';
+                (data.discounts || []).forEach(discount => {
+                    const option = document.createElement('option');
+                    option.value = discount.DiscountID;
+                    option.dataset.rate = discount.DiscountRate;
+                    const rate = parseFloat(discount.DiscountRate);
+                    option.textContent = rate === 0 ? 'No Discount' : (rate % 1 === 0 ? rate : rate.toFixed(2)) + '%';
+                    select.appendChild(option);
+                });
+                // Keep the cashier's current selection if it still exists;
+                // otherwise fall back to the 0% "No Discount" row.
+                const stillExists = Array.from(select.options).some(o => o.value === previousValue);
+                if (stillExists) {
+                    select.value = previousValue;
+                } else {
+                    const zeroOption = Array.from(select.options).find(o => parseFloat(o.dataset.rate) === 0);
+                    if (zeroOption) select.value = zeroOption.value;
+                }
+                updateTotals();
+            })
+            .catch(() => {
+                // Non-fatal — keep showing the last known discount list.
+            });
+    }
+    setInterval(refreshDiscounts, 20000);
 
     let cart = [];
     let selectedPaymentMethod = 'cash';
@@ -343,7 +386,9 @@
             cart = [];
             renderCart();
             document.getElementById('customer-name').value = '';
-            document.getElementById('discount-rate').value = '0';
+            const discountSelect = document.getElementById('discount-select');
+            const zeroOption = Array.from(discountSelect.options).find(o => parseFloat(o.dataset.rate) === 0);
+            if (zeroOption) discountSelect.value = zeroOption.value;
         }
     }
 
@@ -394,7 +439,9 @@
 
     function updateTotals() {
         const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-        const discountRate = parseFloat(document.getElementById('discount-rate').value) || 0;
+        const discountSelect = document.getElementById('discount-select');
+        const selectedOption = discountSelect.options[discountSelect.selectedIndex];
+        const discountRate = selectedOption ? (parseFloat(selectedOption.dataset.rate) || 0) : 0;
         const discountAmount = subtotal * (discountRate / 100);
         const vatAmount = (subtotal - discountAmount) * 0.12;
         currentTotal = subtotal - discountAmount + vatAmount;
@@ -457,7 +504,7 @@
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
             items: cart,
-            discount_rate: document.getElementById('discount-rate').value || 0,
+            discount_id: document.getElementById('discount-select').value,
             payment_method: selectedPaymentMethod,
             account_number: document.getElementById('account-number').value,
             payment_amount: document.getElementById('payment-amount').value,

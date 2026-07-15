@@ -90,6 +90,13 @@ class DiscountController extends Controller
     // Delete discount
     public function destroy(Discount $discount)
     {
+        // The 0% row is POS's permanent "No Discount" baseline — every sale's
+        // Billing.DiscountID must reference a real Discount row even when no
+        // discount applies, so this one can never go away.
+        if ((float) $discount->DiscountRate === 0.0) {
+            return redirect()->route('admin.discounts.index')->with('error', 'The 0% "No Discount" option cannot be deleted — POS depends on it.');
+        }
+
         // Check if discount is used in any billing
         if ($discount->billings()->count() > 0) {
             return redirect()->route('admin.discounts.index')->with('error', 'Cannot delete discount that is associated with transactions.');

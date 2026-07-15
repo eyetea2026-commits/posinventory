@@ -146,7 +146,17 @@ class CashierAuthController extends Controller
         $products = Product::with('inventory')->get()->filter(function($product) {
             return $product->inventory && $product->inventory->Quantity > 0;
         });
-        return view('cashier.pos', compact('products'));
+        $discounts = Discount::orderBy('DiscountRate')->get();
+        return view('cashier.pos', compact('products', 'discounts'));
+    }
+
+    // Polled by the POS screen so a discount an admin creates/updates
+    // mid-shift shows up without the cashier reloading the page.
+    public function discounts()
+    {
+        return response()->json([
+            'discounts' => Discount::orderBy('DiscountRate')->get(['DiscountID', 'DiscountRate']),
+        ]);
     }
 
     public function transactions(Request $request)
@@ -185,7 +195,7 @@ class CashierAuthController extends Controller
             'items.*.id' => 'required|integer|exists:Product,ProductID',
             'items.*.qty' => 'required|integer|min:1',
             'payment_method' => 'required|in:cash,gcash,bank,cheque',
-            'discount_rate' => 'nullable|numeric|min:0|max:100',
+            'discount_id' => 'required|integer|exists:Discount,DiscountID',
         ]);
 
         $items = $data['items'];
@@ -195,7 +205,7 @@ class CashierAuthController extends Controller
         // that case has to be handled explicitly or SalesTransaction's NOT NULL
         // CustomerName column rejects the insert.
         $customerName = trim((string) $request->input('customer_name')) ?: 'Walk-in Customer';
-        $discountRate = floatval($data['discount_rate'] ?? 0);
+        $discountId = (int) $data['discount_id'];
         $paymentMethod = $data['payment_method'];
         $accountNumber = $request->input('account_number');
         $paymentAmount = floatval($request->input('payment_amount', 0));
@@ -211,7 +221,7 @@ class CashierAuthController extends Controller
         $user = Auth::user();
 
         try {
-            $result = DB::transaction(function () use ($items, $quantitiesByProduct, $customerName, $discountRate, $paymentMethod, $accountNumber, $paymentAmount, $user) {
+            $result = DB::transaction(function () use ($items, $quantitiesByProduct, $customerName, $discountId, $paymentMethod, $accountNumber, $paymentAmount, $user) {
                 // Lock the inventory rows involved so a concurrent sale can't
                 // deduct the same stock before this transaction commits.
                 $inventories = Inventory::whereIn('ProductID', array_keys($quantitiesByProduct))
@@ -238,6 +248,15 @@ class CashierAuthController extends Controller
                     $subtotal += $products->get($item['id'])->Price * $item['qty'];
                 }
 
+                // Discounts are admin-managed policies now, not a rate a cashier
+                // can type — look up the chosen row and use its rate, never a
+                // client-submitted percentage.
+                $discount = Discount::find($discountId);
+                if (!$discount) {
+                    throw new \RuntimeException('Selected discount is no longer available.');
+                }
+                $discountRate = (float) $discount->DiscountRate;
+
                 $discountAmount = $subtotal * ($discountRate / 100);
                 $vatAmount = ($subtotal - $discountAmount) * 0.12;
                 $total = $subtotal - $discountAmount + $vatAmount;
@@ -245,12 +264,6 @@ class CashierAuthController extends Controller
                 if ($paymentMethod === 'cash' && $paymentAmount < $total) {
                     throw new \RuntimeException('Payment amount must be greater than or equal to total.');
                 }
-
-                // Get or create discount
-                $discount = Discount::firstOrCreate(
-                    ['DiscountRate' => $discountRate],
-                    ['DiscountRate' => $discountRate]
-                );
 
                 // Get or create staff record
                 $staff = Staff::where('UserID', $user->id)->first();

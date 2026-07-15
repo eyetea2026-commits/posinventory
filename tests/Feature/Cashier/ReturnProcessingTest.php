@@ -67,7 +67,7 @@ class ReturnProcessingTest extends TestCase
             'SalesTransactionID' => $this->transaction->SalesTransactionID,
         ]);
 
-        $discount = Discount::create(['DiscountRate' => 0]);
+        $discount = Discount::firstOrCreate(['DiscountRate' => 0]);
         $billing = Billing::create([
             'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 2000,
             'BillingDate' => now(), 'DiscountID' => $discount->DiscountID,

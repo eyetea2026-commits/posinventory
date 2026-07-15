@@ -269,6 +269,7 @@ Route::prefix('cashier')->group(function () {
     // Cashier users must contact the Administrator for password resets
 
     Route::get('pos', [CashierAuthController::class, 'pos'])->name('cashier.pos')->middleware(['auth', 'role:cashier']);
+    Route::get('pos/discounts', [CashierAuthController::class, 'discounts'])->name('cashier.pos.discounts')->middleware(['auth', 'role:cashier']);
     Route::post('pos/process-sale', [CashierAuthController::class, 'processSale'])->name('cashier.process-sale')->middleware(['auth', 'role:cashier']);
     Route::get('transactions', [CashierAuthController::class, 'transactions'])->name('cashier.transactions')->middleware(['auth', 'role:cashier']);
 
