@@ -320,8 +320,8 @@
             </div>
 
             <div class="form-group" id="refund-account-section" style="display: none;">
-                <label>Account Number</label>
-                <input type="text" id="refund-account-number" placeholder="Enter account number">
+                <label>Reference Number</label>
+                <input type="text" id="refund-account-number" placeholder="Enter reference number">
             </div>
 
             <button type="submit" class="btn-submit">

@@ -223,8 +223,8 @@
         </div>
 
         <div class="form-group" id="account-number-group" style="display: none;">
-            <label id="account-label">Account Number</label>
-            <input type="text" id="account-number" placeholder="Enter account number...">
+            <label id="account-label">Reference Number</label>
+            <input type="text" id="account-number" placeholder="Enter reference number...">
         </div>
 
         <div class="form-group">
@@ -460,14 +460,11 @@
         selectedPaymentMethod = method;
 
         const accountGroup = document.getElementById('account-number-group');
-        const accountLabel = document.getElementById('account-label');
 
         if (method === 'cash') {
             accountGroup.style.display = 'none';
         } else {
             accountGroup.style.display = 'block';
-            accountLabel.textContent = method === 'gcash' ? 'GCash Number' :
-                method === 'bank' ? 'Bank Account Number' : 'Cheque Number';
         }
     }
 
