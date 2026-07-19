@@ -153,7 +153,6 @@
             @error('DiscountRate')
                 <span class="error">{{ $message }}</span>
             @enderror
-            <small class="form-text">Enter a value between 0 and 100 (e.g., 10 = 10%)</small>
         </div>
 
         <div class="form-actions">

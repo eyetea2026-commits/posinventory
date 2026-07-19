@@ -1,10 +1,10 @@
 @extends('admin.layout')
 
-@section('title', 'Add Category - CCTV Express')
+@section('title', 'Create Category - CCTV Express')
 
 @section('header')
     <div class="header-title">
-        <h1>Add New Category</h1>
+        <h1>Create New Category</h1>
         <p>Create a category to organize your products</p>
     </div>
 @endsection

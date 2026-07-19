@@ -355,7 +355,7 @@
             <div class="stat-icon green"><i class="fas fa-peso-sign"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Sales Today</div>
-                <div class="stat-value" data-counter data-value="{{ $salesToday }}" data-prefix="&#8369;" data-decimals="2">&#8369;0.00</div>
+                <div class="stat-value" data-counter data-value="{{ $salesToday }}" data-prefix="₱" data-decimals="2">₱0.00</div>
                 @if(is_null($salesChangePct))
                     <div class="stat-trend new"><i class="fas fa-sparkles"></i> New</div>
                 @elseif($salesChangePct >= 0)
@@ -385,7 +385,7 @@
             <div class="stat-icon cyan"><i class="fas fa-warehouse"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Inventory Value</div>
-                <div class="stat-value" id="statInventoryValue" data-counter data-value="{{ $inventoryValue }}" data-prefix="&#8369;" data-decimals="0">&#8369;0</div>
+                <div class="stat-value" id="statInventoryValue" data-counter data-value="{{ $inventoryValue }}" data-prefix="₱" data-decimals="2">₱0.00</div>
                 <div class="stat-subtitle">At cost price</div>
             </div>
         </div>
@@ -496,27 +496,6 @@
         </div>
     </div>
 
-    {{-- Section 4: Sales Analysis --}}
-    <h2 class="dashboard-section-title mt-4">Sales Analysis</h2>
-    <div class="charts-grid">
-        <div class="chart-card">
-            <div class="chart-card-header">
-                <h3 class="chart-title">Payment Methods</h3>
-            </div>
-            @if($paymentMethods->isEmpty())
-                <div class="empty-state">
-                    <div class="empty-icon"><i class="fas fa-credit-card"></i></div>
-                    <p class="empty-title">No Payments Yet</p>
-                    <p class="empty-text">Payment method distribution will appear here once sales exist.</p>
-                </div>
-            @else
-                <div class="chart-canvas-wrap">
-                    <canvas id="paymentMethodsChart"></canvas>
-                </div>
-            @endif
-        </div>
-    </div>
-
     {{-- Section 5: Operational Activity --}}
     <h2 class="dashboard-section-title mt-4">Operational Activity</h2>
     <div class="charts-grid">
@@ -561,7 +540,7 @@
                             <tr>
                                 <td>RCT-{{ str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
                                 <td>{{ trim(($transaction->staff?->FirstName ?? '') . ' ' . ($transaction->staff?->LastName ?? '')) ?: 'N/A' }}</td>
-                                <td class="text-success">&#8369;{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
+                                <td class="text-success">₱{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
                                 <td>{{ strtoupper($transaction->billing?->payment?->PaymentMethod ?? 'N/A') }}</td>
                                 <td><span class="badge badge-success">Completed</span></td>
                                 <td>{{ \Illuminate\Support\Carbon::parse($transaction->SalesTransactionDate)->format('M d, Y h:i A') }}</td>
@@ -605,7 +584,6 @@
         const inventoryStatusData = @json($inventoryStatusChart);
         const topSellingRaw = @json($topSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
         const leastSellingRaw = @json($leastSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
-        const paymentMethodsRaw = @json($paymentMethods->map(fn($p) => ['label' => strtoupper($p->method ?? 'N/A'), 'value' => (float) $p->total]));
 
         const PALETTE = ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c', '#94a3b8'];
         Chart.defaults.color = '#94a3b8';
@@ -722,7 +700,7 @@
                         legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
                         tooltip: {
                             callbacks: {
-                                label: (ctx) => `${ctx.label}: ₱${Number(ctx.raw).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+                                label: (ctx) => `${ctx.label}: ${window.formatPeso(ctx.raw)}`,
                             },
                         },
                     },
@@ -799,36 +777,6 @@
             });
         });
 
-        // Payment Methods (doughnut)
-        const paymentCanvas = document.getElementById('paymentMethodsChart');
-        if (paymentCanvas) {
-            new Chart(paymentCanvas, {
-                type: 'doughnut',
-                data: {
-                    labels: paymentMethodsRaw.map((p) => p.label),
-                    datasets: [{
-                        data: paymentMethodsRaw.map((p) => p.value),
-                        backgroundColor: PALETTE,
-                        borderColor: '#0f172a',
-                        borderWidth: 2,
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 500 },
-                    plugins: {
-                        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
-                        tooltip: {
-                            callbacks: {
-                                label: (ctx) => `${ctx.label}: ₱${Number(ctx.raw).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-                            },
-                        },
-                    },
-                },
-            });
-        }
-
         // Poll inventory-derived widgets (Products, Inventory Value, Inventory
         // Status chart, Stock Alerts) so sales/refunds/receiving/adjustments/
         // damage recording made elsewhere show up here without a page reload.
@@ -843,7 +791,7 @@
                     if (productsEl) productsEl.textContent = Number(data.totalProducts).toLocaleString('en-US');
 
                     const valueEl = document.getElementById('statInventoryValue');
-                    if (valueEl) valueEl.textContent = '₱' + Number(data.inventoryValue).toLocaleString('en-US', { maximumFractionDigits: 0 });
+                    if (valueEl) valueEl.textContent = window.formatPeso(data.inventoryValue);
 
                     if (inventoryStatusChartInstance) {
                         inventoryStatusChartInstance.data.labels = data.inventoryStatusChart.labels;

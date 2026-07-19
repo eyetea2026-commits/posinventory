@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Billing;
 use App\Models\DamagedProduct;
 use App\Models\Inventory;
-use App\Models\Payment;
 use App\Models\Product;
 use App\Models\SalesItem;
 use App\Models\SalesTransaction;
@@ -90,12 +89,6 @@ class DashboardController extends Controller
         $topSelling = (clone $sellingBase)->orderByDesc('total_quantity')->take(10)->get()->load('product');
         $leastSelling = (clone $sellingBase)->orderBy('total_quantity')->take(10)->get()->load('product');
 
-        // Payment methods — real accepted values only (cash/gcash/bank/cheque)
-        $paymentMethods = Payment::selectRaw('PaymentMethod as method, COUNT(*) as cnt, SUM(PaymentAmount) as total')
-            ->groupBy('PaymentMethod')
-            ->orderByDesc('total')
-            ->get();
-
         // Recent transactions — searchable/sortable/paginated in place,
         // namespaced query params so it doesn't collide with any other
         // paginated widget on this page.
@@ -136,7 +129,6 @@ class DashboardController extends Controller
             'categoryChart' => $categoryChart,
             'topSelling' => $topSelling,
             'leastSelling' => $leastSelling,
-            'paymentMethods' => $paymentMethods,
             'recentTransactions' => $recentTransactions,
             'txnSearch' => $txnSearch,
             'txnSort' => $txnSort,

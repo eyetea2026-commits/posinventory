@@ -40,6 +40,7 @@
 
 <div class="content-header">
     <h1><i class="fas fa-history"></i> Sales Transactions</h1>
+    @include('cashier.partials.notification-bell')
 </div>
 
 @if(session('success'))

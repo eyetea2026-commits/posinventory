@@ -9,12 +9,6 @@
     </div>
 @endsection
 
-@section('header-actions')
-    <a href="{{ route('admin.discounts.create') }}" class="btn btn-primary" onclick="openAddDiscountModal(event)">
-        <i class="fa-solid fa-plus"></i> Create Discount
-    </a>
-@endsection
-
 @section('content')
 <style>
     .btn {
@@ -59,12 +53,19 @@
         overflow: hidden;
     }
     .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
         padding: 20px 24px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     }
     .search-form {
         display: flex;
         gap: 12px;
+        flex: 1;
+        max-width: 480px;
     }
     .search-form input {
         flex: 1;
@@ -293,6 +294,9 @@
             <input type="text" name="search" placeholder="Search discount rates..." value="{{ $search ?? '' }}">
             <button type="submit"><i class="fa-solid fa-search"></i></button>
         </form>
+        <a href="{{ route('admin.discounts.create') }}" class="btn btn-primary" onclick="openAddDiscountModal(event)" title="Add Discount">
+            <i class="fa-solid fa-plus"></i> Add Discount
+        </a>
     </div>
     <div class="card-body">
         <table class="table">
@@ -334,7 +338,6 @@
                                 <div class="empty-icon"><i class="fa-solid fa-percent"></i></div>
                                 <p class="empty-title">No Discount Policies Found</p>
                                 <p class="empty-text">Create your first discount policy to get started.</p>
-                                <a href="{{ route('admin.discounts.create') }}" class="btn btn-primary" onclick="openAddDiscountModal(event)">Create Discount</a>
                             </div>
                         </td>
                     </tr>

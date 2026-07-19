@@ -9,12 +9,6 @@
     </div>
 @endsection
 
-@section('header-actions')
-    <a href="{{ route('admin.categories.create') }}" class="btn btn-primary" onclick="openAddCategoryModal(event)">
-        <i class="fa-solid fa-plus"></i> Add Category
-    </a>
-@endsection
-
 @section('content')
 <style>
     .btn {
@@ -67,12 +61,19 @@
         overflow: hidden;
     }
     .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
         padding: 20px 24px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     }
     .search-form {
         display: flex;
         gap: 12px;
+        flex: 1;
+        max-width: 480px;
     }
     .search-form input {
         flex: 1;
@@ -317,6 +318,9 @@
             <input type="text" name="search" placeholder="Search categories..." value="{{ $search ?? '' }}">
             <button type="submit"><i class="fa-solid fa-search"></i></button>
         </form>
+        <a href="{{ route('admin.categories.create') }}" class="btn btn-primary" onclick="openAddCategoryModal(event)" title="Create Category">
+            <i class="fa-solid fa-plus"></i> Create Category
+        </a>
     </div>
     <div class="card-body">
         <table class="table">
@@ -365,7 +369,6 @@
                                 <div class="empty-icon"><i class="fa-solid fa-tags"></i></div>
                                 <p class="empty-title">No Categories Found</p>
                                 <p class="empty-text">Create your first category to get started.</p>
-                                <a href="{{ route('admin.categories.create') }}" class="btn btn-primary" onclick="openAddCategoryModal(event)">Add Category</a>
                             </div>
                         </td>
                     </tr>
@@ -379,7 +382,7 @@
 <div id="addCategoryModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addCategoryModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 id="addCategoryModalTitle"><i class="fa-solid fa-folder-plus"></i> Add New Category</h2>
+            <h2 id="addCategoryModalTitle"><i class="fa-solid fa-folder-plus"></i> Create New Category</h2>
             <button type="button" class="modal-close" onclick="closeAddCategoryModal()" aria-label="Close">&times;</button>
         </div>
 

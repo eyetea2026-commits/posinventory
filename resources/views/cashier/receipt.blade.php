@@ -69,10 +69,12 @@
                 <span>Subtotal:</span>
                 <span>₱{{ number_format($subtotal, 2) }}</span>
             </div>
-            <div class="total-row">
-                <span>Discount ({{ $discountRate }}%):</span>
-                <span>-₱{{ number_format($discountAmount, 2) }}</span>
-            </div>
+            @if($hasDiscount)
+                <div class="total-row">
+                    <span>Discount ({{ $discountRate }}%):</span>
+                    <span>-₱{{ number_format($discountAmount, 2) }}</span>
+                </div>
+            @endif
             <div class="total-row">
                 <span>VAT (12%):</span>
                 <span>₱{{ number_format($vatAmount, 2) }}</span>

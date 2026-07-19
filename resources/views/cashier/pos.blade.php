@@ -109,6 +109,7 @@
         <span id="posCurrentTime">{{ now()->format('h:i A') }}</span>
     </div>
     <div class="cashier-info">
+        @include('cashier.partials.notification-bell')
         <i class="fas fa-user"></i>
         <span>Cashier:</span>
         <strong>{{ auth()->user()->name }}</strong>
@@ -192,9 +193,10 @@
         <div class="form-group">
             <label>Apply Discount</label>
             <select id="discount-select" onchange="updateTotals()">
+                <option value="" selected>No Discount</option>
                 @foreach($discounts as $discount)
-                    <option value="{{ $discount->DiscountID }}" data-rate="{{ $discount->DiscountRate }}" {{ (float) $discount->DiscountRate === 0.0 ? 'selected' : '' }}>
-                        {{ (float) $discount->DiscountRate === 0.0 ? 'No Discount' : rtrim(rtrim(number_format($discount->DiscountRate, 2), '0'), '.') . '%' }}
+                    <option value="{{ $discount->DiscountID }}" data-rate="{{ $discount->DiscountRate }}">
+                        {{ rtrim(rtrim(number_format($discount->DiscountRate, 2), '0'), '.') . '%' }}
                     </option>
                 @endforeach
             </select>
@@ -229,7 +231,7 @@
 
         <div class="form-group">
             <label>Payment Amount</label>
-            <input type="number" id="payment-amount" placeholder="0.00" min="0" step="0.01" oninput="calculateChange()">
+            <input type="text" id="payment-amount" placeholder="0.00" oninput="calculateChange()">
         </div>
 
         <div class="form-group">
@@ -244,6 +246,8 @@
 </div>
 
 <script>
+    window.attachMoneyInput(document.getElementById('payment-amount'));
+
     // Live clock — ticks every second so the header date/time never goes
     // stale while the POS panel is left open, without needing a reload.
     (function () {
@@ -281,23 +285,24 @@
                 const select = document.getElementById('discount-select');
                 const previousValue = select.value;
                 select.innerHTML = '';
+
+                const noDiscountOption = document.createElement('option');
+                noDiscountOption.value = '';
+                noDiscountOption.textContent = 'No Discount';
+                select.appendChild(noDiscountOption);
+
                 (data.discounts || []).forEach(discount => {
                     const option = document.createElement('option');
                     option.value = discount.DiscountID;
                     option.dataset.rate = discount.DiscountRate;
                     const rate = parseFloat(discount.DiscountRate);
-                    option.textContent = rate === 0 ? 'No Discount' : (rate % 1 === 0 ? rate : rate.toFixed(2)) + '%';
+                    option.textContent = (rate % 1 === 0 ? rate : rate.toFixed(2)) + '%';
                     select.appendChild(option);
                 });
                 // Keep the cashier's current selection if it still exists;
-                // otherwise fall back to the 0% "No Discount" row.
+                // otherwise fall back to "No Discount".
                 const stillExists = Array.from(select.options).some(o => o.value === previousValue);
-                if (stillExists) {
-                    select.value = previousValue;
-                } else {
-                    const zeroOption = Array.from(select.options).find(o => parseFloat(o.dataset.rate) === 0);
-                    if (zeroOption) select.value = zeroOption.value;
-                }
+                select.value = stillExists ? previousValue : '';
                 updateTotals();
             })
             .catch(() => {
@@ -386,9 +391,7 @@
             cart = [];
             renderCart();
             document.getElementById('customer-name').value = '';
-            const discountSelect = document.getElementById('discount-select');
-            const zeroOption = Array.from(discountSelect.options).find(o => parseFloat(o.dataset.rate) === 0);
-            if (zeroOption) discountSelect.value = zeroOption.value;
+            document.getElementById('discount-select').value = '';
         }
     }
 
@@ -417,7 +420,7 @@
                 <div class="cart-item">
                     <div class="cart-item-info">
                         <h4>${item.name}</h4>
-                        <p>₱${item.price.toFixed(2)} each</p>
+                        <p>${window.formatPeso(item.price)} each</p>
                     </div>
                     <div class="cart-item-qty">
                         <button class="qty-btn" onclick="updateQty(${item.id}, -1)" ${item.qty <= 1 ? 'disabled' : ''}>-</button>
@@ -425,7 +428,7 @@
                         <button class="qty-btn" onclick="updateQty(${item.id}, 1)" ${item.qty >= item.stock ? 'disabled' : ''}>+</button>
                     </div>
                     <div class="cart-item-price">
-                        <div class="item-total">₱${itemTotal.toFixed(2)}</div>
+                        <div class="item-total">${window.formatPeso(itemTotal)}</div>
                         <button class="remove-btn" onclick="removeFromCart(${item.id})" title="Remove">
                             <i class="fas fa-trash"></i>
                         </button>
@@ -440,16 +443,18 @@
     function updateTotals() {
         const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
         const discountSelect = document.getElementById('discount-select');
+        const hasDiscount = discountSelect.value !== '';
         const selectedOption = discountSelect.options[discountSelect.selectedIndex];
-        const discountRate = selectedOption ? (parseFloat(selectedOption.dataset.rate) || 0) : 0;
+        const discountRate = hasDiscount && selectedOption ? (parseFloat(selectedOption.dataset.rate) || 0) : 0;
         const discountAmount = subtotal * (discountRate / 100);
         const vatAmount = (subtotal - discountAmount) * 0.12;
         currentTotal = subtotal - discountAmount + vatAmount;
 
-        document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
-        document.getElementById('vat').textContent = '₱' + vatAmount.toFixed(2);
-        document.getElementById('discount').textContent = '₱' + discountAmount.toFixed(2);
-        document.getElementById('total').textContent = '₱' + currentTotal.toFixed(2);
+        document.getElementById('subtotal').textContent = window.formatPeso(subtotal);
+        document.getElementById('vat').textContent = window.formatPeso(vatAmount);
+        document.getElementById('discount').textContent = window.formatPeso(discountAmount);
+        document.getElementById('discount').closest('.summary-row').style.display = hasDiscount ? 'flex' : 'none';
+        document.getElementById('total').textContent = window.formatPeso(currentTotal);
 
         calculateChange();
     }
@@ -469,9 +474,9 @@
     }
 
     function calculateChange() {
-        const payment = parseFloat(document.getElementById('payment-amount').value) || 0;
+        const payment = window.parseMoney(document.getElementById('payment-amount').value);
         const change = Math.max(0, payment - currentTotal);
-        document.getElementById('change-amount').textContent = '₱' + change.toFixed(2);
+        document.getElementById('change-amount').textContent = window.formatPeso(change);
     }
 
     function processCheckout() {
@@ -490,7 +495,7 @@
         }
 
         if (selectedPaymentMethod === 'cash') {
-            const payment = parseFloat(document.getElementById('payment-amount').value);
+            const payment = window.parseMoney(document.getElementById('payment-amount').value);
             if (!payment || payment < currentTotal) {
                 alert('Please enter sufficient payment amount!');
                 return;
@@ -501,17 +506,17 @@
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
             items: cart,
-            discount_id: document.getElementById('discount-select').value,
+            discount_id: document.getElementById('discount-select').value || null,
             payment_method: selectedPaymentMethod,
             account_number: document.getElementById('account-number').value,
-            payment_amount: document.getElementById('payment-amount').value,
+            payment_amount: window.parseMoney(document.getElementById('payment-amount').value),
         };
 
         checkoutBtn.disabled = true;
 
         fetch('{{ route("cashier.process-sale") }}', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(data)
         })
         .then(response => response.json())

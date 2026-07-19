@@ -1,10 +1,10 @@
 @extends('admin.layout')
 
-@section('title', 'Create Discount - CCTV Express')
+@section('title', 'Add Discount - CCTV Express')
 
 @section('header')
     <div class="header-title">
-        <h1>Create Discount Policy</h1>
+        <h1>Add New Discount</h1>
         <p>Add a new discount rate for use at checkout</p>
     </div>
 @endsection

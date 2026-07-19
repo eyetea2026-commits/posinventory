@@ -196,7 +196,7 @@ class CashierAuthController extends Controller
             'items.*.id' => 'required|integer|exists:Product,ProductID',
             'items.*.qty' => 'required|integer|min:1',
             'payment_method' => 'required|in:cash,gcash,bank,cheque',
-            'discount_id' => 'required|integer|exists:Discount,DiscountID',
+            'discount_id' => 'nullable|integer|exists:Discount,DiscountID',
         ]);
 
         $items = $data['items'];
@@ -206,7 +206,7 @@ class CashierAuthController extends Controller
         // that case has to be handled explicitly or SalesTransaction's NOT NULL
         // CustomerName column rejects the insert.
         $customerName = trim((string) $request->input('customer_name')) ?: 'Walk-in Customer';
-        $discountId = (int) $data['discount_id'];
+        $discountId = $data['discount_id'] ?? null;
         $paymentMethod = $data['payment_method'];
         $accountNumber = $request->input('account_number');
         $paymentAmount = floatval($request->input('payment_amount', 0));
@@ -263,12 +263,16 @@ class CashierAuthController extends Controller
 
                 // Discounts are admin-managed policies now, not a rate a cashier
                 // can type — look up the chosen row and use its rate, never a
-                // client-submitted percentage.
-                $discount = Discount::find($discountId);
-                if (!$discount) {
-                    throw new \RuntimeException('Selected discount is no longer available.');
+                // client-submitted percentage. No selection at all means no
+                // discount applies, not an error.
+                $discount = null;
+                if ($discountId) {
+                    $discount = Discount::find($discountId);
+                    if (!$discount) {
+                        throw new \RuntimeException('Selected discount is no longer available.');
+                    }
                 }
-                $discountRate = (float) $discount->DiscountRate;
+                $discountRate = $discount ? (float) $discount->DiscountRate : 0.0;
 
                 $discountAmount = $subtotal * ($discountRate / 100);
                 $vatAmount = ($subtotal - $discountAmount) * 0.12;
@@ -306,7 +310,7 @@ class CashierAuthController extends Controller
                     'VatApplied' => '12%',
                     'BillingAmount' => $total,
                     'BillingDate' => now(),
-                    'DiscountID' => $discount->DiscountID,
+                    'DiscountID' => $discount?->DiscountID,
                     'SalesTransactionID' => $transaction->SalesTransactionID,
                 ]);
 
@@ -396,6 +400,7 @@ class CashierAuthController extends Controller
         }, $items));
 
         // Get discount info
+        $hasDiscount = $billing && $billing->DiscountID !== null;
         $discountRate = 0;
         if ($billing && $billing->discount) {
             $discountRate = $billing->discount->DiscountRate ?? 0;
@@ -419,6 +424,7 @@ class CashierAuthController extends Controller
             'customerName' => $transaction->CustomerName,
             'items' => $items,
             'subtotal' => $subtotal,
+            'hasDiscount' => $hasDiscount,
             'discountRate' => $discountRate,
             'discountAmount' => $discountAmount,
             'vatAmount' => $vatAmount,
