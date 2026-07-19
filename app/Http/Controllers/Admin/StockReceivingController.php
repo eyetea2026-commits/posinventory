@@ -49,6 +49,8 @@ class StockReceivingController extends Controller
         return view('admin.stock-receivings.index', [
             'receivings' => $receivings,
             'search' => $search,
+            'products' => Product::orderBy('ProductName')->get(),
+            'suppliers' => Supplier::orderBy('SupplierName')->get(),
         ]);
     }
 
@@ -112,6 +114,6 @@ class StockReceivingController extends Controller
             }
         }
 
-        return redirect()->route('admin.stock-receivings.index')->with('status', 'Stock receiving recorded successfully.');
+        return redirect()->route('admin.stock-receivings.index')->with('success', 'Stock receiving recorded successfully.');
     }
 }

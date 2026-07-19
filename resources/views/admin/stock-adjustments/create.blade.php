@@ -12,6 +12,8 @@
 @endsection
 
 @section('content')
+    @include('admin.partials.modal-styles')
+
     <div class="card" style="max-width: 700px; margin: 0 auto;">
         <div class="card-header">
             <div>
@@ -26,38 +28,7 @@
         <form method="POST" action="{{ route('admin.stock-adjustments.store') }}" id="adjustmentForm">
             @csrf
 
-            <div class="form-grid">
-                <div class="form-group" style="grid-column: 1 / -1;">
-                    <label class="form-label">Product <span style="color: var(--danger);">*</span></label>
-                    <select name="ProductID" class="form-select" required>
-                        <option value="">Select Product</option>
-                        @foreach($products as $product)
-                            <option value="{{ $product->ProductID }}" {{ old('ProductID') == $product->ProductID ? 'selected' : '' }}>
-                                {{ $product->ProductName }} ({{ $product->Model }})
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('ProductID') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Quantity Adjusted <span style="color: var(--danger);">*</span></label>
-                    <input type="number" name="QuantityAdjust" class="form-input" value="{{ old('QuantityAdjust') }}" required placeholder="e.g., 5 or -5">
-                    @error('QuantityAdjust') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Date <span style="color: var(--danger);">*</span></label>
-                    <input type="date" name="Date" class="form-input" value="{{ old('Date', now()->toDateString()) }}" required>
-                    @error('Date') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-
-                <div class="form-group" style="grid-column: 1 / -1;">
-                    <label class="form-label">Reason <span style="color: var(--danger);">*</span></label>
-                    <textarea name="Reason" class="form-textarea" required>{{ old('Reason') }}</textarea>
-                    @error('Reason') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-            </div>
+            @include('admin.stock-adjustments.partials.stock-adjustment-form-fields')
 
             <div class="modal-footer" style="border-top: 1px solid var(--border); margin-top: 8px;">
                 <a href="{{ route('admin.stock-adjustments.index') }}" class="btn btn-secondary">Cancel</a>

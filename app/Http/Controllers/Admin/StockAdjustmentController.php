@@ -47,6 +47,7 @@ class StockAdjustmentController extends Controller
         return view('admin.stock-adjustments.index', [
             'adjustments' => $adjustments,
             'search' => $search,
+            'products' => Product::orderBy('ProductName')->get(),
         ]);
     }
 
@@ -73,7 +74,7 @@ class StockAdjustmentController extends Controller
 
         // Prevent negative inventory
         if ($newQty < 0) {
-            return back()->withErrors(['QuantityAdjust' => 'Cannot reduce stock below zero. Current stock: ' . $currentQty]);
+            return back()->with('error', 'Cannot reduce stock below zero. Current stock: ' . $currentQty);
         }
 
         DB::transaction(function () use ($data, $newQty) {
@@ -120,6 +121,6 @@ class StockAdjustmentController extends Controller
             }
         }
 
-        return redirect()->route('admin.stock-adjustments.index')->with('status', 'Stock adjustment saved successfully.');
+        return redirect()->route('admin.stock-adjustments.index')->with('success', 'Stock adjustment saved successfully.');
     }
 }

@@ -42,6 +42,8 @@ class PurchaseOrderController extends Controller
         return view('admin.purchase-orders.index', [
             'purchaseOrders' => $purchaseOrders,
             'search' => $search,
+            'suppliers' => Supplier::orderBy('SupplierName')->get(),
+            'products' => Product::orderBy('ProductName')->get(),
         ]);
     }
 
@@ -95,6 +97,6 @@ class PurchaseOrderController extends Controller
             }
         });
 
-        return redirect()->route('admin.purchase-orders.index')->with('status', 'Purchase order created successfully.');
+        return redirect()->route('admin.purchase-orders.index')->with('success', 'Purchase order created successfully.');
     }
 }

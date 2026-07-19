@@ -85,45 +85,6 @@
         grid-column: 1 / -1;
     }
 
-    .form-group label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #cbd5e1;
-        font-size: 0.9rem;
-    }
-
-    .form-group label .required {
-        color: #ef4444;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 14px 16px;
-        background: rgba(30, 41, 59, 0.8);
-        border: 1px solid rgba(59, 130, 246, 0.2);
-        border-radius: 12px;
-        color: #f8fafc;
-        font-size: 0.95rem;
-    }
-
-    .form-control:focus {
-        outline: none;
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    select.form-control {
-        cursor: pointer;
-    }
-
-    .error {
-        display: block;
-        margin-top: 6px;
-        font-size: 0.8rem;
-        color: #fca5a5;
-    }
-
     .form-actions {
         display: flex;
         justify-content: flex-end;
@@ -156,6 +117,8 @@
     }
 </style>
 
+@include('admin.partials.modal-styles')
+
 <div class="content-header">
     <h1>Record Stock Receiving</h1>
     <a href="{{ route('admin.stock-receivings.index') }}" class="btn btn-secondary">
@@ -174,64 +137,7 @@
     <form method="POST" action="{{ route('admin.stock-receivings.store') }}" id="receivingForm">
         @csrf
 
-        <div class="form-grid">
-            <div class="form-group full-width">
-                <label for="ProductID">Product <span class="required">*</span></label>
-                <select id="ProductID" name="ProductID" class="form-control" required>
-                    <option value="">Select Product</option>
-                    @foreach($products as $product)
-                        <option value="{{ $product->ProductID }}" {{ old('ProductID') == $product->ProductID ? 'selected' : '' }}>
-                            {{ $product->ProductName }} - {{ $product->Model }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('ProductID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="SupplierID">Supplier <span class="required">*</span></label>
-                <select id="SupplierID" name="SupplierID" class="form-control" required>
-                    <option value="">Select Supplier</option>
-                    @foreach($suppliers as $supplier)
-                        <option value="{{ $supplier->SupplierID }}" {{ old('SupplierID') == $supplier->SupplierID ? 'selected' : '' }}>
-                            {{ $supplier->SupplierName }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('SupplierID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="Quantity">Quantity Received <span class="required">*</span></label>
-                <input type="number" id="Quantity" name="Quantity" class="form-control"
-                       value="{{ old('Quantity') }}" required min="1">
-                @error('Quantity')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="ReceiptNumber">Receipt Number <span class="required">*</span></label>
-                <input type="text" id="ReceiptNumber" name="ReceiptNumber" class="form-control"
-                       value="{{ old('ReceiptNumber') }}" required maxlength="50" placeholder="e.g., SUP-2026-0001">
-                @error('ReceiptNumber')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="DateReceived">Date Received <span class="required">*</span></label>
-                <input type="date" id="DateReceived" name="DateReceived" class="form-control"
-                       value="{{ old('DateReceived', date('Y-m-d')) }}" required>
-                @error('DateReceived')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-        </div>
+        @include('admin.stock-receivings.partials.stock-receiving-form-fields')
 
         <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="confirmCancel()">
