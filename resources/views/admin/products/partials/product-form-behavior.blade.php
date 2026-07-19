@@ -35,33 +35,55 @@ window.initProductAddForm = function (formId, options) {
 
     var PROFIT_MARGIN = 0.45; // Store policy — mirrors Product::PROFIT_MARGIN server-side.
 
-    function calculatePrices() {
-        var costPrice = parseFloat(costPriceInput.value) || 0;
-        var sellingPrice = costPrice > 0 ? (costPrice / (1 - PROFIT_MARGIN)) : 0;
-        sellingPriceInput.value = sellingPrice > 0 ? sellingPrice.toFixed(2) : '';
+    window.attachMoneyInput(costPriceInput);
+    window.attachMoneyInput(sellingPriceInput);
 
+    function updateComputedDisplays(costPrice, sellingPrice) {
         var markupPrice = sellingPrice - costPrice;
         var markupPercent = costPrice > 0 ? ((markupPrice / costPrice) * 100) : 0;
-        var profitMargin = sellingPrice > 0 ? ((markupPrice / sellingPrice) * 100) : 0;
 
-        markupPriceEl.textContent = '₱' + markupPrice.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        markupPriceEl.textContent = window.formatPeso(markupPrice);
         markupPriceEl.classList.toggle('negative', markupPrice < 0);
 
         markupPercentEl.textContent = markupPercent.toFixed(1) + '%';
         markupPercentEl.classList.toggle('negative', markupPercent < 0);
 
-        profitMarginEl.textContent = profitMargin.toFixed(1) + '%';
-        profitMarginEl.classList.toggle('negative', profitMargin < 0);
+        // Profit Margin is a fixed store policy (see Product::PROFIT_MARGIN),
+        // not derived from the entered values, so it always reads 45.0%.
+        profitMarginEl.textContent = (PROFIT_MARGIN * 100).toFixed(1) + '%';
     }
 
+    // Cost Price changed: re-derive Selling Price from the fixed 45% margin,
+    // overwriting whatever was typed into Selling Price — changing the cost
+    // is treated as an intentional re-price.
+    function recalcFromCost() {
+        var costPrice = window.parseMoney(costPriceInput.value);
+        var sellingPrice = costPrice > 0 ? (costPrice / (1 - PROFIT_MARGIN)) : 0;
+        sellingPriceInput.value = sellingPrice > 0 ? window.formatMoneyPlain(sellingPrice) : '';
+        updateComputedDisplays(costPrice, sellingPrice);
+    }
+
+    // Selling Price edited by hand: leave it exactly as typed and just
+    // refresh the derived markup figures. This is a preview only — the
+    // server always recomputes and saves the price at the fixed 45% margin
+    // (see Product::computeSellingPrice); this field has no name attribute,
+    // so a manually typed Selling Price is never actually submitted.
+    function recalcFromSelling() {
+        var costPrice = window.parseMoney(costPriceInput.value);
+        var sellingPrice = window.parseMoney(sellingPriceInput.value);
+        updateComputedDisplays(costPrice, sellingPrice);
+    }
+
+    costPriceInput.addEventListener('input', function () { formChanged = true; recalcFromCost(); });
+    sellingPriceInput.addEventListener('input', function () { formChanged = true; recalcFromSelling(); });
+
     form.querySelectorAll('input, select, textarea').forEach(function (input) {
+        if (input === costPriceInput || input === sellingPriceInput) return;
         input.addEventListener('change', function () {
             formChanged = true;
-            calculatePrices();
         });
         input.addEventListener('input', function () {
             formChanged = true;
-            calculatePrices();
             if (input === productNameInput || input === modelInput || input === barcodeInput) {
                 scheduleDuplicateCheck();
             }
@@ -96,6 +118,12 @@ window.initProductAddForm = function (formId, options) {
     }
 
     function runDuplicateCheck(requestId, name, model, barcode) {
+        // When editing, the product's own unchanged name/model/barcode must
+        // not be flagged as a "duplicate" of itself — exclude_id is set on
+        // the form's dataset by the edit page/modal, absent entirely in Add
+        // mode.
+        var excludeId = form.dataset.excludeId || null;
+
         fetch('{{ route('admin.products.check-name') }}', {
             method: 'POST',
             headers: {
@@ -104,7 +132,7 @@ window.initProductAddForm = function (formId, options) {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ ProductName: name, Model: model, Barcode: barcode })
+            body: JSON.stringify({ ProductName: name, Model: model, Barcode: barcode, exclude_id: excludeId })
         })
             .then(function (response) { return response.json(); })
             .then(function (data) {
@@ -148,8 +176,8 @@ window.initProductAddForm = function (formId, options) {
         }
 
         Swal.fire({
-            title: 'Confirm Save',
-            text: 'Are you sure you want to save this product?',
+            title: options.confirmTitle || 'Confirm Save',
+            text: options.confirmText || 'Are you sure you want to save this product?',
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Yes',
@@ -163,8 +191,11 @@ window.initProductAddForm = function (formId, options) {
             }
             if (submitBtn) {
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="btn-spinner-sm"></span> Creating...';
+                submitBtn.innerHTML = options.submittingLabel || '<span class="btn-spinner-sm"></span> Creating...';
             }
+            // The server expects a plain numeric string (validated as
+            // 'numeric'), not the comma-grouped display value.
+            costPriceInput.value = window.parseMoney(costPriceInput.value).toFixed(2);
             formChanged = false;
             if (options.onConfirmedSubmit) options.onConfirmedSubmit(resetSubmitButton);
         });
@@ -174,7 +205,7 @@ window.initProductAddForm = function (formId, options) {
         if (options.onCancel) options.onCancel(formChanged);
     }
 
-    calculatePrices();
+    recalcFromCost();
 
     return {
         confirmSave: confirmSave,

@@ -245,152 +245,37 @@
         @csrf
         @method('PUT')
 
-        <div class="form-grid">
-            <div class="form-group">
-                <label class="form-label">Product Name <span class="required">*</span></label>
-                <input type="text" name="ProductName" class="form-input @error('ProductName') is-invalid @enderror"
-                       value="{{ old('ProductName', $product->ProductName) }}" required placeholder="e.g., Bullet Type Dome">
-                @error('ProductName') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Model Number <span class="required">*</span></label>
-                <input type="text" name="Model" class="form-input @error('Model') is-invalid @enderror"
-                       value="{{ old('Model', $product->Model) }}" required placeholder="e.g., GWHWY245367">
-                @error('Model') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label class="form-label">Specifications / Description</label>
-                <textarea name="Description" class="form-input @error('Description') is-invalid @enderror">{{ old('Description', $product->Description) }}</textarea>
-                @error('Description') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Category <span class="required">*</span></label>
-                <select name="CategoryID" class="form-select @error('CategoryID') is-invalid @enderror" required>
-                    <option value="">Select Category</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category->CategoryID }}" {{ old('CategoryID', $product->CategoryID) == $category->CategoryID ? 'selected' : '' }}>
-                            {{ $category->CategoryName }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('CategoryID') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Current Stock <span class="required">*</span></label>
-                <input type="number" name="Quantity" class="form-input @error('Quantity') is-invalid @enderror"
-                       value="{{ old('Quantity', $product->inventory?->Quantity ?? 0) }}" min="0" required placeholder="e.g., 100">
-                @error('Quantity') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Cost Price (₱) <span class="required">*</span></label>
-                <input type="number" name="CostPrice" id="CostPrice" class="form-input @error('CostPrice') is-invalid @enderror"
-                       value="{{ old('CostPrice', $product->CostPrice ?? 0) }}" step="0.01" min="0.01" required placeholder="e.g., 12000">
-                @error('CostPrice') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Selling Price (₱) — auto-calculated at 45% margin</label>
-                <input type="number" id="SellingPrice" class="form-input" value="{{ $product->Price }}" step="0.01" readonly tabindex="-1">
-                @error('Price') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Reorder Threshold</label>
-                <input type="number" name="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
-                       value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" placeholder="e.g., 10">
-                @error('ReorderThreshold') <span class="form-error">{{ $message }}</span> @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label class="form-label">Pricing Calculations</label>
-                <div class="computed-fields">
-                    <div class="computed-field">
-                        <label>Markup Price</label>
-                        <div class="value" id="markupPrice">₱0.00</div>
-                    </div>
-                    <div class="computed-field">
-                        <label>Markup %</label>
-                        <div class="value" id="markupPercent">0%</div>
-                    </div>
-                    <div class="computed-field">
-                        <label>Profit Margin</label>
-                        <div class="value" id="profitMargin">0%</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        @include('admin.products.partials.product-form-fields', ['categories' => $categories, 'product' => $product])
 
         <div class="form-actions">
             <a href="{{ route('admin.products.index') }}" class="btn btn-secondary">
                 <i class="fas fa-times"></i> Cancel
             </a>
-            <button type="button" class="btn btn-primary" onclick="confirmUpdate()">
+            <button type="button" class="btn btn-primary" id="updateProductSubmitBtn">
                 <i class="fas fa-save"></i> Update Product
             </button>
         </div>
     </form>
 </div>
 
+@include('admin.products.partials.product-form-behavior')
+@include('admin.products.partials.barcode-scanner')
+
 <script>
-    const costPriceInput = document.getElementById('CostPrice');
-    const sellingPriceInput = document.getElementById('SellingPrice');
-    const markupPriceEl = document.getElementById('markupPrice');
-    const markupPercentEl = document.getElementById('markupPercent');
-    const profitMarginEl = document.getElementById('profitMargin');
+    window.initBarcodeScanner('productForm');
+    document.getElementById('productForm').dataset.excludeId = '{{ $product->ProductID }}';
 
-    const PROFIT_MARGIN = 0.45; // Store policy — mirrors Product::PROFIT_MARGIN server-side.
-
-    function calculatePrices() {
-        const costPrice = parseFloat(costPriceInput.value) || 0;
-        const sellingPrice = costPrice > 0 ? (costPrice / (1 - PROFIT_MARGIN)) : 0;
-        sellingPriceInput.value = sellingPrice > 0 ? sellingPrice.toFixed(2) : '';
-
-        const markupPrice = sellingPrice - costPrice;
-        const markupPercent = costPrice > 0 ? ((markupPrice / costPrice) * 100) : 0;
-        const profitMargin = sellingPrice > 0 ? ((markupPrice / sellingPrice) * 100) : 0;
-
-        markupPriceEl.textContent = '₱' + markupPrice.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        markupPriceEl.classList.toggle('negative', markupPrice < 0);
-
-        markupPercentEl.textContent = markupPercent.toFixed(1) + '%';
-        markupPercentEl.classList.toggle('negative', markupPercent < 0);
-
-        profitMarginEl.textContent = profitMargin.toFixed(1) + '%';
-        profitMarginEl.classList.toggle('negative', profitMargin < 0);
-    }
-
-    costPriceInput.addEventListener('input', calculatePrices);
-
-    // Initial calculation
-    calculatePrices();
-
-    function confirmUpdate() {
-        const form = document.getElementById('productForm');
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
+    const productEditForm = window.initProductAddForm('productForm', {
+        submitBtn: document.getElementById('updateProductSubmitBtn'),
+        submittingLabel: '<span class="btn-spinner-sm"></span> Updating...',
+        confirmTitle: 'Confirm Update',
+        confirmText: 'Are you sure you want to save the changes to this product?',
+        onConfirmedSubmit: function () {
+            document.getElementById('productForm').submit();
         }
+    });
 
-        Swal.fire({
-            title: 'Confirm Update',
-            text: 'Are you sure you want to save the changes to this product?',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Yes',
-            cancelButtonText: 'No',
-            confirmButtonColor: '#10b981',
-            cancelButtonColor: '#64748b'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                form.submit();
-            }
-        });
-    }
+    document.getElementById('updateProductSubmitBtn').addEventListener('click', () => productEditForm.confirmSave());
 
     @if(session('status'))
         Swal.fire({

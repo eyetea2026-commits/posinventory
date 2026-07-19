@@ -1,13 +1,15 @@
-{{-- Shared "Add Product" field markup. Included by both the standalone
-     create page and the Add Product modal. Expects a $categories collection
-     in scope. Error spans carry a predictable id="error-{field}" so the
-     modal's JS can inject a 422 validation message into the same slot the
+{{-- Shared product field markup. Included by the standalone create page, the
+     Add Product modal, the standalone edit page, and the Edit Product modal.
+     Expects a $categories collection in scope; pass an optional $product to
+     pre-fill for editing (its absence means "Add" mode — no Quantity field,
+     all fields start blank). Error spans carry a predictable id="error-{field}"
+     so modal JS can inject a 422 validation message into the same slot the
      @error directive fills on a real (non-AJAX) page submission. --}}
 <div class="form-grid">
     <div class="form-group">
         <label class="form-label">Product Name <span class="required">*</span></label>
         <input type="text" name="ProductName" id="ProductName" class="form-input @error('ProductName') is-invalid @enderror"
-               value="{{ old('ProductName') }}" required placeholder="e.g., Bullet Type Dome">
+               value="{{ old('ProductName', $product->ProductName ?? null) }}" required placeholder="e.g., Bullet Type Dome">
         <span class="form-error" id="error-ProductName">@error('ProductName'){{ $message }}@enderror</span>
         <span id="productNameDuplicateError" class="form-error" style="display: none;"></span>
     </div>
@@ -15,14 +17,14 @@
     <div class="form-group">
         <label class="form-label">Model Number <span class="required">*</span></label>
         <input type="text" name="Model" id="Model" class="form-input @error('Model') is-invalid @enderror"
-               value="{{ old('Model') }}" required placeholder="e.g., GWHWY245367">
+               value="{{ old('Model', $product->Model ?? null) }}" required placeholder="e.g., GWHWY245367">
         <span class="form-error" id="error-Model">@error('Model'){{ $message }}@enderror</span>
         <span id="modelDuplicateError" class="form-error" style="display: none;"></span>
     </div>
 
     <div class="form-group full-width">
         <label class="form-label">Specifications / Description</label>
-        <textarea name="Description" class="form-input @error('Description') is-invalid @enderror">{{ old('Description') }}</textarea>
+        <textarea name="Description" class="form-input @error('Description') is-invalid @enderror">{{ old('Description', $product->Description ?? null) }}</textarea>
         <span class="form-error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
     </div>
 
@@ -31,7 +33,7 @@
         <select name="CategoryID" class="form-select @error('CategoryID') is-invalid @enderror" required>
             <option value="">Select Category</option>
             @foreach($categories as $category)
-                <option value="{{ $category->CategoryID }}" {{ old('CategoryID') == $category->CategoryID ? 'selected' : '' }}>
+                <option value="{{ $category->CategoryID }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
                     {{ $category->CategoryName }}
                 </option>
             @endforeach
@@ -40,30 +42,30 @@
     </div>
 
     <div class="form-group">
+        <label class="form-label">Reorder Threshold</label>
+        <input type="number" name="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
+               value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" placeholder="e.g., 10">
+        <span class="form-error" id="error-ReorderThreshold">@error('ReorderThreshold'){{ $message }}@enderror</span>
+    </div>
+
+    <div class="form-group">
         <label class="form-label">Cost Price (₱) <span class="required">*</span></label>
-        <input type="number" name="CostPrice" id="CostPrice" class="form-input @error('CostPrice') is-invalid @enderror"
-               value="{{ old('CostPrice') }}" step="0.01" min="0.01" required placeholder="e.g., 12000">
+        <input type="text" name="CostPrice" id="CostPrice" class="form-input @error('CostPrice') is-invalid @enderror"
+               value="{{ old('CostPrice', $product->CostPrice ?? null) }}" required placeholder="e.g., 12,000.00">
         <span class="form-error" id="error-CostPrice">@error('CostPrice'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
-        <label class="form-label">Selling Price (₱) — auto-calculated at 45% margin</label>
-        <input type="number" id="SellingPrice" class="form-input" value="" step="0.01" readonly tabindex="-1">
+        <label class="form-label">Selling Price (₱)</label>
+        <input type="text" id="SellingPrice" class="form-input" value="{{ $product->Price ?? '' }}">
         <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
-    </div>
-
-    <div class="form-group">
-        <label class="form-label">Reorder Threshold</label>
-        <input type="number" name="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
-               value="{{ old('ReorderThreshold', 10) }}" min="0" placeholder="e.g., 10">
-        <span class="form-error" id="error-ReorderThreshold">@error('ReorderThreshold'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group full-width">
         <label class="form-label">Product Barcode <span class="required">*</span></label>
         <div class="barcode-input-row">
             <input type="text" name="Barcode" id="Barcode" class="form-input @error('Barcode') is-invalid @enderror"
-                   value="{{ old('Barcode') }}" required placeholder="Scan with a barcode reader, or type it manually" autocomplete="off">
+                   value="{{ old('Barcode', $product->Barcode ?? null) }}" required placeholder="Scan with a barcode reader, or type it manually" autocomplete="off">
             <button type="button" class="btn-scan-barcode" id="scanBarcodeBtn">
                 <i class="fas fa-barcode"></i> Scan Barcode
             </button>
@@ -84,7 +86,7 @@
             </div>
             <div class="computed-field">
                 <label>Profit Margin</label>
-                <div class="value" id="profitMargin">0%</div>
+                <div class="value" id="profitMargin">45.0%</div>
             </div>
         </div>
     </div>

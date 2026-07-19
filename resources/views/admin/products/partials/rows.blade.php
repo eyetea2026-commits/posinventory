@@ -49,6 +49,7 @@
                     data-bs-placement="top"
                     title="View Details"
                     aria-label="View Details"
+                    onclick="openViewProductModal(event, {{ $product->ProductID }})"
                 >
                     <i class="fas fa-eye"></i>
                 </a>

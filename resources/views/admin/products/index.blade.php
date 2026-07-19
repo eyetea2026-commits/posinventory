@@ -699,6 +699,32 @@
         .form-grid { grid-template-columns: 1fr; }
         .computed-fields { grid-template-columns: 1fr; }
     }
+
+    /* View Details Modal */
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        gap: 16px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label {
+        color: #94a3b8;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        flex: 0 0 150px;
+    }
+    .detail-value {
+        color: #f8fafc;
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-align: right;
+        flex: 1;
+    }
 </style>
 
 <!-- Search + Category Filter -->
@@ -978,6 +1004,54 @@
     </div>
 </div>
 
+<!-- View Details Modal -->
+<div id="viewProductModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="viewProductModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="viewProductModalTitle"><i class="fas fa-eye"></i> Product Details</h2>
+            <button type="button" class="modal-close" onclick="closeViewProductModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div id="viewProductBody">
+            <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="viewProductCloseBtn">
+                <i class="fas fa-times"></i> Close
+            </button>
+            <button type="button" class="btn btn-primary" id="viewProductEditBtn">
+                <i class="fas fa-edit"></i> Update Details
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Product Modal -->
+<div id="editProductModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editProductModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="editProductModalTitle"><i class="fas fa-edit"></i> Edit Product</h2>
+            <button type="button" class="modal-close" onclick="closeEditProductModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div id="editProductGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
+
+        <form id="editProductForm">
+            <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+        </form>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="editProductCancelBtn">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn btn-primary" id="editProductSubmitBtn">
+                <i class="fas fa-save"></i> Update Product
+            </button>
+        </div>
+    </div>
+</div>
+
 @include('admin.products.partials.product-form-behavior')
 @include('admin.products.partials.barcode-scanner')
 
@@ -1167,6 +1241,243 @@
         if (e.target === this && !addProductIsSubmitting()) {
             closeAddProductModal();
         }
+    });
+
+    // ---- View Details modal ----
+    let viewProductLastFocused = null;
+
+    function handleViewProductModalKeydown(e) {
+        const modal = document.getElementById('viewProductModal');
+        if (!modal.classList.contains('active')) return;
+        if (e.key === 'Escape') closeViewProductModal();
+    }
+
+    window.openViewProductModal = function (event, productId) {
+        if (event) event.preventDefault();
+        const modal = document.getElementById('viewProductModal');
+        const body = document.getElementById('viewProductBody');
+
+        viewProductLastFocused = document.activeElement;
+        body.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+        document.getElementById('viewProductEditBtn').dataset.productId = productId;
+
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        void modal.offsetHeight;
+        requestAnimationFrame(function () { modal.classList.add('active'); });
+        document.addEventListener('keydown', handleViewProductModalKeydown);
+
+        fetch('{{ url('admin/products') }}/' + productId, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { body.innerHTML = data.html; })
+            .catch(function () {
+                body.innerHTML = '<p class="form-error">Failed to load product details. Please try again.</p>';
+            });
+    };
+
+    window.closeViewProductModal = function () {
+        const modal = document.getElementById('viewProductModal');
+        modal.classList.remove('active');
+        document.removeEventListener('keydown', handleViewProductModalKeydown);
+        setTimeout(function () { modal.style.display = 'none'; }, 250);
+        document.body.style.overflow = '';
+        if (viewProductLastFocused && typeof viewProductLastFocused.focus === 'function') {
+            viewProductLastFocused.focus();
+        }
+    };
+
+    document.getElementById('viewProductModal').addEventListener('mousedown', function (e) {
+        if (e.target === this) closeViewProductModal();
+    });
+    document.getElementById('viewProductCloseBtn').addEventListener('click', closeViewProductModal);
+    document.getElementById('viewProductEditBtn').addEventListener('click', function () {
+        const id = this.dataset.productId;
+        closeViewProductModal();
+        setTimeout(function () { openEditProductModal(null, id); }, 260);
+    });
+
+    // ---- Edit Product modal ----
+    let editProductLastFocused = null;
+    let editProductFormHelper = null;
+
+    function editProductIsSubmitting() {
+        const btn = document.getElementById('editProductSubmitBtn');
+        return btn ? btn.disabled : false;
+    }
+
+    function resetEditProductSubmitButton() {
+        const btn = document.getElementById('editProductSubmitBtn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Update Product';
+    }
+
+    function showEditProductGeneralError(message) {
+        const banner = document.getElementById('editProductGeneralError');
+        banner.textContent = message;
+        banner.style.display = 'flex';
+    }
+
+    function hideEditProductGeneralError() {
+        const banner = document.getElementById('editProductGeneralError');
+        banner.style.display = 'none';
+        banner.textContent = '';
+    }
+
+    function showEditProductFieldErrors(errors) {
+        const form = document.getElementById('editProductForm');
+        Object.keys(errors).forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = errors[field][0];
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) input.classList.add('is-invalid');
+        });
+    }
+
+    function submitEditProductForm(resetSubmitButton) {
+        const form = document.getElementById('editProductForm');
+        const productId = currentEditProductId;
+        hideEditProductGeneralError();
+
+        // PHP never parses a multipart/form-data body for a real HTTP PUT
+        // request (only POST) — send it as POST with Laravel's standard
+        // _method spoof instead, exactly what @method('PUT') generates as a
+        // hidden input on a normal <form>, or every field would come back
+        // "required" with an empty-looking request body.
+        const formData = new FormData(form);
+        formData.append('_method', 'PUT');
+
+        fetch('{{ url('admin/products') }}/' + productId, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: formData
+        }).then(async function (response) {
+            if (response.status === 422) {
+                const data = await response.json();
+                showEditProductFieldErrors(data.errors || {});
+                resetSubmitButton();
+                return;
+            }
+
+            if (!response.ok) {
+                showEditProductGeneralError('Something went wrong. Please try again.');
+                resetSubmitButton();
+                return;
+            }
+
+            closeEditProductModal();
+            if (window.refreshProductsTable) window.refreshProductsTable();
+            Swal.fire({
+                title: 'Success',
+                text: 'Product updated successfully.',
+                icon: 'success',
+                confirmButtonColor: '#10b981',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }).catch(function () {
+            showEditProductGeneralError('A network error occurred. Please try again.');
+            resetSubmitButton();
+        });
+    }
+
+    var currentEditProductId = null;
+
+    function handleEditProductModalKeydown(e) {
+        const modal = document.getElementById('editProductModal');
+        if (!modal.classList.contains('active')) return;
+
+        if (e.key === 'Escape') {
+            if (!editProductIsSubmitting()) closeEditProductModal();
+            return;
+        }
+
+        if (e.key === 'Tab') {
+            const focusable = modal.querySelectorAll('input, select, textarea, button, [href]');
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    window.openEditProductModal = function (event, productId) {
+        if (event) event.preventDefault();
+        const modal = document.getElementById('editProductModal');
+        const form = document.getElementById('editProductForm');
+
+        editProductLastFocused = document.activeElement || editProductLastFocused;
+        currentEditProductId = productId;
+        form.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+        hideEditProductGeneralError();
+        resetEditProductSubmitButton();
+
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        void modal.offsetHeight;
+        requestAnimationFrame(function () { modal.classList.add('active'); });
+        document.addEventListener('keydown', handleEditProductModalKeydown);
+
+        fetch('{{ url('admin/products') }}/' + productId + '/edit', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                form.innerHTML = data.html;
+                form.dataset.excludeId = String(productId);
+                window.initBarcodeScanner('editProductForm');
+                editProductFormHelper = window.initProductAddForm('editProductForm', {
+                    submitBtn: document.getElementById('editProductSubmitBtn'),
+                    submittingLabel: '<span class="btn-spinner-sm"></span> Updating...',
+                    confirmTitle: 'Confirm Update',
+                    confirmText: 'Are you sure you want to save the changes to this product?',
+                    onConfirmedSubmit: submitEditProductForm,
+                    onCancel: function () { closeEditProductModal(); }
+                });
+                const firstField = form.querySelector('input, select');
+                if (firstField) firstField.focus();
+            })
+            .catch(function () {
+                form.innerHTML = '<p class="form-error">Failed to load product for editing. Please try again.</p>';
+            });
+    };
+
+    window.closeEditProductModal = function () {
+        const modal = document.getElementById('editProductModal');
+        modal.classList.remove('active');
+        document.removeEventListener('keydown', handleEditProductModalKeydown);
+        setTimeout(function () { modal.style.display = 'none'; }, 250);
+        document.body.style.overflow = '';
+        if (editProductLastFocused && typeof editProductLastFocused.focus === 'function') {
+            editProductLastFocused.focus();
+        }
+    };
+
+    document.getElementById('editProductModal').addEventListener('mousedown', function (e) {
+        if (e.target === this && !editProductIsSubmitting()) {
+            closeEditProductModal();
+        }
+    });
+    document.getElementById('editProductCancelBtn').addEventListener('click', function () {
+        if (editProductFormHelper) {
+            editProductFormHelper.confirmCancel();
+        } else {
+            closeEditProductModal();
+        }
+    });
+    document.getElementById('editProductSubmitBtn').addEventListener('click', function () {
+        if (editProductFormHelper) editProductFormHelper.confirmSave();
     });
 </script>
 @endsection

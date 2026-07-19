@@ -88,7 +88,7 @@ class ProductController extends Controller
         return ['label' => 'In Stock', 'class' => 'badge-in-stock', 'icon' => 'fa-check-circle'];
     }
 
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
         $product->load(['brand', 'category', 'inventory']);
 
@@ -101,12 +101,23 @@ class ProductController extends Controller
 
         $status = self::resolveStockStatus($quantity, $threshold);
 
-        return view('admin.products.show', [
+        $viewData = [
             'product' => $product,
             'profit' => $profit,
             'margin' => $margin,
             'status' => $status,
-        ]);
+        ];
+
+        // View Details modal: return just the rendered detail rows instead
+        // of a full page, so the modal can inject it without navigating.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.products.partials.product-details', $viewData)->render(),
+                'productName' => $product->ProductName,
+            ]);
+        }
+
+        return view('admin.products.show', $viewData);
     }
 
     public function create()
@@ -125,15 +136,22 @@ class ProductController extends Controller
         $name = trim((string) $request->input('ProductName', ''));
         $model = trim((string) $request->input('Model', ''));
         $barcode = trim((string) $request->input('Barcode', ''));
+        // When editing, the product's own unchanged name/model/barcode must
+        // not be flagged as a duplicate of itself.
+        $excludeId = $request->input('exclude_id');
 
         $normalize = function (string $value): string {
             return preg_replace('/\s+/', ' ', strtolower($value));
         };
 
+        $candidates = Product::when($excludeId, function ($query, $excludeId) {
+            $query->where('ProductID', '!=', $excludeId);
+        })->get();
+
         $nameTaken = false;
         if ($name !== '') {
             $normalized = $normalize($name);
-            $nameTaken = Product::get()->contains(function ($existing) use ($normalize, $normalized) {
+            $nameTaken = $candidates->contains(function ($existing) use ($normalize, $normalized) {
                 return $normalize((string) ($existing->ProductName ?? '')) === $normalized;
             });
         }
@@ -141,15 +159,14 @@ class ProductController extends Controller
         $modelTaken = false;
         if ($model !== '') {
             $normalized = $normalize($model);
-            $modelTaken = Product::get()->contains(function ($existing) use ($normalize, $normalized) {
+            $modelTaken = $candidates->contains(function ($existing) use ($normalize, $normalized) {
                 return $normalize((string) ($existing->Model ?? '')) === $normalized;
             });
         }
 
-        // Barcode is an exact match (not fuzzy-normalized like name/model),
-        // so this can go straight through the unique index instead of
-        // loading every product into memory.
-        $barcodeTaken = $barcode !== '' && Product::where('Barcode', $barcode)->exists();
+        $barcodeTaken = $barcode !== '' && $candidates->contains(function ($existing) use ($barcode) {
+            return (string) ($existing->Barcode ?? '') === $barcode;
+        });
 
         return response()->json([
             'name' => $nameTaken,
@@ -239,11 +256,25 @@ class ProductController extends Controller
         return redirect()->route('admin.products.index')->with('status', 'Product added successfully.');
     }
 
-    public function edit(Product $product)
+    public function edit(Request $request, Product $product)
     {
+        $product->load('inventory');
+        $categories = Category::orderBy('CategoryName')->get();
+
+        // Edit Product modal: return just the rendered form fields instead
+        // of a full page, so the modal can inject it without navigating.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.products.partials.product-form-fields', [
+                    'categories' => $categories,
+                    'product' => $product,
+                ])->render(),
+            ]);
+        }
+
         return view('admin.products.edit', [
-            'product' => $product->load('inventory'),
-            'categories' => Category::orderBy('CategoryName')->get(),
+            'product' => $product,
+            'categories' => $categories,
         ]);
     }
 
@@ -254,20 +285,52 @@ class ProductController extends Controller
             'Model' => ['required', 'string', 'max:100'],
             'Description' => ['nullable', 'string', 'max:500'],
             'SKU' => ['nullable', 'string', 'max:100', 'unique:Product,SKU,' . $product->ProductID . ',ProductID'],
-            'Barcode' => ['nullable', 'string', 'max:100', 'unique:Product,Barcode,' . $product->ProductID . ',ProductID'],
+            'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode,' . $product->ProductID . ',ProductID'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
-            'Quantity' => ['required', 'integer', 'min:0'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
         ], [
             'SKU.unique' => 'This SKU is already in use.',
-            'Barcode.unique' => 'This barcode is already in use.',
+            'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
+            'Barcode.unique' => 'This barcode is already assigned to another product.',
         ]);
 
-        // Determine status based on quantity and reorder threshold
+        // Block duplicate Model against every OTHER product (case-insensitive,
+        // whitespace-normalized) — the authoritative server-side check
+        // backing the live AJAX one in the edit form/modal. Product Name is
+        // deliberately NOT enforced unique here (unlike store()): the
+        // Hikvision catalog import legitimately has multiple products
+        // sharing a short name (e.g. three separate "Bullet 2MP" models),
+        // and this endpoint has to remain editable for those rows.
+        $normalize = function (string $value): string {
+            return preg_replace('/\s+/', ' ', strtolower($value));
+        };
+
+        $others = Product::where('ProductID', '!=', $product->ProductID)->get();
+
+        $modelTaken = $others->contains(function ($existing) use ($data, $normalize) {
+            return $normalize((string) ($existing->Model ?? '')) === $normalize((string) $data['Model']);
+        });
+
+        if ($modelTaken) {
+            // Throwing (rather than back()->withErrors()) lets Laravel's own
+            // exception handler decide the response shape — a normal redirect
+            // for a plain form post, or 422 JSON for the Edit modal's AJAX
+            // submission — instead of always producing a redirect that an
+            // AJAX caller can't distinguish from success.
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'Model' => ['A product with this model number already exists. Duplicate model numbers are not allowed.'],
+            ]);
+        }
+
+        // Stock quantity is managed through the Inventory module, not here —
+        // preserve whatever is already on record rather than accepting it
+        // from this form.
+        $currentQuantity = (int) ($product->inventory?->Quantity ?? 0);
+
         $status = self::resolveStockStatus(
-            (int) $data['Quantity'],
+            $currentQuantity,
             (int) ($data['ReorderThreshold'] ?? 50)
         )['label'];
 
@@ -286,7 +349,7 @@ class ProductController extends Controller
         $product->inventory()->updateOrCreate(
             ['ProductID' => $product->ProductID],
             [
-                'Quantity' => $data['Quantity'],
+                'Quantity' => $currentQuantity,
                 'ReorderThreshold' => $data['ReorderThreshold'] ?? 50,
                 'Status' => $status
             ]
