@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\Category;
+use App\Models\DamagedProduct;
 use App\Models\Discount;
 use App\Models\Inventory;
 use App\Models\Payment;
@@ -114,6 +115,31 @@ class SalesReturnApprovalTest extends TestCase
         $this->assertSame('approved', $return->fresh()->Status);
         $this->assertSame(5, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
         $this->assertTrue(ActivityLog::where('Action', 'return.approved')->exists());
+    }
+
+    public function test_approving_unsalable_reason_creates_damage_record(): void
+    {
+        foreach (['Factory Defect', 'Damaged Product'] as $reason) {
+            $return = $this->makeReturn(['Reason' => $reason, 'Quantity' => 1]);
+
+            $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return));
+
+            $damage = DamagedProduct::where('SalesReturnID', $return->SalesReturnID)->first();
+            $this->assertNotNull($damage, "Expected a damage record for reason: {$reason}");
+            $this->assertSame(DamagedProduct::STATUS_FOR_SUPPLIER_RETURN, $damage->Status);
+            $this->assertSame($this->product->ProductID, $damage->ProductID);
+            $this->assertSame(1, $damage->Quantity);
+            $this->assertTrue(ActivityLog::where('Action', 'damage.created_from_return')->exists());
+        }
+    }
+
+    public function test_approving_salable_reason_does_not_create_damage_record(): void
+    {
+        $return = $this->makeReturn(['Reason' => 'Other']);
+
+        $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return));
+
+        $this->assertDatabaseMissing('DamagedProduct', ['SalesReturnID' => $return->SalesReturnID]);
     }
 
     public function test_decline_requires_a_reason_and_persists_it(): void

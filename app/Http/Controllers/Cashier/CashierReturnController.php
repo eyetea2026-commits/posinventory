@@ -192,7 +192,7 @@ class CashierReturnController extends Controller
     }
 
     /**
-     * Create a new return request (Refund or Replacement) — pending admin approval.
+     * Create a new return request (Refund) — pending admin approval.
      */
     public function createRefund(Request $request)
     {
@@ -200,9 +200,12 @@ class CashierReturnController extends Controller
             'transaction_id' => 'required|integer|exists:SalesTransaction,SalesTransactionID',
             'product_id' => 'required|integer|exists:Product,ProductID',
             'quantity' => 'required|integer|min:1',
-            'return_type' => 'required|in:refund,replacement',
+            // Replacement retired as a request-time option (2026-07-19) — cashiers can
+            // no longer originate one. processReplacement() below is left intact so
+            // any pre-existing replacement-type SalesReturn rows can still be processed.
+            'return_type' => 'required|in:refund',
             'reason_code' => 'required|in:' . implode(',', array_keys(SalesReturn::REASON_CODES)),
-            'reason_remarks' => 'required_if:reason_code,other|nullable|string|max:200',
+            'remarks' => 'nullable|string|max:500',
         ]);
 
         $user = Auth::user();
@@ -234,9 +237,6 @@ class CashierReturnController extends Controller
         }
 
         $reasonLabel = SalesReturn::REASON_CODES[$data['reason_code']];
-        $reason = $data['reason_code'] === 'other' && !empty($data['reason_remarks'])
-            ? "{$reasonLabel} — {$data['reason_remarks']}"
-            : $reasonLabel;
 
         $refundAmount = $salesItem->UnitPrice * $data['quantity'];
 
@@ -244,7 +244,8 @@ class CashierReturnController extends Controller
             'SalesTransactionID' => $data['transaction_id'],
             'ProductID' => $data['product_id'],
             'Quantity' => $data['quantity'],
-            'Reason' => $reason,
+            'Reason' => $reasonLabel,
+            'Remarks' => $data['remarks'] ?? null,
             'ReturnType' => $data['return_type'],
             'ReturnDate' => now()->format('Y-m-d'),
             'Status' => SalesReturn::STATUS_PENDING,
@@ -319,17 +320,24 @@ class CashierReturnController extends Controller
                     ->first();
                 $refundAmount = $salesItem ? ($salesItem->UnitPrice * $salesReturn->Quantity) : 0;
 
-                $inventory = Inventory::where('ProductID', $salesReturn->ProductID)->lockForUpdate()->first();
-                if (!$inventory) {
-                    $inventory = Inventory::firstOrCreate(
-                        ['ProductID' => $salesReturn->ProductID],
-                        ['Quantity' => 0, 'Status' => 'Out of Stock']
-                    );
-                }
+                // Factory Defect / Damaged Product units are unsalable — they
+                // were already diverted into the Damage module when the admin
+                // approved this return (see SalesReturnController::approve())
+                // and must never come back into Inventory. Every other reason
+                // follows the normal restore-to-stock path.
+                if (! $salesReturn->is_unsalable_return) {
+                    $inventory = Inventory::where('ProductID', $salesReturn->ProductID)->lockForUpdate()->first();
+                    if (!$inventory) {
+                        $inventory = Inventory::firstOrCreate(
+                            ['ProductID' => $salesReturn->ProductID],
+                            ['Quantity' => 0, 'Status' => 'Out of Stock']
+                        );
+                    }
 
-                $inventory->Quantity += $salesReturn->Quantity;
-                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
-                $inventory->save();
+                    $inventory->Quantity += $salesReturn->Quantity;
+                    $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                    $inventory->save();
+                }
 
                 $salesReturn->update([
                     'RefundMethod' => $data['refund_method'],
@@ -346,7 +354,7 @@ class CashierReturnController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
 
-        ActivityLog::record('return.refund_processed', "Processed refund #{$salesReturnId} — ₱{$refundAmount} via {$data['refund_method']} (Txn #{$salesReturn->SalesTransactionID})");
+        ActivityLog::record('return.refund_processed', "Processed refund #{$salesReturnId} — ₱" . number_format((float) $refundAmount, 2) . " via {$data['refund_method']} (Txn #{$salesReturn->SalesTransactionID})");
 
         return response()->json([
             'success' => true,
@@ -480,6 +488,21 @@ class CashierReturnController extends Controller
         ]);
     }
 
+    public function printRefundReceipt($salesReturnId)
+    {
+        $salesReturn = SalesReturn::with(['product', 'salesTransaction', 'processedByUser'])
+            ->findOrFail($salesReturnId);
+
+        if ($salesReturn->Status !== SalesReturn::STATUS_PROCESSED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
+            abort(404, 'Refund receipt not found');
+        }
+
+        return view('cashier.refund-receipt', [
+            'salesReturn' => $salesReturn,
+            'receiptNumber' => 'RFD-' . str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
+        ]);
+    }
+
     public function printReplacementSlip($salesReturnId)
     {
         $salesReturn = SalesReturn::with(['product', 'salesTransaction', 'replacement.product', 'replacement.processedByUser'])
@@ -519,6 +542,7 @@ class CashierReturnController extends Controller
                 'product_name' => $refund->product?->ProductName ?? 'Unknown',
                 'quantity' => $refund->Quantity,
                 'reason' => $refund->Reason,
+                'remarks' => $refund->Remarks,
                 'return_type' => $refund->ReturnType,
                 'status' => $refund->Status,
                 'decline_reason' => $refund->DeclineReason,

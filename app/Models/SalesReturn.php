@@ -19,6 +19,7 @@ class SalesReturn extends Model
         'ProductID',
         'Quantity',
         'Reason',
+        'Remarks',
         'ReturnType',
         'Status',
         'DeclineReason',
@@ -44,10 +45,12 @@ class SalesReturn extends Model
     const REASON_CODES = [
         'factory_defect' => 'Factory Defect',
         'damaged_product' => 'Damaged Product',
-        'wrong_item' => 'Wrong Item',
-        'expired_product' => 'Expired Product',
         'other' => 'Other',
     ];
+
+    // Reasons that mean the physical unit is unsalable — it must never be
+    // restored to Inventory and instead flows into the Damage module.
+    const UNSALABLE_REASONS = ['Factory Defect', 'Damaged Product'];
 
     // Store policy: how many days after purchase a product remains eligible for return.
     const RETURN_WINDOW_DAYS = 7;
@@ -86,6 +89,18 @@ class SalesReturn extends Model
     public function replacement()
     {
         return $this->hasOne(Replacement::class, 'SalesReturnID', 'SalesReturnID');
+    }
+
+    public function damagedProduct()
+    {
+        return $this->hasOne(DamagedProduct::class, 'SalesReturnID', 'SalesReturnID');
+    }
+
+    // Whether this return's reason means the unit is physically unsalable
+    // (Factory Defect / Damaged Product) and must never re-enter Inventory.
+    public function getIsUnsalableReturnAttribute(): bool
+    {
+        return in_array($this->Reason, self::UNSALABLE_REASONS, true);
     }
 
     // How many days elapsed between the original purchase and this return request.

@@ -34,5 +34,22 @@ class AppServiceProvider extends ServiceProvider
                 'headerUnreadCount' => $user ? $user->unreadNotifications()->count() : 0,
             ]);
         });
+
+        // Bound to the partial itself, not 'cashier.layout': this partial gets
+        // @include'd from inside child views (pos/transactions/refunds) whose
+        // content renders *before* Blade ever instantiates the parent layout
+        // view under @extends — a composer scoped to 'cashier.layout' would
+        // fire too late for those instances and leave them stuck on the
+        // ?? 0 / ?? collect() fallback.
+        View::composer('cashier.partials.notification-bell', function ($view) {
+            $user = auth()->user();
+
+            $view->with([
+                'headerUnreadNotifications' => $user
+                    ? $user->unreadNotifications()->latest()->take(8)->get()
+                    : collect(),
+                'headerUnreadCount' => $user ? $user->unreadNotifications()->count() : 0,
+            ]);
+        });
     }
 }

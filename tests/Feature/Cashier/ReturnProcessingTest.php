@@ -121,7 +121,8 @@ class ReturnProcessingTest extends TestCase
 
     public function test_process_refund_restores_inventory_and_marks_processed(): void
     {
-        $return = $this->makeReturn(['Status' => 'approved', 'Quantity' => 2]);
+        // Salable reason — the only case that should ever restore stock.
+        $return = $this->makeReturn(['Status' => 'approved', 'Quantity' => 2, 'Reason' => 'Other']);
 
         $response = $this->actingAs($this->cashierUser)->postJson(
             route('cashier.refunds.process', $return),
@@ -134,6 +135,27 @@ class ReturnProcessingTest extends TestCase
         $this->assertEquals(2000, $return->RefundAmount);
         $this->assertSame(7, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
         $this->assertTrue(ActivityLog::where('Action', 'return.refund_processed')->exists());
+    }
+
+    public function test_process_refund_does_not_restore_inventory_for_unsalable_reasons(): void
+    {
+        foreach (['Factory Defect', 'Damaged Product'] as $reason) {
+            Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 5]);
+            $return = $this->makeReturn(['Status' => 'approved', 'Quantity' => 2, 'Reason' => $reason]);
+
+            $response = $this->actingAs($this->cashierUser)->postJson(
+                route('cashier.refunds.process', $return),
+                ['refund_method' => 'cash']
+            );
+
+            $response->assertJson(['success' => true]);
+            $return->refresh();
+            $this->assertSame('processed', $return->Status, "Reason: {$reason}");
+            $this->assertEquals(2000, $return->RefundAmount, "Reason: {$reason}");
+            // Inventory must stay untouched — the unit was diverted to the
+            // Damage module at approval time and must never come back.
+            $this->assertSame(5, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity, "Reason: {$reason}");
+        }
     }
 
     public function test_process_replacement_rejects_non_approved_or_wrong_type(): void

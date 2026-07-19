@@ -65,8 +65,6 @@
     .search-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
     .search-tab { flex: 1; padding: 10px; background: #2d3748; border: 1px solid #4a5568; border-radius: 8px; text-align: center; cursor: pointer; color: #cbd5e1; }
     .search-tab.active { background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; color: #fff; }
-    .type-radio-group { display: flex; gap: 16px; }
-    .type-radio-group label { display: flex; align-items: center; gap: 6px; color: #e2e8f0; }
     @media (max-width: 768px) {
         .stats-grid { grid-template-columns: repeat(2, 1fr); }
         .form-row { grid-template-columns: 1fr; }
@@ -103,9 +101,12 @@
 
 <div class="content-header">
     <h1>Return / Refund Requests</h1>
-    <button class="btn-create" onclick="showCreateRefundModal()">
-        <i class="fas fa-plus"></i> New Return Request
-    </button>
+    <div style="display: flex; align-items: center; gap: 14px;">
+        @include('cashier.partials.notification-bell')
+        <button class="btn-create" onclick="showCreateRefundModal()">
+            <i class="fas fa-plus"></i> New Return Request
+        </button>
+    </div>
 </div>
 
 <div class="card">
@@ -240,28 +241,20 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Return Type</label>
-                    <div class="type-radio-group">
-                        <label><input type="radio" name="return_type" value="refund" checked> Refund</label>
-                        <label><input type="radio" name="return_type" value="replacement"> Replacement</label>
-                    </div>
-                </div>
+                <input type="hidden" name="return_type" value="refund">
 
                 <div class="form-group">
                     <label>Reason for Return</label>
                     <select id="reason-code">
                         <option value="factory_defect">Factory Defect</option>
                         <option value="damaged_product">Damaged Product</option>
-                        <option value="wrong_item">Wrong Item</option>
-                        <option value="expired_product">Expired Product</option>
                         <option value="other">Other</option>
                     </select>
                 </div>
 
-                <div class="form-group" id="reason-remarks-group" style="display:none;">
-                    <label>Remarks</label>
-                    <textarea id="reason-remarks" rows="2" placeholder="Please specify..."></textarea>
+                <div class="form-group" id="reason-remarks-group">
+                    <label>Additional Remarks (Optional)</label>
+                    <textarea id="reason-remarks" rows="2" placeholder="Add any additional details..."></textarea>
                 </div>
 
                 <button type="submit" class="btn-submit">
@@ -495,10 +488,10 @@ function populateTransactionDetails(transaction) {
             <div>
                 <strong>${escapeHtml(item.ProductName)}</strong><br>
                 <small>Barcode: ${escapeHtml(item.Barcode ?? 'N/A')} | SKU: ${escapeHtml(item.SKU ?? 'N/A')} | Category: ${escapeHtml(item.Category ?? 'N/A')}</small><br>
-                <small>Qty Purchased: ${Number(item.QuantityPurchased)} | Unit Price: ₱${Number(item.UnitPrice).toFixed(2)} | Returnable: ${Number(item.RemainingReturnableQty)}</small>
+                <small>Qty Purchased: ${Number(item.QuantityPurchased)} | Unit Price: ${window.formatPeso(item.UnitPrice)} | Returnable: ${Number(item.RemainingReturnableQty)}</small>
             </div>
             <div style="text-align: right;">
-                <strong>₱${Number(item.TotalPrice).toFixed(2)}</strong>
+                <strong>${window.formatPeso(item.TotalPrice)}</strong>
             </div>
         </div>
     `).join('');
@@ -520,14 +513,10 @@ function updateRefundAmount() {
     const qty = parseInt(document.getElementById('refund-quantity').value) || 1;
     const amount = selectedProduct.unitPrice * qty;
     currentRefundAmount = amount;
-    document.getElementById('refund-amount-display').textContent = '₱' + amount.toFixed(2);
+    document.getElementById('refund-amount-display').textContent = window.formatPeso(amount);
 }
 
 document.getElementById('refund-quantity').addEventListener('input', updateRefundAmount);
-
-document.getElementById('reason-code').addEventListener('change', function() {
-    document.getElementById('reason-remarks-group').style.display = this.value === 'other' ? 'block' : 'none';
-});
 
 document.getElementById('create-refund-form').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -544,7 +533,7 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
     }
 
     const transactionId = this.dataset.transactionId;
-    const returnType = document.querySelector('input[name="return_type"]:checked').value;
+    const returnType = document.querySelector('input[name="return_type"]').value;
 
     fetch('{{ route("cashier.refunds.create") }}', {
         method: 'POST',
@@ -556,7 +545,7 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
             quantity: qty,
             return_type: returnType,
             reason_code: document.getElementById('reason-code').value,
-            reason_remarks: document.getElementById('reason-remarks').value,
+            remarks: document.getElementById('reason-remarks').value,
         })
     })
     .then(response => response.json())
@@ -586,10 +575,11 @@ function viewRefundDetails(refundId) {
                         <div class="refund-details-row"><span>Quantity:</span><span>${Number(r.quantity)}</span></div>
                         <div class="refund-details-row"><span>Return Type:</span><span>${escapeHtml(r.return_type)}</span></div>
                         <div class="refund-details-row"><span>Reason:</span><span>${escapeHtml(r.reason)}</span></div>
+                        ${r.remarks ? `<div class="refund-details-row"><span>Remarks:</span><span>${escapeHtml(r.remarks)}</span></div>` : ''}
                         <div class="refund-details-row"><span>Return Date:</span><span>${escapeHtml(r.return_date)}</span></div>
                         <div class="refund-details-row"><span>Status:</span><span class="status status-${escapeHtml(r.status.toLowerCase())}">${escapeHtml(r.status)}</span></div>
                         ${r.decline_reason ? `<div class="refund-details-row"><span>Decline Reason:</span><span>${escapeHtml(r.decline_reason)}</span></div>` : ''}
-                        ${r.return_type === 'refund' ? `<div class="refund-details-row total"><span>Refund Amount:</span><span>₱${parseFloat(r.refund_amount).toFixed(2)}</span></div>` : ''}
+                        ${r.return_type === 'refund' ? `<div class="refund-details-row total"><span>Refund Amount:</span><span>${window.formatPeso(r.refund_amount)}</span></div>` : ''}
                         ${r.refund_method ? `<div class="refund-details-row"><span>Refund Method:</span><span>${escapeHtml(r.refund_method)}</span></div>` : ''}
                         ${r.refund_date ? `<div class="refund-details-row"><span>Refund Date:</span><span>${escapeHtml(r.refund_date)}</span></div>` : ''}
                         ${r.replacement ? `<div class="refund-details-row"><span>Replacement:</span><span>${Number(r.replacement.quantity)} x ${escapeHtml(r.replacement.product_name)} (Slip ${escapeHtml(r.replacement.slip_number)})</span></div>` : ''}
@@ -614,7 +604,7 @@ function showProcessRefundModal(refundId) {
             if (data.success) {
                 document.getElementById('process-refund-id').value = refundId;
                 currentRefundAmount = data.refund.refund_amount;
-                document.getElementById('process-amount').textContent = '₱' + parseFloat(data.refund.refund_amount).toFixed(2);
+                document.getElementById('process-amount').textContent = window.formatPeso(data.refund.refund_amount);
                 document.getElementById('process-refund-modal').classList.add('active');
             } else {
                 alert(data.message);
@@ -652,9 +642,17 @@ document.getElementById('process-refund-form').addEventListener('submit', functi
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Refund processed successfully!');
             closeProcessRefundModal();
-            location.reload();
+
+            const receiptUrl = '/cashier/refunds/' + refundId + '/receipt';
+            const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
+            if (printWindow) {
+                printWindow.focus();
+            } else {
+                alert('Refund processed successfully!\nReceipt: ' + data.receipt_number + '\n\nPlease allow popups to print receipts.');
+            }
+
+            setTimeout(() => window.location.reload(), 300);
         } else {
             alert(data.message);
         }

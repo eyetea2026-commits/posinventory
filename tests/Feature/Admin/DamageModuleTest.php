@@ -126,4 +126,133 @@ class DamageModuleTest extends TestCase
         $response->assertSee('Total Damage Records');
         $response->assertSee('Total Damage Cost');
     }
+
+    public function test_receive_replacement_increases_inventory_and_marks_status(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), [
+            'Status' => DamagedProduct::STATUS_RETURNED_TO_SUPPLIER,
+        ]));
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 8]);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.damages.receive-replacement', $damage));
+
+        $response->assertSessionHas('success');
+        $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
+        $this->assertSame(DamagedProduct::STATUS_REPLACEMENT_RECEIVED, $damage->fresh()->Status);
+        $this->assertNotNull($damage->fresh()->ResolvedBy);
+        $this->assertTrue(ActivityLog::where('Action', 'damage.replacement_received')->exists());
+    }
+
+    public function test_receive_replacement_honors_custom_quantity(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(['Quantity' => 2]), [
+            'Status' => DamagedProduct::STATUS_RETURNED_TO_SUPPLIER,
+        ]));
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 8]);
+
+        $this->actingAs($this->admin)->post(route('admin.damages.receive-replacement', $damage), [
+            'replacement_quantity' => 5,
+        ]);
+
+        $this->assertSame(13, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
+    }
+
+    public function test_receive_replacement_rejected_unless_returned_to_supplier(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), [
+            'Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN,
+        ]));
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 8]);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.damages.receive-replacement', $damage));
+
+        $response->assertSessionHas('error');
+        $this->assertSame(8, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
+        $this->assertSame(DamagedProduct::STATUS_FOR_SUPPLIER_RETURN, $damage->fresh()->Status);
+    }
+
+    public function test_cancel_restores_inventory_and_marks_cancelled(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(['Quantity' => 3]), [
+            'Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN,
+        ]));
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 7]);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.damages.cancel', $damage));
+
+        $response->assertSessionHas('success');
+        $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
+        $this->assertSame(DamagedProduct::STATUS_CANCELLED, $damage->fresh()->Status);
+        $this->assertTrue(ActivityLog::where('Action', 'damage.cancelled')->exists());
+    }
+
+    public function test_cancel_rejected_once_returned_to_supplier(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), [
+            'Status' => DamagedProduct::STATUS_RETURNED_TO_SUPPLIER,
+        ]));
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 8]);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.damages.cancel', $damage));
+
+        $response->assertSessionHas('error');
+        $this->assertSame(8, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
+        $this->assertSame(DamagedProduct::STATUS_RETURNED_TO_SUPPLIER, $damage->fresh()->Status);
+    }
+
+    public function test_bulk_confirm_supplier_return_transitions_only_eligible_records(): void
+    {
+        $eligible1 = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
+        $eligible2 = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
+        $notEligible = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_PENDING]));
+
+        $response = $this->actingAs($this->admin)->post(route('admin.damages.bulk-return-to-supplier'), [
+            'damage_ids' => [$eligible1->DamageID, $eligible2->DamageID, $notEligible->DamageID],
+        ]);
+
+        $response->assertSessionHas('success');
+        $this->assertSame(DamagedProduct::STATUS_RETURNED_TO_SUPPLIER, $eligible1->fresh()->Status);
+        $this->assertSame(DamagedProduct::STATUS_RETURNED_TO_SUPPLIER, $eligible2->fresh()->Status);
+        $this->assertSame(DamagedProduct::STATUS_PENDING, $notEligible->fresh()->Status);
+        $this->assertSame(2, ActivityLog::where('Action', 'damage.returned_to_supplier')->count());
+    }
+
+    public function test_create_page_lists_only_return_originated_pending_supplier_return_records(): void
+    {
+        $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);
+        $cashierUser = User::factory()->create(['role_id' => $cashierRole->id]);
+        $staff = \App\Models\Staff::create([
+            'FirstName' => 'Jane', 'MiddleName' => '-', 'LastName' => 'Doe',
+            'ContactNumber' => '0000', 'Email' => 'jane.staff@example.com', 'Age' => 30, 'Gender' => 'F',
+            'UserID' => $cashierUser->id,
+        ]);
+        $transaction = \App\Models\SalesTransaction::create([
+            'CustomerName' => 'Jane Buyer',
+            'SalesTransactionDate' => now(),
+            'StaffID' => $staff->StaffID,
+        ]);
+        $salesReturn = \App\Models\SalesReturn::create([
+            'SalesTransactionID' => $transaction->SalesTransactionID,
+            'ProductID' => $this->product->ProductID,
+            'Quantity' => 1,
+            'Reason' => 'Factory Defect',
+            'ReturnType' => 'refund',
+            'ReturnDate' => now()->format('Y-m-d'),
+            'Status' => 'approved',
+            'CustomerName' => 'Jane Buyer',
+        ]);
+        $fromReturn = DamagedProduct::create(array_merge($this->baseDamagePayload(), [
+            'Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN,
+            'SalesReturnID' => $salesReturn->SalesReturnID,
+        ]));
+        // Manually-recorded damage marked for supplier return — must NOT appear in this list.
+        DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.damages.create'));
+
+        $response->assertStatus(200);
+        $response->assertViewHas('pendingReturnDamages', function ($records) use ($fromReturn) {
+            return $records->count() === 1 && $records->first()->DamageID === $fromReturn->DamageID;
+        });
+    }
 }

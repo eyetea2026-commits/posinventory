@@ -6,6 +6,7 @@
     <title>Cashier - {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('Administrator/Dashboard.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    @include('partials.currency-js')
     <style>
         :root {
             --primary: #3b82f6;
@@ -172,7 +173,7 @@
             <i class="fas fa-bars"></i>
         </button>
         <span class="mobile-brand">CCTV Express</span>
-        <div style="width: 40px;"></div>
+        @include('cashier.partials.notification-bell')
     </div>
 
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
@@ -216,6 +217,22 @@
             document.querySelector('.pos-sidebar').classList.toggle('active');
             document.querySelector('.sidebar-overlay').classList.toggle('active');
         }
+
+        function toggleNotifDropdown(event) {
+            event.stopPropagation();
+            const dropdown = event.currentTarget.closest('.notif-bell-wrap').querySelector('.notif-dropdown');
+            const wasActive = dropdown.classList.contains('active');
+            document.querySelectorAll('.notif-dropdown.active').forEach(d => d.classList.remove('active'));
+            if (!wasActive) {
+                dropdown.classList.add('active');
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.notif-bell-wrap')) {
+                document.querySelectorAll('.notif-dropdown.active').forEach(d => d.classList.remove('active'));
+            }
+        });
 
         // Toast notifications
         function showToast(message, type = 'success') {
@@ -263,6 +280,56 @@
         .toast-success i { color: #10b981; }
         .toast-error { border-color: #ef4444; }
         .toast-error i { color: #ef4444; }
+
+        .notif-bell-wrap { position: relative; display: inline-flex; align-items: center; }
+        .notif-bell-btn {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.05rem;
+            cursor: pointer;
+            padding: 4px;
+        }
+        .notif-bell-btn:hover { color: #e2e8f0; }
+        .notif-badge {
+            position: absolute;
+            top: -2px;
+            right: -4px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 10px;
+            line-height: 1.3;
+        }
+        .notif-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 10px;
+            width: 320px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #1a1d2d;
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            z-index: 1100;
+            text-align: left;
+        }
+        .notif-dropdown.active { display: block; }
+        .notif-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); font-weight: 600; }
+        .notif-dropdown-header button { background: none; border: none; color: #94a3b8; font-size: 0.75rem; cursor: pointer; }
+        .notif-item { display: block; padding: 10px 16px; text-decoration: none; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); font-size: 0.85rem; }
+        .notif-item:hover { background: rgba(59, 130, 246, 0.1); }
+        .notif-item small { color: #94a3b8; }
+        .notif-empty { padding: 20px 16px; color: #94a3b8; font-size: 0.85rem; text-align: center; }
+        .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; }
     </style>
 </body>
 </html>

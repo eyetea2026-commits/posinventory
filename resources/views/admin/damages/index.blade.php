@@ -10,12 +10,6 @@
     </div>
 @endsection
 
-@section('header-actions')
-    <a href="{{ route('admin.damages.create') }}" class="btn btn-primary">
-        <i class="fa-solid fa-plus"></i> Record Damaged Product
-    </a>
-@endsection
-
 @section('content')
 <style>
     .btn {
@@ -68,6 +62,11 @@
         overflow: hidden;
     }
     .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 16px;
         padding: 20px 24px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     }
@@ -119,6 +118,7 @@
         display: flex;
         flex-wrap: wrap;
         gap: 12px;
+        flex: 1;
     }
     .search-form input, .search-form select {
         padding: 12px 16px;
@@ -253,6 +253,7 @@
         .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     }
 </style>
+@include('admin.partials.modal-styles')
 
 @if(session('success'))
     <div class="alert alert-success">
@@ -312,9 +313,11 @@
             <select name="status">
                 <option value="">All Statuses</option>
                 <option value="pending" {{ ($status ?? '') === 'pending' ? 'selected' : '' }}>Pending</option>
-                <option value="for_supplier_return" {{ ($status ?? '') === 'for_supplier_return' ? 'selected' : '' }}>For Supplier Return</option>
+                <option value="for_supplier_return" {{ ($status ?? '') === 'for_supplier_return' ? 'selected' : '' }}>Pending Supplier Return</option>
                 <option value="returned_to_supplier" {{ ($status ?? '') === 'returned_to_supplier' ? 'selected' : '' }}>Returned to Supplier</option>
+                <option value="replacement_received" {{ ($status ?? '') === 'replacement_received' ? 'selected' : '' }}>Replacement Received</option>
                 <option value="disposed" {{ ($status ?? '') === 'disposed' ? 'selected' : '' }}>Disposed</option>
+                <option value="cancelled" {{ ($status ?? '') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
             </select>
             <select name="supplier_id">
                 <option value="">All Suppliers</option>
@@ -330,6 +333,9 @@
                 <button type="button" class="btn btn-sm btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
             </div>
         </form>
+        <a href="{{ route('admin.damages.create') }}" class="btn btn-primary no-print" title="Record Damage" onclick="openDamageModal(event)">
+            <i class="fa-solid fa-plus"></i> Record Damage
+        </a>
     </div>
     <div class="card-body">
         <table class="table">
@@ -346,12 +352,17 @@
                     <th class="no-print">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="damagesTbody">
                 @forelse($damagedProducts as $damage)
                     <tr>
                         <td>{{ $damage->DamageID }}</td>
                         <td>{{ \Carbon\Carbon::parse($damage->DateRecorded)->format('M d, Y') }}</td>
-                        <td><strong>{{ $damage->product->ProductName ?? 'N/A' }}</strong></td>
+                        <td>
+                            <strong>{{ $damage->product->ProductName ?? 'N/A' }}</strong>
+                            @if($damage->SalesReturnID)
+                                <br><span class="badge badge-info">From Return #{{ $damage->SalesReturnID }}</span>
+                            @endif
+                        </td>
                         <td>{{ $damage->supplier->SupplierName ?? 'N/A' }}</td>
                         <td>{{ $damage->PurchaseOrderID ? '#' . $damage->PurchaseOrderID : '-' }}</td>
                         <td><span class="badge badge-danger">{{ $damage->Quantity }}</span></td>
@@ -360,9 +371,13 @@
                             @if($damage->Status === 'pending')
                                 <span class="badge badge-warning">Pending</span>
                             @elseif($damage->Status === 'for_supplier_return')
-                                <span class="badge badge-info">For Supplier Return</span>
+                                <span class="badge badge-info">Pending Supplier Return</span>
                             @elseif($damage->Status === 'returned_to_supplier')
                                 <span class="badge badge-success">Returned to Supplier</span>
+                            @elseif($damage->Status === 'replacement_received')
+                                <span class="badge badge-success">Replacement Received</span>
+                            @elseif($damage->Status === 'cancelled')
+                                <span class="badge badge-secondary">Cancelled</span>
                             @else
                                 <span class="badge badge-secondary">Disposed</span>
                             @endif
@@ -393,9 +408,18 @@
                                         @csrf
                                         <button type="submit" class="btn btn-sm btn-secondary" title="Confirm Returned"><i class="fa-solid fa-check"></i> Confirm Returned</button>
                                     </form>
+                                    <form method="POST" action="{{ route('admin.damages.cancel', $damage->DamageID) }}" onsubmit="return confirm('Cancel this supplier return and restore the quantity to inventory?');">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-secondary" title="Cancel"><i class="fa-solid fa-rotate-left"></i> Cancel</button>
+                                    </form>
                                     <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" onsubmit="return confirm('Mark this record as disposed?');">
                                         @csrf
                                         <button type="submit" class="btn btn-sm btn-secondary" title="Dispose"><i class="fa-solid fa-trash-can"></i></button>
+                                    </form>
+                                @elseif($damage->Status === 'returned_to_supplier')
+                                    <form method="POST" action="{{ route('admin.damages.receive-replacement', $damage->DamageID) }}" onsubmit="return confirm('Confirm the supplier sent a replacement and increase inventory?');">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-secondary" title="Receive Replacement"><i class="fa-solid fa-box"></i> Receive Replacement</button>
                                     </form>
                                 @else
                                     <span class="text-muted">-</span>
@@ -410,7 +434,6 @@
                                 <div class="empty-icon"><i class="fa-solid fa-box-open"></i></div>
                                 <p class="empty-title">No Damage Records Found</p>
                                 <p class="empty-text">Record your first damaged product to get started.</p>
-                                <a href="{{ route('admin.damages.create') }}" class="btn btn-primary">Record Damaged Product</a>
                             </div>
                         </td>
                     </tr>
@@ -440,6 +463,33 @@
     </div>
 </div>
 
+<!-- Record Damage Modal -->
+<div id="addDamageModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addDamageModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="addDamageModalTitle"><i class="fa-solid fa-box-open"></i> Record Damage</h2>
+            <button type="button" class="modal-close" onclick="closeDamageModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div id="addDamageGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
+
+        <form id="addDamageForm">
+            @include('admin.damages.partials.damage-form-fields')
+        </form>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="addDamageCancelBtn">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn btn-primary" id="addDamageSubmitBtn">
+                <i class="fas fa-save"></i> Record Damage
+            </button>
+        </div>
+    </div>
+</div>
+
+@include('admin.partials.ajax-modal-form')
+
 <script>
     function confirmDelete(damageId) {
         Swal.fire({
@@ -458,6 +508,7 @@
         });
     }
 
+    // Auto-show session messages
     @if(session('success'))
         Swal.fire({
             title: 'Success',
@@ -476,6 +527,189 @@
             confirmButtonColor: '#ef4444'
         });
     @endif
+
+    // ---- Record Damage modal ----
+    const ADD_DAMAGE_FIELD_IDS = ['ProductID', 'SupplierID', 'PurchaseOrderID', 'Quantity', 'DateRecorded', 'DamageType', 'Description', 'InspectionNotes', 'WarehouseLocation', 'Remarks'];
+    let addDamageLastFocused = null;
+
+    function addDamageIsSubmitting() {
+        const btn = document.getElementById('addDamageSubmitBtn');
+        return btn ? btn.disabled : false;
+    }
+
+    function clearAddDamageFieldErrors() {
+        const form = document.getElementById('addDamageForm');
+        ADD_DAMAGE_FIELD_IDS.forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = '';
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) input.classList.remove('error');
+        });
+    }
+
+    function showAddDamageFieldErrors(errors) {
+        const form = document.getElementById('addDamageForm');
+        clearAddDamageFieldErrors();
+        let firstInvalid = null;
+        Object.keys(errors).forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = errors[field][0];
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) {
+                input.classList.add('error');
+                if (!firstInvalid) firstInvalid = input;
+            }
+        });
+        if (firstInvalid) firstInvalid.focus();
+    }
+
+    function showAddDamageGeneralError(message) {
+        const banner = document.getElementById('addDamageGeneralError');
+        banner.textContent = message;
+        banner.style.display = 'flex';
+    }
+
+    function hideAddDamageGeneralError() {
+        const banner = document.getElementById('addDamageGeneralError');
+        banner.style.display = 'none';
+        banner.textContent = '';
+    }
+
+    function refreshDamagesTable(html) {
+        const parsed = new DOMParser().parseFromString(html, 'text/html');
+        const newTbody = parsed.querySelector('#damagesTbody');
+        const currentTbody = document.getElementById('damagesTbody');
+        if (newTbody && currentTbody) {
+            currentTbody.innerHTML = newTbody.innerHTML;
+        }
+    }
+
+    function resetAddDamageSubmitButton() {
+        const btn = document.getElementById('addDamageSubmitBtn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Record Damage';
+    }
+
+    window.openDamageModal = function (event) {
+        if (event) event.preventDefault();
+        const modal = document.getElementById('addDamageModal');
+        const form = document.getElementById('addDamageForm');
+
+        addDamageLastFocused = document.activeElement;
+        form.reset();
+        clearAddDamageFieldErrors();
+        hideAddDamageGeneralError();
+        resetAddDamageSubmitButton();
+
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        void modal.offsetHeight;
+        requestAnimationFrame(function () {
+            modal.classList.add('active');
+        });
+
+        const firstField = form.querySelector('input, textarea, select');
+        if (firstField) firstField.focus();
+
+        document.addEventListener('keydown', handleAddDamageModalKeydown);
+    };
+
+    window.closeDamageModal = function () {
+        const modal = document.getElementById('addDamageModal');
+        modal.classList.remove('active');
+        document.removeEventListener('keydown', handleAddDamageModalKeydown);
+        setTimeout(function () { modal.style.display = 'none'; }, 250);
+        document.body.style.overflow = '';
+        if (addDamageLastFocused && typeof addDamageLastFocused.focus === 'function') {
+            addDamageLastFocused.focus();
+        }
+    };
+
+    function handleAddDamageModalKeydown(e) {
+        const modal = document.getElementById('addDamageModal');
+        if (!modal.classList.contains('active')) return;
+
+        if (e.key === 'Escape') {
+            if (!addDamageIsSubmitting()) closeDamageModal();
+            return;
+        }
+
+        if (e.key === 'Tab') {
+            const focusable = modal.querySelectorAll('input, select, textarea, button, [href]');
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    document.getElementById('addDamageModal').addEventListener('mousedown', function (e) {
+        if (e.target === this && !addDamageIsSubmitting()) {
+            closeDamageModal();
+        }
+    });
+
+    document.getElementById('addDamageForm').addEventListener('submit', function (e) { e.preventDefault(); });
+
+    document.getElementById('addDamageCancelBtn').addEventListener('click', function () {
+        closeDamageModal();
+    });
+
+    document.getElementById('addDamageSubmitBtn').addEventListener('click', function () {
+        const form = document.getElementById('addDamageForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        Swal.fire({
+            title: 'Confirm Save',
+            text: 'Are you sure you want to record this damaged product?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes',
+            cancelButtonText: 'No',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+
+            const submitBtn = document.getElementById('addDamageSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            clearAddDamageFieldErrors();
+            hideAddDamageGeneralError();
+
+            window.submitAjaxForm(form, '{{ route('admin.damages.store') }}', {
+                onFieldErrors: function (errors) {
+                    showAddDamageFieldErrors(errors);
+                    resetAddDamageSubmitButton();
+                },
+                onSuccess: function (html, message) {
+                    refreshDamagesTable(html);
+                    closeDamageModal();
+                    Swal.fire({
+                        title: 'Success',
+                        text: message,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                },
+                onOtherError: function (message) {
+                    showAddDamageGeneralError(message);
+                    resetAddDamageSubmitButton();
+                }
+            });
+        });
+    });
 </script>
 
 <style media="print">

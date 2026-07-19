@@ -201,6 +201,12 @@ Route::prefix('admin')->group(function () {
         ->name('admin.damages.confirm-supplier-return')->middleware(['auth', 'role:admin']);
     Route::post('damages/{damage}/dispose', [App\Http\Controllers\Admin\DamageController::class, 'markDisposed'])
         ->name('admin.damages.dispose')->middleware(['auth', 'role:admin']);
+    Route::post('damages/{damage}/receive-replacement', [App\Http\Controllers\Admin\DamageController::class, 'receiveReplacement'])
+        ->name('admin.damages.receive-replacement')->middleware(['auth', 'role:admin']);
+    Route::post('damages/{damage}/cancel', [App\Http\Controllers\Admin\DamageController::class, 'cancel'])
+        ->name('admin.damages.cancel')->middleware(['auth', 'role:admin']);
+    Route::post('damages/bulk-return-to-supplier', [App\Http\Controllers\Admin\DamageController::class, 'bulkConfirmSupplierReturn'])
+        ->name('admin.damages.bulk-return-to-supplier')->middleware(['auth', 'role:admin']);
 
     Route::get('suppliers', [App\Http\Controllers\Admin\SupplierController::class, 'index'])
         ->name('admin.suppliers.index')->middleware(['auth', 'role:admin']);
@@ -238,10 +244,6 @@ Route::prefix('admin')->group(function () {
 
     Route::get('sales-returns', [App\Http\Controllers\Admin\SalesReturnController::class, 'index'])
         ->name('admin.sales-returns.index')->middleware(['auth', 'role:admin']);
-    Route::get('sales-returns/create', [App\Http\Controllers\Admin\SalesReturnController::class, 'create'])
-        ->name('admin.sales-returns.create')->middleware(['auth', 'role:admin']);
-    Route::post('sales-returns', [App\Http\Controllers\Admin\SalesReturnController::class, 'store'])
-        ->name('admin.sales-returns.store')->middleware(['auth', 'role:admin']);
     Route::get('sales-returns/{salesReturn}', [App\Http\Controllers\Admin\SalesReturnController::class, 'show'])
         ->name('admin.sales-returns.show')->middleware(['auth', 'role:admin']);
     Route::post('sales-returns/{salesReturn}/approve', [App\Http\Controllers\Admin\SalesReturnController::class, 'approve'])
@@ -285,8 +287,17 @@ Route::prefix('cashier')->group(function () {
     Route::post('refunds/{salesReturn}/process-replacement', [App\Http\Controllers\Cashier\CashierReturnController::class, 'processReplacement'])->name('cashier.refunds.process-replacement')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/{salesReturn}/details', [App\Http\Controllers\Cashier\CashierReturnController::class, 'getRefundDetails'])->name('cashier.refunds.details')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/{salesReturn}/slip', [App\Http\Controllers\Cashier\CashierReturnController::class, 'printReplacementSlip'])->name('cashier.refunds.slip')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds/{salesReturn}/receipt', [App\Http\Controllers\Cashier\CashierReturnController::class, 'printRefundReceipt'])->name('cashier.refunds.receipt')->middleware(['auth', 'role:cashier']);
     Route::get('replacement-inventory/search', [App\Http\Controllers\Cashier\CashierReturnController::class, 'searchReplacementInventory'])->name('cashier.replacement-inventory.search')->middleware(['auth', 'role:cashier']);
     Route::get('stats', [App\Http\Controllers\Cashier\CashierReturnController::class, 'getCashierStats'])->name('cashier.stats')->middleware(['auth', 'role:cashier']);
+
+    // Notification routes
+    Route::get('notifications', [App\Http\Controllers\Cashier\NotificationController::class, 'index'])
+        ->name('cashier.notifications.index')->middleware(['auth', 'role:cashier']);
+    Route::post('notifications/{notification}/read', [App\Http\Controllers\Cashier\NotificationController::class, 'markAsRead'])
+        ->name('cashier.notifications.read')->middleware(['auth', 'role:cashier']);
+    Route::post('notifications/read-all', [App\Http\Controllers\Cashier\NotificationController::class, 'markAllAsRead'])
+        ->name('cashier.notifications.read-all')->middleware(['auth', 'role:cashier']);
 
     // Receipt route (REQ102)
     Route::get('receipt/{receiptNumber}', [CashierAuthController::class, 'viewReceipt'])->name('cashier.receipt')->middleware(['auth', 'role:cashier']);

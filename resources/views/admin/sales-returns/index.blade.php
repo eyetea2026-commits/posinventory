@@ -54,9 +54,6 @@
                 </select>
                 <button type="submit" class="btn btn-secondary"><i class="fas fa-filter"></i> Filter</button>
             </form>
-            <a href="{{ route('admin.sales-returns.create') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> New Return
-            </a>
         </div>
 
         @if(session('status'))
@@ -72,13 +69,10 @@
                     <tr>
                         <th>Request ID</th>
                         <th>Date Requested</th>
-                        <th>Customer</th>
-                        <th>Product</th>
-                        <th>Quantity</th>
-                        <th>Type</th>
-                        <th>Reason</th>
-                        <th>Cashier</th>
-                        <th>Policy</th>
+                        <th>Cashier Name</th>
+                        <th>Receipt Number</th>
+                        <th>Customer Name</th>
+                        <th>Return Type</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -88,24 +82,13 @@
                         <tr>
                             <td>#{{ $return->SalesReturnID }}</td>
                             <td>{{ \Illuminate\Support\Carbon::parse($return->ReturnDate)->format('M d, Y') }}</td>
+                            <td>{{ $return->staff?->user?->name ?? 'N/A' }}</td>
+                            <td>{{ $return->transaction ? 'RCT-' . str_pad($return->SalesTransactionID, 6, '0', STR_PAD_LEFT) : 'N/A' }}</td>
                             <td>{{ $return->CustomerName ?? $return->transaction?->CustomerName ?? 'N/A' }}</td>
-                            <td><strong>{{ $return->product?->ProductName ?? 'Unknown' }}</strong></td>
-                            <td>{{ number_format($return->Quantity) }}</td>
                             <td>
                                 <span class="badge {{ $return->ReturnType === 'replacement' ? 'badge-info' : 'badge-primary' }}">
                                     {{ ucfirst($return->ReturnType) }}
                                 </span>
-                            </td>
-                            <td>{{ Str::limit($return->Reason, 40) }}</td>
-                            <td>{{ $return->staff?->user?->name ?? 'N/A' }}</td>
-                            <td>
-                                @if($return->is_within_return_window === null)
-                                    <span class="badge badge-secondary" title="Missing transaction data">N/A</span>
-                                @elseif($return->is_within_return_window)
-                                    <span class="badge badge-success" title="{{ $return->days_since_purchase }} day(s) since purchase">Eligible</span>
-                                @else
-                                    <span class="badge badge-danger" title="{{ $return->days_since_purchase }} day(s) since purchase — policy window is {{ \App\Models\SalesReturn::RETURN_WINDOW_DAYS }} days">Outside Window</span>
-                                @endif
                             </td>
                             <td>
                                 @if($return->Status === 'approved')
@@ -146,7 +129,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11">
+                            <td colspan="8">
                                 <div class="empty-state">
                                     <div class="empty-icon"><i class="fas fa-undo-alt"></i></div>
                                     <p class="empty-title">No Return Requests</p>
@@ -262,17 +245,19 @@ function viewReturnDetails(id) {
                 <hr style="border-color: var(--border); margin: 16px 0;">
                 <h4>Product Information</h4>
                 <p><strong>Product Name:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>
-                <p><strong>Barcode:</strong> ${escapeHtml(p.Barcode ?? 'N/A')}</p>
-                <p><strong>SKU:</strong> ${escapeHtml(p.SKU ?? 'N/A')}</p>
+                <p><strong>Barcode/SKU:</strong> ${escapeHtml(p.Barcode ?? 'N/A')} / ${escapeHtml(p.SKU ?? 'N/A')}</p>
                 <p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>
-                <p><strong>Selling Price:</strong> ₱${escapeHtml(p.SellingPrice ?? '0.00')}</p>
+                <p><strong>Quantity Purchased:</strong> ${escapeHtml(p.QuantityPurchased ?? 'N/A')}</p>
+                <p><strong>Original Selling Price:</strong> ${window.formatPeso(p.SellingPrice ?? 0)}</p>
                 <hr style="border-color: var(--border); margin: 16px 0;">
                 <h4>Return Information</h4>
                 <p><strong>Return Type:</strong> ${escapeHtml(r.ReturnType)}</p>
-                <p><strong>Quantity Requested:</strong> ${escapeHtml(r.Quantity)}</p>
-                <p><strong>Reason:</strong> ${escapeHtml(r.Reason)}</p>
-                <p><strong>Date Requested:</strong> ${escapeHtml(r.ReturnDate)}</p>
-                <p><strong>Status:</strong> ${escapeHtml(statusLabel(r.Status, r.ReturnType))}</p>
+                <p><strong>Quantity Requested for Return:</strong> ${escapeHtml(r.Quantity)}</p>
+                <p><strong>Total Refund Amount:</strong> ${window.formatPeso(r.TotalRefundAmount ?? 0)}</p>
+                <p><strong>Reason for Return:</strong> ${escapeHtml(r.Reason)}</p>
+                ${r.Remarks ? `<p><strong>Supporting Remarks:</strong> ${escapeHtml(r.Remarks)}</p>` : ''}
+                <p><strong>Request Date:</strong> ${escapeHtml(r.ReturnDate)}</p>
+                <p><strong>Current Status:</strong> ${escapeHtml(statusLabel(r.Status, r.ReturnType))}</p>
                 <p><strong>Return Policy:</strong> ${r.DaysSincePurchase !== null
                     ? `${escapeHtml(r.DaysSincePurchase)} day(s) since purchase — ` + (r.EligibleForReturn
                         ? `<span style="color: var(--success);">within the ${escapeHtml(r.ReturnWindowDays)}-day window</span>`

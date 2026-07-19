@@ -4,15 +4,8 @@
 
 @section('header')
     <div class="header-title">
-        <h1>Record Damaged Product</h1>
-        <p>Log a product damaged in transit or storage</p>
+        <h1>Damage Management</h1>
     </div>
-@endsection
-
-@section('header-actions')
-    <a href="{{ route('admin.damages.index') }}" class="btn btn-secondary">
-        <i class="fa-solid fa-arrow-left"></i> Back to Damage Records
-    </a>
 @endsection
 
 @section('content')
@@ -31,50 +24,28 @@
         border-radius: 20px;
         box-shadow: var(--glass-shadow);
         backdrop-filter: blur(10px);
-        max-width: 700px;
-        margin: 0 auto;
         padding: 32px;
+        max-width: 800px;
+        margin: 0 auto;
     }
 
-    .btn {
-        display: inline-flex;
+    .content-header {
+        display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 8px;
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-weight: 600;
-        text-decoration: none;
-        transition: all 0.2s ease;
-        border: none;
-        cursor: pointer;
-        font-size: 0.95rem;
+        margin-bottom: 24px;
     }
 
-    .btn-primary {
-        background: linear-gradient(135deg, var(--primary), var(--success));
-        color: white;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
-    }
-
-    .btn-primary:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-
-    .btn-secondary {
-        background: rgba(148, 163, 184, 0.15);
-        color: var(--text-secondary);
-        border: 1px solid rgba(148, 163, 184, 0.2);
+    .content-header h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        color: var(--text-primary);
     }
 
     .form-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
+        gap: 24px;
     }
 
     .form-group {
@@ -85,7 +56,7 @@
         grid-column: 1 / -1;
     }
 
-    .form-group label {
+    .form-label {
         display: block;
         margin-bottom: 8px;
         font-weight: 600;
@@ -93,52 +64,96 @@
         font-size: 0.9rem;
     }
 
-    .form-group label .required {
+    .form-label .required {
         color: #ef4444;
     }
 
-    .form-control {
+    .form-input, .form-select {
         width: 100%;
         padding: 14px 16px;
         background: rgba(30, 41, 59, 0.8);
         border: 1px solid rgba(59, 130, 246, 0.2);
         border-radius: 12px;
         color: #f8fafc;
-        font-size: 0.95rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
     }
 
-    .form-control:focus {
+    .form-input:focus, .form-select:focus {
         outline: none;
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
 
-    select.form-control {
+    .form-select {
         cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 20px;
+        padding-right: 40px;
     }
 
-    textarea.form-control {
+    textarea.form-input {
+        min-height: 90px;
         resize: vertical;
     }
 
-    .error {
+    .form-error {
         display: block;
-        margin-top: 6px;
-        font-size: 0.8rem;
+        margin-top: 8px;
         color: #fca5a5;
+        font-size: 0.85rem;
     }
 
     .form-actions {
         display: flex;
         justify-content: flex-end;
         gap: 12px;
-        margin-top: 28px;
-        padding-top: 20px;
+        margin-top: 32px;
+        padding-top: 24px;
         border-top: 1px solid var(--glass-border);
     }
 
-    .form-actions .btn {
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         padding: 14px 28px;
+        border-radius: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+        font-size: 0.95rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--primary), var(--success));
+        color: white;
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-secondary {
+        background: rgba(148, 163, 184, 0.15);
+        color: #e2e8f0;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(148, 163, 184, 0.25);
     }
 
     .alert {
@@ -153,148 +168,73 @@
     .alert-danger {
         background: rgba(239, 68, 68, 0.15);
         color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.3);
     }
 
-    @media (max-width: 600px) {
-        .form-grid { grid-template-columns: 1fr; }
+    .btn-spinner-sm {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid transparent;
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: btn-spin-sm 0.8s linear infinite;
+    }
+
+    @keyframes btn-spin-sm {
+        to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .form-actions {
+            flex-direction: column;
+        }
+
+        .form-actions .btn {
+            width: 100%;
+            justify-content: center;
+        }
     }
 </style>
 
+<div class="content-header">
+    <h1>Record Damage</h1>
+    <a href="{{ route('admin.damages.index') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Damage Records
+    </a>
+</div>
+
 @if($errors->any())
     <div class="alert alert-danger">
-        <i class="fa-solid fa-circle-exclamation"></i>
+        <i class="fas fa-circle-exclamation"></i>
         Please fix the errors below.
     </div>
+@endif
+
+@if(session('success'))
+    <div class="alert" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7;">
+        <i class="fas fa-circle-check"></i> {{ session('success') }}
+    </div>
+@endif
+@if(session('error'))
+    <div class="alert alert-danger"><i class="fas fa-circle-exclamation"></i> {{ session('error') }}</div>
 @endif
 
 <div class="card glass-card">
     <form method="POST" action="{{ route('admin.damages.store') }}" id="damageForm">
         @csrf
 
-        <div class="form-grid">
-            <div class="form-group full-width">
-                <label for="ProductID">Product <span class="required">*</span></label>
-                <select id="ProductID" name="ProductID" class="form-control" required>
-                    <option value="">Select Product</option>
-                    @foreach($products as $product)
-                        <option value="{{ $product->ProductID }}" {{ old('ProductID') == $product->ProductID ? 'selected' : '' }}>
-                            {{ $product->ProductName }} - {{ $product->Model }}
-                            @if($product->inventory)
-                                (Stock: {{ $product->inventory->Quantity }})
-                            @else
-                                (No Stock)
-                            @endif
-                        </option>
-                    @endforeach
-                </select>
-                @error('ProductID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="SupplierID">Supplier <span class="required">*</span></label>
-                <select id="SupplierID" name="SupplierID" class="form-control" required>
-                    <option value="">Select Supplier</option>
-                    @foreach($suppliers as $supplier)
-                        <option value="{{ $supplier->SupplierID }}" {{ old('SupplierID') == $supplier->SupplierID ? 'selected' : '' }}>
-                            {{ $supplier->SupplierName }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('SupplierID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="PurchaseOrderID">Purchase Order <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
-                <select id="PurchaseOrderID" name="PurchaseOrderID" class="form-control">
-                    <option value="">None / Not linked to a PO</option>
-                    @foreach($purchaseOrders as $po)
-                        <option value="{{ $po->PurchaseOrderID }}" {{ old('PurchaseOrderID') == $po->PurchaseOrderID ? 'selected' : '' }}>
-                            PO #{{ $po->PurchaseOrderID }} &mdash; {{ $po->supplier?->SupplierName }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('PurchaseOrderID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="Quantity">Quantity Damaged <span class="required">*</span></label>
-                <input type="number" id="Quantity" name="Quantity" class="form-control"
-                       value="{{ old('Quantity') }}" required min="1">
-                @error('Quantity')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="DateRecorded">Date Recorded <span class="required">*</span></label>
-                <input type="date" id="DateRecorded" name="DateRecorded" class="form-control"
-                       value="{{ old('DateRecorded', date('Y-m-d')) }}" required>
-                @error('DateRecorded')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="DamageType">Damage Type / Reason <span class="required">*</span></label>
-                <select id="DamageType" name="DamageType" class="form-control" required>
-                    <option value="">Select Damage Type</option>
-                    @foreach(\App\Models\DamagedProduct::DAMAGE_TYPES as $value => $label)
-                        <option value="{{ $value }}" {{ old('DamageType') === $value ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
-                </select>
-                @error('DamageType')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="Description">Damage Description <span class="required">*</span></label>
-                <textarea id="Description" name="Description" class="form-control" rows="3"
-                          required maxlength="500" placeholder="Describe the damage...">{{ old('Description') }}</textarea>
-                @error('Description')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="InspectionNotes">Inspection Notes</label>
-                <textarea id="InspectionNotes" name="InspectionNotes" class="form-control" rows="3"
-                          maxlength="1000" placeholder="Optional inspection findings...">{{ old('InspectionNotes') }}</textarea>
-                @error('InspectionNotes')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="WarehouseLocation">Warehouse Location</label>
-                <input type="text" id="WarehouseLocation" name="WarehouseLocation" class="form-control"
-                       value="{{ old('WarehouseLocation') }}" maxlength="100" placeholder="e.g. Aisle 3, Shelf B">
-                @error('WarehouseLocation')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="Remarks">Remarks</label>
-                <textarea id="Remarks" name="Remarks" class="form-control" rows="2"
-                          maxlength="500" placeholder="Optional remarks...">{{ old('Remarks') }}</textarea>
-                @error('Remarks')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-        </div>
+        @include('admin.damages.partials.damage-form-fields')
 
         <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="confirmCancel()">
+            <button type="button" class="btn btn-secondary" id="damageFormCancelBtn">
                 <i class="fas fa-times"></i> Cancel
             </button>
-            <button type="button" class="btn btn-primary" id="submitBtn" onclick="confirmSave()">
+            <button type="button" class="btn btn-primary" id="submitBtn">
                 <i class="fas fa-save"></i> Record Damage
             </button>
         </div>
@@ -357,6 +297,9 @@
             }
         });
     }
+
+    submitBtn.addEventListener('click', confirmSave);
+    document.getElementById('damageFormCancelBtn').addEventListener('click', confirmCancel);
 
     window.addEventListener('beforeunload', function(e) {
         if (formChanged) {

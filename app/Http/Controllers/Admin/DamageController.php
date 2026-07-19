@@ -81,10 +81,12 @@ class DamageController extends Controller
             ->get();
 
         $suppliers = Supplier::orderBy('SupplierName')->get();
+        $products = Product::with('inventory')->orderBy('ProductName')->get();
+        $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
 
         return view('admin.damages.index', compact(
             'damagedProducts', 'search', 'dateFrom', 'dateTo', 'status', 'damageType', 'supplierId', 'poId',
-            'kpis', 'recentlyAdded', 'suppliers'
+            'kpis', 'recentlyAdded', 'suppliers', 'products', 'purchaseOrders'
         ));
     }
 
@@ -94,7 +96,17 @@ class DamageController extends Controller
         $products = Product::with('inventory')->orderBy('ProductName')->get();
         $suppliers = Supplier::orderBy('SupplierName')->get();
         $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
-        return view('admin.damages.create', compact('products', 'suppliers', 'purchaseOrders'));
+
+        // Approved defective/damaged customer returns awaiting a supplier
+        // return transaction — only return-originated records, not manually
+        // recorded warehouse damage.
+        $pendingReturnDamages = DamagedProduct::whereNotNull('SalesReturnID')
+            ->where('Status', DamagedProduct::STATUS_FOR_SUPPLIER_RETURN)
+            ->with(['product', 'salesReturn.transaction'])
+            ->orderByDesc('DamageID')
+            ->get();
+
+        return view('admin.damages.create', compact('products', 'suppliers', 'purchaseOrders', 'pendingReturnDamages'));
     }
 
     // Store new damaged product record
@@ -128,7 +140,7 @@ class DamageController extends Controller
         $available = $inventory->Quantity ?? 0;
         if ($data['Quantity'] > $available) {
             return back()
-                ->withErrors(['Quantity' => "Cannot record {$data['Quantity']} damaged units — only {$available} in stock."])
+                ->with('error', "Cannot record {$data['Quantity']} damaged units — only {$available} in stock.")
                 ->withInput();
         }
 
@@ -318,6 +330,122 @@ class DamageController extends Controller
         ActivityLog::record('damage.disposed', "Disposed of damage #{$damage->DamageID}");
 
         return back()->with('success', 'Damage record marked as disposed.');
+    }
+
+    // Multiple "Pending Supplier Return" records selected together on the
+    // Create Damage Record page and sent to the supplier as one transaction.
+    public function bulkConfirmSupplierReturn(Request $request)
+    {
+        $data = $request->validate([
+            'damage_ids' => 'required|array|min:1',
+            'damage_ids.*' => 'integer|exists:DamagedProduct,DamageID',
+        ]);
+
+        $count = 0;
+
+        DB::transaction(function () use ($data, &$count) {
+            $damages = DamagedProduct::whereIn('DamageID', $data['damage_ids'])
+                ->where('Status', DamagedProduct::STATUS_FOR_SUPPLIER_RETURN)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($damages as $damage) {
+                $damage->update([
+                    'Status' => DamagedProduct::STATUS_RETURNED_TO_SUPPLIER,
+                    'ResolvedBy' => auth()->id(),
+                    'ResolvedDate' => now(),
+                ]);
+
+                ActivityLog::record(
+                    'damage.returned_to_supplier',
+                    "Confirmed damage #{$damage->DamageID} ({$damage->Quantity} x \"{$damage->product?->ProductName}\") returned to supplier"
+                );
+
+                $count++;
+            }
+        });
+
+        if ($count === 0) {
+            return back()->with('error', 'None of the selected records were eligible — they may have already been processed.');
+        }
+
+        return back()->with('success', "{$count} damage record(s) confirmed returned to supplier.");
+    }
+
+    // Supplier sent a replacement unit — this is the only point where
+    // inventory increases in the defective-return flow. The original
+    // defective unit never re-enters Inventory.
+    public function receiveReplacement(Request $request, DamagedProduct $damage)
+    {
+        if ($damage->Status !== DamagedProduct::STATUS_RETURNED_TO_SUPPLIER) {
+            return back()->with('error', 'Only records already returned to the supplier can receive a replacement.');
+        }
+
+        $data = $request->validate([
+            'replacement_quantity' => 'nullable|integer|min:1',
+        ]);
+
+        $qty = $data['replacement_quantity'] ?? $damage->Quantity;
+
+        DB::transaction(function () use ($damage, $qty) {
+            $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
+            if (!$inventory) {
+                $inventory = Inventory::firstOrCreate(
+                    ['ProductID' => $damage->ProductID],
+                    ['Quantity' => 0, 'Status' => 'Out of Stock']
+                );
+            }
+
+            $inventory->Quantity += $qty;
+            $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+            $inventory->save();
+
+            $damage->update([
+                'Status' => DamagedProduct::STATUS_REPLACEMENT_RECEIVED,
+                'ResolvedBy' => auth()->id(),
+                'ResolvedDate' => now(),
+            ]);
+        });
+
+        ActivityLog::record(
+            'damage.replacement_received',
+            "Received {$qty} x replacement for \"{$damage->product?->ProductName}\" (Damage #{$damage->DamageID}) — inventory increased"
+        );
+
+        return back()->with('success', 'Replacement received and inventory updated.');
+    }
+
+    // Admin decided the item is salable after all / the supplier return was
+    // a mistake — only allowed before it physically leaves the building.
+    public function cancel(DamagedProduct $damage)
+    {
+        if ($damage->Status !== DamagedProduct::STATUS_FOR_SUPPLIER_RETURN) {
+            return back()->with('error', 'Only records still pending supplier return can be cancelled.');
+        }
+
+        DB::transaction(function () use ($damage) {
+            $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
+            if (!$inventory) {
+                $inventory = Inventory::firstOrCreate(
+                    ['ProductID' => $damage->ProductID],
+                    ['Quantity' => 0, 'Status' => 'Out of Stock']
+                );
+            }
+
+            $inventory->Quantity += $damage->Quantity;
+            $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+            $inventory->save();
+
+            $damage->update([
+                'Status' => DamagedProduct::STATUS_CANCELLED,
+                'ResolvedBy' => auth()->id(),
+                'ResolvedDate' => now(),
+            ]);
+        });
+
+        ActivityLog::record('damage.cancelled', "Cancelled damage #{$damage->DamageID} ({$damage->Quantity} x \"{$damage->product?->ProductName}\") — restored to inventory");
+
+        return back()->with('success', 'Damage record cancelled and quantity restored to inventory.');
     }
 
     public function export(Request $request)
