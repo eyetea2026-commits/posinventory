@@ -64,7 +64,7 @@
             <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                 <div class="form-group">
                     <label class="form-label">Report Type</label>
-                    <select name="type" class="form-select">
+                    <select name="type" id="reportTypeSelect" class="form-select">
                         <option value="sales" {{ $reportType === 'sales' ? 'selected' : '' }}>Sales Report</option>
                         <option value="inventory" {{ $reportType === 'inventory' ? 'selected' : '' }}>Inventory Report</option>
                         <option value="orders" {{ $reportType === 'orders' ? 'selected' : '' }}>Purchase Orders</option>
@@ -73,11 +73,11 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Start Date</label>
-                    <input type="date" name="date_from" class="form-input" value="{{ $dateFrom }}">
+                    <input type="date" name="date_from" id="reportDateFrom" class="form-input" value="{{ $dateFrom }}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">End Date</label>
-                    <input type="date" name="date_to" class="form-input" value="{{ $dateTo }}">
+                    <input type="date" name="date_to" id="reportDateTo" class="form-input" value="{{ $dateTo }}">
                 </div>
                 <div class="form-group" style="display: flex; align-items: flex-end; gap: 10px;">
                     <button type="submit" class="btn btn-primary">
@@ -91,11 +91,40 @@
         </form>
 
         <div class="export-buttons" style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ route('admin.reports.export', ['type' => $reportType, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'format' => 'csv']) }}" class="btn btn-success">
+            <a href="{{ route('admin.reports.export', ['type' => $reportType, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'format' => 'csv']) }}" id="exportCsvLink" class="btn btn-success">
                 <i class="fas fa-file-csv"></i> Export CSV
             </a>
         </div>
     </div>
+
+    <script>
+        // The export link is rendered from the last-submitted filter values.
+        // Without this, picking a different report type or date range and
+        // clicking Export directly (without hitting "Filter" first) silently
+        // exports the PREVIOUS selection instead of what's currently showing
+        // — keep the link's URL in sync with the live field values instead.
+        (function () {
+            const typeSelect = document.getElementById('reportTypeSelect');
+            const dateFrom = document.getElementById('reportDateFrom');
+            const dateTo = document.getElementById('reportDateTo');
+            const exportLink = document.getElementById('exportCsvLink');
+            const exportBaseUrl = '{{ route('admin.reports.export') }}';
+
+            function syncExportLink() {
+                const params = new URLSearchParams({
+                    type: typeSelect.value,
+                    format: 'csv',
+                });
+                if (dateFrom.value) params.set('date_from', dateFrom.value);
+                if (dateTo.value) params.set('date_to', dateTo.value);
+                exportLink.href = exportBaseUrl + '?' + params.toString();
+            }
+
+            [typeSelect, dateFrom, dateTo].forEach(function (el) {
+                el.addEventListener('change', syncExportLink);
+            });
+        })();
+    </script>
 
     <!-- Inventory Status -->
     @if($reportType === 'inventory')

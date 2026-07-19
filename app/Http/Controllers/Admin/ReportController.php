@@ -116,15 +116,12 @@ class ReportController extends Controller
         $type = $request->get('type', 'sales');
         $dateFrom = $request->get('date_from');
         $dateTo = $request->get('date_to');
-        $format = $request->get('format', 'csv');
 
-        $filename = 'report-' . $type . '-' . now()->format('Ymd') . '.' . $format;
+        // CSV is the only format actually implemented — always name the file
+        // .csv regardless of what's requested, so the extension never lies
+        // about the content inside it.
+        $filename = 'report-' . $type . '-' . now()->format('Ymd') . '.csv';
 
-        if ($format === 'csv') {
-            return $this->exportCSV($type, $dateFrom, $dateTo, $filename);
-        }
-
-        // Default to CSV
         return $this->exportCSV($type, $dateFrom, $dateTo, $filename);
     }
 
@@ -142,35 +139,25 @@ class ReportController extends Controller
         return new StreamedResponse(function () use ($type, $dateFrom, $dateTo) {
             $handle = fopen('php://output', 'w');
 
-            $query = match ($type) {
-                'sales' => Billing::query(),
-                'inventory' => Inventory::query(),
-                'orders' => PurchaseOrder::query(),
-                'returns' => SalesReturn::query(),
-                default => Billing::query(),
-            };
-
-            if ($dateFrom) {
-                $query->whereDate('BillingDate', '>=', $dateFrom);
-            }
-            if ($dateTo) {
-                $query->whereDate('BillingDate', '<=', $dateTo);
-            }
-
             if ($type === 'sales') {
                 fputcsv($handle, ['ID', 'Date', 'Amount', 'Customer', 'Payment Method']);
-                $query->with('payment')->orderByDesc('BillingDate')->chunk(100, function ($items) use ($handle) {
-                    foreach ($items as $item) {
-                        fputcsv($handle, [
-                            $item->BillingID,
-                            $item->BillingDate,
-                            $item->BillingAmount,
-                            $this->csvSafe($item->CustomerName ?? 'N/A'),
-                            $this->csvSafe($item->payment?->PaymentMethod ?? 'N/A'),
-                        ]);
-                    }
-                });
+                Billing::query()
+                    ->when($dateFrom, fn ($q) => $q->whereDate('BillingDate', '>=', $dateFrom))
+                    ->when($dateTo, fn ($q) => $q->whereDate('BillingDate', '<=', $dateTo))
+                    ->with('payment')->orderByDesc('BillingDate')->chunk(100, function ($items) use ($handle) {
+                        foreach ($items as $item) {
+                            fputcsv($handle, [
+                                $item->BillingID,
+                                $item->BillingDate,
+                                $item->BillingAmount,
+                                $this->csvSafe($item->CustomerName ?? 'N/A'),
+                                $this->csvSafe($item->payment?->PaymentMethod ?? 'N/A'),
+                            ]);
+                        }
+                    });
             } elseif ($type === 'inventory') {
+                // A live stock snapshot, not a dated historical record — the
+                // date range filter doesn't apply here.
                 fputcsv($handle, ['ID', 'Product', 'Quantity', 'Status']);
                 Inventory::with('product')->orderBy('InventoryID')->chunk(100, function ($items) use ($handle) {
                     foreach ($items as $item) {
@@ -184,31 +171,37 @@ class ReportController extends Controller
                 });
             } elseif ($type === 'orders') {
                 fputcsv($handle, ['ID', 'Date', 'Status', 'Supplier']);
-                PurchaseOrder::with('supplier')->orderByDesc('PurchaseDate')->chunk(100, function ($items) use ($handle) {
-                    foreach ($items as $item) {
-                        fputcsv($handle, [
-                            $item->PurchaseOrderID,
-                            $item->PurchaseDate,
-                            $item->Status,
-                            $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
-                        ]);
-                    }
-                });
+                PurchaseOrder::query()
+                    ->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
+                    ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
+                    ->with('supplier')->orderByDesc('PurchaseDate')->chunk(100, function ($items) use ($handle) {
+                        foreach ($items as $item) {
+                            fputcsv($handle, [
+                                $item->PurchaseOrderID,
+                                $item->PurchaseDate,
+                                $item->Status,
+                                $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
+                            ]);
+                        }
+                    });
             } else {
                 fputcsv($handle, ['ID', 'Transaction ID', 'Product', 'Quantity', 'Reason', 'Status', 'Date']);
-                SalesReturn::with('product')->orderByDesc('ReturnDate')->chunk(100, function ($items) use ($handle) {
-                    foreach ($items as $item) {
-                        fputcsv($handle, [
-                            $item->SalesReturnID,
-                            $item->SalesTransactionID,
-                            $this->csvSafe($item->product?->ProductName ?? 'N/A'),
-                            $item->Quantity,
-                            $this->csvSafe($item->Reason),
-                            $item->Status,
-                            $item->ReturnDate,
-                        ]);
-                    }
-                });
+                SalesReturn::query()
+                    ->when($dateFrom, fn ($q) => $q->whereDate('ReturnDate', '>=', $dateFrom))
+                    ->when($dateTo, fn ($q) => $q->whereDate('ReturnDate', '<=', $dateTo))
+                    ->with('product')->orderByDesc('ReturnDate')->chunk(100, function ($items) use ($handle) {
+                        foreach ($items as $item) {
+                            fputcsv($handle, [
+                                $item->SalesReturnID,
+                                $item->SalesTransactionID,
+                                $this->csvSafe($item->product?->ProductName ?? 'N/A'),
+                                $item->Quantity,
+                                $this->csvSafe($item->Reason),
+                                $item->Status,
+                                $item->ReturnDate,
+                            ]);
+                        }
+                    });
             }
 
             fclose($handle);

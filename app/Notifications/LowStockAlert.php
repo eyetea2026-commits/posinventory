@@ -3,15 +3,14 @@
 namespace App\Notifications;
 
 use App\Models\Product;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class LowStockAlert extends Notification implements ShouldQueue
+// Not ShouldQueue: this app has no queue worker running (QUEUE_CONNECTION=database
+// with nothing ever processing it), so a queued notification silently never
+// delivers. Dispatch inline instead.
+class LowStockAlert extends Notification
 {
-    use Queueable;
-
     public function __construct(
         public Product $product,
         public int $quantity,

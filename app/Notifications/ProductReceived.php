@@ -4,15 +4,14 @@ namespace App\Notifications;
 
 use App\Models\Product;
 use App\Models\Supplier;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class ProductReceived extends Notification implements ShouldQueue
+// Not ShouldQueue: this app has no queue worker running (QUEUE_CONNECTION=database
+// with nothing ever processing it), so a queued notification silently never
+// delivers. Dispatch inline instead.
+class ProductReceived extends Notification
 {
-    use Queueable;
-
     public function __construct(
         public Product $product,
         public Supplier $supplier,

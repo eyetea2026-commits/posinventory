@@ -3,15 +3,14 @@
 namespace App\Notifications;
 
 use App\Models\SalesReturn;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class NewRefundRequest extends Notification implements ShouldQueue
+// Not ShouldQueue: this app has no queue worker running (QUEUE_CONNECTION=database
+// with nothing ever processing it), so a queued notification silently never
+// delivers. Dispatch inline instead.
+class NewRefundRequest extends Notification
 {
-    use Queueable;
-
     public function __construct(
         public SalesReturn $salesReturn,
     ) {
