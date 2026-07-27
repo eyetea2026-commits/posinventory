@@ -198,7 +198,7 @@
             </nav>
 
             <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.1);">
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('cashier.logout') }}">
                     @csrf
                     <button type="submit" class="btn btn-danger w-full">
                         <i class="fas fa-sign-out-alt"></i> Logout

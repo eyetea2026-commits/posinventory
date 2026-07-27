@@ -6,6 +6,6 @@
 </head>
 <body>
     <p>Your OTP code is: <strong>{{ $otp }}</strong></p>
-    <p>This code will expire in a short time.</p>
+    <p>This code will expire in {{ $expiryMinutes ?? 5 }} minutes.</p>
 </body>
 </html>

@@ -11,14 +11,19 @@ class OtpMail extends Mailable
     use Queueable, SerializesModels;
 
     public $otp;
+    public $expiryMinutes;
 
-    public function __construct($otp)
+    public function __construct($otp, $expiryMinutes = 5)
     {
         $this->otp = $otp;
+        $this->expiryMinutes = $expiryMinutes;
     }
 
     public function build()
     {
-        return $this->subject('Your OTP Code')->view('emails.otp')->with(['otp' => $this->otp]);
+        return $this->subject('Your OTP Code')->view('emails.otp')->with([
+            'otp' => $this->otp,
+            'expiryMinutes' => $this->expiryMinutes,
+        ]);
     }
 }

@@ -80,6 +80,11 @@
         color: #ef4444;
     }
 
+    .form-group label .text-optional {
+        color: #64748b;
+        font-weight: 500;
+    }
+
     .form-control {
         width: 100%;
         padding: 14px 16px;
@@ -145,6 +150,15 @@
     <form method="POST" action="{{ route('admin.discounts.update', $discount->DiscountID) }}" id="discountForm">
         @csrf
         @method('PUT')
+
+        <div class="form-group">
+            <label for="Name">Promo Name <span class="text-optional">(optional)</span></label>
+            <input type="text" id="Name" name="Name" class="form-control"
+                   value="{{ old('Name', $discount->Name) }}" maxlength="100" placeholder="e.g., Summer Sale">
+            @error('Name')
+                <span class="error">{{ $message }}</span>
+            @enderror
+        </div>
 
         <div class="form-group">
             <label for="DiscountRate">Discount Rate (%) <span class="required">*</span></label>

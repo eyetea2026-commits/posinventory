@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
-use App\Models\User;
 use App\Models\Product;
 use App\Models\Inventory;
 use App\Models\SalesTransaction;
@@ -16,53 +14,12 @@ use App\Models\Staff;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
-use App\Mail\OtpMail;
 
 class CashierAuthController extends Controller
 {
-    public function showLogin()
-    {
-        return view('auth.cashier.login');
-    }
-
-    public function login(Request $request)
-    {
-        $credentials = $request->validate([
-            'username' => ['required'],
-            'password' => ['required'],
-        ]);
-
-        // Authenticate using username (name field) instead of email
-        $loginCredentials = [
-            'name' => $credentials['username'],
-            'password' => $credentials['password']
-        ];
-
-        if (Auth::attempt($loginCredentials, $request->boolean('remember'))) {
-            $request->session()->regenerate();
-            $user = Auth::user();
-
-            // Check if user is active
-            if (isset($user->is_active) && !$user->is_active) {
-                Auth::logout();
-                return back()->withErrors(['username' => 'Your account has been deactivated. Please contact the administrator.']);
-            }
-
-            if (! $user->isCashier()) {
-                Auth::logout();
-                return back()->withErrors(['username' => 'Unauthorized for cashier area.']);
-            }
-
-            ActivityLog::record('auth.login', "\"{$user->name}\" logged in (Cashier)", $user->id);
-
-            return redirect()->intended('/cashier/pos');
-        }
-
-        return back()->withErrors(['username' => 'The provided credentials do not match our records.']);
-    }
+    // Login itself is handled by the unified AuthController now — this
+    // controller owns everything else in the cashier area (POS, logout).
 
     public function logout(Request $request)
     {
@@ -72,75 +29,12 @@ class CashierAuthController extends Controller
         return redirect('/');
     }
 
-    public function showForgot()
-    {
-        return view('auth.cashier.forgot');
-    }
-
-    public function sendOtp(Request $request)
-    {
-        $data = $request->validate(['email' => ['required','email']]);
-        $user = User::where('email', $data['email'])->first();
-        if (! $user || ! $user->isCashier()) {
-            return back()->withErrors(['email' => 'No cashier account found for that email.']);
-        }
-
-        $otp = rand(100000, 999999);
-        DB::table('password_reset_tokens')->updateOrInsert(
-            ['email' => $data['email']],
-            ['token' => (string) $otp, 'created_at' => now()]
-        );
-
-        Mail::to($data['email'])->send(new OtpMail($otp));
-
-        return redirect()->route('cashier.otp.form')->with('email', $data['email']);
-    }
-
-    public function showOtpForm(Request $request)
-    {
-        $email = session('email') ?? $request->get('email');
-        return view('auth.cashier.otp', ['email' => $email]);
-    }
-
-    public function verifyOtp(Request $request)
-    {
-        $data = $request->validate(['email' => ['required','email'], 'otp' => ['required']]);
-        $record = DB::table('password_reset_tokens')->where('email', $data['email'])->first();
-        if (! $record || $record->token !== $data['otp']) {
-            return back()->withErrors(['otp' => 'Invalid OTP code.']);
-        }
-        return redirect()->route('cashier.password.reset.form', ['email' => $data['email']])->with('otp_verified', true);
-    }
-
-    public function showResetForm(Request $request)
-    {
-        $email = $request->get('email');
-        $otpVerified = session('otp_verified');
-        if (! $otpVerified) {
-            return redirect()->route('cashier.forgot')->withErrors(['email' => 'OTP verification required.']);
-        }
-        return view('auth.cashier.reset', ['email' => $email]);
-    }
-
-    public function resetPassword(Request $request)
-    {
-        $data = $request->validate([
-            'email' => ['required','email'],
-            'password' => ['required','confirmed','min:8'],
-        ]);
-
-        $user = User::where('email', $data['email'])->first();
-        if (! $user || ! $user->isCashier()) {
-            return back()->withErrors(['email' => 'No cashier account found.']);
-        }
-
-        $user->password = Hash::make($data['password']);
-        $user->save();
-
-        DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
-
-        return redirect()->route('cashier.login')->with('status', 'Password reset successful. You may login now.');
-    }
+    // Password reset for Cashier accounts is intentionally not available —
+    // only an Administrator can reset a cashier's password (routes/web.php).
+    // The forgot/OTP/reset methods and views that used to sit here were
+    // dead code with no route ever pointing at them, and had weaker OTP
+    // handling than the live Administrator flow — removed rather than kept
+    // around unreachable and unmaintained.
 
     public function pos()
     {
@@ -156,7 +50,7 @@ class CashierAuthController extends Controller
     public function discounts()
     {
         return response()->json([
-            'discounts' => Discount::orderBy('DiscountRate')->get(['DiscountID', 'DiscountRate']),
+            'discounts' => Discount::orderBy('DiscountRate')->get(['DiscountID', 'DiscountRate', 'Name']),
         ]);
     }
 
@@ -209,7 +103,7 @@ class CashierAuthController extends Controller
         $discountId = $data['discount_id'] ?? null;
         $paymentMethod = $data['payment_method'];
         $accountNumber = $request->input('account_number');
-        $paymentAmount = floatval($request->input('payment_amount', 0));
+        $paymentAmount = round(floatval($request->input('payment_amount', 0)), 2);
 
         // Aggregate requested quantity per product: the cart can list the same
         // product across more than one line, and checking/decrementing stock
@@ -274,11 +168,22 @@ class CashierAuthController extends Controller
                 }
                 $discountRate = $discount ? (float) $discount->DiscountRate : 0.0;
 
-                $discountAmount = $subtotal * ($discountRate / 100);
-                $vatAmount = ($subtotal - $discountAmount) * 0.12;
-                $total = $subtotal - $discountAmount + $vatAmount;
+                // Round every money value to the cent immediately after
+                // computing it — carrying raw floating-point results into
+                // the payment-sufficiency comparison below could reject a
+                // payment for exactly the (rounded) total shown on screen,
+                // due to residual binary-fraction error a step or two back
+                // in this same formula.
+                $subtotal = round($subtotal, 2);
+                $discountAmount = round($subtotal * ($discountRate / 100), 2);
+                $vatAmount = round(($subtotal - $discountAmount) * 0.12, 2);
+                $total = round($subtotal - $discountAmount + $vatAmount, 2);
 
-                if ($paymentMethod === 'cash' && $paymentAmount < $total) {
+                // Sufficiency applies to every payment method, not just cash
+                // — GCash/bank/cheque are just as capable of being recorded
+                // under-amount as cash, and the Payment Amount field is
+                // always collected regardless of method.
+                if ($paymentAmount < $total) {
                     throw new \RuntimeException('Payment amount must be greater than or equal to total.');
                 }
 
@@ -304,11 +209,17 @@ class CashierAuthController extends Controller
                     'StaffID' => $staff->StaffID,
                 ]);
 
-                // Create billing
+                // Create billing — Subtotal/DiscountAmount/VatAmount are
+                // stored here (not just BillingAmount) so the receipt can
+                // later show exactly what was charged at sale time, immune
+                // to the Discount's rate being edited afterward.
                 $billing = Billing::create([
                     'CustomerName' => $customerName,
                     'VatApplied' => '12%',
                     'BillingAmount' => $total,
+                    'Subtotal' => $subtotal,
+                    'DiscountAmount' => $discountAmount,
+                    'VatAmount' => $vatAmount,
                     'BillingDate' => now(),
                     'DiscountID' => $discount?->DiscountID,
                     'SalesTransactionID' => $transaction->SalesTransactionID,
@@ -316,7 +227,10 @@ class CashierAuthController extends Controller
 
                 // Create payment
                 Payment::create([
-                    'PaymentAmount' => $paymentAmount > 0 ? $paymentAmount : $total,
+                    // The sufficiency check above already guarantees
+                    // $paymentAmount >= $total for every payment method by
+                    // this point, so it's always the right value to record.
+                    'PaymentAmount' => $paymentAmount,
                     'PaymentMethod' => $paymentMethod,
                     'ReceiptNumber' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'BillingID' => $billing->BillingID,
@@ -395,19 +309,36 @@ class CashierAuthController extends Controller
             ];
         })->toArray();
 
-        $subtotal = array_sum(array_map(function ($item) {
-            return $item['price'] * $item['qty'];
-        }, $items));
-
-        // Get discount info
         $hasDiscount = $billing && $billing->DiscountID !== null;
-        $discountRate = 0;
-        if ($billing && $billing->discount) {
-            $discountRate = $billing->discount->DiscountRate ?? 0;
+
+        if ($billing && $billing->Subtotal !== null) {
+            // Historically-accurate path: read back exactly what was charged
+            // at sale time, immune to the Discount's rate being edited since
+            // then. The rate shown is derived from the stored amount/subtotal
+            // (not the Discount's current rate) so the percentage and amount
+            // on screen always agree with each other.
+            $subtotal = (float) $billing->Subtotal;
+            $discountAmount = (float) $billing->DiscountAmount;
+            $vatAmount = (float) $billing->VatAmount;
+            $total = (float) $billing->BillingAmount;
+            $discountRate = $subtotal > 0 ? round(($discountAmount / $subtotal) * 100, 2) : 0;
+        } else {
+            // Legacy fallback for rows predating the Subtotal/DiscountAmount/
+            // VatAmount columns — recomputed live from SalesItem + the
+            // Discount's CURRENT rate, same as before this fix (unavoidably
+            // imprecise if that rate has since changed).
+            $subtotal = array_sum(array_map(function ($item) {
+                return $item['price'] * $item['qty'];
+            }, $items));
+
+            $discountRate = 0;
+            if ($billing && $billing->discount) {
+                $discountRate = $billing->discount->DiscountRate ?? 0;
+            }
+            $discountAmount = $subtotal * ($discountRate / 100);
+            $vatAmount = ($subtotal - $discountAmount) * 0.12;
+            $total = $subtotal - $discountAmount + $vatAmount;
         }
-        $discountAmount = $subtotal * ($discountRate / 100);
-        $vatAmount = ($subtotal - $discountAmount) * 0.12;
-        $total = $subtotal - $discountAmount + $vatAmount;
 
         // Get payment info
         $payment = \App\Models\Payment::where('BillingID', $billing?->BillingID)->first();
@@ -415,7 +346,7 @@ class CashierAuthController extends Controller
         $change = max(0, $paymentAmount - $total);
         $paymentMethod = $payment?->PaymentMethod ?? 'cash';
 
-        $cashierName = Auth::user()->name;
+        $cashierName = Auth::user()->full_name;
 
         return view('cashier.receipt', [
             'receiptNumber' => $receiptNumber,

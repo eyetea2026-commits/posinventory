@@ -594,7 +594,7 @@
             <button class="btn btn-secondary" onclick="closeModal()">
                 <i class="fas fa-times"></i> Close
             </button>
-            <a id="updateUserBtn" href="#" class="btn btn-warning">
+            <a id="updateUserBtn" href="#" class="btn btn-warning" onclick="openEditUserModal(event, this.dataset.userId)">
                 <i class="fas fa-edit"></i> Update User
             </a>
         </div>
@@ -612,7 +612,12 @@
         <div id="addUserGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
 
         <form id="addUserForm">
-            @include('admin.users.partials.user-form-fields', ['roles' => \App\Models\Role::where('role_name', 'cashier')->get()])
+            {{-- Explicit user=>null guards against the $user variable leaking in
+                 from the @forelse($users as $user) table loop earlier on this
+                 same page (Blade @include merges parent scope for any key not
+                 in this array — without this, the Add modal would render in
+                 "Edit" mode using whichever user was last in the table). --}}
+            @include('admin.users.partials.user-form-fields', ['roles' => \App\Models\Role::where('role_name', 'cashier')->get(), 'user' => null])
         </form>
 
         <div class="modal-actions add-user-modal-actions">
@@ -621,6 +626,31 @@
             </button>
             <button type="button" class="btn btn-primary" id="addUserSubmitBtn">
                 <i class="fas fa-save"></i> Save User
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal-overlay form-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editUserModalTitle" aria-hidden="true">
+    <div class="modal-content form-modal-content">
+        <div class="modal-header">
+            <h2 id="editUserModalTitle"><i class="fas fa-user-edit"></i> Edit User</h2>
+            <button type="button" class="modal-close" onclick="closeEditUserModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div id="editUserGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
+
+        <form id="editUserForm">
+            <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+        </form>
+
+        <div class="modal-actions add-user-modal-actions">
+            <button type="button" class="btn btn-secondary" id="editUserCancelBtn">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn btn-primary" id="editUserSubmitBtn">
+                <i class="fas fa-save"></i> Save Changes
             </button>
         </div>
     </div>
@@ -777,7 +807,7 @@
             const createdAt = new Date(user.created_at).toLocaleString('en-PH');
             const updatedAt = new Date(user.updated_at).toLocaleString('en-PH');
 
-            updateBtn.href = '/admin/users/' + userId + '/edit';
+            updateBtn.dataset.userId = userId;
 
             const protectedNotice = user.role_name === 'admin' ?
                 '<div class="detail-item full-width" style="background: rgba(239,68,68,0.15);">' +
@@ -1103,6 +1133,193 @@
         if (e.target === this && !addUserIsSubmitting()) {
             closeAddUserModal();
         }
+    });
+
+    // ---- Edit User modal ----
+    let editUserLastFocused = null;
+    let editUserFormHelper = null;
+    let currentEditUserId = null;
+
+    function editUserIsSubmitting() {
+        const btn = document.getElementById('editUserSubmitBtn');
+        return btn ? btn.disabled : false;
+    }
+
+    function showEditUserFieldErrors(errors) {
+        const form = document.getElementById('editUserForm');
+        Object.keys(errors).forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = errors[field][0];
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) input.classList.add('error');
+        });
+        const firstField = form.querySelector('.error');
+        if (firstField) firstField.focus();
+    }
+
+    function showEditUserGeneralError(message) {
+        const banner = document.getElementById('editUserGeneralError');
+        banner.textContent = message;
+        banner.style.display = 'flex';
+    }
+
+    function hideEditUserGeneralError() {
+        const banner = document.getElementById('editUserGeneralError');
+        banner.style.display = 'none';
+        banner.textContent = '';
+    }
+
+    function resetEditUserSubmitButton() {
+        const btn = document.getElementById('editUserSubmitBtn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+    }
+
+    function submitEditUserForm(resetSubmitButton) {
+        const form = document.getElementById('editUserForm');
+        const userId = currentEditUserId;
+        hideEditUserGeneralError();
+
+        // PHP never parses a multipart/form-data body for a real HTTP PUT
+        // request (only POST) — send it as POST with Laravel's standard
+        // _method spoof instead, or every field comes back "required".
+        const formData = new FormData(form);
+        formData.append('_method', 'PUT');
+
+        fetch('{{ url('admin/users') }}/' + userId, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: formData
+        }).then(async function (response) {
+            if (response.status === 422) {
+                const data = await response.json();
+                showEditUserFieldErrors(data.errors || {});
+                resetSubmitButton();
+                return;
+            }
+
+            if (!response.ok) {
+                showEditUserGeneralError('Something went wrong. Please try again.');
+                resetSubmitButton();
+                return;
+            }
+
+            const html = await response.text();
+            closeEditUserModal();
+            refreshUsersTable(html);
+            Swal.fire({
+                title: 'Success',
+                text: 'User updated successfully.',
+                icon: 'success',
+                confirmButtonColor: '#10b981',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }).catch(function () {
+            showEditUserGeneralError('A network error occurred. Please try again.');
+            resetSubmitButton();
+        });
+    }
+
+    function handleEditUserModalKeydown(e) {
+        const modal = document.getElementById('editUserModal');
+        if (!modal.classList.contains('active')) return;
+
+        if (e.key === 'Escape') {
+            if (!editUserIsSubmitting()) closeEditUserModal();
+            return;
+        }
+
+        if (e.key === 'Tab') {
+            const focusable = modal.querySelectorAll('input, select, button, [href]');
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    window.openEditUserModal = function (event, userId) {
+        if (event) event.preventDefault();
+        closeModal(); // close the View User modal underneath, if open
+        const modal = document.getElementById('editUserModal');
+        const form = document.getElementById('editUserForm');
+
+        editUserLastFocused = document.activeElement || editUserLastFocused;
+        currentEditUserId = userId;
+        form.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+        hideEditUserGeneralError();
+        resetEditUserSubmitButton();
+
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        void modal.offsetHeight;
+        requestAnimationFrame(function () { modal.classList.add('active'); });
+        document.addEventListener('keydown', handleEditUserModalKeydown);
+
+        fetch('{{ url('admin/users') }}/' + userId + '/edit', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                form.innerHTML = data.html;
+                form.dataset.excludeId = String(userId);
+                editUserFormHelper = window.initUserAddForm('editUserForm', {
+                    submitBtn: document.getElementById('editUserSubmitBtn'),
+                    confirmTitle: 'Confirm Update',
+                    confirmHtml: function (fullName) {
+                        return 'Are you sure you want to save the changes to <strong>' + fullName + '</strong>?';
+                    },
+                    confirmButtonText: 'Yes, Save Changes',
+                    submittingLabel: '<span class="spinner"></span> Saving...',
+                    onConfirmedSubmit: submitEditUserForm,
+                    onCancel: function () { closeEditUserModal(); }
+                });
+                const firstField = form.querySelector('input, select');
+                if (firstField) firstField.focus();
+            })
+            .catch(function () {
+                form.innerHTML = '<p class="form-error">Failed to load user for editing. Please try again.</p>';
+            });
+    };
+
+    window.closeEditUserModal = function () {
+        const modal = document.getElementById('editUserModal');
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        document.removeEventListener('keydown', handleEditUserModalKeydown);
+        setTimeout(function () { modal.style.display = 'none'; }, 250);
+        document.body.style.overflow = '';
+        if (editUserLastFocused && typeof editUserLastFocused.focus === 'function') {
+            editUserLastFocused.focus();
+        }
+    };
+
+    document.getElementById('editUserModal').addEventListener('mousedown', function (e) {
+        if (e.target === this && !editUserIsSubmitting()) {
+            closeEditUserModal();
+        }
+    });
+    document.getElementById('editUserCancelBtn').addEventListener('click', function () {
+        if (editUserFormHelper) {
+            editUserFormHelper.confirmCancel();
+        } else {
+            closeEditUserModal();
+        }
+    });
+    document.getElementById('editUserSubmitBtn').addEventListener('click', function () {
+        if (editUserFormHelper) editUserFormHelper.confirmSave();
     });
 
     // Auto-show session messages

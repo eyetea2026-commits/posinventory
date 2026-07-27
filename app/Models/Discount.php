@@ -16,6 +16,7 @@ class Discount extends Model
 
     protected $fillable = [
         'DiscountRate',
+        'Name',
     ];
 
     public function billings()

@@ -3,18 +3,32 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class UserController extends Controller
 {
     public function __construct()
     {
-        // Middleware is applied at route level for better control
-        // Auth check is done via role:admin middleware in routes
+        // Route-level role:admin middleware already gates every route here —
+        // this constructor-level check is defense-in-depth, matching the
+        // same double-gate pattern every other admin controller uses, so a
+        // future route added without the right middleware doesn't go
+        // unprotected specifically in the one controller that manages
+        // accounts and roles.
+        $this->middleware('auth');
+        $this->middleware(function ($request, $next) {
+            if (! auth()->user() || ! auth()->user()->isAdmin()) {
+                abort(403);
+            }
+
+            return $next($request);
+        });
     }
 
     public function index(Request $request)
@@ -60,20 +74,23 @@ class UserController extends Controller
         $first = trim((string) $request->input('first_name', ''));
         $middle = trim((string) $request->input('middle_name', ''));
         $last = trim((string) $request->input('last_name', ''));
+        $excludeId = $request->input('exclude_id');
 
         $fullName = trim($first . ' ' . $middle . ' ' . $last);
         $normalized = preg_replace('/\s+/', ' ', strtolower($fullName));
 
         $duplicate = false;
         if ($normalized !== '') {
-            $duplicate = User::get()->contains(function ($existing) use ($normalized) {
-                $existingFullName = preg_replace(
-                    '/\s+/',
-                    ' ',
-                    strtolower(trim(($existing->first_name ?? '') . ' ' . ($existing->middle_name ?? '') . ' ' . ($existing->last_name ?? '')))
-                );
-                return $existingFullName !== '' && $existingFullName === $normalized;
-            });
+            $duplicate = User::when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+                ->get()
+                ->contains(function ($existing) use ($normalized) {
+                    $existingFullName = preg_replace(
+                        '/\s+/',
+                        ' ',
+                        strtolower(trim(($existing->first_name ?? '') . ' ' . ($existing->middle_name ?? '') . ' ' . ($existing->last_name ?? '')))
+                    );
+                    return $existingFullName !== '' && $existingFullName === $normalized;
+                });
         }
 
         return response()->json([
@@ -84,6 +101,13 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        // This endpoint only ever creates Cashier accounts (the create() form
+        // only offers that option) — validated here server-side too, so a
+        // crafted request with a different role_id can't create an
+        // unauthorized Administrator account. Never rely on the dropdown
+        // alone to enforce this.
+        $cashierRoleId = Role::where('role_name', 'cashier')->value('id');
+
         $data = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
@@ -93,10 +117,11 @@ class UserController extends Controller
             'contact_number' => ['required', 'string', 'max:50', 'unique:users,contact_number'],
             'gender' => ['nullable', 'in:Male,Female,Other'],
             'name' => ['required', 'string', 'max:255', 'unique:users,name'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'role_id' => ['required', 'integer', 'exists:roles,id'],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'role_id' => ['required', 'integer', Rule::in(array_filter([$cashierRoleId]))],
             'password' => ['required', 'confirmed', Password::defaults()],
         ], [
+            'role_id.in' => 'Only Cashier accounts can be created here.',
             'name.required' => 'Username is required.',
             'name.unique' => 'This username is already taken.',
             'email.unique' => 'This email is already registered.',
@@ -126,7 +151,7 @@ class UserController extends Controller
                 ->with('error', 'A user with the name "' . $fullName . '" already exists. Duplicate names are not allowed.');
         }
 
-        User::create([
+        $newUser = User::create([
             'name' => $data['name'],
             'first_name' => $data['first_name'],
             'middle_name' => $data['middle_name'] ?? null,
@@ -141,15 +166,29 @@ class UserController extends Controller
             'is_active' => true,
         ]);
 
+        ActivityLog::record('user.created', "Created user \"{$newUser->name}\" (Cashier)");
+
         return redirect()->route('admin.users.index')->with('status', 'User account created successfully.');
     }
 
-    public function edit(User $user)
+    public function edit(Request $request, User $user)
     {
         $roles = Role::orderBy('role_name')->get();
+        $user->load('role');
+
+        // Edit User modal: return just the rendered form fields instead of a
+        // full page, so the modal can inject it without navigating.
+        if ($this->isAjaxRequest()) {
+            return response()->json([
+                'html' => view('admin.users.partials.user-form-fields', [
+                    'roles' => $roles,
+                    'user' => $user,
+                ])->render(),
+            ]);
+        }
 
         return view('admin.users.edit', [
-            'user' => $user->load('role'),
+            'user' => $user,
             'roles' => $roles,
         ]);
     }
@@ -165,10 +204,26 @@ class UserController extends Controller
             'contact_number' => ['required', 'string', 'max:50', 'unique:users,contact_number,' . $user->id],
             'gender' => ['nullable', 'in:Male,Female,Other'],
             'name' => ['required', 'string', 'max:255', 'unique:users,name,' . $user->id],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'role_id' => ['required', 'integer', 'exists:roles,id'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
         ]);
+
+        // Never rely on the Edit form disabling the Role field client-side —
+        // if this is the last active Administrator, reject any attempt to
+        // change their role away from admin server-side too, since that
+        // would leave the system with zero admins.
+        if ($user->isProtected() && (int) $data['role_id'] !== (int) $user->role_id) {
+            $message = 'This is the last active Administrator account — its role cannot be changed.';
+            if ($this->isAjaxRequest()) {
+                return response()->json(['error' => $message], 422);
+            }
+            return back()->withInput()->with('error', $message);
+        }
+
+        $roleChanged = (int) $data['role_id'] !== (int) $user->role_id;
+        $passwordChanged = ! empty($data['password']);
+        $oldRoleName = $user->role?->role_name;
 
         // Strip `password` before mass assignment. The ConvertEmptyStringsToNull
         // middleware turns an empty password field into null, which would
@@ -179,11 +234,17 @@ class UserController extends Controller
         unset($updateData['password']);
         $user->fill($updateData);
 
-        if (! empty($data['password'])) {
+        if ($passwordChanged) {
             $user->password = Hash::make($data['password']);
         }
 
         $user->save();
+
+        ActivityLog::record('user.updated', "Updated user \"{$user->name}\"" . ($passwordChanged ? ' (password changed)' : ''));
+        if ($roleChanged) {
+            $newRoleName = Role::find($data['role_id'])?->role_name;
+            ActivityLog::record('user.role_changed', "Changed \"{$user->name}\"'s role from \"{$oldRoleName}\" to \"{$newRoleName}\"");
+        }
 
         return redirect()->route('admin.users.index')->with('status', 'User account updated successfully.');
     }
@@ -191,13 +252,15 @@ class UserController extends Controller
     public function deactivate(User $user)
     {
         if ($user->isProtected()) {
+            $message = 'Cannot deactivate the last active Administrator account.';
             if ($this->isAjaxRequest()) {
-                return response()->json(['error' => 'Cannot deactivate administrator account.'], 403);
+                return response()->json(['error' => $message], 403);
             }
-            return back()->with('error', 'Cannot deactivate administrator account.');
+            return back()->with('error', $message);
         }
 
         $user->update(['is_active' => false]);
+        ActivityLog::record('user.deactivated', "Deactivated user \"{$user->name}\"");
 
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User account deactivated.']);
@@ -208,6 +271,7 @@ class UserController extends Controller
     public function activate(User $user)
     {
         $user->update(['is_active' => true]);
+        ActivityLog::record('user.activated', "Activated user \"{$user->name}\"");
 
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User account activated.']);
@@ -229,10 +293,11 @@ class UserController extends Controller
     public function destroy(User $user)
     {
         if ($user->isProtected()) {
+            $message = 'Cannot delete the last active Administrator account.';
             if ($this->isAjaxRequest()) {
-                return response()->json(['error' => 'Cannot delete administrator account.'], 403);
+                return response()->json(['error' => $message], 403);
             }
-            return back()->with('error', 'Cannot delete administrator account.');
+            return back()->with('error', $message);
         }
 
         $staff = \App\Models\Staff::where('UserID', $user->id)->first();
@@ -244,7 +309,9 @@ class UserController extends Controller
             return back()->with('error', $message);
         }
 
+        $deletedName = $user->name;
         $user->delete();
+        ActivityLog::record('user.deleted', "Deleted user \"{$deletedName}\"");
 
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User deleted successfully.']);

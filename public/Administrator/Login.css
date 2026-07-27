@@ -150,6 +150,13 @@ body::before {
     background: rgba(148, 163, 184, 0.14);
     border: 1px solid rgba(148, 163, 184, 0.26);
 }
+.button:disabled,
+.button-secondary:disabled,
+.button-accent:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
 .button-accent {
     color: #fff;
     background: #0ea5e9;
@@ -180,6 +187,40 @@ body::before {
     border-color: rgba(59, 130, 246, 0.72);
     box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
     transform: translateY(-1px);
+}
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    width: fit-content;
+    animation: role-badge-in 0.18s ease;
+}
+.role-badge--admin {
+    background: rgba(16, 185, 129, 0.14);
+    color: #6ee7b7;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.role-badge--cashier {
+    background: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+@keyframes role-badge-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+/* The class rules above (and .forgot-disabled / .login-footer a below) each
+   set an explicit `display`, which outranks the UA stylesheet's `[hidden] {
+   display: none }` rule on specificity alone — so the hidden attribute was
+   silently losing. These ID-scoped overrides win instead. */
+#role-badge[hidden],
+#forgot-link[hidden],
+#cashier-note[hidden] {
+    display: none;
 }
 .password-field {
     position: relative;

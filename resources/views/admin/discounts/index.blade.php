@@ -61,40 +61,46 @@
         padding: 20px 24px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     }
-    .search-form {
+    /* Search Bar — matches the modern search box used on Products/Inventory */
+    .search-box-wrapper {
+        position: relative;
         display: flex;
-        gap: 12px;
+        align-items: center;
         flex: 1;
+        min-width: 260px;
         max-width: 480px;
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.15);
+        border-radius: 12px;
+        transition: all 0.3s ease;
     }
-    .search-form input {
-        flex: 1;
-        max-width: 400px;
-        padding: 12px 16px;
-        background: rgba(15, 23, 42, 0.8);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 10px;
-        color: var(--text-primary);
+    .search-box-wrapper:focus-within {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .search-box-wrapper .search-icon {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
         font-size: 0.95rem;
+        line-height: 1;
+        pointer-events: none;
     }
-    .search-form input:focus {
-        outline: none;
-        border-color: rgba(59, 130, 246, 0.5);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    .search-form button {
-        padding: 12px 20px;
-        background: linear-gradient(135deg, #3b82f6, #10b981);
+    .search-input {
+        flex: 1;
+        width: 100%;
+        padding: 12px 16px 12px 44px;
+        background: transparent;
         border: none;
-        border-radius: 10px;
-        color: white;
-        cursor: pointer;
-        transition: all 0.2s ease;
+        color: #f8fafc;
+        font-size: 0.95rem;
+        line-height: 1.4;
+        transition: all 0.3s ease;
     }
-    .search-form button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
-    }
+    .search-input::placeholder { color: #64748b; }
+    .search-input:focus { outline: none; }
     .card-body {
         padding: 0;
     }
@@ -190,6 +196,7 @@
     /* Add Discount Modal */
     .form-group label { display: block; margin-bottom: 4px; font-weight: 600; color: #cbd5e1; font-size: 0.82rem; }
     .form-group label .required { color: #ef4444; }
+    .form-group label .text-optional { color: #64748b; font-weight: 500; }
     .form-group { margin-bottom: 16px; }
     .form-control {
         width: 100%;
@@ -290,9 +297,9 @@
 
 <div class="card">
     <div class="card-header">
-        <form method="GET" action="{{ route('admin.discounts.index') }}" class="search-form">
-            <input type="text" name="search" placeholder="Search discount rates..." value="{{ $search ?? '' }}">
-            <button type="submit"><i class="fa-solid fa-search"></i></button>
+        <form method="GET" action="{{ route('admin.discounts.index') }}" class="search-box-wrapper">
+            <i class="search-icon fas fa-search"></i>
+            <input type="text" name="search" class="search-input" placeholder="Search by name or rate..." value="{{ $search ?? '' }}">
         </form>
         <a href="{{ route('admin.discounts.create') }}" class="btn btn-primary" onclick="openAddDiscountModal(event)" title="Add Discount">
             <i class="fa-solid fa-plus"></i> Add Discount
@@ -303,8 +310,8 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>Name</th>
                     <th>Discount Rate</th>
-                    <th>Used In Transactions</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -312,22 +319,13 @@
                 @forelse($discounts as $discount)
                     <tr>
                         <td>{{ $discount->DiscountID }}</td>
+                        <td>{{ $discount->Name ?? '—' }}</td>
                         <td class="rate-cell">{{ $discount->DiscountRate }}%</td>
                         <td>
-                            <span class="badge badge-info">{{ $discount->billings->count() }} transactions</span>
-                        </td>
-                        <td>
                             <div class="actions-group">
-                                <a href="{{ route('admin.discounts.edit', $discount->DiscountID) }}" class="btn btn-sm btn-primary">
+                                <a href="{{ route('admin.discounts.edit', $discount->DiscountID) }}" class="btn btn-sm btn-primary" onclick="openEditDiscountModal(event, {{ $discount->DiscountID }})">
                                     <i class="fa-solid fa-edit"></i> Edit
                                 </a>
-                                <form method="POST" action="{{ route('admin.discounts.destroy', $discount->DiscountID) }}" style="display:inline;" id="deleteForm{{ $discount->DiscountID }}">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete({{ $discount->DiscountID }})">
-                                        <i class="fa-solid fa-trash"></i> Delete
-                                    </button>
-                                </form>
                             </div>
                         </td>
                     </tr>
@@ -358,7 +356,9 @@
         <div id="addDiscountGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
 
         <form id="addDiscountForm">
-            @include('admin.discounts.partials.discount-form-fields')
+            {{-- Explicit discount=>null guards against $discount leaking in
+                 from the @forelse($discounts as $discount) table loop above. --}}
+            @include('admin.discounts.partials.discount-form-fields', ['discount' => null])
         </form>
 
         <div class="modal-actions">
@@ -372,26 +372,34 @@
     </div>
 </div>
 
+<!-- Edit Discount Modal -->
+<div id="editDiscountModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editDiscountModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="editDiscountModalTitle"><i class="fa-solid fa-percent"></i> Edit Discount</h2>
+            <button type="button" class="modal-close" onclick="closeEditDiscountModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div id="editDiscountGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
+
+        <form id="editDiscountForm">
+            <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+        </form>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="editDiscountCancelBtn">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn btn-primary" id="editDiscountSubmitBtn">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+
 @include('admin.partials.ajax-modal-form')
 
 <script>
-    function confirmDelete(discountId) {
-        Swal.fire({
-            title: 'Confirm Delete',
-            text: 'Are you sure you want to delete this discount policy? This action cannot be undone.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Delete',
-            cancelButtonText: 'Cancel',
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: '#64748b'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('deleteForm' + discountId).submit();
-            }
-        });
-    }
-
     // Auto-show session messages
     @if(session('success'))
         Swal.fire({
@@ -413,7 +421,7 @@
     @endif
 
     // ---- Add Discount modal ----
-    const ADD_DISCOUNT_FIELD_IDS = ['DiscountRate'];
+    const ADD_DISCOUNT_FIELD_IDS = ['Name', 'DiscountRate'];
     let addDiscountLastFocused = null;
 
     function addDiscountIsSubmitting() {
@@ -590,6 +598,188 @@
                 onOtherError: function (message) {
                     showAddDiscountGeneralError(message);
                     resetAddDiscountSubmitButton();
+                }
+            });
+        });
+    });
+
+    // ---- Edit Discount modal ----
+    let editDiscountLastFocused = null;
+    let currentEditDiscountId = null;
+
+    function editDiscountIsSubmitting() {
+        const btn = document.getElementById('editDiscountSubmitBtn');
+        return btn ? btn.disabled : false;
+    }
+
+    function clearEditDiscountFieldErrors() {
+        const form = document.getElementById('editDiscountForm');
+        ADD_DISCOUNT_FIELD_IDS.forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = '';
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) input.classList.remove('error');
+        });
+    }
+
+    function showEditDiscountFieldErrors(errors) {
+        const form = document.getElementById('editDiscountForm');
+        clearEditDiscountFieldErrors();
+        let firstInvalid = null;
+        Object.keys(errors).forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = errors[field][0];
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) {
+                input.classList.add('error');
+                if (!firstInvalid) firstInvalid = input;
+            }
+        });
+        if (firstInvalid) firstInvalid.focus();
+    }
+
+    function showEditDiscountGeneralError(message) {
+        const banner = document.getElementById('editDiscountGeneralError');
+        banner.textContent = message;
+        banner.style.display = 'flex';
+    }
+
+    function hideEditDiscountGeneralError() {
+        const banner = document.getElementById('editDiscountGeneralError');
+        banner.style.display = 'none';
+        banner.textContent = '';
+    }
+
+    function resetEditDiscountSubmitButton() {
+        const btn = document.getElementById('editDiscountSubmitBtn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+    }
+
+    function handleEditDiscountModalKeydown(e) {
+        const modal = document.getElementById('editDiscountModal');
+        if (!modal.classList.contains('active')) return;
+
+        if (e.key === 'Escape') {
+            if (!editDiscountIsSubmitting()) closeEditDiscountModal();
+            return;
+        }
+
+        if (e.key === 'Tab') {
+            const focusable = modal.querySelectorAll('input, select, textarea, button, [href]');
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    window.openEditDiscountModal = function (event, discountId) {
+        if (event) event.preventDefault();
+        const modal = document.getElementById('editDiscountModal');
+        const form = document.getElementById('editDiscountForm');
+
+        editDiscountLastFocused = document.activeElement || editDiscountLastFocused;
+        currentEditDiscountId = discountId;
+        form.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+        hideEditDiscountGeneralError();
+        resetEditDiscountSubmitButton();
+
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        void modal.offsetHeight;
+        requestAnimationFrame(function () { modal.classList.add('active'); });
+        document.addEventListener('keydown', handleEditDiscountModalKeydown);
+
+        fetch('{{ url('admin/discounts') }}/' + discountId + '/edit', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                form.innerHTML = data.html;
+                // submitAjaxForm always POSTs — this hidden field is Laravel's
+                // standard method-spoofing so it still routes to update().
+                form.insertAdjacentHTML('beforeend', '<input type="hidden" name="_method" value="PUT">');
+                const firstField = form.querySelector('input, textarea, select');
+                if (firstField) firstField.focus();
+            })
+            .catch(function () {
+                form.innerHTML = '<p class="error">Failed to load discount for editing. Please try again.</p>';
+            });
+    };
+
+    window.closeEditDiscountModal = function () {
+        const modal = document.getElementById('editDiscountModal');
+        modal.classList.remove('active');
+        document.removeEventListener('keydown', handleEditDiscountModalKeydown);
+        setTimeout(function () { modal.style.display = 'none'; }, 250);
+        document.body.style.overflow = '';
+        if (editDiscountLastFocused && typeof editDiscountLastFocused.focus === 'function') {
+            editDiscountLastFocused.focus();
+        }
+    };
+
+    document.getElementById('editDiscountModal').addEventListener('mousedown', function (e) {
+        if (e.target === this && !editDiscountIsSubmitting()) {
+            closeEditDiscountModal();
+        }
+    });
+
+    document.getElementById('editDiscountCancelBtn').addEventListener('click', function () {
+        closeEditDiscountModal();
+    });
+
+    document.getElementById('editDiscountSubmitBtn').addEventListener('click', function () {
+        const form = document.getElementById('editDiscountForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        Swal.fire({
+            title: 'Confirm Update',
+            text: 'Are you sure you want to save the changes to this discount?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes',
+            cancelButtonText: 'No',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+
+            const submitBtn = document.getElementById('editDiscountSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            clearEditDiscountFieldErrors();
+            hideEditDiscountGeneralError();
+
+            window.submitAjaxForm(form, '{{ url('admin/discounts') }}/' + currentEditDiscountId, {
+                onFieldErrors: function (errors) {
+                    showEditDiscountFieldErrors(errors);
+                    resetEditDiscountSubmitButton();
+                },
+                onSuccess: function (html, message) {
+                    refreshDiscountsTable(html);
+                    closeEditDiscountModal();
+                    Swal.fire({
+                        title: 'Success',
+                        text: message,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                },
+                onOtherError: function (message) {
+                    showEditDiscountGeneralError(message);
+                    resetEditDiscountSubmitButton();
                 }
             });
         });

@@ -72,9 +72,22 @@ class User extends Authenticatable
         return $this->role && strtolower($this->role->role_name) === 'cashier';
     }
 
+    // Protection now means "the last active Administrator account" rather
+    // than "any Administrator account" — an admin should be able to edit
+    // their own (or another admin's) profile freely, and a second admin
+    // account should be manageable like any other, but the system must
+    // never be left with zero active admins.
     public function isProtected(): bool
     {
-        return $this->isAdmin();
+        if (! $this->isAdmin()) {
+            return false;
+        }
+
+        return static::whereHas('role', function ($query) {
+                $query->whereRaw('LOWER(role_name) = ?', ['admin']);
+            })
+            ->where('is_active', true)
+            ->count() <= 1;
     }
 
     public function getFullNameAttribute(): string

@@ -70,7 +70,7 @@ window.initUserAddForm = function (formId, options) {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ first_name: first, middle_name: middle, last_name: last })
+            body: JSON.stringify({ first_name: first, middle_name: middle, last_name: last, exclude_id: form.dataset.excludeId || null })
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -123,12 +123,19 @@ window.initUserAddForm = function (formId, options) {
             return;
         }
 
+        var confirmTitle = options.confirmTitle || 'Add User Confirmation';
+        var confirmHtml = options.confirmHtml
+            ? options.confirmHtml(fullName)
+            : 'Are you sure you want to add <strong>' + fullName + '</strong> as a new user?<br><br>This account will be created and can be used to log in immediately.';
+        var confirmButtonText = options.confirmButtonText || 'Yes, Add User';
+        var submittingLabel = options.submittingLabel || '<span class="spinner"></span> Saving...';
+
         Swal.fire({
-            title: 'Add User Confirmation',
-            html: 'Are you sure you want to add <strong>' + fullName + '</strong> as a new user?<br><br>This account will be created and can be used to log in immediately.',
+            title: confirmTitle,
+            html: confirmHtml,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Yes, Add User',
+            confirmButtonText: confirmButtonText,
             cancelButtonText: 'Cancel',
             confirmButtonColor: '#10b981',
             cancelButtonColor: '#64748b',
@@ -142,7 +149,7 @@ window.initUserAddForm = function (formId, options) {
             }
             if (submitBtn) {
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner"></span> Saving...';
+                submitBtn.innerHTML = submittingLabel;
             }
             formChanged = false;
             if (options.onConfirmedSubmit) options.onConfirmedSubmit(resetSubmitButton);

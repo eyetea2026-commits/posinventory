@@ -51,7 +51,7 @@
                 </div>
 
                 <div class="login-footer">
-                    <a class="small-link" href="{{ route('login') }}">&#8592; Back to Login</a>
+                    <a class="small-link" href="{{ route('welcome') }}">&#8592; Back to Login</a>
                 </div>
             </form>
         </section>

@@ -287,6 +287,7 @@
                                         'sliders-horizontal' => 'fa-sliders',
                                         'clipboard-check' => 'fa-clipboard-check',
                                         'rotate-ccw' => 'fa-rotate-left',
+                                        'shield-alert' => 'fa-shield-halved',
                                     ];
                                     $__notifColors = [
                                         'danger' => '#f87171',
@@ -327,7 +328,7 @@
                             </span>
                         </button>
                         <div class="header-dropdown header-profile-dropdown" x-show="profileOpen" x-cloak>
-                            <form method="POST" action="{{ route('logout') }}">
+                            <form method="POST" action="{{ route('admin.logout') }}">
                                 @csrf
                                 <button type="submit"><i class="fas fa-right-from-bracket"></i> Logout</button>
                             </form>
