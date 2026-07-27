@@ -3,14 +3,21 @@
 namespace App\Notifications;
 
 use App\Models\Product;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 
-// Not ShouldQueue: this app has no queue worker running (QUEUE_CONNECTION=database
-// with nothing ever processing it), so a queued notification silently never
-// delivers. Dispatch inline instead.
-class LowStockAlert extends Notification
+// ShouldQueue: outbound network calls (mail) triggered directly from a web
+// request on this host are unreliable — proven via repeated side-by-side
+// tests where the identical send succeeds every time from a CLI process but
+// intermittently vanishes with no error from a real page load. A cron job
+// runs `queue:work` so dispatch always happens from that reliable CLI path.
+class LowStockAlert extends Notification implements ShouldQueue
 {
+    use Queueable, SerializesModels;
+
     public function __construct(
         public Product $product,
         public int $quantity,

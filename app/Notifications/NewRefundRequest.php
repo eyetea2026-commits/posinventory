@@ -3,14 +3,21 @@
 namespace App\Notifications;
 
 use App\Models\SalesReturn;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 
-// Not ShouldQueue: this app has no queue worker running (QUEUE_CONNECTION=database
-// with nothing ever processing it), so a queued notification silently never
-// delivers. Dispatch inline instead.
-class NewRefundRequest extends Notification
+// ShouldQueue: outbound network calls (mail) triggered directly from a web
+// request on this host are unreliable — proven via repeated side-by-side
+// tests where the identical send succeeds every time from a CLI process but
+// intermittently vanishes with no error from a real page load. A cron job
+// runs `queue:work` so dispatch always happens from that reliable CLI path.
+class NewRefundRequest extends Notification implements ShouldQueue
 {
+    use Queueable, SerializesModels;
+
     public function __construct(
         public SalesReturn $salesReturn,
     ) {
@@ -54,6 +61,10 @@ class NewRefundRequest extends Notification
             return 'Unknown product';
         }
 
-        return $items->map(fn ($item) => "{$item->Quantity} x \"{$item->product?->ProductName ?? 'Unknown product'}\"")->implode(', ');
+        return $items->map(function ($item) {
+            $productName = $item->product?->ProductName ?? 'Unknown product';
+
+            return "{$item->Quantity} x \"{$productName}\"";
+        })->implode(', ');
     }
 }

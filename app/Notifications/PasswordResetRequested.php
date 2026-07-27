@@ -3,21 +3,29 @@
 namespace App\Notifications;
 
 use App\Models\User;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
 
-// Not ShouldQueue: this app has no queue worker running (QUEUE_CONNECTION=database
-// with nothing ever processing it), so a queued notification silently never
-// delivers. Dispatch inline instead — the caller wraps ->notify() in a
-// try/catch so a mail hiccup here can't block the OTP request itself.
+// ShouldQueue: outbound network calls (mail) triggered directly from a web
+// request on this host are unreliable — proven via repeated side-by-side
+// tests where the identical send succeeds every time from a CLI process but
+// intermittently vanishes with no error from a real page load. A cron job
+// runs `queue:work` so dispatch always happens from that reliable CLI path.
+// The caller still wraps ->notify() in a try/catch so a queue-dispatch
+// hiccup here can't block the OTP request itself.
 //
 // Covers both "password reset requested" and "OTP verification requested"
 // from the notification spec — in this app they're the same event (issuing
 // the OTP IS the password-reset request), so one notification represents
 // both rather than firing two near-identical alerts for one action.
-class PasswordResetRequested extends Notification
+class PasswordResetRequested extends Notification implements ShouldQueue
 {
+    use Queueable, SerializesModels;
+
     public function __construct(
         public User $user,
         public Carbon $requestedAt,
