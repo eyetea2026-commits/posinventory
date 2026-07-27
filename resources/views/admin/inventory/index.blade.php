@@ -493,7 +493,7 @@
     }
 </style>
 
-<!-- Search + Status Reset -->
+<!-- Search + Status filter -->
 <div class="card glass-card">
     <div class="toolbar">
         <form
@@ -514,12 +514,6 @@
             />
             <input type="hidden" name="status" id="statusInput" value="{{ $status ?? '' }}" />
         </form>
-
-        <div class="filter-group">
-            <a href="{{ route('admin.inventory.index') }}" class="btn btn-secondary">
-                <i class="fas fa-undo"></i> Reset
-            </a>
-        </div>
     </div>
 
     <!-- Status pills (REQ045) -->
@@ -754,4 +748,6 @@
         }, 8000);
     })();
 </script>
+
+@include('admin.inventory.partials.reorder-modal')
 @endsection

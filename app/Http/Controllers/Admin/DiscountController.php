@@ -27,7 +27,8 @@ class DiscountController extends Controller
         $search = $request->get('search');
 
         $discounts = Discount::when($search, function($query) use ($search) {
-            return $query->where('DiscountRate', 'like', "%{$search}%");
+            return $query->where('DiscountRate', 'like', "%{$search}%")
+                ->orWhere('Name', 'like', "%{$search}%");
         })->orderBy('DiscountID', 'desc')->get();
 
         return view('admin.discounts.index', compact('discounts', 'search'));
@@ -43,6 +44,7 @@ class DiscountController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'Name' => 'nullable|string|max:100',
             'DiscountRate' => 'required|numeric|min:0|max:100|unique:Discount,DiscountRate'
         ], [
             'DiscountRate.required' => 'Discount rate is required.',
@@ -53,6 +55,7 @@ class DiscountController extends Controller
         ]);
 
         Discount::create([
+            'Name' => $request->Name,
             'DiscountRate' => $request->DiscountRate
         ]);
 
@@ -62,8 +65,18 @@ class DiscountController extends Controller
     }
 
     // Show edit form
-    public function edit(Discount $discount)
+    public function edit(Request $request, Discount $discount)
     {
+        // Edit Discount modal: return just the rendered form fields instead
+        // of a full page, so the modal can inject it without navigating.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.discounts.partials.discount-form-fields', [
+                    'discount' => $discount,
+                ])->render(),
+            ]);
+        }
+
         return view('admin.discounts.edit', compact('discount'));
     }
 
@@ -71,6 +84,7 @@ class DiscountController extends Controller
     public function update(Request $request, Discount $discount)
     {
         $request->validate([
+            'Name' => 'nullable|string|max:100',
             'DiscountRate' => 'required|numeric|min:0|max:100|unique:Discount,DiscountRate,' . $discount->DiscountID . ',DiscountID'
         ], [
             'DiscountRate.required' => 'Discount rate is required.',
@@ -81,6 +95,7 @@ class DiscountController extends Controller
         ]);
 
         $discount->update([
+            'Name' => $request->Name,
             'DiscountRate' => $request->DiscountRate
         ]);
 

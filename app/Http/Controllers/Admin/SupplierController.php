@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class SupplierController extends Controller
 {
@@ -49,9 +51,11 @@ class SupplierController extends Controller
     {
         $data = $request->validate([
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName'],
+            'ContactPerson' => ['nullable', 'string', 'max:150'],
             'ContactNumber' => ['required', 'string', 'max:50'],
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email'],
             'Address' => ['required', 'string', 'max:255'],
+            'Status' => ['nullable', 'string', 'in:' . Supplier::STATUS_ACTIVE . ',' . Supplier::STATUS_INACTIVE],
         ]);
 
         $supplier = Supplier::create($data);
@@ -61,8 +65,139 @@ class SupplierController extends Controller
         return redirect()->route('admin.suppliers.index')->with('status', 'Supplier added successfully.');
     }
 
-    public function edit(Supplier $supplier)
+    // "View History" — displays ONLY this supplier's Purchase Order
+    // transaction history (searchable, paginated). Deliberately does not
+    // show supplier profile info (name/contact/address/status) — that's
+    // already visible in the Supplier List this action is reached from.
+    public function show(Request $request, Supplier $supplier)
     {
+        $search = $request->query('search');
+
+        $purchaseOrders = $supplier->purchaseOrders()
+            ->with(['items', 'stockReceivings'])
+            ->when($search, fn ($q) => $q->where('PONumber', 'like', "%{$search}%"))
+            ->orderByDesc('PurchaseDate')
+            ->paginate(10)
+            ->withQueryString();
+
+        $history = $purchaseOrders->getCollection()->map(function (PurchaseOrder $po) {
+            $lastReceipt = $po->stockReceivings->max('DateReceived');
+
+            return (object) [
+                'purchaseOrder' => $po,
+                'productsOrderedCount' => $po->items->count(),
+                'totalQuantityOrdered' => $po->items->sum('Quantity'),
+                'totalPurchaseAmount' => $po->items->sum(fn ($item) => $item->Quantity * $item->CostPriceAtOrder),
+                'deliveryStatus' => $this->resolveDeliveryStatus($po, $lastReceipt),
+                'receivedDate' => $lastReceipt,
+            ];
+        });
+        $purchaseOrders->setCollection($history);
+
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'rows' => view('admin.suppliers.partials.history-rows', ['history' => $purchaseOrders, 'supplier' => $supplier])->render(),
+                'pagination' => view('admin.suppliers.partials.history-pagination', ['history' => $purchaseOrders])->render(),
+            ]);
+        }
+
+        return view('admin.suppliers.show', [
+            'supplier' => $supplier,
+            'search' => $search,
+            'history' => $purchaseOrders,
+        ]);
+    }
+
+    // Full breakdown of one Purchase Order for the History page's "View
+    // Details" modal — Purchase Order info, every ordered product
+    // (Category/SKU/ordered/received/remaining/cost/subtotal), an order
+    // summary, and a best-effort audit trail from ActivityLog.
+    public function purchaseOrderDetails(Supplier $supplier, PurchaseOrder $purchaseOrder)
+    {
+        abort_unless((int) $purchaseOrder->SupplierID === (int) $supplier->SupplierID, 404);
+
+        $purchaseOrder->load(['items.product.category', 'createdByUser', 'supplier', 'stockReceivings']);
+
+        $items = $purchaseOrder->items->map(function ($item) {
+            return [
+                'ProductName' => $item->product?->ProductName ?? 'N/A',
+                'Category' => $item->product?->category?->CategoryName ?? 'N/A',
+                'SKU' => $item->product?->SKU ?? 'N/A',
+                'OrderedQuantity' => $item->Quantity,
+                'ReceivedQuantity' => $item->ReceivedQuantity,
+                'RemainingQuantity' => $item->remaining_quantity,
+                'UnitCost' => $item->CostPriceAtOrder,
+                'Subtotal' => $item->Quantity * $item->CostPriceAtOrder,
+            ];
+        });
+
+        $lastReceipt = $purchaseOrder->stockReceivings->max('DateReceived');
+
+        $auditHistory = ActivityLog::where('Description', 'like', "%{$purchaseOrder->PONumber}%")
+            ->orderByDesc('DateRecorded')
+            ->get(['Action', 'Description', 'DateRecorded']);
+
+        return response()->json([
+            'purchaseOrder' => [
+                'PONumber' => $purchaseOrder->PONumber,
+                'PurchaseDate' => Carbon::parse($purchaseOrder->PurchaseDate)->format('Y-m-d'),
+                'Status' => PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? $purchaseOrder->Status,
+                'CreatedBy' => $purchaseOrder->createdByUser?->full_name ?? 'N/A',
+                'Notes' => $purchaseOrder->Notes,
+            ],
+            'supplier' => [
+                'SupplierName' => $purchaseOrder->supplier?->SupplierName,
+                'ContactNumber' => $purchaseOrder->supplier?->ContactNumber,
+                'Email' => $purchaseOrder->supplier?->Email,
+            ],
+            'items' => $items,
+            'summary' => [
+                'TotalProducts' => $items->count(),
+                'TotalQuantityOrdered' => $items->sum('OrderedQuantity'),
+                'TotalPurchaseAmount' => $items->sum('Subtotal'),
+            ],
+            'delivery' => [
+                'ExpectedDeliveryDate' => $purchaseOrder->ExpectedDeliveryDate ? Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('Y-m-d') : null,
+                'ReceivedDate' => $lastReceipt ? Carbon::parse($lastReceipt)->format('Y-m-d') : null,
+                'DeliveryStatus' => $this->resolveDeliveryStatus($purchaseOrder, $lastReceipt),
+            ],
+            'auditHistory' => $auditHistory,
+        ]);
+    }
+
+    private function resolveDeliveryStatus(PurchaseOrder $po, $lastReceipt): string
+    {
+        if ($po->Status === PurchaseOrder::STATUS_CANCELLED) {
+            return 'Cancelled';
+        }
+
+        if ($po->Status === PurchaseOrder::STATUS_FULLY_RECEIVED) {
+            if ($po->ExpectedDeliveryDate && $lastReceipt && Carbon::parse($lastReceipt)->gt(Carbon::parse($po->ExpectedDeliveryDate))) {
+                return 'Late';
+            }
+
+            return 'On Time';
+        }
+
+        if ($po->Status === PurchaseOrder::STATUS_PARTIALLY_RECEIVED) {
+            return 'Partial';
+        }
+
+        return 'Awaiting Delivery';
+    }
+
+    public function edit(Request $request, Supplier $supplier)
+    {
+        // Edit Supplier modal: return just the rendered form fields instead
+        // of a full page, so the modal can inject it without navigating.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.suppliers.partials.supplier-form-fields', [
+                    'supplier' => $supplier,
+                ])->render(),
+            ]);
+        }
+
         return view('admin.suppliers.edit', [
             'supplier' => $supplier,
         ]);
@@ -72,9 +207,11 @@ class SupplierController extends Controller
     {
         $data = $request->validate([
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName,' . $supplier->SupplierID . ',SupplierID'],
+            'ContactPerson' => ['nullable', 'string', 'max:150'],
             'ContactNumber' => ['required', 'string', 'max:50'],
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email,' . $supplier->SupplierID . ',SupplierID'],
             'Address' => ['required', 'string', 'max:255'],
+            'Status' => ['nullable', 'string', 'in:' . Supplier::STATUS_ACTIVE . ',' . Supplier::STATUS_INACTIVE],
         ]);
 
         $supplier->update($data);

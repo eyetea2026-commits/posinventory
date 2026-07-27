@@ -143,6 +143,29 @@
         color: #10b981;
     }
 
+    .computed-field .value-input {
+        width: 100%;
+        text-align: center;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #10b981;
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 8px;
+        padding: 4px 6px;
+    }
+
+    .computed-field .value-input:focus {
+        outline: none;
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+
+    .computed-field .value-input.negative {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+
     .computed-field .value.negative {
         color: #ef4444;
     }
@@ -245,7 +268,7 @@
         @csrf
         @method('PUT')
 
-        @include('admin.products.partials.product-form-fields', ['categories' => $categories, 'product' => $product])
+        @include('admin.products.partials.product-form-fields', ['categories' => $categories, 'brands' => $brands, 'product' => $product])
 
         <div class="form-actions">
             <a href="{{ route('admin.products.index') }}" class="btn btn-secondary">
@@ -257,6 +280,108 @@
         </div>
     </form>
 </div>
+
+{{-- Suppliers for this product: who supplies it, at what cost, and which one is
+     preferred (used by the auto-reorder flow to pick a supplier automatically). --}}
+<div class="card glass-card" style="margin-top: 24px;">
+    <div class="content-header" style="margin-bottom: 16px;">
+        <h1 style="font-size: 1.25rem;">Suppliers for this Product</h1>
+    </div>
+
+    <table style="width:100%; border-collapse: collapse;" id="productSuppliersTable">
+        <thead>
+            <tr style="text-align:left; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">
+                <th style="padding:8px;">Supplier</th>
+                <th style="padding:8px;">Cost Price</th>
+                <th style="padding:8px;">Preferred</th>
+                <th style="padding:8px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="productSuppliersBody">
+            <tr><td colspan="4" style="padding:12px; color:#94a3b8;">Loading...</td></tr>
+        </tbody>
+    </table>
+
+    <div class="form-grid" style="margin-top:20px; align-items:end;">
+        <div class="form-group">
+            <label class="form-label" for="newSupplierId">Supplier</label>
+            <select id="newSupplierId" class="form-select">
+                <option value="">Select Supplier</option>
+                @foreach(\App\Models\Supplier::orderBy('SupplierName')->get() as $s)
+                    <option value="{{ $s->SupplierID }}">{{ $s->SupplierName }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="newSupplierCost">Cost Price</label>
+            <input type="number" id="newSupplierCost" class="form-input" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+            <button type="button" class="btn btn-secondary" id="addProductSupplierBtn">
+                <i class="fas fa-plus"></i> Add / Update Supplier
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const productSuppliersEndpoint = '{{ route('admin.products.suppliers.index', $product) }}';
+
+    function renderProductSuppliers(suppliers) {
+        const body = document.getElementById('productSuppliersBody');
+        if (!suppliers.length) {
+            body.innerHTML = '<tr><td colspan="4" style="padding:12px; color:#94a3b8;">No suppliers linked yet.</td></tr>';
+            return;
+        }
+        body.innerHTML = suppliers.map(function (ps) {
+            return '<tr>' +
+                '<td style="padding:8px;">' + (ps.supplier ? ps.supplier.SupplierName : 'Unknown') + '</td>' +
+                '<td style="padding:8px;">₱' + parseFloat(ps.CostPrice).toFixed(2) + '</td>' +
+                '<td style="padding:8px;">' + (ps.IsPreferred ? '<span style="color:#10b981;">&#9733; Preferred</span>' : '<button type="button" class="btn btn-secondary" onclick="markProductSupplierPreferred(' + ps.ProductSupplierID + ')">Make Preferred</button>') + '</td>' +
+                '<td style="padding:8px;"><button type="button" class="btn btn-secondary" onclick="removeProductSupplier(' + ps.ProductSupplierID + ')"><i class="fas fa-trash"></i></button></td>' +
+            '</tr>';
+        }).join('');
+    }
+
+    function loadProductSuppliers() {
+        fetch(productSuppliersEndpoint, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { renderProductSuppliers(data.suppliers || []); });
+    }
+
+    window.markProductSupplierPreferred = function (id) {
+        fetch('/admin/product-suppliers/' + id + '/prefer', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+        }).then(loadProductSuppliers);
+    };
+
+    window.removeProductSupplier = function (id) {
+        fetch('/admin/product-suppliers/' + id, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+        }).then(loadProductSuppliers);
+    };
+
+    document.getElementById('addProductSupplierBtn').addEventListener('click', function () {
+        const supplierId = document.getElementById('newSupplierId').value;
+        const cost = document.getElementById('newSupplierCost').value;
+        if (!supplierId || !cost) {
+            Swal.fire({ title: 'Missing info', text: 'Select a supplier and enter a cost price.', icon: 'warning' });
+            return;
+        }
+        fetch(productSuppliersEndpoint, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ SupplierID: supplierId, CostPrice: cost }),
+        }).then(function (r) { return r.json(); }).then(function () {
+            document.getElementById('newSupplierCost').value = '';
+            loadProductSuppliers();
+        });
+    });
+
+    loadProductSuppliers();
+</script>
 
 @include('admin.products.partials.product-form-behavior')
 @include('admin.products.partials.barcode-scanner')

@@ -97,7 +97,7 @@
         color: #ef4444;
     }
 
-    .form-control {
+    .form-control, .form-input, .form-select {
         width: 100%;
         padding: 14px 16px;
         background: rgba(30, 41, 59, 0.8);
@@ -107,21 +107,21 @@
         font-size: 0.95rem;
     }
 
-    .form-control:focus {
+    .form-control:focus, .form-input:focus, .form-select:focus {
         outline: none;
         border-color: var(--primary);
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
-    select.form-control {
+    select.form-control, .form-select {
         cursor: pointer;
     }
 
-    textarea.form-control {
+    textarea.form-control, textarea.form-input {
         resize: vertical;
     }
 
-    .error {
+    .error, .form-error {
         display: block;
         margin-top: 6px;
         font-size: 0.8rem;
@@ -168,128 +168,11 @@
 @endif
 
 <div class="card glass-card">
-    <form method="POST" action="{{ route('admin.damages.update', $damage->DamageID) }}" id="damageForm">
+    <form method="POST" action="{{ route('admin.damages.update', $damage->DamageID) }}" id="damageForm" enctype="multipart/form-data">
         @csrf
         @method('PUT')
 
-        <div class="form-grid">
-            <div class="form-group full-width">
-                <label for="ProductID">Product <span class="required">*</span></label>
-                <select id="ProductID" name="ProductID" class="form-control" required>
-                    <option value="">Select Product</option>
-                    @foreach($products as $product)
-                        <option value="{{ $product->ProductID }}" {{ old('ProductID', $damage->ProductID) == $product->ProductID ? 'selected' : '' }}>
-                            {{ $product->ProductName }} - {{ $product->Model }}
-                            @if($product->inventory)
-                                (Stock: {{ $product->inventory->Quantity }})
-                            @else
-                                (No Stock)
-                            @endif
-                        </option>
-                    @endforeach
-                </select>
-                @error('ProductID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="SupplierID">Supplier <span class="required">*</span></label>
-                <select id="SupplierID" name="SupplierID" class="form-control" required>
-                    <option value="">Select Supplier</option>
-                    @foreach($suppliers as $supplier)
-                        <option value="{{ $supplier->SupplierID }}" {{ old('SupplierID', $damage->SupplierID) == $supplier->SupplierID ? 'selected' : '' }}>
-                            {{ $supplier->SupplierName }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('SupplierID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="PurchaseOrderID">Purchase Order <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
-                <select id="PurchaseOrderID" name="PurchaseOrderID" class="form-control">
-                    <option value="">None / Not linked to a PO</option>
-                    @foreach($purchaseOrders as $po)
-                        <option value="{{ $po->PurchaseOrderID }}" {{ old('PurchaseOrderID', $damage->PurchaseOrderID) == $po->PurchaseOrderID ? 'selected' : '' }}>
-                            PO #{{ $po->PurchaseOrderID }} &mdash; {{ $po->supplier?->SupplierName }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('PurchaseOrderID')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="Quantity">Quantity Damaged <span class="required">*</span></label>
-                <input type="number" id="Quantity" name="Quantity" class="form-control"
-                       value="{{ old('Quantity', $damage->Quantity) }}" required min="1">
-                @error('Quantity')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="DateRecorded">Date Recorded <span class="required">*</span></label>
-                <input type="date" id="DateRecorded" name="DateRecorded" class="form-control"
-                       value="{{ old('DateRecorded', $damage->DateRecorded) }}" required>
-                @error('DateRecorded')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="DamageType">Damage Type / Reason <span class="required">*</span></label>
-                <select id="DamageType" name="DamageType" class="form-control" required>
-                    <option value="">Select Damage Type</option>
-                    @foreach(\App\Models\DamagedProduct::DAMAGE_TYPES as $value => $label)
-                        <option value="{{ $value }}" {{ old('DamageType', $damage->DamageType) === $value ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
-                </select>
-                @error('DamageType')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="Description">Damage Description <span class="required">*</span></label>
-                <textarea id="Description" name="Description" class="form-control" rows="3"
-                          required maxlength="500" placeholder="Describe the damage...">{{ old('Description', $damage->Description) }}</textarea>
-                @error('Description')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="InspectionNotes">Inspection Notes</label>
-                <textarea id="InspectionNotes" name="InspectionNotes" class="form-control" rows="3"
-                          maxlength="1000" placeholder="Optional inspection findings...">{{ old('InspectionNotes', $damage->InspectionNotes) }}</textarea>
-                @error('InspectionNotes')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group">
-                <label for="WarehouseLocation">Warehouse Location</label>
-                <input type="text" id="WarehouseLocation" name="WarehouseLocation" class="form-control"
-                       value="{{ old('WarehouseLocation', $damage->WarehouseLocation) }}" maxlength="100" placeholder="e.g. Aisle 3, Shelf B">
-                @error('WarehouseLocation')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <div class="form-group full-width">
-                <label for="Remarks">Remarks</label>
-                <textarea id="Remarks" name="Remarks" class="form-control" rows="2"
-                          maxlength="500" placeholder="Optional remarks...">{{ old('Remarks', $damage->Remarks) }}</textarea>
-                @error('Remarks')
-                    <span class="error">{{ $message }}</span>
-                @enderror
-            </div>
-        </div>
+        @include('admin.damages.partials.damage-form-fields', ['damage' => $damage])
 
         <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="confirmCancel()">

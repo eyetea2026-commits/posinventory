@@ -32,6 +32,7 @@ class StockAdjustmentRecorded extends Notification
             ->subject("Stock Adjustment: {$this->product->ProductName}")
             ->line("\"{$this->product->ProductName}\" was adjusted by {$sign}{$this->quantityAdjust} (new total: {$this->newQuantity}).")
             ->line("Reason: {$this->reason}")
+            ->line('Date & Time: ' . now()->format('F j, Y g:i A'))
             ->action('View Stock Adjustments', route('admin.stock-adjustments.index'));
     }
 

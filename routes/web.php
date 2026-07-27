@@ -1,17 +1,39 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AdminAuthController;
+use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('welcome');
+// The one sign-in entry point for the whole system — see AuthController for
+// why this replaced separate admin/cashier login forms and a portal-picker
+// landing page.
+Route::get('/', [AuthController::class, 'showLogin'])->name('welcome');
+// throttle:15,1 is an outer safety net only — the real brute-force defense is
+// AuthController's own per-username RateLimiter (5 attempts/60s, with a
+// friendly "too many attempts" message). This route limit used to be 6/min,
+// which was tight enough that a handful of legitimate retries (typos, a
+// couple of wrong-password attempts) could trip Laravel's raw, unstyled 429
+// page before the friendly per-account lockout ever kicked in.
+Route::post('/login', [AuthController::class, 'login'])->name('login.post')->middleware('throttle:15,1');
 
-// AJAX route to check user role for password reset eligibility
-// Rate limited to 10 requests per minute to prevent abuse
+// Live role badge on the login form — an explicit, informed tradeoff: it
+// discloses whether a typed username is a recognized Admin/Cashier account,
+// re-opening a small username-enumeration surface the rest of the auth
+// hardening otherwise closes. Rate limited to keep bulk probing slow, but
+// generous enough that normal typing (including corrections) of a single
+// username doesn't trip it — the client also only queries at 3+ characters
+// and debounces, so legitimate use stays well under this. Do not reuse this
+// for the forgot-password flow — /check-user-role below stays deliberately
+// generic for that purpose.
+Route::get('/login/role-lookup', [AuthController::class, 'lookupRole'])->name('login.role-lookup')->middleware('throttle:40,1');
+
+// AJAX route to check user role for password reset eligibility. Deliberately
+// unauthenticated — it's called from the pre-login "forgot password" screen,
+// before any session exists — but the response is intentionally generic and
+// never confirms/denies account existence or discloses a role, to prevent
+// username enumeration. Rate limited to slow down probing.
 Route::post('/check-user-role', function (\Illuminate\Http\Request $request) {
     $username = $request->input('username');
 
@@ -19,29 +41,16 @@ Route::post('/check-user-role', function (\Illuminate\Http\Request $request) {
         return response()->json(['error' => 'Username is required'], 400);
     }
 
-    $user = \App\Models\User::where('name', $username)->first();
-
-    if (!$user) {
-        return response()->json([
-            'exists' => false,
-            'message' => 'No account found with this username.'
-        ]);
-    }
-
-    $isAdmin = $user->isAdmin();
-    $isCashier = $user->isCashier();
-
+    // Same generic message regardless of whether the account exists, its
+    // role, or eligibility — an attacker can't distinguish "no such account"
+    // from "found, but a cashier" from "found, admin, reset available".
     return response()->json([
-        'exists' => true,
-        'isAdmin' => $isAdmin,
-        'isCashier' => $isCashier,
-        'message' => $isAdmin
-            ? 'Administrator account found. Password reset available.'
-            : 'Password reset is not available for Cashier accounts. Please contact your Administrator.'
+        'message' => 'If this is a valid Administrator account, password reset instructions are available. Cashier accounts must contact an Administrator for a password reset.',
     ]);
 })->name('check.user.role')->middleware('throttle:10,1');
 
-// API route for barcode scanning (POS)
+// API route for barcode scanning (POS) — cashier-only, mirrors every other
+// data-bearing route's auth requirement instead of being publicly reachable.
 Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     $product = \App\Models\Product::with('inventory')
         ->where('Barcode', $barcode)
@@ -52,9 +61,10 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     }
 
     return response()->json(['product' => $product]);
-});
+})->middleware(['auth', 'role:cashier', 'throttle:60,1']);
 
-// API route for getting customers (POS)
+// API route for getting customers (POS) — cashier-only; previously reachable
+// with no authentication at all.
 Route::get('/api/customers/search', function (\Illuminate\Http\Request $request) {
     $search = $request->query('q', '');
 
@@ -64,24 +74,18 @@ Route::get('/api/customers/search', function (\Illuminate\Http\Request $request)
         ->get();
 
     return response()->json(['customers' => $customers]);
-});
+})->middleware(['auth', 'role:cashier', 'throttle:60,1']);
 
+// Smart post-login landing spot for the "dashboard" route name (nothing in
+// this app links here directly anymore — admin/cashier logins redirect
+// straight to their own dashboard/POS — kept as a harmless fallback in case
+// anything still resolves an old intended-redirect to this URL).
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth'])
     ->name('dashboard');
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
-
-require __DIR__.'/auth.php';
-
 // Admin routes
 Route::prefix('admin')->group(function () {
-    Route::get('login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
-    Route::post('login', [AdminAuthController::class, 'login'])->name('admin.login.post')->middleware('throttle:6,1');
     Route::post('logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
     Route::get('forgot-password', [AdminAuthController::class, 'showForgot'])->name('admin.forgot');
@@ -189,6 +193,10 @@ Route::prefix('admin')->group(function () {
         ->name('admin.damages.store')->middleware(['auth', 'role:admin']);
     Route::get('damages/export', [App\Http\Controllers\Admin\DamageController::class, 'export'])
         ->name('admin.damages.export')->middleware(['auth', 'role:admin']);
+    Route::get('damages/{damage}/print', [App\Http\Controllers\Admin\DamageController::class, 'printReport'])
+        ->name('admin.damages.print')->middleware(['auth', 'role:admin']);
+    Route::get('damages/{damage}', [App\Http\Controllers\Admin\DamageController::class, 'show'])
+        ->name('admin.damages.show')->middleware(['auth', 'role:admin']);
     Route::get('damages/{damage}/edit', [App\Http\Controllers\Admin\DamageController::class, 'edit'])
         ->name('admin.damages.edit')->middleware(['auth', 'role:admin']);
     Route::put('damages/{damage}', [App\Http\Controllers\Admin\DamageController::class, 'update'])
@@ -218,6 +226,19 @@ Route::prefix('admin')->group(function () {
         ->name('admin.suppliers.edit')->middleware(['auth', 'role:admin']);
     Route::put('suppliers/{supplier}', [App\Http\Controllers\Admin\SupplierController::class, 'update'])
         ->name('admin.suppliers.update')->middleware(['auth', 'role:admin']);
+    Route::get('suppliers/{supplier}', [App\Http\Controllers\Admin\SupplierController::class, 'show'])
+        ->name('admin.suppliers.show')->middleware(['auth', 'role:admin']);
+    Route::get('suppliers/{supplier}/purchase-orders/{purchaseOrder}', [App\Http\Controllers\Admin\SupplierController::class, 'purchaseOrderDetails'])
+        ->name('admin.suppliers.purchase-order-details')->middleware(['auth', 'role:admin']);
+
+    Route::get('products/{product}/suppliers', [App\Http\Controllers\Admin\ProductSupplierController::class, 'index'])
+        ->name('admin.products.suppliers.index')->middleware(['auth', 'role:admin']);
+    Route::post('products/{product}/suppliers', [App\Http\Controllers\Admin\ProductSupplierController::class, 'store'])
+        ->name('admin.products.suppliers.store')->middleware(['auth', 'role:admin']);
+    Route::post('product-suppliers/{productSupplier}/prefer', [App\Http\Controllers\Admin\ProductSupplierController::class, 'markPreferred'])
+        ->name('admin.product-suppliers.prefer')->middleware(['auth', 'role:admin']);
+    Route::delete('product-suppliers/{productSupplier}', [App\Http\Controllers\Admin\ProductSupplierController::class, 'destroy'])
+        ->name('admin.product-suppliers.destroy')->middleware(['auth', 'role:admin']);
 
     Route::get('stock-receivings', [App\Http\Controllers\Admin\StockReceivingController::class, 'index'])
         ->name('admin.stock-receivings.index')->middleware(['auth', 'role:admin']);
@@ -230,10 +251,26 @@ Route::prefix('admin')->group(function () {
         ->name('admin.purchase-orders.index')->middleware(['auth', 'role:admin']);
     Route::get('purchase-orders/create', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'create'])
         ->name('admin.purchase-orders.create')->middleware(['auth', 'role:admin']);
+    Route::get('purchase-orders/create-from-reorder/{product}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'createFromReorder'])
+        ->name('admin.purchase-orders.create-from-reorder')->middleware(['auth', 'role:admin']);
+    Route::post('purchase-orders/create-from-reorder/{product}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'storeFromReorder'])
+        ->name('admin.purchase-orders.store-from-reorder')->middleware(['auth', 'role:admin']);
     Route::post('purchase-orders', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'store'])
         ->name('admin.purchase-orders.store')->middleware(['auth', 'role:admin']);
     Route::get('purchase-orders/{purchaseOrder}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'show'])
         ->name('admin.purchase-orders.show')->middleware(['auth', 'role:admin']);
+    Route::get('purchase-orders/{purchaseOrder}/edit', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'edit'])
+        ->name('admin.purchase-orders.edit')->middleware(['auth', 'role:admin']);
+    Route::put('purchase-orders/{purchaseOrder}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'update'])
+        ->name('admin.purchase-orders.update')->middleware(['auth', 'role:admin']);
+    Route::post('purchase-orders/{purchaseOrder}/submit', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'submit'])
+        ->name('admin.purchase-orders.submit')->middleware(['auth', 'role:admin']);
+    Route::post('purchase-orders/{purchaseOrder}/approve', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'approve'])
+        ->name('admin.purchase-orders.approve')->middleware(['auth', 'role:admin']);
+    Route::post('purchase-orders/{purchaseOrder}/cancel', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'cancel'])
+        ->name('admin.purchase-orders.cancel')->middleware(['auth', 'role:admin']);
+    Route::get('purchase-orders/{purchaseOrder}/export', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'export'])
+        ->name('admin.purchase-orders.export')->middleware(['auth', 'role:admin']);
 
     Route::get('stock-adjustments', [App\Http\Controllers\Admin\StockAdjustmentController::class, 'index'])
         ->name('admin.stock-adjustments.index')->middleware(['auth', 'role:admin']);
@@ -260,14 +297,14 @@ Route::prefix('admin')->group(function () {
 
     Route::get('reports', [App\Http\Controllers\Admin\ReportController::class, 'index'])
         ->name('admin.reports.index')->middleware(['auth', 'role:admin']);
+    Route::get('reports/preview', [App\Http\Controllers\Admin\ReportController::class, 'preview'])
+        ->name('admin.reports.preview')->middleware(['auth', 'role:admin']);
     Route::get('reports/export', [App\Http\Controllers\Admin\ReportController::class, 'export'])
         ->name('admin.reports.export')->middleware(['auth', 'role:admin']);
 });
 
 // Cashier routes
 Route::prefix('cashier')->group(function () {
-    Route::get('login', [CashierAuthController::class, 'showLogin'])->name('cashier.login');
-    Route::post('login', [CashierAuthController::class, 'login'])->name('cashier.login.post')->middleware('throttle:6,1');
     Route::post('logout', [CashierAuthController::class, 'logout'])->name('cashier.logout');
 
     // Forgot password functionality is disabled for Cashier - Only Administrator can reset passwords

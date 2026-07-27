@@ -27,6 +27,16 @@ class CategoryController extends Controller
             return $query->where('CategoryName', 'like', "%{$search}%");
         })->orderBy('CategoryID', 'desc')->paginate(15)->withQueryString();
 
+        // Real-time search: matches the debounced-AJAX pattern used by
+        // Products/Inventory — return just the rendered rows/pagination
+        // instead of a full page reload.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'rows' => view('admin.categories.partials.rows', ['categories' => $categories])->render(),
+                'pagination' => view('admin.categories.partials.pagination', ['categories' => $categories])->render(),
+            ]);
+        }
+
         return view('admin.categories.index', compact('categories', 'search'));
     }
 
@@ -56,8 +66,18 @@ class CategoryController extends Controller
     }
 
     // Show edit form
-    public function edit(Category $category)
+    public function edit(Request $request, Category $category)
     {
+        // Edit Category modal: return just the rendered form fields instead
+        // of a full page, so the modal can inject it without navigating.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.categories.partials.category-form-fields', [
+                    'category' => $category,
+                ])->render(),
+            ]);
+        }
+
         return view('admin.categories.edit', compact('category'));
     }
 

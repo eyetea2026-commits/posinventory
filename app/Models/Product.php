@@ -18,6 +18,7 @@ class Product extends Model
         'ProductName',
         'Model',
         'SKU',
+        'UnitOfMeasure',
         'Barcode',
         'Price',
         'CostPrice',
@@ -79,5 +80,32 @@ class Product extends Model
     public function salesReturns()
     {
         return $this->hasMany(SalesReturn::class, 'ProductID', 'ProductID');
+    }
+
+    public function suppliers()
+    {
+        return $this->hasMany(ProductSupplier::class, 'ProductID', 'ProductID');
+    }
+
+    public function costHistory()
+    {
+        return $this->hasMany(ProductCostHistory::class, 'ProductID', 'ProductID');
+    }
+
+    // The single decision-tree used everywhere a product needs "who do we
+    // buy this from": the preferred supplier if one is designated, else the
+    // sole known supplier if there's exactly one, else null (caller must
+    // ask the admin to pick). Consumed by the auto-reorder flow and the
+    // intelligent Damage-record form.
+    public function resolveReorderSupplier(): ?ProductSupplier
+    {
+        $suppliers = $this->relationLoaded('suppliers') ? $this->suppliers : $this->suppliers()->get();
+
+        $preferred = $suppliers->firstWhere('IsPreferred', 1);
+        if ($preferred) {
+            return $preferred;
+        }
+
+        return $suppliers->count() === 1 ? $suppliers->first() : null;
     }
 }

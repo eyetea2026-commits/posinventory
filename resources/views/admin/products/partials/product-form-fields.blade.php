@@ -42,6 +42,19 @@
     </div>
 
     <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select name="BrandID" class="form-select @error('BrandID') is-invalid @enderror">
+            <option value="">Select Brand (optional)</option>
+            @foreach($brands as $brand)
+                <option value="{{ $brand->BrandID }}" {{ old('BrandID', $product->BrandID ?? null) == $brand->BrandID ? 'selected' : '' }}>
+                    {{ $brand->BrandName }}
+                </option>
+            @endforeach
+        </select>
+        <span class="form-error" id="error-BrandID">@error('BrandID'){{ $message }}@enderror</span>
+    </div>
+
+    <div class="form-group">
         <label class="form-label">Reorder Threshold</label>
         <input type="number" name="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
                value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" placeholder="e.g., 10">
@@ -57,7 +70,7 @@
 
     <div class="form-group">
         <label class="form-label">Selling Price (₱)</label>
-        <input type="text" id="SellingPrice" class="form-input" value="{{ $product->Price ?? '' }}">
+        <input type="text" name="Price" id="SellingPrice" class="form-input" value="{{ old('Price', $product->Price ?? '') }}">
         <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
     </div>
 
@@ -85,8 +98,8 @@
                 <div class="value" id="markupPercent">0%</div>
             </div>
             <div class="computed-field">
-                <label>Profit Margin</label>
-                <div class="value" id="profitMargin">45.0%</div>
+                <label for="ProfitMargin">Profit Margin (%)</label>
+                <input type="text" id="ProfitMargin" class="value-input" value="45.0" inputmode="decimal">
             </div>
         </div>
     </div>

@@ -53,6 +53,18 @@
                 >
                     <i class="fas fa-eye"></i>
                 </a>
+                @if($stock['label'] !== 'In Stock')
+                    <button
+                        type="button"
+                        onclick="openReorderModal({{ $product->ProductID }})"
+                        class="action-btn"
+                        style="background: rgba(245,158,11,0.15); color: #fbbf24; border: none; cursor: pointer;"
+                        title="Create Purchase Order"
+                        aria-label="Create Purchase Order"
+                    >
+                        <i class="fas fa-cart-plus"></i>
+                    </button>
+                @endif
             </div>
         </td>
     </tr>

@@ -27,31 +27,7 @@
             @csrf
             @method('PUT')
 
-            <div class="form-grid">
-                <div class="form-group" style="grid-column: 1 / -1;">
-                    <label class="form-label">Supplier Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="SupplierName" class="form-input" value="{{ old('SupplierName', $supplier->SupplierName) }}" required>
-                    @error('SupplierName') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Contact Number <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', $supplier->ContactNumber) }}" required>
-                    @error('ContactNumber') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Email <span style="color: var(--danger);">*</span></label>
-                    <input type="email" name="Email" class="form-input" value="{{ old('Email', $supplier->Email) }}" required>
-                    @error('Email') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-
-                <div class="form-group" style="grid-column: 1 / -1;">
-                    <label class="form-label">Address <span style="color: var(--danger);">*</span></label>
-                    <textarea name="Address" class="form-textarea" required>{{ old('Address', $supplier->Address) }}</textarea>
-                    @error('Address') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-            </div>
+            @include('admin.suppliers.partials.supplier-form-fields', ['supplier' => $supplier])
 
             <div class="modal-footer" style="border-top: 1px solid var(--border); margin-top: 8px;">
                 <a href="{{ route('admin.suppliers.index') }}" class="btn btn-secondary">Cancel</a>

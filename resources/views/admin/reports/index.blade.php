@@ -7,7 +7,7 @@
 @section('header')
     <div class="header-title">
         <h1>Reports & Analytics</h1>
-        <p>Generate and export operational reports - REQ105 to REQ107</p>
+        <p>Select a report type and date range — the list below updates immediately</p>
     </div>
 @endsection
 
@@ -52,205 +52,177 @@
         </div>
     </div>
 
-    <!-- Filter & Export -->
+    <div id="dateRangeErrorBanner" class="alert alert-danger mt-4" style="{{ $dateRangeError ? '' : 'display:none;' }}">
+        <i class="fas fa-circle-exclamation"></i>
+        <span id="dateRangeErrorText">{{ $dateRangeError }}</span>
+    </div>
+
+    <!-- Report Type / Date Range -->
     <div class="card mt-4">
         <div class="card-header">
             <div>
-                <h2 class="card-title">Filter & Export Reports</h2>
-                <p class="card-subtitle">Select date range and export options</p>
+                <h2 class="card-title">Report</h2>
+                <p class="card-subtitle">Choose a type and (optionally) a date range — the list updates as you change either</p>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div class="dropdown" style="position:relative;">
+                    <button type="button" id="downloadMenuBtn" class="btn btn-secondary" title="Download">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <div id="downloadMenu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:#0f172a; border:1px solid #334155; border-radius:10px; min-width:180px; z-index:20; box-shadow: 0 12px 28px rgba(0,0,0,0.4);">
+                        <a href="#" id="exportPdfLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-pdf"></i> Export as PDF</a>
+                        <a href="#" id="exportExcelLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-excel"></i> Export as Excel</a>
+                    </div>
+                </div>
             </div>
         </div>
-        <form method="GET" action="{{ route('admin.reports.index') }}" class="filter-form">
-            <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-                <div class="form-group">
-                    <label class="form-label">Report Type</label>
-                    <select name="type" id="reportTypeSelect" class="form-select">
-                        <option value="sales" {{ $reportType === 'sales' ? 'selected' : '' }}>Sales Report</option>
-                        <option value="inventory" {{ $reportType === 'inventory' ? 'selected' : '' }}>Inventory Report</option>
-                        <option value="orders" {{ $reportType === 'orders' ? 'selected' : '' }}>Purchase Orders</option>
-                        <option value="returns" {{ $reportType === 'returns' ? 'selected' : '' }}>Returns Report</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Start Date</label>
-                    <input type="date" name="date_from" id="reportDateFrom" class="form-input" value="{{ $dateFrom }}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">End Date</label>
-                    <input type="date" name="date_to" id="reportDateTo" class="form-input" value="{{ $dateTo }}">
-                </div>
-                <div class="form-group" style="display: flex; align-items: flex-end; gap: 10px;">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-filter"></i> Filter
-                    </button>
-                    <a href="{{ route('admin.reports.index') }}" class="btn btn-secondary">
-                        <i class="fas fa-redo"></i> Reset
-                    </a>
-                </div>
-            </div>
-        </form>
 
-        <div class="export-buttons" style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ route('admin.reports.export', ['type' => $reportType, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'format' => 'csv']) }}" id="exportCsvLink" class="btn btn-success">
-                <i class="fas fa-file-csv"></i> Export CSV
-            </a>
+        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="form-group">
+                <label class="form-label">Report Type</label>
+                <select id="reportTypeSelect" class="form-select">
+                    <option value="sales" {{ $reportType === 'sales' ? 'selected' : '' }}>Sales Report</option>
+                    <option value="inventory" {{ $reportType === 'inventory' ? 'selected' : '' }}>Inventory Report</option>
+                    <option value="orders" {{ $reportType === 'orders' ? 'selected' : '' }}>Purchase Report</option>
+                    <option value="damage" {{ $reportType === 'damage' ? 'selected' : '' }}>Damage Report</option>
+                    <option value="returns" {{ $reportType === 'returns' ? 'selected' : '' }}>Return Report</option>
+                    <option value="supplier" {{ $reportType === 'supplier' ? 'selected' : '' }}>Supplier Report</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Start Date</label>
+                <input type="date" id="reportDateFrom" class="form-input" value="{{ $dateFrom }}" @if($dateTo) max="{{ $dateTo }}" @endif>
+                <span class="form-error" id="dateFromError"></span>
+            </div>
+            <div class="form-group">
+                <label class="form-label">End Date</label>
+                <input type="date" id="reportDateTo" class="form-input" value="{{ $dateTo }}" @if($dateFrom) min="{{ $dateFrom }}" @endif>
+                <span class="form-error" id="dateToError"></span>
+            </div>
         </div>
     </div>
 
+    <div id="reportBodyContainer">
+        @include('admin.reports.partials.report-body', [
+            'reportType' => $reportType,
+            'salesRows' => $salesRows,
+            'inventoryRows' => $inventoryRows,
+            'stockAdjustmentRows' => $stockAdjustmentRows,
+            'orderRows' => $orderRows,
+            'returnRows' => $returnRows,
+            'damageRows' => $damageRows,
+            'supplierRows' => $supplierRows,
+        ])
+    </div>
+
     <script>
-        // The export link is rendered from the last-submitted filter values.
-        // Without this, picking a different report type or date range and
-        // clicking Export directly (without hitting "Filter" first) silently
-        // exports the PREVIOUS selection instead of what's currently showing
-        // — keep the link's URL in sync with the live field values instead.
         (function () {
             const typeSelect = document.getElementById('reportTypeSelect');
             const dateFrom = document.getElementById('reportDateFrom');
             const dateTo = document.getElementById('reportDateTo');
-            const exportLink = document.getElementById('exportCsvLink');
+            const dateFromError = document.getElementById('dateFromError');
+            const dateToError = document.getElementById('dateToError');
+            const bodyContainer = document.getElementById('reportBodyContainer');
+            const errorBanner = document.getElementById('dateRangeErrorBanner');
+            const errorText = document.getElementById('dateRangeErrorText');
+            const pdfLink = document.getElementById('exportPdfLink');
+            const excelLink = document.getElementById('exportExcelLink');
+            const downloadMenuBtn = document.getElementById('downloadMenuBtn');
+            const downloadMenu = document.getElementById('downloadMenu');
+            const previewUrl = '{{ route('admin.reports.preview') }}';
             const exportBaseUrl = '{{ route('admin.reports.export') }}';
 
-            function syncExportLink() {
-                const params = new URLSearchParams({
-                    type: typeSelect.value,
-                    format: 'csv',
-                });
-                if (dateFrom.value) params.set('date_from', dateFrom.value);
-                if (dateTo.value) params.set('date_to', dateTo.value);
-                exportLink.href = exportBaseUrl + '?' + params.toString();
+            // Keeps each date input's HTML5 min/max in sync with the other
+            // field's current value, so the browser itself blocks picking an
+            // End Date before Start Date (rather than only catching it after
+            // a round-trip to the server).
+            function syncDateConstraints() {
+                dateTo.min = dateFrom.value || '';
+                dateFrom.max = dateTo.value || '';
             }
 
-            [typeSelect, dateFrom, dateTo].forEach(function (el) {
-                el.addEventListener('change', syncExportLink);
+            function currentParams() {
+                const params = new URLSearchParams({ type: typeSelect.value });
+                if (dateFrom.value) params.set('date_from', dateFrom.value);
+                if (dateTo.value) params.set('date_to', dateTo.value);
+                return params;
+            }
+
+            // The visible report list is always current for whatever's
+            // selected, so downloads always target exactly that — no
+            // separate "preview then unlock" step needed.
+            function refreshDownloadTargets() {
+                const params = currentParams();
+                [['pdf', pdfLink], ['excel', excelLink]].forEach(([format, el]) => {
+                    const p = new URLSearchParams(params);
+                    p.set('format', format);
+                    el.href = exportBaseUrl + '?' + p.toString();
+                });
+            }
+
+            // Guards against out-of-order responses: if the admin changes
+            // the type/dates again before an in-flight fetch resolves, only
+            // the response matching the LATEST request is allowed to paint
+            // the page — otherwise a slower, stale response could overwrite
+            // newer, correct results.
+            let requestSequence = 0;
+
+            function refreshReportBody() {
+                dateFromError.textContent = '';
+                dateToError.textContent = '';
+
+                if (dateFrom.value && dateTo.value && dateTo.value < dateFrom.value) {
+                    dateToError.textContent = 'End Date cannot be earlier than Start Date.';
+                    return;
+                }
+
+                const thisRequest = ++requestSequence;
+
+                fetch(previewUrl + '?' + currentParams().toString(), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                })
+                    .then((r) => r.json())
+                    .then((data) => {
+                        if (thisRequest !== requestSequence) return;
+                        bodyContainer.innerHTML = data.html;
+                        if (data.dateRangeError) {
+                            errorText.textContent = data.dateRangeError;
+                            errorBanner.style.display = '';
+                        } else {
+                            errorBanner.style.display = 'none';
+                        }
+                        refreshDownloadTargets();
+                    })
+                    .catch(() => {
+                        if (thisRequest !== requestSequence) return;
+                        bodyContainer.innerHTML = '<p style="color:#fca5a5;padding:20px;text-align:center;">Failed to load report. Please try again.</p>';
+                    });
+            }
+
+            [typeSelect, dateFrom, dateTo].forEach((el) => el.addEventListener('change', function () {
+                syncDateConstraints();
+                refreshReportBody();
+            }));
+
+            downloadMenuBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                downloadMenu.style.display = downloadMenu.style.display === 'none' ? 'block' : 'none';
             });
+            document.addEventListener('click', function () { downloadMenu.style.display = 'none'; });
+
+            syncDateConstraints();
+            refreshDownloadTargets();
         })();
+
+        @if(session('success'))
+            Swal.fire({
+                title: 'Success',
+                text: '{{ session('success') }}',
+                icon: 'success',
+                confirmButtonColor: '#10b981',
+                timer: 3000,
+                timerProgressBar: true
+            });
+        @endif
     </script>
-
-    <!-- Inventory Status -->
-    @if($reportType === 'inventory')
-    <div class="card mt-4">
-        <div class="card-header">
-            <div>
-                <h2 class="card-title">Inventory Status</h2>
-                <p class="card-subtitle">Current stock levels overview</p>
-            </div>
-        </div>
-        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
-            <div class="stat-card">
-                <div class="stat-icon green">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Available</div>
-                    <div class="stat-value">{{ number_format($inventoryCount - $lowStock - $outOfStock) }}</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon yellow">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Low Stock</div>
-                    <div class="stat-value">{{ number_format($lowStock) }}</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon red">
-                    <i class="fas fa-times-circle"></i>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Out of Stock</div>
-                    <div class="stat-value">{{ number_format($outOfStock) }}</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    <!-- Best Selling Products -->
-    @if($reportType === 'sales')
-    <div class="card mt-4">
-        <div class="card-header">
-            <div>
-                <h2 class="card-title">Best Selling Products</h2>
-                <p class="card-subtitle">Top performing products by quantity sold</p>
-            </div>
-        </div>
-        <div class="table-container">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Product Name</th>
-                        <th>Units Sold</th>
-                        <th>Revenue</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($bestSelling as $index => $item)
-                        <tr>
-                            <td>{{ $index + 1 }}</td>
-                            <td>{{ $item->product?->ProductName ?? 'Unknown Product' }}</td>
-                            <td>{{ number_format($item->total_sold) }}</td>
-                            <td class="text-success">₱{{ number_format($item->total_revenue ?? 0, 2) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="text-center text-muted">No sales data available</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Recent Transactions -->
-    <div class="card mt-4">
-        <div class="card-header">
-            <div>
-                <h2 class="card-title">Recent Transactions</h2>
-                <p class="card-subtitle">Latest sales transactions</p>
-            </div>
-        </div>
-        <div class="table-container">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Receipt #</th>
-                        <th>Date</th>
-                        <th>Customer</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($recentSales as $transaction)
-                        <tr>
-                            <td><code>RCT-{{ str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</code></td>
-                            <td>{{ \Carbon\Carbon::parse($transaction->SalesTransactionDate)->format('M d, Y h:i A') }}</td>
-                            <td>{{ $transaction->CustomerName ?? 'Walk-in' }}</td>
-                            <td class="text-success">₱{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
-                            <td><span class="badge badge-success">Completed</span></td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="text-center text-muted">No recent transactions</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @endif
-
-    @if($reportType === 'orders' || $reportType === 'returns')
-    <div class="card mt-4">
-        <div class="card-header">
-            <div>
-                <h2 class="card-title">{{ $reportType === 'orders' ? 'Purchase Orders' : 'Returns' }} Report</h2>
-                <p class="card-subtitle">This report type is available as a CSV export above — the on-screen summary above (sales/inventory totals) still applies across all report types.</p>
-            </div>
-        </div>
-    </div>
-    @endif
 @endsection

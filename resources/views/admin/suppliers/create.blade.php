@@ -34,6 +34,12 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">Contact Person</label>
+                    <input type="text" name="ContactPerson" class="form-input" value="{{ old('ContactPerson') }}">
+                    @error('ContactPerson') <span class="form-error">{{ $message }}</span> @enderror
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">Contact Number <span style="color: var(--danger);">*</span></label>
                     <input type="text" name="ContactNumber" class="form-input" value="{{ old('ContactNumber') }}" required>
                     @error('ContactNumber') <span class="form-error">{{ $message }}</span> @enderror

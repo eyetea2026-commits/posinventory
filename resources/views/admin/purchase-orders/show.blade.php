@@ -3,7 +3,7 @@
 @section('header')
     <div class="header-title">
         <h1>Purchase Order Details</h1>
-        <p>#{{ $purchaseOrder->id }}</p>
+        <p>{{ $purchaseOrder->PONumber }}</p>
     </div>
 @endsection
 
@@ -78,6 +78,9 @@
     .badge-completed { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
     .badge-pending { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
     .badge-other { background: rgba(100, 116, 139, 0.2); color: #cbd5e1; }
+    .badge-draft { background: rgba(100, 116, 139, 0.2); color: #cbd5e1; }
+    .badge-approved { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+    .badge-cancelled { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
 
     .items-table {
         width: 100%;
@@ -164,14 +167,23 @@
         <span class="detail-value">
             @php
                 $statusClass = match($purchaseOrder->Status) {
-                    'completed' => 'badge-completed',
-                    'pending' => 'badge-pending',
+                    \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-completed',
+                    \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-pending',
+                    \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-approved',
+                    \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-cancelled',
+                    \App\Models\PurchaseOrder::STATUS_DRAFT => 'badge-draft',
                     default => 'badge-other',
                 };
             @endphp
-            <span class="badge {{ $statusClass }}">{{ ucfirst($purchaseOrder->Status) }}</span>
+            <span class="badge {{ $statusClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? ucfirst($purchaseOrder->Status) }}</span>
         </span>
     </div>
+    @if($purchaseOrder->Notes)
+        <div class="detail-row">
+            <span class="detail-label">Notes</span>
+            <span class="detail-value">{{ $purchaseOrder->Notes }}</span>
+        </div>
+    @endif
 </div>
 
 <div class="product-detail-card">
@@ -181,7 +193,11 @@
             <thead>
                 <tr>
                     <th>Product</th>
-                    <th>Quantity Ordered</th>
+                    <th>Ordered</th>
+                    <th>Received</th>
+                    <th>Remaining</th>
+                    <th>Cost Price</th>
+                    <th>Line Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -189,13 +205,44 @@
                     <tr>
                         <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
                         <td>{{ $item->Quantity }}</td>
+                        <td>{{ $item->ReceivedQuantity }}</td>
+                        <td>{{ $item->remaining_quantity }}</td>
+                        <td>₱{{ number_format($item->CostPriceAtOrder, 2) }}</td>
+                        <td>₱{{ number_format($item->line_total, 2) }}</td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
     </div>
+    <div class="items-total">Total (received): ₱{{ number_format($purchaseOrder->items->sum('line_total'), 2) }}</div>
 
     <div class="detail-actions">
+        <a href="{{ route('admin.purchase-orders.export', $purchaseOrder) }}" class="btn btn-secondary">
+            <i class="fas fa-file-pdf"></i> Export PDF
+        </a>
+        @if($purchaseOrder->Status === \App\Models\PurchaseOrder::STATUS_DRAFT)
+            <form method="POST" action="{{ route('admin.purchase-orders.submit', $purchaseOrder) }}">
+                @csrf
+                <button type="submit" class="btn btn-secondary"><i class="fas fa-paper-plane"></i> Submit</button>
+            </form>
+        @endif
+        @if(in_array($purchaseOrder->Status, [\App\Models\PurchaseOrder::STATUS_DRAFT, \App\Models\PurchaseOrder::STATUS_PENDING]))
+            <form method="POST" action="{{ route('admin.purchase-orders.approve', $purchaseOrder) }}">
+                @csrf
+                <button type="submit" class="btn btn-secondary"><i class="fas fa-check"></i> Approve</button>
+            </form>
+        @endif
+        @if(in_array($purchaseOrder->Status, [\App\Models\PurchaseOrder::STATUS_DRAFT, \App\Models\PurchaseOrder::STATUS_PENDING, \App\Models\PurchaseOrder::STATUS_APPROVED]) && ! $purchaseOrder->hasAnyReceivedQuantity())
+            <form method="POST" action="{{ route('admin.purchase-orders.cancel', $purchaseOrder) }}" onsubmit="return confirm('Cancel this purchase order?');">
+                @csrf
+                <button type="submit" class="btn btn-secondary"><i class="fas fa-ban"></i> Cancel</button>
+            </form>
+        @endif
+        @if($purchaseOrder->Status === \App\Models\PurchaseOrder::STATUS_APPROVED || $purchaseOrder->Status === \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
+            <a href="{{ route('admin.stock-receivings.create', ['purchase_order_id' => $purchaseOrder->PurchaseOrderID]) }}" class="btn btn-primary">
+                <i class="fas fa-truck-loading"></i> Receive Stock
+            </a>
+        @endif
         <a href="{{ route('admin.purchase-orders.index') }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Purchase Orders
         </a>

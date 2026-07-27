@@ -28,6 +28,7 @@ class LowStockAlert extends Notification
         return (new MailMessage)
             ->subject("{$this->status}: {$this->product->ProductName}")
             ->line("\"{$this->product->ProductName}\" is now at {$this->quantity} unit(s) in stock ({$this->status}).")
+            ->line('Date & Time: ' . now()->format('F j, Y g:i A'))
             ->action('View Inventory', route('admin.inventory.index'))
             ->line('Consider reordering soon to avoid stockouts.');
     }

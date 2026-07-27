@@ -69,39 +69,87 @@
         padding: 20px 24px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     }
-    .search-form {
+    /* Search Bar — matches Products/Inventory */
+    .search-box-wrapper {
+        position: relative;
         display: flex;
-        gap: 12px;
+        align-items: center;
         flex: 1;
+        min-width: 260px;
         max-width: 480px;
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.15);
+        border-radius: 12px;
+        transition: all 0.3s ease;
     }
-    .search-form input {
-        flex: 1;
-        max-width: 400px;
-        padding: 12px 16px;
-        background: rgba(15, 23, 42, 0.8);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 10px;
-        color: var(--text-primary);
+    .search-box-wrapper:focus-within {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .search-box-wrapper .search-icon {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
         font-size: 0.95rem;
+        line-height: 1;
+        pointer-events: none;
     }
-    .search-form input:focus {
-        outline: none;
-        border-color: rgba(59, 130, 246, 0.5);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    .search-form button {
-        padding: 12px 20px;
-        background: linear-gradient(135deg, #3b82f6, #10b981);
+    .search-input {
+        flex: 1;
+        width: 100%;
+        padding: 12px 16px 12px 44px;
+        background: transparent;
         border: none;
-        border-radius: 10px;
-        color: white;
-        cursor: pointer;
-        transition: all 0.2s ease;
+        color: #f8fafc;
+        font-size: 0.95rem;
+        line-height: 1.4;
     }
-    .search-form button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    .search-input::placeholder {
+        color: #64748b;
+    }
+    .search-input:focus {
+        outline: none;
+    }
+    .table-loader {
+        display: none;
+        padding: 16px;
+        text-align: center;
+        color: var(--text-muted);
+    }
+    .table-loader.active {
+        display: block;
+    }
+    .pagination {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+        padding: 16px;
+        flex-wrap: wrap;
+    }
+    .pagination-link {
+        min-width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 10px;
+        border-radius: 8px;
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.15);
+        color: #cbd5e1;
+        text-decoration: none;
+        font-size: 0.9rem;
+    }
+    .pagination-link.active {
+        background: linear-gradient(135deg, #3b82f6, #10b981);
+        color: white;
+        border-color: transparent;
+    }
+    .pagination-link.disabled {
+        opacity: 0.4;
+        pointer-events: none;
     }
     .card-body {
         padding: 0;
@@ -314,15 +362,23 @@
 
 <div class="card">
     <div class="card-header">
-        <form method="GET" action="{{ route('admin.categories.index') }}" class="search-form">
-            <input type="text" name="search" placeholder="Search categories..." value="{{ $search ?? '' }}">
-            <button type="submit"><i class="fa-solid fa-search"></i></button>
+        <form method="GET" action="{{ route('admin.categories.index') }}" id="filterForm" class="search-box-wrapper" autocomplete="off">
+            <i class="search-icon fas fa-search"></i>
+            <input
+                type="text"
+                name="search"
+                id="searchInput"
+                value="{{ $search ?? '' }}"
+                class="search-input"
+                placeholder="Search categories by name..."
+            />
         </form>
         <a href="{{ route('admin.categories.create') }}" class="btn btn-primary" onclick="openAddCategoryModal(event)" title="Create Category">
             <i class="fa-solid fa-plus"></i> Create Category
         </a>
     </div>
     <div class="card-body">
+        <div class="table-loader" id="tableLoader"><i class="fas fa-spinner fa-spin"></i></div>
         <table class="table">
             <thead>
                 <tr>
@@ -333,48 +389,12 @@
                 </tr>
             </thead>
             <tbody id="categoriesTbody">
-                @forelse($categories as $category)
-                    <tr>
-                        <td>{{ $category->CategoryID }}</td>
-                        <td>
-                            <div class="category-name-cell">
-                                <strong>{{ $category->CategoryName }}</strong>
-                                @if(!empty($category->Description))
-                                    <div class="category-description">{{ $category->Description }}</div>
-                                @endif
-                            </div>
-                        </td>
-                        <td>
-                            <span class="badge badge-success">{{ $category->products->count() }} products</span>
-                        </td>
-                        <td>
-                            <div class="actions-group">
-                                <a href="{{ route('admin.categories.edit', $category->CategoryID) }}" class="btn btn-sm btn-edit">
-                                    <i class="fa-solid fa-edit"></i> Edit
-                                </a>
-                                <form method="POST" action="{{ route('admin.categories.destroy', $category->CategoryID) }}" style="display:inline;" id="deleteForm{{ $category->CategoryID }}">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete({{ $category->CategoryID }})">
-                                        <i class="fa-solid fa-trash"></i> Delete
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="4">
-                            <div class="empty-state">
-                                <div class="empty-icon"><i class="fa-solid fa-tags"></i></div>
-                                <p class="empty-title">No Categories Found</p>
-                                <p class="empty-text">Create your first category to get started.</p>
-                            </div>
-                        </td>
-                    </tr>
-                @endforelse
+                @include('admin.categories.partials.rows')
             </tbody>
         </table>
+        <div id="paginationWrapper">
+            @include('admin.categories.partials.pagination')
+        </div>
     </div>
 </div>
 
@@ -389,7 +409,12 @@
         <div id="addCategoryGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
 
         <form id="addCategoryForm">
-            @include('admin.categories.partials.category-form-fields')
+            {{-- Explicit category=>null guards against $category leaking in
+                 from the @forelse($categories as $category) table loop above
+                 (Blade @include merges parent scope for any key not passed
+                 here) — without this, the Add modal would render pre-filled
+                 with whichever category was last in the table. --}}
+            @include('admin.categories.partials.category-form-fields', ['category' => null])
         </form>
 
         <div class="modal-actions">
@@ -398,6 +423,31 @@
             </button>
             <button type="button" class="btn btn-primary" id="addCategorySubmitBtn">
                 <i class="fas fa-save"></i> Save Category
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div id="editCategoryModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editCategoryModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="editCategoryModalTitle"><i class="fa-solid fa-folder-open"></i> Edit Category</h2>
+            <button type="button" class="modal-close" onclick="closeEditCategoryModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div id="editCategoryGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
+
+        <form id="editCategoryForm">
+            <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+        </form>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="editCategoryCancelBtn">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button type="button" class="btn btn-primary" id="editCategorySubmitBtn">
+                <i class="fas fa-save"></i> Save Changes
             </button>
         </div>
     </div>
@@ -498,7 +548,90 @@
         if (newTbody && currentTbody) {
             currentTbody.innerHTML = newTbody.innerHTML;
         }
+        const newPagination = parsed.querySelector('#paginationWrapper');
+        const currentPagination = document.getElementById('paginationWrapper');
+        if (newPagination && currentPagination) {
+            currentPagination.innerHTML = newPagination.innerHTML;
+        }
     }
+
+    // ---- Real-time debounced search (matches Products/Inventory) ----
+    (function () {
+        const filterForm = document.getElementById('filterForm');
+        const searchInput = document.getElementById('searchInput');
+        const tableLoader = document.getElementById('tableLoader');
+        const tbody = document.getElementById('categoriesTbody');
+        const paginationWrapper = document.getElementById('paginationWrapper');
+
+        let debounceTimer = null;
+        let currentController = null;
+
+        function buildQuery(page = 1) {
+            const params = new URLSearchParams();
+            const search = searchInput.value.trim();
+            if (search) params.set('search', search);
+            if (page > 1) params.set('page', page);
+            return params.toString();
+        }
+
+        async function applyFilters(page = 1) {
+            const query = buildQuery(page);
+            const url = `${filterForm.action}${query ? '?' + query : ''}`;
+            window.history.replaceState({}, '', url);
+            tableLoader.classList.add('active');
+
+            if (currentController) currentController.abort();
+            currentController = new AbortController();
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    signal: currentController.signal,
+                });
+                if (!response.ok) throw new Error(`Request failed (${response.status})`);
+                const data = await response.json();
+                tbody.innerHTML = data.rows || '';
+                paginationWrapper.innerHTML = data.pagination || '';
+                rebindPagination();
+            } catch (err) {
+                if (err.name === 'AbortError') return;
+                tbody.innerHTML = `
+                    <tr><td colspan="4">
+                        <div class="empty-state">
+                            <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                            <p class="empty-title">Unable to load categories</p>
+                            <p class="empty-text">Please try again.</p>
+                        </div>
+                    </td></tr>`;
+                paginationWrapper.innerHTML = '';
+            } finally {
+                tableLoader.classList.remove('active');
+            }
+        }
+
+        function rebindPagination() {
+            paginationWrapper.querySelectorAll('a.pagination-link').forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const url = new URL(this.href);
+                    applyFilters(url.searchParams.get('page') || 1);
+                });
+            });
+        }
+
+        searchInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => applyFilters(1), 300);
+        });
+
+        filterForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            applyFilters(1);
+        });
+
+        rebindPagination();
+    })();
 
     function resetAddCategorySubmitButton() {
         const btn = document.getElementById('addCategorySubmitBtn');
@@ -626,6 +759,188 @@
                 onOtherError: function (message) {
                     showAddCategoryGeneralError(message);
                     resetAddCategorySubmitButton();
+                }
+            });
+        });
+    });
+
+    // ---- Edit Category modal ----
+    let editCategoryLastFocused = null;
+    let currentEditCategoryId = null;
+
+    function editCategoryIsSubmitting() {
+        const btn = document.getElementById('editCategorySubmitBtn');
+        return btn ? btn.disabled : false;
+    }
+
+    function clearEditCategoryFieldErrors() {
+        const form = document.getElementById('editCategoryForm');
+        ADD_CATEGORY_FIELD_IDS.forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = '';
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) input.classList.remove('error');
+        });
+    }
+
+    function showEditCategoryFieldErrors(errors) {
+        const form = document.getElementById('editCategoryForm');
+        clearEditCategoryFieldErrors();
+        let firstInvalid = null;
+        Object.keys(errors).forEach(function (field) {
+            const span = document.getElementById('error-' + field);
+            if (span) span.textContent = errors[field][0];
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) {
+                input.classList.add('error');
+                if (!firstInvalid) firstInvalid = input;
+            }
+        });
+        if (firstInvalid) firstInvalid.focus();
+    }
+
+    function showEditCategoryGeneralError(message) {
+        const banner = document.getElementById('editCategoryGeneralError');
+        banner.textContent = message;
+        banner.style.display = 'flex';
+    }
+
+    function hideEditCategoryGeneralError() {
+        const banner = document.getElementById('editCategoryGeneralError');
+        banner.style.display = 'none';
+        banner.textContent = '';
+    }
+
+    function resetEditCategorySubmitButton() {
+        const btn = document.getElementById('editCategorySubmitBtn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+    }
+
+    function handleEditCategoryModalKeydown(e) {
+        const modal = document.getElementById('editCategoryModal');
+        if (!modal.classList.contains('active')) return;
+
+        if (e.key === 'Escape') {
+            if (!editCategoryIsSubmitting()) closeEditCategoryModal();
+            return;
+        }
+
+        if (e.key === 'Tab') {
+            const focusable = modal.querySelectorAll('input, select, textarea, button, [href]');
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    window.openEditCategoryModal = function (event, categoryId) {
+        if (event) event.preventDefault();
+        const modal = document.getElementById('editCategoryModal');
+        const form = document.getElementById('editCategoryForm');
+
+        editCategoryLastFocused = document.activeElement || editCategoryLastFocused;
+        currentEditCategoryId = categoryId;
+        form.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+        hideEditCategoryGeneralError();
+        resetEditCategorySubmitButton();
+
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        void modal.offsetHeight;
+        requestAnimationFrame(function () { modal.classList.add('active'); });
+        document.addEventListener('keydown', handleEditCategoryModalKeydown);
+
+        fetch('{{ url('admin/categories') }}/' + categoryId + '/edit', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                form.innerHTML = data.html;
+                // submitAjaxForm always POSTs — this hidden field is Laravel's
+                // standard method-spoofing so it still routes to update().
+                form.insertAdjacentHTML('beforeend', '<input type="hidden" name="_method" value="PUT">');
+                const firstField = form.querySelector('input, textarea, select');
+                if (firstField) firstField.focus();
+            })
+            .catch(function () {
+                form.innerHTML = '<p class="error">Failed to load category for editing. Please try again.</p>';
+            });
+    };
+
+    window.closeEditCategoryModal = function () {
+        const modal = document.getElementById('editCategoryModal');
+        modal.classList.remove('active');
+        document.removeEventListener('keydown', handleEditCategoryModalKeydown);
+        setTimeout(function () { modal.style.display = 'none'; }, 250);
+        document.body.style.overflow = '';
+        if (editCategoryLastFocused && typeof editCategoryLastFocused.focus === 'function') {
+            editCategoryLastFocused.focus();
+        }
+    };
+
+    document.getElementById('editCategoryModal').addEventListener('mousedown', function (e) {
+        if (e.target === this && !editCategoryIsSubmitting()) {
+            closeEditCategoryModal();
+        }
+    });
+
+    document.getElementById('editCategoryCancelBtn').addEventListener('click', function () {
+        closeEditCategoryModal();
+    });
+
+    document.getElementById('editCategorySubmitBtn').addEventListener('click', function () {
+        const form = document.getElementById('editCategoryForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        Swal.fire({
+            title: 'Confirm Update',
+            text: 'Are you sure you want to save the changes to this category?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes',
+            cancelButtonText: 'No',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+
+            const submitBtn = document.getElementById('editCategorySubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            clearEditCategoryFieldErrors();
+            hideEditCategoryGeneralError();
+
+            window.submitAjaxForm(form, '{{ url('admin/categories') }}/' + currentEditCategoryId, {
+                onFieldErrors: function (errors) {
+                    showEditCategoryFieldErrors(errors);
+                    resetEditCategorySubmitButton();
+                },
+                onSuccess: function (html, message) {
+                    refreshCategoriesTable(html);
+                    closeEditCategoryModal();
+                    Swal.fire({
+                        title: 'Success',
+                        text: message,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                },
+                onOtherError: function (message) {
+                    showEditCategoryGeneralError(message);
+                    resetEditCategorySubmitButton();
                 }
             });
         });

@@ -201,9 +201,16 @@
     </div>
 
     <div class="detail-actions">
+        @if($stock['label'] !== 'In Stock')
+            <button type="button" onclick="openReorderModal({{ $product->ProductID }})" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                <i class="fas fa-cart-plus"></i> Create Purchase Order
+            </button>
+        @endif
         <a href="{{ route('admin.inventory.index') }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Inventory
         </a>
     </div>
 </div>
+
+@include('admin.inventory.partials.reorder-modal')
 @endsection

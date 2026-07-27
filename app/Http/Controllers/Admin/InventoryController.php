@@ -58,7 +58,7 @@ class InventoryController extends Controller
             });
         }
 
-        // REQ045: apply mutually-exclusive status filter at the SQL layer
+        // REQ045: apply the status filter at the SQL layer
         $this->applyStatusFilter($query, $status);
 
         $query->orderBy('ProductName');
@@ -139,8 +139,12 @@ class InventoryController extends Controller
     }
 
     /**
-     * Apply the mutually-exclusive status filter at the SQL layer.
-     * Priority order: out-of-stock > low-stock > fast-moving > slow-moving > available.
+     * Apply the status filter at the SQL layer. out-of-stock/low-stock/available
+     * are mutually exclusive (they partition every product by stock level, same
+     * as the row's "In Stock"/"Low Stock"/"Out of Stock" badge) — but fast-moving
+     * and slow-moving are velocity *tags* layered on top of "available" stock,
+     * not competing buckets: a product can be both "Available" and "Fast-Moving"
+     * at once, so those two counts are NOT subtracted from "available".
      */
     private function applyStatusFilter($query, ?string $status): void
     {
@@ -165,16 +169,13 @@ class InventoryController extends Controller
             'low-stock' => $query
                 ->whereRaw("{$stockLevelSql} > 0")
                 ->whereRaw("{$stockLevelSql} <= {$thresholdSql}"),
+            'available' => $query->whereRaw("{$stockLevelSql} > {$thresholdSql}"),
             'fast-moving' => $query
                 ->whereRaw("{$stockLevelSql} > {$thresholdSql}")
                 ->whereRaw("{$velocitySql} >= ?", array_merge($velocityBindings, [self::FAST_MOVING_THRESHOLD])),
             'slow-moving' => $query
                 ->whereRaw("{$stockLevelSql} > {$thresholdSql}")
                 ->whereRaw("{$velocitySql} < ?", array_merge($velocityBindings, [self::SLOW_MOVING_THRESHOLD])),
-            'available' => $query
-                ->whereRaw("{$stockLevelSql} > {$thresholdSql}")
-                ->whereRaw("{$velocitySql} >= ?", array_merge($velocityBindings, [self::SLOW_MOVING_THRESHOLD]))
-                ->whereRaw("{$velocitySql} < ?", array_merge($velocityBindings, [self::FAST_MOVING_THRESHOLD])),
             default => null,
         };
     }

@@ -3,7 +3,7 @@
 <style>
     .order-item-row {
         display: grid;
-        grid-template-columns: 2fr 1fr auto;
+        grid-template-columns: 2fr 1fr 1fr auto;
         gap: 16px;
         align-items: end;
         padding: 16px;
@@ -57,15 +57,32 @@
     <div class="form-group">
         <label class="form-label" for="Status">Status <span style="color: var(--danger);">*</span></label>
         <select id="Status" name="Status" class="form-select" required>
+            <option value="draft" {{ old('Status', 'draft') === 'draft' ? 'selected' : '' }}>Draft</option>
             <option value="pending" {{ old('Status') === 'pending' ? 'selected' : '' }}>Pending</option>
-            <option value="approved" {{ old('Status') === 'approved' ? 'selected' : '' }}>Approved</option>
         </select>
         <span class="form-error" id="error-Status">@error('Status'){{ $message }}@enderror</span>
+    </div>
+
+    <div class="form-group full-width">
+        <label class="form-label" for="Notes">Notes</label>
+        <textarea id="Notes" name="Notes" class="form-textarea" placeholder="Optional notes...">{{ old('Notes') }}</textarea>
+        <span class="form-error" id="error-Notes">@error('Notes'){{ $message }}@enderror</span>
     </div>
 </div>
 
 <div class="order-items-section">
-    <h3>Order Items</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <h3 style="margin:0;">Order Items</h3>
+        <div class="form-group" style="margin:0; min-width:220px;">
+            <label class="form-label" for="order-category-filter">Filter Products by Category</label>
+            <select id="order-category-filter" class="form-select" onchange="filterOrderItemProducts(this.value)">
+                <option value="">All Categories</option>
+                @foreach($categories as $category)
+                    <option value="{{ $category->CategoryID }}">{{ $category->CategoryName }}</option>
+                @endforeach
+            </select>
+        </div>
+    </div>
     <span class="form-error" id="error-products" style="display: block; margin-bottom: 12px;">@error('products'){{ $message }}@enderror</span>
 
     <div id="order-items"></div>
@@ -74,16 +91,20 @@
         <div class="order-item-row">
             <div class="form-group">
                 <label class="form-label">Product</label>
-                <select name="products[][product_id]" class="form-select" required>
+                <select name="products[][product_id]" class="form-select order-item-product" required onchange="onOrderItemProductChange(this)">
                     <option value="">Select Product</option>
                     @foreach($products as $product)
-                        <option value="{{ $product->ProductID }}">{{ $product->ProductName }} ({{ $product->Model }})</option>
+                        <option value="{{ $product->ProductID }}" data-category="{{ $product->CategoryID }}" data-cost="{{ $product->CostPrice }}">{{ $product->ProductName }} ({{ $product->Model }})</option>
                     @endforeach
                 </select>
             </div>
             <div class="form-group">
                 <label class="form-label">Quantity Ordered</label>
                 <input type="number" name="products[][quantity]" min="1" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Cost Price</label>
+                <input type="number" name="products[][cost_price]" min="0" step="0.01" class="form-input order-item-cost">
             </div>
             <button type="button" onclick="removeOrderItem(this)" class="btn btn-danger btn-icon" title="Remove item">
                 <i class="fas fa-trash"></i>
@@ -128,6 +149,31 @@
         container.innerHTML = '';
         orderItemIndex = 0;
         addOrderItem();
+        const categoryFilter = document.getElementById('order-category-filter');
+        if (categoryFilter) categoryFilter.value = '';
+    }
+
+    // Pre-fills Cost Price from the product's current CostPrice when a
+    // product is picked — still fully editable by the admin afterward.
+    function onOrderItemProductChange(select) {
+        const option = select.options[select.selectedIndex];
+        const row = select.closest('.order-item-row');
+        const costInput = row?.querySelector('.order-item-cost');
+        if (costInput && option && option.dataset.cost) {
+            costInput.value = parseFloat(option.dataset.cost).toFixed(2);
+        }
+    }
+
+    // Filters every product <select> currently in the Order Items list down
+    // to the chosen category — purely a picking aid, doesn't affect what's
+    // already selected in a row.
+    function filterOrderItemProducts(categoryId) {
+        document.querySelectorAll('.order-item-product').forEach(function (select) {
+            Array.from(select.options).forEach(function (option) {
+                if (!option.value) return;
+                option.hidden = categoryId !== '' && option.dataset.category !== categoryId;
+            });
+        });
     }
 
     document.addEventListener('DOMContentLoaded', function () {

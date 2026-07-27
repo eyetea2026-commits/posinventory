@@ -61,6 +61,7 @@ class ProductController extends Controller
             'search' => $search,
             'categoryId' => $categoryId,
             'categories' => Category::orderBy('CategoryName')->get(),
+            'brands' => Brand::orderBy('BrandName')->get(),
         ]);
     }
 
@@ -124,6 +125,7 @@ class ProductController extends Controller
     {
         return view('admin.products.create', [
             'categories' => Category::orderBy('CategoryName')->get(),
+            'brands' => Brand::orderBy('BrandName')->get(),
         ]);
     }
 
@@ -187,6 +189,7 @@ class ProductController extends Controller
             'SKU' => ['nullable', 'string', 'max:100', 'unique:Product,SKU'],
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
+            'Price' => ['nullable', 'numeric', 'min:0.01'],
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
@@ -239,7 +242,7 @@ class ProductController extends Controller
             'SKU' => $data['SKU'] ?? null,
             'Barcode' => $data['Barcode'] ?? null,
             'CostPrice' => $data['CostPrice'],
-            'Price' => Product::computeSellingPrice((float) $data['CostPrice']),
+            'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
             'BrandID' => $data['BrandID'] ?? null,
             'CategoryID' => $data['CategoryID'],
         ]);
@@ -260,6 +263,7 @@ class ProductController extends Controller
     {
         $product->load('inventory');
         $categories = Category::orderBy('CategoryName')->get();
+        $brands = Brand::orderBy('BrandName')->get();
 
         // Edit Product modal: return just the rendered form fields instead
         // of a full page, so the modal can inject it without navigating.
@@ -267,6 +271,7 @@ class ProductController extends Controller
             return response()->json([
                 'html' => view('admin.products.partials.product-form-fields', [
                     'categories' => $categories,
+                    'brands' => $brands,
                     'product' => $product,
                 ])->render(),
             ]);
@@ -275,6 +280,7 @@ class ProductController extends Controller
         return view('admin.products.edit', [
             'product' => $product,
             'categories' => $categories,
+            'brands' => $brands,
         ]);
     }
 
@@ -287,6 +293,7 @@ class ProductController extends Controller
             'SKU' => ['nullable', 'string', 'max:100', 'unique:Product,SKU,' . $product->ProductID . ',ProductID'],
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode,' . $product->ProductID . ',ProductID'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
+            'Price' => ['nullable', 'numeric', 'min:0.01'],
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
@@ -334,6 +341,8 @@ class ProductController extends Controller
             (int) ($data['ReorderThreshold'] ?? 50)
         )['label'];
 
+        $oldCostPrice = $product->CostPrice;
+
         $product->update([
             'ProductName' => $data['ProductName'],
             'Model' => $data['Model'],
@@ -341,10 +350,12 @@ class ProductController extends Controller
             'SKU' => $data['SKU'] ?? null,
             'Barcode' => $data['Barcode'] ?? null,
             'CostPrice' => $data['CostPrice'],
-            'Price' => Product::computeSellingPrice((float) $data['CostPrice']),
+            'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
             'BrandID' => $data['BrandID'] ?? null,
             'CategoryID' => $data['CategoryID'],
         ]);
+
+        \App\Models\ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], \App\Models\ProductCostHistory::SOURCE_PRODUCT_UPDATE);
 
         $product->inventory()->updateOrCreate(
             ['ProductID' => $product->ProductID],

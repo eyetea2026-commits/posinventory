@@ -24,20 +24,20 @@
     .barcode-scanner button { padding: 14px 20px; background: #8b5cf6; border: none; color: white; border-radius: 10px; cursor: pointer; font-weight: 600; }
     .barcode-scanner button:hover { background: #7c3aed; }
 
-    .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; flex: 1; overflow-y: auto; padding-right: 8px; }
+    .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(154px, 1fr)); gap: 10px; flex: 1; overflow-y: auto; padding-right: 8px; align-content: start; }
     .products-grid::-webkit-scrollbar { width: 6px; }
     .products-grid::-webkit-scrollbar-track { background: #1a1d2d; }
     .products-grid::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
 
-    .product-card { background: #2d3748; border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
+    .product-card { background: #2d3748; border-radius: 11px; padding: 13px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
     .product-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); border-color: #3b82f6; }
     .product-card.out-of-stock { opacity: 0.5; cursor: not-allowed; }
-    .product-card h3 { margin: 0 0 8px; font-size: 0.95rem; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .product-card p { margin: 0; color: #94a3b8; font-size: 0.8rem; }
-    .product-card .stock { font-size: 0.75rem; color: #94a3b8; margin: 8px 0; }
+    .product-card h3 { margin: 0 0 4px; font-size: 0.88rem; line-height: 1.25; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .product-card p { margin: 0; color: #94a3b8; font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .product-card .stock { font-size: 0.72rem; color: #94a3b8; margin: 6px 0; }
     .product-card .stock.low { color: #f59e0b; }
     .product-card .stock.out { color: #ef4444; }
-    .product-card .price { color: #60a5fa; font-size: 1.1rem; font-weight: bold; }
+    .product-card .price { color: #60a5fa; font-size: 1rem; font-weight: bold; }
 
     .cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .cart-header h2 { margin: 0; font-size: 1.2rem; }
@@ -57,30 +57,54 @@
     .qty-btn { width: 28px; height: 28px; background: #4a5568; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
     .qty-btn:hover { background: #3b82f6; }
     .qty-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .qty-input {
+        width: 40px;
+        height: 28px;
+        background: #0f1420;
+        border: 1px solid #4a5568;
+        color: #f1f5f9;
+        border-radius: 6px;
+        text-align: center;
+        font-size: 0.95rem;
+        font-weight: 600;
+        -moz-appearance: textfield;
+    }
+    .qty-input:focus { outline: none; border-color: #3b82f6; }
+    .qty-input::-webkit-outer-spin-button,
+    .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
     .cart-item-price { text-align: right; min-width: 80px; }
     .cart-item-price .item-total { font-weight: bold; color: #60a5fa; font-size: 1rem; }
     .cart-item-price .item-price { font-size: 0.75rem; color: #94a3b8; }
     .remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; font-size: 1rem; margin-left: 8px; }
     .remove-btn:hover { color: #dc2626; }
 
-    .cart-summary { background: #2d3748; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-    .summary-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.95rem; }
-    .summary-row.total { font-size: 1.4rem; font-weight: bold; border-top: 2px solid #4a5568; padding-top: 12px; margin-top: 12px; color: #10b981; }
+    .cart-summary { background: #2d3748; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; flex-shrink: 0; }
+    .summary-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.82rem; }
+    .summary-row.total { font-size: 1.05rem; font-weight: bold; border-top: 1px solid #4a5568; padding-top: 7px; margin-top: 7px; margin-bottom: 0; color: #10b981; }
 
-    .form-group { margin-bottom: 14px; }
-    .form-group label { display: block; margin-bottom: 6px; color: #94a3b8; font-size: 0.9rem; }
-    .form-group input, .form-group select { width: 100%; padding: 12px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 8px; font-size: 0.95rem; }
+    .form-group { margin-bottom: 9px; }
+    .form-group label { display: block; margin-bottom: 3px; color: #94a3b8; font-size: 0.76rem; }
+    .form-group input, .form-group select { width: 100%; padding: 8px 10px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 8px; font-size: 0.85rem; }
     .form-group input:focus { outline: none; border-color: #3b82f6; }
-    .change-display { padding: 12px; background: #1a1d2d; border: 1px solid #4a5568; color: #34d399; border-radius: 8px; font-size: 0.95rem; font-weight: 600; }
+    .change-display { padding: 8px 10px; background: #1a1d2d; border: 1px solid #4a5568; color: #34d399; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
 
-    .payment-methods { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
-    .payment-method { padding: 8px 10px; background: #2d3748; border: 2px solid #4a5568; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; }
-    .payment-method:hover { border-color: #60a5fa; }
-    .payment-method.selected { border-color: #3b82f6; background: rgba(59, 130, 246, 0.15); }
-    .payment-method i { font-size: 1rem; }
-    .payment-method span { font-size: 0.8rem; }
+    .payment-dropdown { position: relative; margin-bottom: 14px; }
+    .payment-dropdown-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: #2d3748; border: 2px solid #4a5568; border-radius: 8px; color: #e2e8f0; cursor: pointer; font-size: 0.85rem; font-family: inherit; transition: border-color 0.2s ease; }
+    .payment-dropdown-trigger:hover { border-color: #60a5fa; }
+    .payment-dropdown.open .payment-dropdown-trigger { border-color: #3b82f6; }
+    .payment-dropdown-selected { display: flex; align-items: center; gap: 10px; }
+    .payment-dropdown-selected i { width: 16px; text-align: center; }
+    .payment-dropdown-chevron { font-size: 0.72rem; color: #94a3b8; transition: transform 0.2s ease; }
+    .payment-dropdown.open .payment-dropdown-chevron { transform: rotate(180deg); }
+    .payment-dropdown-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #2d3748; border: 1px solid #4a5568; border-radius: 8px; overflow: hidden; z-index: 20; box-shadow: 0 12px 28px rgba(0,0,0,0.4); }
+    .payment-dropdown.open .payment-dropdown-menu { display: block; }
+    .payment-dropdown-option { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 0.85rem; cursor: pointer; transition: background 0.15s ease; }
+    .payment-dropdown-option:hover { background: rgba(59, 130, 246, 0.12); }
+    .payment-dropdown-option.selected { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .payment-dropdown-option i { width: 16px; text-align: center; }
 
-    .btn-checkout { width: 100%; padding: 16px; background: linear-gradient(135deg, #10b981, #059669); border: none; color: white; font-size: 1.1rem; font-weight: bold; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .btn-checkout { width: 100%; padding: 12px; background: linear-gradient(135deg, #10b981, #059669); border: none; color: white; font-size: 0.95rem; font-weight: bold; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
     .btn-checkout:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3); }
     .btn-checkout:disabled { background: #4a5568; cursor: not-allowed; transform: none; box-shadow: none; }
 
@@ -94,7 +118,7 @@
 
     @media (max-width: 768px) {
         .pos-header { flex-direction: column; align-items: flex-start; }
-        .products-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+        .products-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); }
     }
 </style>
 
@@ -112,7 +136,7 @@
         @include('cashier.partials.notification-bell')
         <i class="fas fa-user"></i>
         <span>Cashier:</span>
-        <strong>{{ auth()->user()->name }}</strong>
+        <strong>{{ auth()->user()->full_name }}</strong>
     </div>
 </div>
 
@@ -195,8 +219,11 @@
             <select id="discount-select" onchange="updateTotals()">
                 <option value="" selected>No Discount</option>
                 @foreach($discounts as $discount)
+                    @php
+                        $rateLabel = rtrim(rtrim(number_format($discount->DiscountRate, 2), '0'), '.') . '%';
+                    @endphp
                     <option value="{{ $discount->DiscountID }}" data-rate="{{ $discount->DiscountRate }}">
-                        {{ rtrim(rtrim(number_format($discount->DiscountRate, 2), '0'), '.') . '%' }}
+                        {{ $discount->Name ? "{$rateLabel} — {$discount->Name}" : $rateLabel }}
                     </option>
                 @endforeach
             </select>
@@ -204,22 +231,31 @@
 
         <div class="form-group">
             <label>Payment Method</label>
-            <div class="payment-methods">
-                <div class="payment-method selected" onclick="selectPayment(this, 'cash')">
-                    <i class="fas fa-money-bill-wave"></i>
-                    <span>Cash</span>
-                </div>
-                <div class="payment-method" onclick="selectPayment(this, 'gcash')">
-                    <i class="fas fa-mobile-alt"></i>
-                    <span>GCash</span>
-                </div>
-                <div class="payment-method" onclick="selectPayment(this, 'bank')">
-                    <i class="fas fa-university"></i>
-                    <span>Bank</span>
-                </div>
-                <div class="payment-method" onclick="selectPayment(this, 'cheque')">
-                    <i class="fas fa-money-check"></i>
-                    <span>Cheque</span>
+            <div class="payment-dropdown" id="paymentDropdown">
+                <button type="button" class="payment-dropdown-trigger" id="paymentDropdownTrigger" onclick="togglePaymentDropdown()">
+                    <span class="payment-dropdown-selected" id="paymentDropdownSelected">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>Cash</span>
+                    </span>
+                    <i class="fas fa-chevron-down payment-dropdown-chevron"></i>
+                </button>
+                <div class="payment-dropdown-menu" id="paymentDropdownMenu">
+                    <div class="payment-dropdown-option selected" onclick="selectPayment(this, 'cash')">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>Cash</span>
+                    </div>
+                    <div class="payment-dropdown-option" onclick="selectPayment(this, 'gcash')">
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>GCash</span>
+                    </div>
+                    <div class="payment-dropdown-option" onclick="selectPayment(this, 'bank')">
+                        <i class="fas fa-university"></i>
+                        <span>Bank Transfer</span>
+                    </div>
+                    <div class="payment-dropdown-option" onclick="selectPayment(this, 'cheque')">
+                        <i class="fas fa-money-check"></i>
+                        <span>Cheque</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -296,7 +332,8 @@
                     option.value = discount.DiscountID;
                     option.dataset.rate = discount.DiscountRate;
                     const rate = parseFloat(discount.DiscountRate);
-                    option.textContent = (rate % 1 === 0 ? rate : rate.toFixed(2)) + '%';
+                    const rateLabel = (rate % 1 === 0 ? rate : rate.toFixed(2)) + '%';
+                    option.textContent = discount.Name ? `${rateLabel} — ${discount.Name}` : rateLabel;
                     select.appendChild(option);
                 });
                 // Keep the cashier's current selection if it still exists;
@@ -381,6 +418,26 @@
         }
     }
 
+    // Typed directly into the quantity box — clamp to [1, stock] rather than
+    // rejecting out-of-range input outright, so a typo like "500" against 20
+    // in stock still lands somewhere useful instead of just bouncing back to
+    // whatever the field held before.
+    function setQty(id, rawValue) {
+        const item = cart.find(item => item.id === id);
+        if (!item) return;
+
+        let qty = parseInt(rawValue, 10);
+        if (isNaN(qty) || qty < 1) {
+            qty = 1;
+        } else if (qty > item.stock) {
+            qty = item.stock;
+            alert('Only ' + item.stock + ' unit(s) of "' + item.name + '" in stock.');
+        }
+
+        item.qty = qty;
+        renderCart();
+    }
+
     function removeFromCart(id) {
         cart = cart.filter(item => item.id !== id);
         renderCart();
@@ -424,7 +481,9 @@
                     </div>
                     <div class="cart-item-qty">
                         <button class="qty-btn" onclick="updateQty(${item.id}, -1)" ${item.qty <= 1 ? 'disabled' : ''}>-</button>
-                        <span>${item.qty}</span>
+                        <input type="number" class="qty-input" value="${item.qty}" min="1" max="${item.stock}"
+                               onchange="setQty(${item.id}, this.value)"
+                               onkeydown="if (event.key === 'Enter') this.blur();">
                         <button class="qty-btn" onclick="updateQty(${item.id}, 1)" ${item.qty >= item.stock ? 'disabled' : ''}>+</button>
                     </div>
                     <div class="cart-item-price">
@@ -440,15 +499,23 @@
         updateTotals();
     }
 
+    // Rounds to the nearest cent — matches the server-side computation
+    // exactly, so a payment equal to what's displayed here is never rejected
+    // by the backend's own sufficiency check due to residual floating-point
+    // error further down the same formula.
+    function roundMoney(value) {
+        return Math.round((value + Number.EPSILON) * 100) / 100;
+    }
+
     function updateTotals() {
-        const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        const subtotal = roundMoney(cart.reduce((sum, item) => sum + (item.price * item.qty), 0));
         const discountSelect = document.getElementById('discount-select');
         const hasDiscount = discountSelect.value !== '';
         const selectedOption = discountSelect.options[discountSelect.selectedIndex];
         const discountRate = hasDiscount && selectedOption ? (parseFloat(selectedOption.dataset.rate) || 0) : 0;
-        const discountAmount = subtotal * (discountRate / 100);
-        const vatAmount = (subtotal - discountAmount) * 0.12;
-        currentTotal = subtotal - discountAmount + vatAmount;
+        const discountAmount = roundMoney(subtotal * (discountRate / 100));
+        const vatAmount = roundMoney((subtotal - discountAmount) * 0.12);
+        currentTotal = roundMoney(subtotal - discountAmount + vatAmount);
 
         document.getElementById('subtotal').textContent = window.formatPeso(subtotal);
         document.getElementById('vat').textContent = window.formatPeso(vatAmount);
@@ -459,10 +526,18 @@
         calculateChange();
     }
 
+    function togglePaymentDropdown() {
+        document.getElementById('paymentDropdown').classList.toggle('open');
+    }
+
     function selectPayment(element, method) {
-        document.querySelectorAll('.payment-method').forEach(el => el.classList.remove('selected'));
+        document.querySelectorAll('.payment-dropdown-option').forEach(el => el.classList.remove('selected'));
         element.classList.add('selected');
         selectedPaymentMethod = method;
+
+        // Mirror the chosen option's icon + label onto the closed trigger.
+        document.getElementById('paymentDropdownSelected').innerHTML = element.innerHTML;
+        document.getElementById('paymentDropdown').classList.remove('open');
 
         const accountGroup = document.getElementById('account-number-group');
 
@@ -472,6 +547,13 @@
             accountGroup.style.display = 'block';
         }
     }
+
+    document.addEventListener('click', function (e) {
+        const dropdown = document.getElementById('paymentDropdown');
+        if (dropdown && !dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    });
 
     function calculateChange() {
         const payment = window.parseMoney(document.getElementById('payment-amount').value);
@@ -494,12 +576,14 @@
             return;
         }
 
-        if (selectedPaymentMethod === 'cash') {
-            const payment = window.parseMoney(document.getElementById('payment-amount').value);
-            if (!payment || payment < currentTotal) {
-                alert('Please enter sufficient payment amount!');
-                return;
-            }
+        // Sufficiency applies to every payment method, not just cash — the
+        // Payment Amount field is always shown and always recorded as what
+        // was actually collected, so an under-amount GCash/bank/cheque entry
+        // is just as wrong as an under-amount cash one.
+        const payment = window.parseMoney(document.getElementById('payment-amount').value);
+        if (!payment || payment < currentTotal) {
+            alert('Please enter sufficient payment amount!');
+            return;
         }
 
         const data = {
@@ -514,6 +598,25 @@
 
         checkoutBtn.disabled = true;
 
+        // window.open() only counts as a genuine user gesture (and so only
+        // reliably bypasses popup blockers) when it's called synchronously
+        // inside the click handler itself — not after an awaited fetch
+        // response, which is what silently got blocked before. So the
+        // window is opened here, immediately, with a placeholder page,
+        // then redirected to the real receipt once the sale actually
+        // succeeds. This is what makes the receipt genuinely pop up
+        // automatically instead of needing a manual click.
+        const receiptWindow = window.open('', '_blank', 'width=400,height=600');
+        if (receiptWindow) {
+            // No <head> tag here on purpose — some local dev tooling scans
+            // outgoing HTML for literal "<head>" text to inject a logger
+            // script, which doesn't know this one is just JS string content
+            // rather than a real tag, and ends up corrupting this script
+            // block. A bare <body> is all a placeholder needs anyway.
+            receiptWindow.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#666;">Processing receipt&hellip;</body>');
+            receiptWindow.document.title = 'Receipt';
+        }
+
         fetch('{{ route("cashier.process-sale") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -522,26 +625,28 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Show success message with receipt option (REQ102)
-                const receiptUrl = '/cashier/receipt/' + data.receipt_number;
-                const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
-                if (printWindow) {
-                    printWindow.focus();
-                } else {
-                    alert('Sale completed successfully!\nReceipt: ' + data.receipt_number + '\n\nPlease allow popups to print receipts.');
+                const receiptUrl = '{{ url('cashier/receipt') }}/' + data.receipt_number;
+
+                if (receiptWindow && !receiptWindow.closed) {
+                    receiptWindow.location.href = receiptUrl;
+                    receiptWindow.focus();
                 }
 
                 // Reload so the product grid reflects the stock the sale just
                 // deducted — it's rendered server-side once at page load, so
                 // without this the displayed "Stock: X" (and the cart's own
-                // stock-limit checks) stay stale until a manual refresh.
-                setTimeout(() => window.location.reload(), 300);
+                // stock-limit checks) stay stale until a manual refresh. The
+                // receipt is in its own separate popup window, so reloading
+                // this tab doesn't affect it.
+                window.location.reload();
             } else {
+                if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
                 alert('Error: ' + data.message);
                 checkoutBtn.disabled = false;
             }
         })
         .catch(error => {
+            if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
             alert('Error processing sale: ' + error.message);
             checkoutBtn.disabled = false;
         });

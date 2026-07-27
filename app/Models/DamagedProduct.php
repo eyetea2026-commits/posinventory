@@ -21,6 +21,8 @@ class DamagedProduct extends Model
         'DateRecorded',
         'ProductID',
         'SalesReturnID',
+        'StockAdjustmentID',
+        'SourceModule',
         'SupplierID',
         'Status',
         'PurchaseOrderID',
@@ -28,6 +30,7 @@ class DamagedProduct extends Model
         'InspectionNotes',
         'WarehouseLocation',
         'Remarks',
+        'ImagePath',
         'ResolvedBy',
         'ResolvedDate',
     ];
@@ -55,6 +58,16 @@ class DamagedProduct extends Model
         self::STATUS_REPLACEMENT_RECEIVED => 'Replacement Received',
         self::STATUS_DISPOSED => 'Disposed',
         self::STATUS_CANCELLED => 'Cancelled',
+    ];
+
+    const SOURCE_CUSTOMER_RETURN = 'customer_return';
+    const SOURCE_STOCK_ADJUSTMENT = 'stock_adjustment';
+    const SOURCE_MANUAL = 'manual';
+
+    const SOURCE_LABELS = [
+        self::SOURCE_CUSTOMER_RETURN => 'Customer Return',
+        self::SOURCE_STOCK_ADJUSTMENT => 'Stock Adjustment',
+        self::SOURCE_MANUAL => 'Manual Entry',
     ];
 
     const DAMAGE_TYPES = [
@@ -87,6 +100,11 @@ class DamagedProduct extends Model
     public function salesReturn()
     {
         return $this->belongsTo(SalesReturn::class, 'SalesReturnID', 'SalesReturnID');
+    }
+
+    public function stockAdjustment()
+    {
+        return $this->belongsTo(StockAdjustment::class, 'StockAdjustmentID', 'AdjustmentID');
     }
 
     public function resolvedByUser()

@@ -16,10 +16,15 @@ class Supplier extends Model
 
     protected $fillable = [
         'SupplierName',
+        'ContactPerson',
         'ContactNumber',
         'Email',
         'Address',
+        'Status',
     ];
+
+    const STATUS_ACTIVE = 'active';
+    const STATUS_INACTIVE = 'inactive';
 
     public function stockReceivings()
     {
@@ -34,5 +39,10 @@ class Supplier extends Model
     public function damagedProducts()
     {
         return $this->hasMany(DamagedProduct::class, 'SupplierID', 'SupplierID');
+    }
+
+    public function productSuppliers()
+    {
+        return $this->hasMany(ProductSupplier::class, 'SupplierID', 'SupplierID');
     }
 }

@@ -393,6 +393,14 @@ body {
     margin-top: 6px;
 }
 
+.form-label .required {
+    color: var(--danger);
+}
+
+.form-grid .full-width {
+    grid-column: 1 / -1;
+}
+
 /* ============================================
    SEARCH & FILTERS
    ============================================ */

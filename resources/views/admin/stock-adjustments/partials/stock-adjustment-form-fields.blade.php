@@ -28,7 +28,21 @@
 
     <div class="form-group full-width">
         <label class="form-label" for="Reason">Reason <span style="color: var(--danger);">*</span></label>
-        <textarea id="Reason" name="Reason" class="form-textarea" required>{{ old('Reason') }}</textarea>
+        <select id="Reason" name="Reason" class="form-select" required onchange="document.getElementById('damaged-reason-hint').style.display = this.value === '{{ \App\Models\StockAdjustment::REASON_DAMAGED }}' ? 'block' : 'none';">
+            <option value="">Select Reason</option>
+            @foreach(\App\Models\StockAdjustment::REASONS as $reasonOption)
+                <option value="{{ $reasonOption }}" {{ old('Reason') === $reasonOption ? 'selected' : '' }}>{{ $reasonOption }}</option>
+            @endforeach
+        </select>
         <span class="form-error" id="error-Reason">@error('Reason'){{ $message }}@enderror</span>
+        <p id="damaged-reason-hint" class="form-hint" style="margin-top:6px; color: var(--text-secondary); font-size:0.85rem; display: {{ old('Reason') === \App\Models\StockAdjustment::REASON_DAMAGED ? 'block' : 'none' }};">
+            A decrease with this reason automatically creates a Damage record for supplier return.
+        </p>
+    </div>
+
+    <div class="form-group full-width">
+        <label class="form-label" for="Remarks">Remarks (Optional)</label>
+        <textarea id="Remarks" name="Remarks" class="form-textarea" placeholder="Additional details...">{{ old('Remarks') }}</textarea>
+        <span class="form-error" id="error-Remarks">@error('Remarks'){{ $message }}@enderror</span>
     </div>
 </div>

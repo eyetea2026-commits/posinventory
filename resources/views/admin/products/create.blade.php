@@ -186,6 +186,29 @@
         color: #10b981;
     }
 
+    .computed-field .value-input {
+        width: 100%;
+        text-align: center;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #10b981;
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 8px;
+        padding: 4px 6px;
+    }
+
+    .computed-field .value-input:focus {
+        outline: none;
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+
+    .computed-field .value-input.negative {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+
     .computed-field .value.negative {
         color: #ef4444;
     }
@@ -306,7 +329,7 @@
     <form method="POST" action="{{ route('admin.products.store') }}" id="productForm">
         @csrf
 
-        @include('admin.products.partials.product-form-fields', ['categories' => $categories])
+        @include('admin.products.partials.product-form-fields', ['categories' => $categories, 'brands' => $brands])
 
         <div class="form-actions">
             <button type="button" class="btn btn-secondary" id="productFormCancelBtn">

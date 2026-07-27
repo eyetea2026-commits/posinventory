@@ -29,6 +29,7 @@ class ProductReceived extends Notification
         return (new MailMessage)
             ->subject("Product Received: {$this->product->ProductName}")
             ->line("Received {$this->quantity} x \"{$this->product->ProductName}\" from \"{$this->supplier->SupplierName}\".")
+            ->line('Date & Time: ' . now()->format('F j, Y g:i A'))
             ->action('View Stock Receiving', route('admin.stock-receivings.index'));
     }
 

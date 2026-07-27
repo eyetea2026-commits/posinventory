@@ -16,12 +16,25 @@
 
     <div class="card">
         <div class="toolbar">
-            <div class="search-box">
-                <i class="search-icon fas fa-search"></i>
-                <form method="GET" action="{{ route('admin.purchase-orders.index') }}" class="w-full">
-                    <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search by purchase number or keyword..." />
-                </form>
-            </div>
+            <form method="GET" action="{{ route('admin.purchase-orders.index') }}" id="purchaseOrderFilterForm" style="display:flex; gap:10px; flex-wrap:wrap; flex:1;">
+                <div class="search-box">
+                    <i class="search-icon fas fa-search"></i>
+                    <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search by PO number or keyword..." />
+                </div>
+                <input type="date" name="date_from" value="{{ $dateFrom }}" class="form-input" style="max-width:160px;" title="From date">
+                <input type="date" name="date_to" value="{{ $dateTo }}" class="form-input" style="max-width:160px;" title="To date">
+                <select name="category_id" class="form-select" style="max-width:180px;">
+                    <option value="">All Categories</option>
+                    @foreach($categories as $category)
+                        <option value="{{ $category->CategoryID }}" {{ (string) $categoryId === (string) $category->CategoryID ? 'selected' : '' }}>{{ $category->CategoryName }}</option>
+                    @endforeach
+                </select>
+                {{-- No visible Filter button: the date/category fields apply as soon as
+                     they change, and the search box still submits on Enter via this
+                     visually hidden submit control (removing it entirely would also
+                     disable the browser's native Enter-to-submit behavior). --}}
+                <button type="submit" aria-hidden="true" tabindex="-1" style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;">Search</button>
+            </form>
             <!-- REQ053: Create purchase order -->
             <a href="{{ route('admin.purchase-orders.create') }}" class="btn btn-primary" onclick="openPurchaseOrderModal(event)">
                 <i class="fas fa-plus"></i> New Order
@@ -59,25 +72,36 @@
                     @forelse($purchaseOrders as $order)
                         <tr>
                             <td>
-                                <span class="badge badge-primary">#{{ $order->PurchaseOrderID }}</span>
+                                <span class="badge badge-primary">{{ $order->PONumber }}</span>
                             </td>
                             <td><strong>{{ $order->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                             <td>{{ \Illuminate\Support\Carbon::parse($order->PurchaseDate)->format('M d, Y') }}</td>
                             <td>{{ $order->items->count() }} items</td>
                             <td>
-                                @if($order->Status === 'completed')
-                                    <span class="badge badge-success">Completed</span>
-                                @elseif($order->Status === 'pending')
-                                    <span class="badge badge-warning">Pending</span>
-                                @else
-                                    <span class="badge badge-secondary">{{ ucfirst($order->Status) }}</span>
-                                @endif
+                                @php
+                                    $badgeClass = match($order->Status) {
+                                        \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-success',
+                                        \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-warning',
+                                        \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-info',
+                                        \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-danger',
+                                        default => 'badge-secondary',
+                                    };
+                                @endphp
+                                <span class="badge {{ $badgeClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$order->Status] ?? ucfirst($order->Status) }}</span>
                             </td>
                             <td>
                                 <div class="actions-group">
                                     <!-- REQ059: View purchase order details -->
                                     <a href="{{ route('admin.purchase-orders.show', $order) }}" class="action-btn view" title="View Details">
                                         <i class="fas fa-eye"></i>
+                                    </a>
+                                    @if(in_array($order->Status, \App\Models\PurchaseOrder::EDITABLE_STATUSES, true))
+                                        <a href="#" class="action-btn edit" title="Edit" onclick="openEditPurchaseOrderModal(event, {{ $order->PurchaseOrderID }})">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    @endif
+                                    <a href="{{ route('admin.purchase-orders.export', $order) }}" class="action-btn" title="Export PDF">
+                                        <i class="fas fa-file-pdf"></i>
                                     </a>
                                 </div>
                             </td>
@@ -144,9 +168,44 @@
         </div>
     </div>
 
+    <!-- Edit Purchase Order Modal -->
+    <div id="editPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editPurchaseOrderModalTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="editPurchaseOrderModalTitle"><i class="fas fa-edit"></i> Edit Purchase Order</h2>
+                <button type="button" class="modal-close" onclick="closeEditPurchaseOrderModal()" aria-label="Close">&times;</button>
+            </div>
+
+            <div id="editPurchaseOrderGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
+
+            <form id="editPurchaseOrderForm">
+                <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+            </form>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="editPurchaseOrderCancelBtn">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="editPurchaseOrderSubmitBtn">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
     @include('admin.partials.ajax-modal-form')
 
     <script>
+        // With the Filter button removed, the Start Date / End Date / Category
+        // fields apply immediately on change instead of waiting for a click.
+        (function () {
+            const filterForm = document.getElementById('purchaseOrderFilterForm');
+            ['input[name="date_from"]', 'input[name="date_to"]', 'select[name="category_id"]'].forEach(function (selector) {
+                const field = filterForm.querySelector(selector);
+                if (field) field.addEventListener('change', function () { filterForm.submit(); });
+            });
+        })();
+
         // Auto-show session messages
         @if(session('success'))
             Swal.fire({
@@ -363,6 +422,188 @@
                     onOtherError: function (message) {
                         showAddPurchaseOrderGeneralError(message);
                         resetAddPurchaseOrderSubmitButton();
+                    }
+                });
+            });
+        });
+
+        // ---- Edit Purchase Order modal ----
+        const EDIT_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate', 'Notes'];
+        let editPurchaseOrderLastFocused = null;
+        let currentEditPurchaseOrderId = null;
+
+        function editPurchaseOrderIsSubmitting() {
+            const btn = document.getElementById('editPurchaseOrderSubmitBtn');
+            return btn ? btn.disabled : false;
+        }
+
+        function clearEditPurchaseOrderFieldErrors() {
+            const form = document.getElementById('editPurchaseOrderForm');
+            EDIT_PO_FIELD_IDS.forEach(function (field) {
+                const span = document.getElementById('error-edit-' + field);
+                if (span) span.textContent = '';
+                const input = form.querySelector('[name="' + field + '"]');
+                if (input) input.classList.remove('error');
+            });
+        }
+
+        function showEditPurchaseOrderFieldErrors(errors) {
+            clearEditPurchaseOrderFieldErrors();
+            const form = document.getElementById('editPurchaseOrderForm');
+            let firstInvalid = null;
+            Object.keys(errors).forEach(function (field) {
+                const span = document.getElementById('error-edit-' + field);
+                if (span) span.textContent = errors[field][0];
+                const input = form.querySelector('[name="' + field + '"]');
+                if (input) {
+                    input.classList.add('error');
+                    if (!firstInvalid) firstInvalid = input;
+                }
+            });
+            if (firstInvalid) firstInvalid.focus();
+        }
+
+        function showEditPurchaseOrderGeneralError(message) {
+            const banner = document.getElementById('editPurchaseOrderGeneralError');
+            banner.textContent = message;
+            banner.style.display = 'flex';
+        }
+
+        function hideEditPurchaseOrderGeneralError() {
+            const banner = document.getElementById('editPurchaseOrderGeneralError');
+            banner.style.display = 'none';
+            banner.textContent = '';
+        }
+
+        function resetEditPurchaseOrderSubmitButton() {
+            const btn = document.getElementById('editPurchaseOrderSubmitBtn');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+        }
+
+        window.openEditPurchaseOrderModal = function (event, purchaseOrderId) {
+            if (event) event.preventDefault();
+            const modal = document.getElementById('editPurchaseOrderModal');
+            const form = document.getElementById('editPurchaseOrderForm');
+
+            editPurchaseOrderLastFocused = document.activeElement;
+            currentEditPurchaseOrderId = purchaseOrderId;
+            form.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+            hideEditPurchaseOrderGeneralError();
+            resetEditPurchaseOrderSubmitButton();
+
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            void modal.offsetHeight;
+            requestAnimationFrame(function () { modal.classList.add('active'); });
+            document.addEventListener('keydown', handleEditPurchaseOrderModalKeydown);
+
+            fetch('{{ url('admin/purchase-orders') }}/' + purchaseOrderId + '/edit', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    form.innerHTML = data.html;
+                    const firstField = form.querySelector('input, select, textarea');
+                    if (firstField) firstField.focus();
+                })
+                .catch(function () {
+                    form.innerHTML = '<p class="form-error">Failed to load this purchase order for editing. Please try again.</p>';
+                });
+        };
+
+        window.closeEditPurchaseOrderModal = function () {
+            const modal = document.getElementById('editPurchaseOrderModal');
+            modal.classList.remove('active');
+            document.removeEventListener('keydown', handleEditPurchaseOrderModalKeydown);
+            setTimeout(function () { modal.style.display = 'none'; }, 250);
+            document.body.style.overflow = '';
+            if (editPurchaseOrderLastFocused && typeof editPurchaseOrderLastFocused.focus === 'function') {
+                editPurchaseOrderLastFocused.focus();
+            }
+        };
+
+        function handleEditPurchaseOrderModalKeydown(e) {
+            const modal = document.getElementById('editPurchaseOrderModal');
+            if (!modal.classList.contains('active')) return;
+
+            if (e.key === 'Escape') {
+                if (!editPurchaseOrderIsSubmitting()) closeEditPurchaseOrderModal();
+                return;
+            }
+
+            if (e.key === 'Tab') {
+                const focusable = modal.querySelectorAll('input, select, textarea, button, [href]');
+                if (!focusable.length) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        }
+
+        document.getElementById('editPurchaseOrderModal').addEventListener('mousedown', function (e) {
+            if (e.target === this && !editPurchaseOrderIsSubmitting()) {
+                closeEditPurchaseOrderModal();
+            }
+        });
+
+        document.getElementById('editPurchaseOrderForm').addEventListener('submit', function (e) { e.preventDefault(); });
+
+        document.getElementById('editPurchaseOrderCancelBtn').addEventListener('click', function () {
+            closeEditPurchaseOrderModal();
+        });
+
+        document.getElementById('editPurchaseOrderSubmitBtn').addEventListener('click', function () {
+            const form = document.getElementById('editPurchaseOrderForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            Swal.fire({
+                title: 'Confirm Changes',
+                text: 'Are you sure you want to save the changes to this purchase order?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes',
+                cancelButtonText: 'No',
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#64748b'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+
+                const submitBtn = document.getElementById('editPurchaseOrderSubmitBtn');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                clearEditPurchaseOrderFieldErrors();
+                hideEditPurchaseOrderGeneralError();
+
+                window.submitAjaxForm(form, '{{ url('admin/purchase-orders') }}/' + currentEditPurchaseOrderId, {
+                    onFieldErrors: function (errors) {
+                        showEditPurchaseOrderFieldErrors(errors);
+                        resetEditPurchaseOrderSubmitButton();
+                    },
+                    onSuccess: function (html, message) {
+                        refreshPurchaseOrdersTable(html);
+                        closeEditPurchaseOrderModal();
+                        Swal.fire({
+                            title: 'Success',
+                            text: message,
+                            icon: 'success',
+                            confirmButtonColor: '#10b981',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    },
+                    onOtherError: function (message) {
+                        showEditPurchaseOrderGeneralError(message);
+                        resetEditPurchaseOrderSubmitButton();
                     }
                 });
             });

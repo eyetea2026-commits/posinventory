@@ -225,7 +225,7 @@
 @endif
 
 <div class="card glass-card">
-    <form method="POST" action="{{ route('admin.damages.store') }}" id="damageForm">
+    <form method="POST" action="{{ route('admin.damages.store') }}" id="damageForm" enctype="multipart/form-data">
         @csrf
 
         @include('admin.damages.partials.damage-form-fields')

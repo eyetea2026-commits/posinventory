@@ -255,4 +255,49 @@ class DamageModuleTest extends TestCase
             return $records->count() === 1 && $records->first()->DamageID === $fromReturn->DamageID;
         });
     }
+
+    public function test_manually_created_damage_is_tagged_with_manual_source(): void
+    {
+        $this->actingAs($this->admin)->post(route('admin.damages.store'), $this->baseDamagePayload());
+
+        $this->assertDatabaseHas('DamagedProduct', ['SourceModule' => DamagedProduct::SOURCE_MANUAL]);
+    }
+
+    public function test_show_returns_full_details_json(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['SourceModule' => DamagedProduct::SOURCE_MANUAL]));
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.damages.show', $damage));
+
+        $response->assertOk();
+        $response->assertJsonPath('damage.DamageID', $damage->DamageID);
+        $response->assertJsonPath('product.ProductName', $this->product->ProductName);
+        $response->assertJsonPath('supplier.SupplierName', $this->supplier->SupplierName);
+    }
+
+    public function test_print_report_renders_for_a_damage_record(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['SourceModule' => DamagedProduct::SOURCE_MANUAL]));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.damages.print', $damage));
+
+        $response->assertOk();
+        $response->assertSee('Damage Report #' . $damage->DamageID);
+        $response->assertSee($this->product->ProductName);
+    }
+
+    public function test_store_accepts_an_optional_photo_upload(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $file = \Illuminate\Http\UploadedFile::fake()->image('damage.jpg');
+
+        $response = $this->actingAs($this->admin)->post(route('admin.damages.store'), array_merge($this->baseDamagePayload(), [
+            'Image' => $file,
+        ]));
+
+        $response->assertRedirect(route('admin.damages.index'));
+        $damage = DamagedProduct::first();
+        $this->assertNotNull($damage->ImagePath);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($damage->ImagePath);
+    }
 }

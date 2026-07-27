@@ -17,7 +17,7 @@ window.initProductAddForm = function (formId, options) {
     var sellingPriceInput = form.querySelector('#SellingPrice');
     var markupPriceEl = form.querySelector('#markupPrice');
     var markupPercentEl = form.querySelector('#markupPercent');
-    var profitMarginEl = form.querySelector('#profitMargin');
+    var profitMarginInput = form.querySelector('#ProfitMargin');
     var productNameInput = form.querySelector('#ProductName');
     var modelInput = form.querySelector('#Model');
     var barcodeInput = form.querySelector('#Barcode');
@@ -33,12 +33,17 @@ window.initProductAddForm = function (formId, options) {
 
     form.addEventListener('submit', function (e) { e.preventDefault(); });
 
-    var PROFIT_MARGIN = 0.45; // Store policy — mirrors Product::PROFIT_MARGIN server-side.
+    var DEFAULT_PROFIT_MARGIN = 0.45; // Store default for new products — mirrors Product::PROFIT_MARGIN server-side.
 
     window.attachMoneyInput(costPriceInput);
     window.attachMoneyInput(sellingPriceInput);
 
-    function updateComputedDisplays(costPrice, sellingPrice) {
+    function currentMarginFraction() {
+        var margin = parseFloat(profitMarginInput.value);
+        return isNaN(margin) ? DEFAULT_PROFIT_MARGIN : (margin / 100);
+    }
+
+    function updateMarkupDisplays(costPrice, sellingPrice) {
         var markupPrice = sellingPrice - costPrice;
         var markupPercent = costPrice > 0 ? ((markupPrice / costPrice) * 100) : 0;
 
@@ -47,38 +52,47 @@ window.initProductAddForm = function (formId, options) {
 
         markupPercentEl.textContent = markupPercent.toFixed(1) + '%';
         markupPercentEl.classList.toggle('negative', markupPercent < 0);
-
-        // Profit Margin is a fixed store policy (see Product::PROFIT_MARGIN),
-        // not derived from the entered values, so it always reads 45.0%.
-        profitMarginEl.textContent = (PROFIT_MARGIN * 100).toFixed(1) + '%';
     }
 
-    // Cost Price changed: re-derive Selling Price from the fixed 45% margin,
-    // overwriting whatever was typed into Selling Price — changing the cost
-    // is treated as an intentional re-price.
+    // Cost Price changed: re-derive Selling Price from whatever margin is
+    // currently dialed in (not a hard-reset to 45%) — an admin who already
+    // customized the margin expects it to stick when the cost changes.
     function recalcFromCost() {
         var costPrice = window.parseMoney(costPriceInput.value);
-        var sellingPrice = costPrice > 0 ? (costPrice / (1 - PROFIT_MARGIN)) : 0;
+        var marginFraction = currentMarginFraction();
+        var sellingPrice = (costPrice > 0 && marginFraction < 1) ? (costPrice / (1 - marginFraction)) : 0;
         sellingPriceInput.value = sellingPrice > 0 ? window.formatMoneyPlain(sellingPrice) : '';
-        updateComputedDisplays(costPrice, sellingPrice);
+        updateMarkupDisplays(costPrice, sellingPrice);
     }
 
-    // Selling Price edited by hand: leave it exactly as typed and just
-    // refresh the derived markup figures. This is a preview only — the
-    // server always recomputes and saves the price at the fixed 45% margin
-    // (see Product::computeSellingPrice); this field has no name attribute,
-    // so a manually typed Selling Price is never actually submitted.
+    // Profit Margin edited by hand: re-derive Selling Price from Cost using
+    // the newly typed margin.
+    function recalcFromMargin() {
+        var costPrice = window.parseMoney(costPriceInput.value);
+        var marginFraction = currentMarginFraction();
+        var sellingPrice = (costPrice > 0 && marginFraction < 1) ? (costPrice / (1 - marginFraction)) : 0;
+        sellingPriceInput.value = sellingPrice > 0 ? window.formatMoneyPlain(sellingPrice) : '';
+        profitMarginInput.classList.toggle('negative', marginFraction < 0);
+        updateMarkupDisplays(costPrice, sellingPrice);
+    }
+
+    // Selling Price edited by hand: leave it exactly as typed and re-derive
+    // the Profit Margin (and markup figures) from Cost + the typed price.
     function recalcFromSelling() {
         var costPrice = window.parseMoney(costPriceInput.value);
         var sellingPrice = window.parseMoney(sellingPriceInput.value);
-        updateComputedDisplays(costPrice, sellingPrice);
+        var marginPercent = sellingPrice > 0 ? (((sellingPrice - costPrice) / sellingPrice) * 100) : 0;
+        profitMarginInput.value = marginPercent.toFixed(1);
+        profitMarginInput.classList.toggle('negative', marginPercent < 0);
+        updateMarkupDisplays(costPrice, sellingPrice);
     }
 
     costPriceInput.addEventListener('input', function () { formChanged = true; recalcFromCost(); });
     sellingPriceInput.addEventListener('input', function () { formChanged = true; recalcFromSelling(); });
+    profitMarginInput.addEventListener('input', function () { formChanged = true; recalcFromMargin(); });
 
     form.querySelectorAll('input, select, textarea').forEach(function (input) {
-        if (input === costPriceInput || input === sellingPriceInput) return;
+        if (input === costPriceInput || input === sellingPriceInput || input === profitMarginInput) return;
         input.addEventListener('change', function () {
             formChanged = true;
         });
@@ -196,6 +210,7 @@ window.initProductAddForm = function (formId, options) {
             // The server expects a plain numeric string (validated as
             // 'numeric'), not the comma-grouped display value.
             costPriceInput.value = window.parseMoney(costPriceInput.value).toFixed(2);
+            sellingPriceInput.value = window.parseMoney(sellingPriceInput.value).toFixed(2);
             formChanged = false;
             if (options.onConfirmedSubmit) options.onConfirmedSubmit(resetSubmitButton);
         });
@@ -205,7 +220,17 @@ window.initProductAddForm = function (formId, options) {
         if (options.onCancel) options.onCancel(formChanged);
     }
 
-    recalcFromCost();
+    // On load: if a Selling Price is already present (editing an existing
+    // product), derive the Profit Margin display from it rather than
+    // recomputing Selling Price from the default 45% — that would silently
+    // clobber a product's real, possibly-customized margin every time the
+    // edit form opens. Only seed Selling Price from Cost + the default
+    // margin when there's nothing there yet (Add mode).
+    if (window.parseMoney(sellingPriceInput.value) > 0) {
+        recalcFromSelling();
+    } else {
+        recalcFromCost();
+    }
 
     return {
         confirmSave: confirmSave,

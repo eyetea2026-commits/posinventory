@@ -16,6 +16,8 @@ class PurchaseOrderItem extends Model
 
     protected $fillable = [
         'Quantity',
+        'ReceivedQuantity',
+        'CostPriceAtOrder',
         'PurchaseOrderID',
         'ProductID',
     ];
@@ -28,5 +30,15 @@ class PurchaseOrderItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
+    }
+
+    public function getRemainingQuantityAttribute(): int
+    {
+        return max(0, $this->Quantity - $this->ReceivedQuantity);
+    }
+
+    public function getLineTotalAttribute(): float
+    {
+        return $this->ReceivedQuantity * $this->CostPriceAtOrder;
     }
 }

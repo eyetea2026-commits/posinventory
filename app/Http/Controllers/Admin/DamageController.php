@@ -93,7 +93,7 @@ class DamageController extends Controller
     // Show create form
     public function create()
     {
-        $products = Product::with('inventory')->orderBy('ProductName')->get();
+        $products = Product::with(['inventory', 'category', 'suppliers'])->orderBy('ProductName')->get();
         $suppliers = Supplier::orderBy('SupplierName')->get();
         $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
 
@@ -123,6 +123,7 @@ class DamageController extends Controller
             'InspectionNotes' => 'nullable|string|max:1000',
             'WarehouseLocation' => 'nullable|string|max:100',
             'Remarks' => 'nullable|string|max:500',
+            'Image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ], [
             'ProductID.required' => 'Please select a product.',
             'SupplierID.required' => 'Please select a supplier.',
@@ -133,41 +134,52 @@ class DamageController extends Controller
             'DamageType.required' => 'Please select a damage type.',
         ]);
 
-        // Reject a damage quantity greater than what's actually in stock —
-        // otherwise it silently clamps to 0 below and the damage record
-        // ends up overstating how many units were actually lost.
-        $inventory = Inventory::where('ProductID', $data['ProductID'])->first();
-        $available = $inventory->Quantity ?? 0;
-        if ($data['Quantity'] > $available) {
-            return back()
-                ->with('error', "Cannot record {$data['Quantity']} damaged units — only {$available} in stock.")
-                ->withInput();
-        }
+        $imagePath = $request->hasFile('Image') ? $request->file('Image')->store('damages', 'public') : null;
 
-        $damage = DB::transaction(function () use ($data, $inventory) {
-            $damage = DamagedProduct::create([
-                'ProductID' => $data['ProductID'],
-                'SupplierID' => $data['SupplierID'],
-                'PurchaseOrderID' => $data['PurchaseOrderID'] ?? null,
-                'Quantity' => $data['Quantity'],
-                'Description' => $data['Description'],
-                'DateRecorded' => $data['DateRecorded'],
-                'DamageType' => $data['DamageType'],
-                'InspectionNotes' => $data['InspectionNotes'] ?? null,
-                'WarehouseLocation' => $data['WarehouseLocation'] ?? null,
-                'Remarks' => $data['Remarks'] ?? null,
-                'Status' => DamagedProduct::STATUS_PENDING,
-            ]);
+        // The availability check and the decrement must happen against the
+        // same locked snapshot, inside the transaction — reading Inventory
+        // unlocked beforehand (as this used to) lets two concurrent damage
+        // submissions both pass the check against the same stale quantity.
+        try {
+            $damage = DB::transaction(function () use ($data, $imagePath) {
+                $inventory = Inventory::where('ProductID', $data['ProductID'])->lockForUpdate()->first();
+                $available = $inventory->Quantity ?? 0;
 
-            if ($inventory) {
-                $newQuantity = max(0, $inventory->Quantity - $data['Quantity']);
-                $inventory->Quantity = $newQuantity;
-                $inventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
-                $inventory->save();
+                if ($data['Quantity'] > $available) {
+                    throw new \RuntimeException("Cannot record {$data['Quantity']} damaged units — only {$available} in stock.");
+                }
+
+                $damage = DamagedProduct::create([
+                    'ProductID' => $data['ProductID'],
+                    'SupplierID' => $data['SupplierID'],
+                    'PurchaseOrderID' => $data['PurchaseOrderID'] ?? null,
+                    'Quantity' => $data['Quantity'],
+                    'Description' => $data['Description'],
+                    'DateRecorded' => $data['DateRecorded'],
+                    'DamageType' => $data['DamageType'],
+                    'InspectionNotes' => $data['InspectionNotes'] ?? null,
+                    'WarehouseLocation' => $data['WarehouseLocation'] ?? null,
+                    'Remarks' => $data['Remarks'] ?? null,
+                    'ImagePath' => $imagePath,
+                    'SourceModule' => DamagedProduct::SOURCE_MANUAL,
+                    'Status' => DamagedProduct::STATUS_PENDING,
+                ]);
+
+                if ($inventory) {
+                    $newQuantity = max(0, $inventory->Quantity - $data['Quantity']);
+                    $inventory->Quantity = $newQuantity;
+                    $inventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                    $inventory->save();
+                }
+
+                return $damage;
+            });
+        } catch (\RuntimeException $e) {
+            if ($imagePath) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($imagePath);
             }
-
-            return $damage;
-        });
+            return back()->with('error', $e->getMessage())->withInput();
+        }
 
         $productName = $damage->product?->ProductName ?? 'Unknown Product';
         ActivityLog::record('damage.created', "Recorded {$damage->Quantity} x \"{$productName}\" as damaged (Supplier: \"{$damage->supplier?->SupplierName}\")");
@@ -175,16 +187,102 @@ class DamageController extends Controller
         return redirect()->route('admin.damages.index')->with('success', 'Damaged product recorded successfully.');
     }
 
-    // Show edit form
-    public function edit(DamagedProduct $damage)
+    // View Details modal — full picture of one damage record: product,
+    // inventory, supplier, the originating return or stock adjustment (if
+    // any), and a best-effort audit history from ActivityLog.
+    public function show(DamagedProduct $damage)
     {
+        $damage->load([
+            'product.category',
+            'product.inventory',
+            'supplier',
+            'purchaseOrder',
+            'salesReturn.transaction',
+            'stockAdjustment',
+            'resolvedByUser',
+        ]);
+
+        $auditHistory = ActivityLog::where('Description', 'like', "%Damage #{$damage->DamageID}%")
+            ->orWhere('Description', 'like', "%damage #{$damage->DamageID}%")
+            ->orWhere('Description', 'like', "%damage record #{$damage->DamageID}%")
+            ->orderByDesc('DateRecorded')
+            ->get(['Action', 'Description', 'DateRecorded']);
+
+        return response()->json([
+            'damage' => [
+                'DamageID' => $damage->DamageID,
+                'Quantity' => $damage->Quantity,
+                'DamageType' => DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType,
+                'Status' => DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status,
+                'SourceModule' => DamagedProduct::SOURCE_LABELS[$damage->SourceModule] ?? ($damage->SourceModule ?? 'Unknown'),
+                'Description' => $damage->Description,
+                'InspectionNotes' => $damage->InspectionNotes,
+                'WarehouseLocation' => $damage->WarehouseLocation,
+                'Remarks' => $damage->Remarks,
+                'ImageUrl' => $damage->ImagePath ? \Illuminate\Support\Facades\Storage::url($damage->ImagePath) : null,
+                'DateRecorded' => optional($damage->DateRecorded)->format('Y-m-d'),
+                'ResolvedBy' => $damage->resolvedByUser?->full_name,
+                'ResolvedDate' => optional($damage->ResolvedDate)->format('Y-m-d'),
+            ],
+            'product' => [
+                'ProductName' => $damage->product?->ProductName,
+                'SKU' => $damage->product?->SKU,
+                'Category' => $damage->product?->category?->CategoryName,
+                'CostPrice' => $damage->product?->CostPrice,
+                'CurrentStock' => $damage->product?->inventory?->Quantity,
+            ],
+            'supplier' => $damage->supplier ? [
+                'SupplierName' => $damage->supplier->SupplierName,
+                'ContactNumber' => $damage->supplier->ContactNumber,
+                'Email' => $damage->supplier->Email,
+            ] : null,
+            'purchaseOrder' => $damage->purchaseOrder ? [
+                'PONumber' => $damage->purchaseOrder->PONumber,
+            ] : null,
+            'salesReturn' => $damage->salesReturn ? [
+                'SalesReturnID' => $damage->salesReturn->SalesReturnID,
+                'ReceiptNumber' => $damage->salesReturn->SalesTransactionID ? ('RCT-' . str_pad($damage->salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT)) : null,
+            ] : null,
+            'stockAdjustment' => $damage->stockAdjustment ? [
+                'AdjustmentID' => $damage->stockAdjustment->AdjustmentID,
+                'QuantityAdjust' => $damage->stockAdjustment->QuantityAdjust,
+                'Reason' => $damage->stockAdjustment->Reason,
+            ] : null,
+            'auditHistory' => $auditHistory,
+        ]);
+    }
+
+    public function printReport(DamagedProduct $damage)
+    {
+        $damage->load(['product', 'supplier', 'purchaseOrder']);
+
+        return view('admin.damages.print', ['damage' => $damage]);
+    }
+
+    // Show edit form
+    public function edit(Request $request, DamagedProduct $damage)
+    {
+        $isAjax = $request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest';
+
         if ($damage->Status !== DamagedProduct::STATUS_PENDING) {
+            if ($isAjax) {
+                return response()->json(['error' => 'Only pending damage records can be edited.'], 422);
+            }
             return redirect()->route('admin.damages.index')->with('error', 'Only pending damage records can be edited.');
         }
 
-        $products = Product::with('inventory')->orderBy('ProductName')->get();
+        $products = Product::with(['inventory', 'category', 'suppliers'])->orderBy('ProductName')->get();
         $suppliers = Supplier::orderBy('SupplierName')->get();
         $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
+
+        // Edit Damage modal: return just the rendered form fields instead of
+        // a full page, so the modal can inject it without navigating.
+        if ($isAjax) {
+            return response()->json([
+                'html' => view('admin.damages.partials.damage-form-fields', compact('damage', 'products', 'suppliers', 'purchaseOrders'))->render(),
+            ]);
+        }
+
         return view('admin.damages.edit', compact('damage', 'products', 'suppliers', 'purchaseOrders'));
     }
 
@@ -206,55 +304,80 @@ class DamageController extends Controller
             'InspectionNotes' => 'nullable|string|max:1000',
             'WarehouseLocation' => 'nullable|string|max:100',
             'Remarks' => 'nullable|string|max:500',
+            'Image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
 
-        // Reject a damage quantity greater than what would actually be
-        // available once the old damaged quantity is restored — otherwise
-        // it silently clamps to 0 below and the record overstates the loss.
-        if ((int) $data['ProductID'] === (int) $damage->ProductID) {
-            $currentInventory = Inventory::where('ProductID', $damage->ProductID)->first();
-            $available = ($currentInventory->Quantity ?? 0) + $damage->Quantity;
-        } else {
-            $currentInventory = Inventory::where('ProductID', $data['ProductID'])->first();
-            $available = $currentInventory->Quantity ?? 0;
-        }
-        if ($data['Quantity'] > $available) {
-            return back()
-                ->withErrors(['Quantity' => "Cannot record {$data['Quantity']} damaged units — only {$available} in stock."])
-                ->withInput();
-        }
+        $newImagePath = $request->hasFile('Image') ? $request->file('Image')->store('damages', 'public') : null;
+        $sameProduct = (int) $data['ProductID'] === (int) $damage->ProductID;
 
-        DB::transaction(function () use ($data, $damage) {
-            // Restore old quantity to inventory
-            $oldInventory = Inventory::where('ProductID', $damage->ProductID)->first();
-            if ($oldInventory) {
-                $oldInventory->Quantity += $damage->Quantity;
-                $oldInventory->Status = $oldInventory->Quantity > 0 ? ($oldInventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
-                $oldInventory->save();
+        // Availability is checked against a locked snapshot inside the same
+        // transaction that then mutates it — the previous version read
+        // Inventory unlocked before the transaction even opened, so a
+        // concurrent request could interleave between the check and the
+        // restore/decrease below.
+        try {
+            DB::transaction(function () use ($data, $damage, $newImagePath, $sameProduct) {
+                if ($sameProduct) {
+                    // One row, locked once — restoring the old quantity and
+                    // subtracting the new quantity net against the same
+                    // locked snapshot, so nothing can interleave between
+                    // the "restore" and "decrease" halves of this edit.
+                    $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
+                    $available = ($inventory->Quantity ?? 0) + $damage->Quantity;
+
+                    if ($data['Quantity'] > $available) {
+                        throw new \RuntimeException("Cannot record {$data['Quantity']} damaged units — only {$available} in stock.");
+                    }
+
+                    if ($inventory) {
+                        $newQuantity = max(0, $available - $data['Quantity']);
+                        $inventory->Quantity = $newQuantity;
+                        $inventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                        $inventory->save();
+                    }
+                } else {
+                    $oldInventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
+                    $newInventory = Inventory::where('ProductID', $data['ProductID'])->lockForUpdate()->first();
+                    $available = $newInventory->Quantity ?? 0;
+
+                    if ($data['Quantity'] > $available) {
+                        throw new \RuntimeException("Cannot record {$data['Quantity']} damaged units — only {$available} in stock.");
+                    }
+
+                    if ($oldInventory) {
+                        $oldInventory->Quantity += $damage->Quantity;
+                        $oldInventory->Status = $oldInventory->Quantity > 0 ? ($oldInventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                        $oldInventory->save();
+                    }
+
+                    if ($newInventory) {
+                        $newQuantity = max(0, $newInventory->Quantity - $data['Quantity']);
+                        $newInventory->Quantity = $newQuantity;
+                        $newInventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                        $newInventory->save();
+                    }
+                }
+
+                $damage->update([
+                    'ProductID' => $data['ProductID'],
+                    'SupplierID' => $data['SupplierID'],
+                    'PurchaseOrderID' => $data['PurchaseOrderID'] ?? null,
+                    'Quantity' => $data['Quantity'],
+                    'Description' => $data['Description'],
+                    'DateRecorded' => $data['DateRecorded'],
+                    'DamageType' => $data['DamageType'],
+                    'InspectionNotes' => $data['InspectionNotes'] ?? null,
+                    'WarehouseLocation' => $data['WarehouseLocation'] ?? null,
+                    'Remarks' => $data['Remarks'] ?? null,
+                    'ImagePath' => $newImagePath ?? $damage->ImagePath,
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            if ($newImagePath) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($newImagePath);
             }
-
-            $damage->update([
-                'ProductID' => $data['ProductID'],
-                'SupplierID' => $data['SupplierID'],
-                'PurchaseOrderID' => $data['PurchaseOrderID'] ?? null,
-                'Quantity' => $data['Quantity'],
-                'Description' => $data['Description'],
-                'DateRecorded' => $data['DateRecorded'],
-                'DamageType' => $data['DamageType'],
-                'InspectionNotes' => $data['InspectionNotes'] ?? null,
-                'WarehouseLocation' => $data['WarehouseLocation'] ?? null,
-                'Remarks' => $data['Remarks'] ?? null,
-            ]);
-
-            // Decrease new quantity from inventory
-            $newInventory = Inventory::where('ProductID', $data['ProductID'])->first();
-            if ($newInventory) {
-                $newQuantity = max(0, $newInventory->Quantity - $data['Quantity']);
-                $newInventory->Quantity = $newQuantity;
-                $newInventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
-                $newInventory->save();
-            }
-        });
+            throw \Illuminate\Validation\ValidationException::withMessages(['Quantity' => $e->getMessage()]);
+        }
 
         ActivityLog::record('damage.updated', "Updated damage record #{$damage->DamageID}");
 
@@ -273,7 +396,7 @@ class DamageController extends Controller
 
         DB::transaction(function () use ($damage) {
             // Restore quantity to inventory
-            $inventory = Inventory::where('ProductID', $damage->ProductID)->first();
+            $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
             if ($inventory) {
                 $inventory->Quantity += $damage->Quantity;
                 $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
@@ -387,25 +510,43 @@ class DamageController extends Controller
 
         $qty = $data['replacement_quantity'] ?? $damage->Quantity;
 
-        DB::transaction(function () use ($damage, $qty) {
-            $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
-            if (!$inventory) {
-                $inventory = Inventory::firstOrCreate(
-                    ['ProductID' => $damage->ProductID],
-                    ['Quantity' => 0, 'Status' => 'Out of Stock']
-                );
-            }
+        try {
+            DB::transaction(function () use ($damage, $qty) {
+                // Re-fetch and lock the damage record itself, re-verifying
+                // its status under the lock — the check above ran before
+                // this transaction opened, so a second rapid submission
+                // (double-click, replayed request) could otherwise also
+                // pass it and double-increment inventory.
+                $locked = DamagedProduct::where('DamageID', $damage->DamageID)
+                    ->where('Status', DamagedProduct::STATUS_RETURNED_TO_SUPPLIER)
+                    ->lockForUpdate()
+                    ->first();
 
-            $inventory->Quantity += $qty;
-            $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
-            $inventory->save();
+                if (! $locked) {
+                    throw new \RuntimeException('This record is no longer awaiting a supplier replacement — it may have already been processed.');
+                }
 
-            $damage->update([
-                'Status' => DamagedProduct::STATUS_REPLACEMENT_RECEIVED,
-                'ResolvedBy' => auth()->id(),
-                'ResolvedDate' => now(),
-            ]);
-        });
+                $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
+                if (!$inventory) {
+                    $inventory = Inventory::firstOrCreate(
+                        ['ProductID' => $damage->ProductID],
+                        ['Quantity' => 0, 'Status' => 'Out of Stock']
+                    );
+                }
+
+                $inventory->Quantity += $qty;
+                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                $inventory->save();
+
+                $locked->update([
+                    'Status' => DamagedProduct::STATUS_REPLACEMENT_RECEIVED,
+                    'ResolvedBy' => auth()->id(),
+                    'ResolvedDate' => now(),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         ActivityLog::record(
             'damage.replacement_received',
@@ -423,25 +564,43 @@ class DamageController extends Controller
             return back()->with('error', 'Only records still pending supplier return can be cancelled.');
         }
 
-        DB::transaction(function () use ($damage) {
-            $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
-            if (!$inventory) {
-                $inventory = Inventory::firstOrCreate(
-                    ['ProductID' => $damage->ProductID],
-                    ['Quantity' => 0, 'Status' => 'Out of Stock']
-                );
-            }
+        try {
+            DB::transaction(function () use ($damage) {
+                // Same re-check-under-lock as receiveReplacement() above —
+                // without it, a rapid double cancel (or a cancel racing a
+                // receiveReplacement on the same record) could double-credit
+                // inventory while only the status field visibly "loses" the
+                // race, masking the double-count entirely.
+                $locked = DamagedProduct::where('DamageID', $damage->DamageID)
+                    ->where('Status', DamagedProduct::STATUS_FOR_SUPPLIER_RETURN)
+                    ->lockForUpdate()
+                    ->first();
 
-            $inventory->Quantity += $damage->Quantity;
-            $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
-            $inventory->save();
+                if (! $locked) {
+                    throw new \RuntimeException('This record is no longer pending supplier return — it may have already been processed.');
+                }
 
-            $damage->update([
-                'Status' => DamagedProduct::STATUS_CANCELLED,
-                'ResolvedBy' => auth()->id(),
-                'ResolvedDate' => now(),
-            ]);
-        });
+                $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
+                if (!$inventory) {
+                    $inventory = Inventory::firstOrCreate(
+                        ['ProductID' => $damage->ProductID],
+                        ['Quantity' => 0, 'Status' => 'Out of Stock']
+                    );
+                }
+
+                $inventory->Quantity += $damage->Quantity;
+                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                $inventory->save();
+
+                $locked->update([
+                    'Status' => DamagedProduct::STATUS_CANCELLED,
+                    'ResolvedBy' => auth()->id(),
+                    'ResolvedDate' => now(),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         ActivityLog::record('damage.cancelled', "Cancelled damage #{$damage->DamageID} ({$damage->Quantity} x \"{$damage->product?->ProductName}\") — restored to inventory");
 

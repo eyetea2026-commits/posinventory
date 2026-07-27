@@ -20,6 +20,8 @@ class StockReceiving extends Model
         'ReceiptNumber',
         'ProductID',
         'SupplierID',
+        'PurchaseOrderID',
+        'PurchaseOrderItemID',
     ];
 
     public function product()
@@ -30,5 +32,15 @@ class StockReceiving extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'SupplierID', 'SupplierID');
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'PurchaseOrderID', 'PurchaseOrderID');
+    }
+
+    public function purchaseOrderItem()
+    {
+        return $this->belongsTo(PurchaseOrderItem::class, 'PurchaseOrderItemID', 'PurchaseOrderItemID');
     }
 }

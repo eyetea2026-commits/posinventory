@@ -615,6 +615,26 @@
     .computed-field label { display: block; font-size: 0.68rem; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
     .computed-field .value { font-size: 0.95rem; font-weight: 700; color: #10b981; }
     .computed-field .value.negative { color: #ef4444; }
+    .computed-field .value-input {
+        width: 100%;
+        text-align: center;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #10b981;
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 8px;
+        padding: 4px 6px;
+    }
+    .computed-field .value-input:focus {
+        outline: none;
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+    .computed-field .value-input.negative {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
 
     .btn-spinner-sm {
         display: inline-block;
@@ -990,7 +1010,7 @@
         <div id="addProductGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
 
         <form id="addProductForm">
-            @include('admin.products.partials.product-form-fields', ['categories' => $categories])
+            @include('admin.products.partials.product-form-fields', ['categories' => $categories, 'brands' => $brands])
         </form>
 
         <div class="modal-actions">
@@ -1019,6 +1039,9 @@
         <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="viewProductCloseBtn">
                 <i class="fas fa-times"></i> Close
+            </button>
+            <button type="button" class="btn btn-secondary" id="viewProductSuppliersBtn">
+                <i class="fas fa-truck"></i> Manage Suppliers
             </button>
             <button type="button" class="btn btn-primary" id="viewProductEditBtn">
                 <i class="fas fa-edit"></i> Update Details
@@ -1260,6 +1283,7 @@
         viewProductLastFocused = document.activeElement;
         body.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
         document.getElementById('viewProductEditBtn').dataset.productId = productId;
+        document.getElementById('viewProductSuppliersBtn').dataset.productId = productId;
 
         modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
@@ -1296,6 +1320,9 @@
         const id = this.dataset.productId;
         closeViewProductModal();
         setTimeout(function () { openEditProductModal(null, id); }, 260);
+    });
+    document.getElementById('viewProductSuppliersBtn').addEventListener('click', function () {
+        window.location.href = '/admin/products/' + this.dataset.productId + '/edit';
     });
 
     // ---- Edit Product modal ----
