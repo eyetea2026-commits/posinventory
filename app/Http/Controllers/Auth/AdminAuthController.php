@@ -105,7 +105,15 @@ class AdminAuthController extends Controller
             ]);
         }
 
-        return redirect()->route('admin.otp.form')->with('email', $user->email);
+        // put(), not with(): with() is one-request flash data, which only
+        // survives the redirect-then-render of the OTP page itself. A simple
+        // page refresh on /admin/otp — easy to do while waiting for the
+        // email — would then lose the email, silently rendering the hidden
+        // field empty and making verifyOtp()'s "email required" validation
+        // fail on submit.
+        $request->session()->put('email', $user->email);
+
+        return redirect()->route('admin.otp.form');
     }
 
     public function showOtpForm(Request $request)
@@ -201,7 +209,7 @@ class AdminAuthController extends Controller
         $user->save();
 
         DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
-        $request->session()->forget(['otp_verified', 'otp_verified_email']);
+        $request->session()->forget(['otp_verified', 'otp_verified_email', 'email']);
 
         ActivityLog::record('auth.password_reset', "Password reset via OTP for \"{$user->name}\" from {$request->ip()}", $user->id);
 
