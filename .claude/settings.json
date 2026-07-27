@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node verify-login-badge.js)",
+      "Bash(node verify-brand-and-po-edit.js)",
+      "Bash(node verify-po-edit-submit.js)",
+      "Bash(node verify-po-edit-submit2.js)",
+      "Bash(wmic process *)"
+    ]
+  }
+}
