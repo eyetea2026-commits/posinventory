@@ -45,7 +45,7 @@
             <p>Refund Receipt</p>
             <p>Receipt #: {{ $receiptNumber }}</p>
             <p>{{ \Carbon\Carbon::parse($salesReturn->RefundDate)->format('M d, Y') }}</p>
-            <p>Cashier: {{ $salesReturn->processedByUser?->name ?? 'N/A' }}</p>
+            <p>Cashier: {{ $salesReturn->processedByUser?->full_name ?? 'N/A' }}</p>
         </div>
 
         <div class="section">
@@ -54,9 +54,11 @@
         </div>
 
         <div class="section">
-            <p><strong>Returned Item</strong></p>
-            <div class="row"><span>{{ $salesReturn->product?->ProductName ?? 'N/A' }} x{{ $salesReturn->Quantity }}</span></div>
-            <div class="row"><span>Reason:</span><span>{{ $salesReturn->Reason }}</span></div>
+            <p><strong>Returned Item(s)</strong></p>
+            @foreach($salesReturn->items as $item)
+                <div class="row"><span>{{ $item->product?->ProductName ?? 'N/A' }} x{{ $item->Quantity }}</span><span>₱{{ number_format($item->line_total, 2) }}</span></div>
+                <div class="row"><span>Reason:</span><span>{{ $item->Reason }}</span></div>
+            @endforeach
         </div>
 
         <div class="section">

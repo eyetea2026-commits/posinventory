@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\Role;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
@@ -86,7 +87,7 @@ class SalesReturnApprovalTest extends TestCase
 
     private function makeReturn(array $overrides = []): SalesReturn
     {
-        return SalesReturn::create(array_merge([
+        $fields = array_merge([
             'SalesTransactionID' => $this->transaction->SalesTransactionID,
             'ProductID' => $this->product->ProductID,
             'Quantity' => 1,
@@ -94,7 +95,45 @@ class SalesReturnApprovalTest extends TestCase
             'ReturnType' => 'refund',
             'ReturnDate' => now()->format('Y-m-d'),
             'Status' => 'pending',
-        ], $overrides));
+        ], $overrides);
+
+        $return = SalesReturn::create($fields);
+
+        // Mirrors the backfill migration: every SalesReturn row has a
+        // matching SalesReturnItem line that approval now reads from
+        // instead of the legacy header ProductID/Quantity/Reason.
+        SalesReturnItem::create([
+            'SalesReturnID' => $return->SalesReturnID,
+            'ProductID' => $fields['ProductID'],
+            'Quantity' => $fields['Quantity'],
+            'UnitPrice' => 1000,
+            'Reason' => $fields['Reason'],
+        ]);
+
+        return $return;
+    }
+
+    public function test_index_has_no_all_statuses_dropdown_or_filter_button_but_filters_still_work(): void
+    {
+        $pending = $this->makeReturn(['Status' => 'pending']);
+        $declined = $this->makeReturn(['Status' => 'declined', 'DeclineReason' => 'Not eligible']);
+
+        $indexResponse = $this->actingAs($this->admin)->get(route('admin.sales-returns.index'));
+        $indexResponse->assertOk();
+        $indexResponse->assertDontSee('All Statuses');
+        $indexResponse->assertDontSee('<i class="fas fa-filter"></i> Filter', false);
+
+        // Status still filters correctly via the tabs' query param, even
+        // without the dropdown.
+        $pendingOnly = $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['status' => 'pending']));
+        $pendingOnly->assertOk();
+        $pendingOnly->assertSee('#' . $pending->SalesReturnID . '</td>', false);
+        $pendingOnly->assertDontSee('#' . $declined->SalesReturnID . '</td>', false);
+
+        // Return-type filter still auto-applies without the Filter button.
+        $replacementOnly = $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['return_type' => 'replacement']));
+        $replacementOnly->assertOk();
+        $replacementOnly->assertDontSee('#' . $pending->SalesReturnID . '</td>', false);
     }
 
     public function test_approve_only_works_on_pending_requests(): void
@@ -184,7 +223,7 @@ class SalesReturnApprovalTest extends TestCase
         $response->assertJson(['return' => ['EligibleForReturn' => true, 'ReturnWindowDays' => SalesReturn::RETURN_WINDOW_DAYS]]);
     }
 
-    public function test_request_outside_return_window_is_flagged_ineligible_but_still_approvable(): void
+    public function test_request_outside_return_window_is_flagged_ineligible_and_cannot_be_approved(): void
     {
         $return = $this->makeReturn(['ReturnDate' => now()->addDays(SalesReturn::RETURN_WINDOW_DAYS + 5)->format('Y-m-d')]);
 
@@ -193,8 +232,14 @@ class SalesReturnApprovalTest extends TestCase
         $response = $this->actingAs($this->admin)->getJson(route('admin.sales-returns.show', $return));
         $response->assertJson(['return' => ['EligibleForReturn' => false]]);
 
-        // Eligibility is advisory only — admin can still approve an out-of-window request.
+        // Outside the window is a hard block now, not just advisory — approve must be rejected.
         $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return));
-        $this->assertSame('approved', $return->fresh()->Status);
+        $this->assertSame('pending', $return->fresh()->Status);
+
+        // Decline must still work for an out-of-window request.
+        $this->actingAs($this->admin)->post(route('admin.sales-returns.decline', $return), [
+            'DeclineReason' => 'Outside the return window.',
+        ]);
+        $this->assertSame('declined', $return->fresh()->Status);
     }
 }

@@ -36,23 +36,30 @@
 
     <div class="card">
         <div class="toolbar">
+            {{-- Status filtering already lives in the tabs above (All/Pending/
+                 Approved/Declined/Refunded) — the "All Statuses" dropdown was
+                 a redundant second control for the same thing, so it's gone.
+                 The status tabs' links carry $search/$returnType forward via
+                 array_filter() above, so removing this control doesn't lose
+                 any filter state. --}}
             <form method="GET" action="{{ route('admin.sales-returns.index') }}" style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1;">
+                @if($status)
+                    <input type="hidden" name="status" value="{{ $status }}">
+                @endif
                 <div class="search-box">
                     <i class="search-icon fas fa-search"></i>
                     <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search returns..." />
                 </div>
-                <select name="status" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
-                    <option value="">All Statuses</option>
-                    @foreach(['pending' => 'Pending', 'approved' => 'Approved', 'declined' => 'Declined', 'processed' => 'Refunded'] as $value => $label)
-                        <option value="{{ $value }}" {{ $status === $value ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
-                </select>
                 <select name="return_type" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
                     <option value="">All Types</option>
                     <option value="refund" {{ $returnType === 'refund' ? 'selected' : '' }}>Refund</option>
                     <option value="replacement" {{ $returnType === 'replacement' ? 'selected' : '' }}>Replacement</option>
                 </select>
-                <button type="submit" class="btn btn-secondary"><i class="fas fa-filter"></i> Filter</button>
+                {{-- No visible Filter button: Return Type already auto-submits on
+                     change, and the search box still submits on Enter via this
+                     visually hidden submit control (removing it entirely would
+                     also disable the browser's native Enter-to-submit behavior). --}}
+                <button type="submit" aria-hidden="true" tabindex="-1" style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;">Search</button>
             </form>
         </div>
 
@@ -82,7 +89,7 @@
                         <tr>
                             <td>#{{ $return->SalesReturnID }}</td>
                             <td>{{ \Illuminate\Support\Carbon::parse($return->ReturnDate)->format('M d, Y') }}</td>
-                            <td>{{ $return->staff?->user?->name ?? 'N/A' }}</td>
+                            <td>{{ $return->staff?->user?->full_name ?? 'N/A' }}</td>
                             <td>{{ $return->transaction ? 'RCT-' . str_pad($return->SalesTransactionID, 6, '0', STR_PAD_LEFT) : 'N/A' }}</td>
                             <td>{{ $return->CustomerName ?? $return->transaction?->CustomerName ?? 'N/A' }}</td>
                             <td>
@@ -107,17 +114,18 @@
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     @if($return->Status === 'pending')
-                                        @php
-                                            $approveConfirmMessage = $return->is_within_return_window === false
-                                                ? "This request was made {$return->days_since_purchase} day(s) after purchase, outside the ".\App\Models\SalesReturn::RETURN_WINDOW_DAYS."-day return policy window. Approve anyway?"
-                                                : 'Approve this return request?';
-                                        @endphp
-                                        <form method="POST" action="{{ route('admin.sales-returns.approve', $return) }}" onsubmit="return confirm({{ \Illuminate\Support\Js::from($approveConfirmMessage) }});">
-                                            @csrf
-                                            <button type="submit" class="action-btn" style="background: var(--success-light); color: var(--success);" title="Approve">
+                                        @if($return->is_within_return_window === false)
+                                            <button type="button" class="action-btn" style="background: var(--bg-hover); color: var(--text-secondary); cursor: not-allowed;" disabled title="Outside the {{ \App\Models\SalesReturn::RETURN_WINDOW_DAYS }}-day return window — {{ $return->days_since_purchase }} day(s) since purchase. Cannot be approved.">
                                                 <i class="fas fa-check"></i>
                                             </button>
-                                        </form>
+                                        @else
+                                            <form method="POST" action="{{ route('admin.sales-returns.approve', $return) }}" onsubmit="return confirm('Approve this return request?');">
+                                                @csrf
+                                                <button type="submit" class="action-btn" style="background: var(--success-light); color: var(--success);" title="Approve">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                         <button type="button" class="action-btn delete" title="Decline" onclick="declineReturn({{ $return->SalesReturnID }})">
                                             <i class="fas fa-times"></i>
                                         </button>
@@ -229,12 +237,23 @@ function viewReturnDetails(id) {
     fetch(`/admin/sales-returns/${id}`, { headers: { 'Accept': 'application/json' } })
         .then(res => res.json())
         .then(data => {
-            const t = data.transaction, p = data.product, r = data.return;
+            const t = data.transaction, items = data.items || [], r = data.return;
             // Customer name, reason text, and decline reason all originate as
             // free text from the cashier/admin request forms — escape every
             // server-supplied string before it goes into innerHTML so a
             // return submitted with an HTML/script payload in its Reason or
             // Customer Name can't execute in this admin session.
+            const itemsHtml = items.map(item => `
+                <div style="display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--border);">
+                    <div>
+                        <strong>${escapeHtml(item.ProductName ?? 'N/A')}</strong> x${escapeHtml(item.Quantity)}<br>
+                        <small style="color: var(--text-secondary);">Barcode/SKU: ${escapeHtml(item.Barcode ?? 'N/A')} / ${escapeHtml(item.SKU ?? 'N/A')} | Category: ${escapeHtml(item.Category ?? 'N/A')}</small><br>
+                        <small style="color: var(--text-secondary);">Reason: ${escapeHtml(item.Reason ?? 'N/A')} | Unit Price: ${window.formatPeso(item.UnitPrice ?? 0)}</small>
+                    </div>
+                    <div style="white-space:nowrap; font-weight:600;">${window.formatPeso(item.LineTotal ?? 0)}</div>
+                </div>
+            `).join('');
+
             body.innerHTML = `
                 <h4>Transaction Information</h4>
                 <p><strong>Receipt Number:</strong> ${escapeHtml(t.ReceiptNumber ?? 'N/A')}</p>
@@ -243,18 +262,12 @@ function viewReturnDetails(id) {
                 <p><strong>Customer:</strong> ${escapeHtml(t.CustomerName ?? 'N/A')}</p>
                 <p><strong>Cashier:</strong> ${escapeHtml(t.OriginalCashier ?? 'N/A')}</p>
                 <hr style="border-color: var(--border); margin: 16px 0;">
-                <h4>Product Information</h4>
-                <p><strong>Product Name:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>
-                <p><strong>Barcode/SKU:</strong> ${escapeHtml(p.Barcode ?? 'N/A')} / ${escapeHtml(p.SKU ?? 'N/A')}</p>
-                <p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>
-                <p><strong>Quantity Purchased:</strong> ${escapeHtml(p.QuantityPurchased ?? 'N/A')}</p>
-                <p><strong>Original Selling Price:</strong> ${window.formatPeso(p.SellingPrice ?? 0)}</p>
+                <h4>Returned Product(s)</h4>
+                ${itemsHtml || '<p class="text-muted">No items found.</p>'}
                 <hr style="border-color: var(--border); margin: 16px 0;">
                 <h4>Return Information</h4>
                 <p><strong>Return Type:</strong> ${escapeHtml(r.ReturnType)}</p>
-                <p><strong>Quantity Requested for Return:</strong> ${escapeHtml(r.Quantity)}</p>
                 <p><strong>Total Refund Amount:</strong> ${window.formatPeso(r.TotalRefundAmount ?? 0)}</p>
-                <p><strong>Reason for Return:</strong> ${escapeHtml(r.Reason)}</p>
                 ${r.Remarks ? `<p><strong>Supporting Remarks:</strong> ${escapeHtml(r.Remarks)}</p>` : ''}
                 <p><strong>Request Date:</strong> ${escapeHtml(r.ReturnDate)}</p>
                 <p><strong>Current Status:</strong> ${escapeHtml(statusLabel(r.Status, r.ReturnType))}</p>

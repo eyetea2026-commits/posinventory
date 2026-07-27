@@ -30,6 +30,7 @@ class ReturnRequestDeclined extends Notification
             ->subject("Return Request {$requestNumber} Declined")
             ->line("Your {$this->salesReturn->ReturnType} request {$requestNumber} has been declined.")
             ->line("Reason: {$this->salesReturn->DeclineReason}")
+            ->line('Date & Time: ' . now()->format('F j, Y g:i A'))
             ->action('View Request', route('cashier.refunds'));
     }
 

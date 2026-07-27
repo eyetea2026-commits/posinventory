@@ -49,7 +49,7 @@
         <div class="section">
             <div class="row"><span>Original Transaction:</span><span>#{{ str_pad($salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</span></div>
             <div class="row"><span>Customer:</span><span>{{ $salesReturn->CustomerName ?? $salesReturn->salesTransaction?->CustomerName ?? 'N/A' }}</span></div>
-            <div class="row"><span>Cashier:</span><span>{{ $replacement->processedByUser?->name ?? 'N/A' }}</span></div>
+            <div class="row"><span>Cashier:</span><span>{{ $replacement->processedByUser?->full_name ?? 'N/A' }}</span></div>
         </div>
 
         <div class="section">

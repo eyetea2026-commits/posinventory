@@ -29,6 +29,7 @@ class ReturnRequestApproved extends Notification
         return (new MailMessage)
             ->subject("Return Request {$requestNumber} Approved")
             ->line("Your {$this->salesReturn->ReturnType} request {$requestNumber} has been approved.")
+            ->line('Date & Time: ' . now()->format('F j, Y g:i A'))
             ->action('View Request', route('cashier.refunds'));
     }
 

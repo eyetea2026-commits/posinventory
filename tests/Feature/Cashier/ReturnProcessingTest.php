@@ -13,6 +13,7 @@ use App\Models\Replacement;
 use App\Models\Role;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
@@ -82,7 +83,7 @@ class ReturnProcessingTest extends TestCase
 
     private function makeReturn(array $overrides = []): SalesReturn
     {
-        return SalesReturn::create(array_merge([
+        $fields = array_merge([
             'SalesTransactionID' => $this->transaction->SalesTransactionID,
             'ProductID' => $this->product->ProductID,
             'Quantity' => 1,
@@ -91,7 +92,22 @@ class ReturnProcessingTest extends TestCase
             'ReturnDate' => now()->format('Y-m-d'),
             'Status' => 'pending',
             'StaffID' => $this->staff->StaffID,
-        ], $overrides));
+        ], $overrides);
+
+        $return = SalesReturn::create($fields);
+
+        // Mirrors the backfill migration: every SalesReturn row has a
+        // matching SalesReturnItem line that processing/approval now reads
+        // from instead of the legacy header ProductID/Quantity/Reason.
+        SalesReturnItem::create([
+            'SalesReturnID' => $return->SalesReturnID,
+            'ProductID' => $fields['ProductID'],
+            'Quantity' => $fields['Quantity'],
+            'UnitPrice' => 1000,
+            'Reason' => $fields['Reason'],
+        ]);
+
+        return $return;
     }
 
     public function test_process_refund_rejects_non_approved_status(): void
@@ -218,5 +234,44 @@ class ReturnProcessingTest extends TestCase
             route('cashier.refunds.search', ['mode' => 'barcode', 'q' => 'NONEXISTENT'])
         );
         $byBarcode->assertStatus(404);
+    }
+
+    public function test_create_refund_rejects_requests_outside_the_return_window(): void
+    {
+        $oldTransaction = SalesTransaction::create([
+            'CustomerName' => 'Walk-in Customer',
+            'SalesTransactionDate' => now()->subDays(SalesReturn::RETURN_WINDOW_DAYS + 3),
+            'StaffID' => $this->staff->StaffID,
+        ]);
+        SalesItem::create([
+            'Quantity' => 1, 'UnitPrice' => 1000,
+            'ProductID' => $this->product->ProductID,
+            'SalesTransactionID' => $oldTransaction->SalesTransactionID,
+        ]);
+
+        $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $oldTransaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+
+        $response->assertStatus(400);
+        $this->assertDatabaseMissing('SalesReturn', ['SalesTransactionID' => $oldTransaction->SalesTransactionID]);
+    }
+
+    public function test_create_refund_allows_requests_within_the_return_window(): void
+    {
+        $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+
+        $response->assertJson(['success' => true]);
+        $this->assertDatabaseHas('SalesReturn', ['SalesTransactionID' => $this->transaction->SalesTransactionID]);
     }
 }

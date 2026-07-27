@@ -71,6 +71,11 @@ class SalesReturn extends Model
         return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
     }
 
+    public function items()
+    {
+        return $this->hasMany(SalesReturnItem::class, 'SalesReturnID', 'SalesReturnID');
+    }
+
     public function staff()
     {
         return $this->belongsTo(Staff::class, 'StaffID', 'StaffID');
@@ -101,6 +106,16 @@ class SalesReturn extends Model
     public function getIsUnsalableReturnAttribute(): bool
     {
         return in_array($this->Reason, self::UNSALABLE_REASONS, true);
+    }
+
+    // Whether any line item on this request is unsalable — the multi-item
+    // equivalent of is_unsalable_return, which only reflects the legacy
+    // single-product header fields.
+    public function hasUnsalableItems(): bool
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+
+        return $items->contains(fn (SalesReturnItem $item) => $item->is_unsalable);
     }
 
     // How many days elapsed between the original purchase and this return request.

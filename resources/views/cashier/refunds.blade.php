@@ -52,9 +52,21 @@
     .btn-submit:hover { background: #2563eb; }
     .transaction-items { max-height: 200px; overflow-y: auto; margin-bottom: 16px; }
     .transaction-item { display: flex; justify-content: space-between; padding: 10px; background: #2d3748; border-radius: 8px; margin-bottom: 8px; }
-    .refund-product-row { display: flex; align-items: center; gap: 10px; padding: 10px; background: #2d3748; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
-    .refund-product-row:hover { background: #3d4758; }
-    .refund-product-row.selected { background: rgba(59, 130, 246, 0.3); border: 1px solid #3b82f6; }
+    .refund-product-row { padding: 8px 10px; background: #2d3748; border-radius: 8px; margin-bottom: 6px; }
+    .refund-product-row:not(.disabled) label { cursor: pointer; }
+    .refund-product-row:not(.disabled):hover { background: #3d4758; }
+    .refund-product-row.selected { background: rgba(59, 130, 246, 0.15); border: 1px solid #3b82f6; }
+    .refund-product-row.disabled { opacity: 0.5; }
+    .refund-product-row label { align-items: flex-start; gap: 8px; }
+    .refund-product-row .refund-item-checkbox { width: 16px; height: 16px; margin-top: 3px; flex: 0 0 16px; }
+    .refund-product-row .refund-item-name { font-size: 0.85rem; }
+    .refund-product-row .refund-item-meta { font-size: 0.7rem; line-height: 1.4; color: #94a3b8; display: block; }
+    .refund-product-row .refund-item-price { font-size: 0.85rem; white-space: nowrap; flex-shrink: 0; }
+    .refund-item-controls { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #4a5568; }
+    .refund-item-controls .form-row { gap: 10px; }
+    .refund-item-controls .form-group { margin-bottom: 0; }
+    .refund-item-controls label { font-size: 0.8rem; }
+    .refund-item-controls input, .refund-item-controls select { padding: 8px; font-size: 0.9rem; }
     .refund-details { background: #2d3748; border-radius: 8px; padding: 16px; margin-top: 16px; }
     .refund-details-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .refund-details-row.total { font-size: 1.2rem; font-weight: bold; color: #10b981; }
@@ -226,31 +238,16 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Select Product to Return</label>
+                    <label>Select Product(s) to Return</label>
                     <div class="transaction-items" id="transaction-products"></div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Quantity to Return</label>
-                        <input type="number" id="refund-quantity" min="1" value="1" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Calculated Amount</label>
-                        <div id="refund-amount-display" style="background: #2d3748; padding: 12px; border-radius: 8px; color: #10b981; font-weight: bold; font-size: 1.1rem;"></div>
-                    </div>
+                <div class="form-group">
+                    <label>Calculated Amount</label>
+                    <div id="refund-amount-display" style="background: #2d3748; padding: 12px; border-radius: 8px; color: #10b981; font-weight: bold; font-size: 1.1rem;">₱0.00</div>
                 </div>
 
                 <input type="hidden" name="return_type" value="refund">
-
-                <div class="form-group">
-                    <label>Reason for Return</label>
-                    <select id="reason-code">
-                        <option value="factory_defect">Factory Defect</option>
-                        <option value="damaged_product">Damaged Product</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
 
                 <div class="form-group" id="reason-remarks-group">
                     <label>Additional Remarks (Optional)</label>
@@ -359,7 +356,7 @@
 </div>
 
 <script>
-let selectedProduct = null;
+let selectedItems = {};
 let selectedRefundPaymentMethod = 'cash';
 let currentRefundAmount = 0;
 let searchMode = 'receipt';
@@ -405,7 +402,8 @@ function showCreateRefundModal() {
     document.getElementById('transaction-details-section').style.display = 'none';
     document.getElementById('match-picker').style.display = 'none';
     document.getElementById('transaction-search-input').value = '';
-    selectedProduct = null;
+    selectedItems = {};
+    updateRefundAmount();
 }
 
 function closeCreateRefundModal() {
@@ -482,53 +480,104 @@ function populateTransactionDetails(transaction) {
 
     document.getElementById('create-refund-form').dataset.transactionId = transaction.SalesTransactionID;
 
+    selectedItems = {};
+
     const productsContainer = document.getElementById('transaction-products');
-    productsContainer.innerHTML = transaction.items.map(item => `
-        <div class="refund-product-row" onclick='selectRefundProduct(${Number(item.ProductID)}, ${Number(item.UnitPrice)}, ${Number(item.RemainingReturnableQty)}, ${item.CategoryID ?? "null"})'>
-            <div>
-                <strong>${escapeHtml(item.ProductName)}</strong><br>
-                <small>Barcode: ${escapeHtml(item.Barcode ?? 'N/A')} | SKU: ${escapeHtml(item.SKU ?? 'N/A')} | Category: ${escapeHtml(item.Category ?? 'N/A')}</small><br>
-                <small>Qty Purchased: ${Number(item.QuantityPurchased)} | Unit Price: ${window.formatPeso(item.UnitPrice)} | Returnable: ${Number(item.RemainingReturnableQty)}</small>
-            </div>
-            <div style="text-align: right;">
-                <strong>${window.formatPeso(item.TotalPrice)}</strong>
+    productsContainer.innerHTML = transaction.items.map(item => {
+        const productId = Number(item.ProductID);
+        const maxQty = Number(item.RemainingReturnableQty);
+        const disabled = maxQty <= 0;
+
+        return `
+        <div class="refund-product-row ${disabled ? 'disabled' : ''}" id="refund-product-row-${productId}">
+            <label style="display:flex; margin:0;">
+                <input type="checkbox" class="refund-item-checkbox" ${disabled ? 'disabled' : ''}
+                    onchange='toggleRefundItem(this, ${productId}, ${Number(item.UnitPrice)}, ${maxQty})'>
+                <div style="flex:1; min-width:0;">
+                    <div class="refund-item-name"><strong>${escapeHtml(item.ProductName)}</strong></div>
+                    <small class="refund-item-meta">SKU: ${escapeHtml(item.SKU ?? 'N/A')} | ${escapeHtml(item.Category ?? 'N/A')} | Purchased: ${Number(item.QuantityPurchased)} | Unit: ${window.formatPeso(item.UnitPrice)} | Returnable: ${maxQty}</small>
+                </div>
+                <div class="refund-item-price" style="text-align: right;">
+                    <strong>${window.formatPeso(item.TotalPrice)}</strong>
+                </div>
+            </label>
+            <div class="refund-item-controls" id="refund-item-controls-${productId}" style="display:none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Quantity to Return</label>
+                        <input type="number" class="refund-item-qty" min="1" max="${maxQty}" value="1"
+                            oninput="updateItemQuantity(${productId}, this)">
+                    </div>
+                    <div class="form-group">
+                        <label>Return Reason</label>
+                        <select class="refund-item-reason" onchange="updateItemReason(${productId}, this.value)">
+                            <option value="factory_defect">Factory Defect</option>
+                            <option value="damaged_product">Damaged Product</option>
+                            <option value="other" selected>Other</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 
+    updateRefundAmount();
     document.getElementById('transaction-details-section').style.display = 'block';
 }
 
-function selectRefundProduct(productId, unitPrice, maxQty, categoryId) {
-    document.querySelectorAll('#transaction-products .refund-product-row').forEach(el => el.classList.remove('selected'));
-    event.target.closest('.refund-product-row').classList.add('selected');
+function toggleRefundItem(checkbox, productId, unitPrice, maxQty) {
+    const row = document.getElementById(`refund-product-row-${productId}`);
+    const controls = document.getElementById(`refund-item-controls-${productId}`);
 
-    selectedProduct = { productId, unitPrice, maxQty, categoryId };
-    document.getElementById('refund-quantity').max = maxQty;
+    if (checkbox.checked) {
+        selectedItems[productId] = { unitPrice, maxQty, quantity: 1, reasonCode: 'other' };
+        controls.style.display = 'block';
+        row.classList.add('selected');
+    } else {
+        delete selectedItems[productId];
+        controls.style.display = 'none';
+        row.classList.remove('selected');
+    }
+
     updateRefundAmount();
 }
 
+function updateItemQuantity(productId, inputEl) {
+    const entry = selectedItems[productId];
+    if (!entry) return;
+
+    let qty = parseInt(inputEl.value) || 1;
+    qty = Math.max(1, Math.min(qty, entry.maxQty));
+    entry.quantity = qty;
+    inputEl.value = qty;
+
+    updateRefundAmount();
+}
+
+function updateItemReason(productId, reasonCode) {
+    const entry = selectedItems[productId];
+    if (!entry) return;
+    entry.reasonCode = reasonCode;
+}
+
 function updateRefundAmount() {
-    if (!selectedProduct) return;
-    const qty = parseInt(document.getElementById('refund-quantity').value) || 1;
-    const amount = selectedProduct.unitPrice * qty;
+    const amount = Object.values(selectedItems).reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
     currentRefundAmount = amount;
     document.getElementById('refund-amount-display').textContent = window.formatPeso(amount);
 }
 
-document.getElementById('refund-quantity').addEventListener('input', updateRefundAmount);
-
 document.getElementById('create-refund-form').addEventListener('submit', function(e) {
     e.preventDefault();
 
-    if (!selectedProduct) {
-        alert('Please select a product to return');
-        return;
-    }
+    const items = Object.entries(selectedItems).map(([productId, entry]) => ({
+        product_id: Number(productId),
+        quantity: entry.quantity,
+        reason_code: entry.reasonCode,
+    }));
 
-    const qty = parseInt(document.getElementById('refund-quantity').value);
-    if (qty > selectedProduct.maxQty) {
-        alert('Quantity cannot exceed the returnable amount');
+    if (items.length === 0) {
+        alert('Please select at least one product to return');
         return;
     }
 
@@ -541,10 +590,8 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
         body: JSON.stringify({
             _token: '{{ csrf_token() }}',
             transaction_id: transactionId,
-            product_id: selectedProduct.productId,
-            quantity: qty,
+            items: items,
             return_type: returnType,
-            reason_code: document.getElementById('reason-code').value,
             remarks: document.getElementById('reason-remarks').value,
         })
     })
@@ -567,14 +614,16 @@ function viewRefundDetails(refundId) {
         .then(data => {
             if (data.success) {
                 const r = data.refund;
+                const itemsHtml = (r.items || []).map(item => `
+                    <div class="refund-details-row"><span>${escapeHtml(item.product_name)} (x${Number(item.quantity)})</span><span>${escapeHtml(item.reason)} — ${window.formatPeso(item.line_total)}</span></div>
+                `).join('');
                 document.getElementById('refund-details-content').innerHTML = `
                     <div class="refund-details">
                         <div class="refund-details-row"><span>Request ID:</span><span>#${String(Number(r.id)).padStart(6, '0')}</span></div>
                         <div class="refund-details-row"><span>Transaction ID:</span><span>#${String(Number(r.transaction_id)).padStart(6, '0')}</span></div>
-                        <div class="refund-details-row"><span>Product:</span><span>${escapeHtml(r.product_name)}</span></div>
-                        <div class="refund-details-row"><span>Quantity:</span><span>${Number(r.quantity)}</span></div>
                         <div class="refund-details-row"><span>Return Type:</span><span>${escapeHtml(r.return_type)}</span></div>
-                        <div class="refund-details-row"><span>Reason:</span><span>${escapeHtml(r.reason)}</span></div>
+                        <p style="margin: 10px 0 6px; color: #94a3b8; font-size: 0.85rem;">Returned Product(s)</p>
+                        ${itemsHtml}
                         ${r.remarks ? `<div class="refund-details-row"><span>Remarks:</span><span>${escapeHtml(r.remarks)}</span></div>` : ''}
                         <div class="refund-details-row"><span>Return Date:</span><span>${escapeHtml(r.return_date)}</span></div>
                         <div class="refund-details-row"><span>Status:</span><span class="status status-${escapeHtml(r.status.toLowerCase())}">${escapeHtml(r.status)}</span></div>
