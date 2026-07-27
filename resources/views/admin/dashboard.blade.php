@@ -172,6 +172,160 @@
             flex: 1;
         }
 
+        /* Sales Analytics / Product Performance side-by-side row */
+        .analytics-performance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .analytics-col {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .analytics-col .chart-card {
+            flex: 1;
+        }
+
+        .chart-legend {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .chart-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        .chart-legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .chart-legend-dot.high { background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, 0.6); }
+        .chart-legend-dot.medium { background: #fbbf24; box-shadow: 0 0 8px rgba(251, 191, 36, 0.6); }
+        .chart-legend-dot.low { background: #f87171; box-shadow: 0 0 8px rgba(248, 113, 113, 0.6); }
+
+        /* Product Performance ranked bar list — rank, name, units, and % all
+           live inside the bar itself; the fill's width is the only thing
+           that encodes relative performance, so the text row is a full-width
+           overlay independent of how far the fill actually reaches. */
+        .perf-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .perf-item {
+            position: relative;
+            height: 52px;
+            border-radius: 14px;
+            background: rgba(148, 163, 184, 0.08);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 3px 8px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .perf-item:hover {
+            transform: translateY(-2px);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 10px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .perf-bar-fill {
+            position: absolute;
+            inset: 0;
+            width: 0;
+            border-radius: 14px;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(59, 130, 246, 0.45);
+            transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .perf-item:nth-child(1) .perf-bar-fill { background: linear-gradient(90deg, #d97706, #fbbf24); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(251, 191, 36, 0.45); }
+        .perf-item:nth-child(2) .perf-bar-fill { background: linear-gradient(90deg, #475569, #94a3b8); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(148, 163, 184, 0.4); }
+        .perf-item:nth-child(3) .perf-bar-fill { background: linear-gradient(90deg, #c2410c, #fb923c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(251, 146, 60, 0.45); }
+
+        .perf-bar-content {
+            position: relative;
+            z-index: 1;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 16px;
+        }
+
+        .perf-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .perf-rank {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.35);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .perf-name {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .perf-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .perf-units {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+            white-space: nowrap;
+        }
+
+        .perf-pct {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+            min-width: 36px;
+            text-align: right;
+        }
+
         .card {
             background: rgba(15, 23, 42, 0.8);
             border: 1px solid rgba(148, 163, 184, 0.1);
@@ -305,6 +459,171 @@
         .activity-title { font-weight: 600; color: #f8fafc; margin-bottom: 2px; font-size: 0.9rem; }
         .activity-meta { font-size: 0.78rem; color: #94a3b8; }
 
+        /* Loading skeleton shown over a chart's canvas until Chart.js has
+           finished its first render (covers the CDN script-load window and
+           gives the "loading" requirement real meaning instead of a
+           decorative flash) — shared by the Inventory Status and Sales by
+           Category charts. */
+        .chart-skeleton {
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            background: linear-gradient(90deg, rgba(148, 163, 184, 0.06) 25%, rgba(148, 163, 184, 0.16) 37%, rgba(148, 163, 184, 0.06) 63%);
+            background-size: 400% 100%;
+            animation: chart-skeleton-shimmer 1.4s ease infinite;
+            z-index: 2;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .chart-skeleton.is-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes chart-skeleton-shimmer {
+            0% { background-position: 100% 50%; }
+            100% { background-position: 0 50%; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .chart-skeleton { animation: none; }
+        }
+
+        /* Sales by Category — interactive ring chart + synced legend */
+        .ring-chart-layout {
+            display: flex;
+            align-items: center;
+            gap: 28px;
+            flex: 1;
+            flex-wrap: wrap;
+        }
+
+        .ring-canvas-wrap {
+            width: 180px;
+            height: 180px;
+            flex: 0 0 auto;
+            margin: 0 auto;
+        }
+
+        .ring-center-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .ring-center-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #f8fafc;
+            line-height: 1.2;
+        }
+
+        .ring-center-caption {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 3px;
+        }
+
+        .ring-legend-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .ring-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            padding: 7px 8px;
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+            font: inherit;
+            color: inherit;
+            transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
+        }
+
+        .ring-legend-item:hover,
+        .ring-legend-item.is-active,
+        .ring-legend-item:focus-visible {
+            background: rgba(148, 163, 184, 0.08);
+            border-color: rgba(148, 163, 184, 0.16);
+        }
+
+        .ring-legend-item:focus-visible {
+            outline: 2px solid #60a5fa;
+            outline-offset: 1px;
+        }
+
+        .ring-legend-item.is-dimmed {
+            opacity: 0.4;
+        }
+
+        .ring-legend-marker {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .ring-legend-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .ring-legend-label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ring-legend-value {
+            font-size: 0.72rem;
+            color: #94a3b8;
+        }
+
+        .ring-legend-progress-track {
+            height: 4px;
+            border-radius: 4px;
+            background: rgba(148, 163, 184, 0.12);
+            overflow: hidden;
+        }
+
+        .ring-legend-progress-fill {
+            display: block;
+            height: 100%;
+            width: 0;
+            border-radius: 4px;
+            transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @media (max-width: 640px) {
+            .ring-chart-layout { flex-direction: column; }
+            .ring-canvas-wrap { width: 160px; height: 160px; }
+            .ring-legend-list { width: 100%; }
+        }
+
         .empty-state { text-align: center; padding: 40px 24px; }
         .empty-icon {
             width: 56px; height: 56px; border-radius: 16px;
@@ -325,6 +644,11 @@
             .stat-icon { width: 46px; height: 46px; font-size: 1.15rem; }
             .stat-value { font-size: 1.35rem; }
             .chart-canvas-wrap { height: 240px; }
+        }
+
+        @media (max-width: 640px) {
+            .analytics-performance-grid { grid-template-columns: 1fr; }
+            .chart-legend { justify-content: flex-start; }
         }
 
         @media (max-width: 480px) {
@@ -399,38 +723,50 @@
         </div>
     </div>
 
-    {{-- Section 1: Sales Analytics --}}
-    <h2 class="dashboard-section-title mt-4">Sales Analytics</h2>
-    <div class="charts-grid">
-        <div class="chart-card">
-            <div class="chart-card-header">
-                <h3 class="chart-title">Sales Trend</h3>
-                <div class="chart-toggle-group" data-toggle="trend">
-                    <button type="button" class="chart-toggle-btn active" data-range="daily">Daily</button>
-                    <button type="button" class="chart-toggle-btn" data-range="weekly">Weekly</button>
-                    <button type="button" class="chart-toggle-btn" data-range="monthly">Monthly</button>
-                    <button type="button" class="chart-toggle-btn" data-range="yearly">Yearly</button>
+    {{-- Section 1: Sales Analytics + Product Performance, side by side --}}
+    <div class="analytics-performance-grid mt-4">
+        <div class="analytics-col">
+            <h2 class="dashboard-section-title">Sales Analytics</h2>
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <h3 class="chart-title">Sales Trend</h3>
+                    <div class="chart-toggle-group" data-toggle="trend">
+                        <button type="button" class="chart-toggle-btn active" data-range="daily">Daily</button>
+                        <button type="button" class="chart-toggle-btn" data-range="weekly">Weekly</button>
+                        <button type="button" class="chart-toggle-btn" data-range="monthly">Monthly</button>
+                        <button type="button" class="chart-toggle-btn" data-range="yearly">Yearly</button>
+                    </div>
                 </div>
-            </div>
-            <div class="chart-canvas-wrap">
-                <canvas id="salesTrendChart"></canvas>
+                <div class="chart-legend">
+                    <span class="chart-legend-item"><span class="chart-legend-dot high"></span> High Sales</span>
+                    <span class="chart-legend-item"><span class="chart-legend-dot medium"></span> Medium Sales</span>
+                    <span class="chart-legend-item"><span class="chart-legend-dot low"></span> Low Sales</span>
+                </div>
+                <div class="chart-canvas-wrap">
+                    <canvas id="salesTrendChart"></canvas>
+                </div>
             </div>
         </div>
-        <div class="chart-card">
-            <div class="chart-card-header">
-                <h3 class="chart-title">Sales by Category</h3>
+        <div class="analytics-col">
+            <h2 class="dashboard-section-title">Product Performance</h2>
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <h3 class="chart-title">Product Ranking</h3>
+                    <div class="chart-toggle-group" data-toggle="performance">
+                        <button type="button" class="chart-toggle-btn active" data-tab="top">Top Selling</button>
+                        <button type="button" class="chart-toggle-btn" data-tab="least">Least Selling</button>
+                    </div>
+                </div>
+                @if($topSelling->isEmpty() && $leastSelling->isEmpty())
+                    <div class="empty-state">
+                        <div class="empty-icon"><i class="fas fa-ranking-star"></i></div>
+                        <p class="empty-title">No Sales Data Yet</p>
+                        <p class="empty-text">Product rankings will appear once sales are recorded.</p>
+                    </div>
+                @else
+                    <div id="productPerformanceList" class="perf-list"></div>
+                @endif
             </div>
-            @if(empty($categoryChart['data']))
-                <div class="empty-state">
-                    <div class="empty-icon"><i class="fas fa-chart-pie"></i></div>
-                    <p class="empty-title">No Sales Yet</p>
-                    <p class="empty-text">Category breakdown will appear once sales are recorded.</p>
-                </div>
-            @else
-                <div class="chart-canvas-wrap">
-                    <canvas id="categoryChart"></canvas>
-                </div>
-            @endif
         </div>
     </div>
 
@@ -440,10 +776,23 @@
         <div class="chart-card">
             <div class="chart-card-header">
                 <h3 class="chart-title">Inventory Status</h3>
+                <div class="chart-toggle-group" data-toggle="inventory-view">
+                    <button type="button" class="chart-toggle-btn active" data-view="category">By Category</button>
+                    <button type="button" class="chart-toggle-btn" data-view="product">By Product</button>
+                </div>
             </div>
-            <div class="chart-canvas-wrap">
-                <canvas id="inventoryStatusChart"></canvas>
-            </div>
+            @if(empty($inventoryStatusChart['byCategory']['data']) && empty($inventoryStatusChart['byProduct']['data']))
+                <div class="empty-state">
+                    <div class="empty-icon"><i class="fas fa-boxes-stacked"></i></div>
+                    <p class="empty-title">No Inventory Data Available</p>
+                    <p class="empty-text">Inventory quantities will appear once products are stocked.</p>
+                </div>
+            @else
+                <div class="chart-canvas-wrap">
+                    <div class="chart-skeleton" id="inventoryChartSkeleton"></div>
+                    <canvas id="inventoryStatusChart" role="img" aria-label="Inventory quantity by category or product"></canvas>
+                </div>
+            @endif
         </div>
         <div class="chart-card">
             <div class="chart-card-header">
@@ -453,44 +802,27 @@
                 @include('admin.dashboard.partials.stock-alerts', ['stockAlerts' => $stockAlerts])
             </div>
         </div>
-    </div>
-
-    {{-- Section 3: Product Performance --}}
-    <h2 class="dashboard-section-title mt-4">Product Performance</h2>
-    <div class="charts-grid">
         <div class="chart-card">
             <div class="chart-card-header">
-                <h3 class="chart-title">Top Selling Products</h3>
-                <div class="chart-toggle-group" data-toggle="top">
-                    <button type="button" class="chart-toggle-btn active" data-metric="quantity">Quantity</button>
-                    <button type="button" class="chart-toggle-btn" data-metric="revenue">Revenue</button>
-                </div>
+                <h3 class="chart-title">Sales by Category</h3>
             </div>
-            @if($topSelling->isEmpty())
+            @if(empty($categoryChart['data']))
                 <div class="empty-state">
-                    <div class="empty-icon"><i class="fas fa-chart-bar"></i></div>
-                    <p class="empty-title">No Sales Data Yet</p>
-                    <p class="empty-text">Top sellers will appear once sales are recorded.</p>
+                    <div class="empty-icon"><i class="fas fa-chart-pie"></i></div>
+                    <p class="empty-title">No Sales Data Available</p>
+                    <p class="empty-text">Category breakdown will appear once sales are recorded.</p>
                 </div>
             @else
-                <div class="chart-canvas-wrap">
-                    <canvas id="topSellingChart"></canvas>
-                </div>
-            @endif
-        </div>
-        <div class="chart-card">
-            <div class="chart-card-header">
-                <h3 class="chart-title">Least Selling Products</h3>
-            </div>
-            @if($leastSelling->isEmpty())
-                <div class="empty-state">
-                    <div class="empty-icon"><i class="fas fa-chart-bar"></i></div>
-                    <p class="empty-title">No Sales Data Yet</p>
-                    <p class="empty-text">Slow-moving products will appear here once sales exist.</p>
-                </div>
-            @else
-                <div class="chart-canvas-wrap">
-                    <canvas id="leastSellingChart"></canvas>
+                <div class="ring-chart-layout">
+                    <div class="chart-canvas-wrap ring-canvas-wrap">
+                        <div class="chart-skeleton" id="categoryChartSkeleton"></div>
+                        <canvas id="categoryChart" role="img" aria-label="Sales by category ring chart"></canvas>
+                        <div class="ring-center-label">
+                            <span class="ring-center-value" id="categoryRingCenterValue">—</span>
+                            <span class="ring-center-caption" id="categoryRingCenterCaption">Sales</span>
+                        </div>
+                    </div>
+                    <div class="ring-legend-list" id="categoryLegendList"></div>
                 </div>
             @endif
         </div>
@@ -539,7 +871,7 @@
                         @forelse($recentTransactions as $transaction)
                             <tr>
                                 <td>RCT-{{ str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
-                                <td>{{ trim(($transaction->staff?->FirstName ?? '') . ' ' . ($transaction->staff?->LastName ?? '')) ?: 'N/A' }}</td>
+                                <td>{{ $transaction->staff?->user?->full_name ?? 'N/A' }}</td>
                                 <td class="text-success">₱{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
                                 <td>{{ strtoupper($transaction->billing?->payment?->PaymentMethod ?? 'N/A') }}</td>
                                 <td><span class="badge badge-success">Completed</span></td>
@@ -590,6 +922,81 @@
         Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.1)';
         Chart.defaults.font.family = "'Public Sans', Inter, sans-serif";
 
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str == null ? '' : String(str);
+            return div.innerHTML;
+        }
+
+        // Lightens (positive percent) or darkens (negative) a "#rrggbb" color
+        // — used by the 3D bar plugin to derive a bar's top/side face shades
+        // from its single flat fill color.
+        function shadeColor(hex, percent) {
+            const num = parseInt(hex.replace('#', ''), 16);
+            let r = (num >> 16) + percent;
+            let g = ((num >> 8) & 0x00ff) + percent;
+            let b = (num & 0x0000ff) + percent;
+            r = Math.max(Math.min(255, r), 0);
+            g = Math.max(Math.min(255, g), 0);
+            b = Math.max(Math.min(255, b), 0);
+            return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
+        }
+
+        // Fakes a 3D "box" look for a vertical bar chart with no extra chart
+        // library: after Chart.js draws each bar's flat front face, this
+        // draws a lighter parallelogram "top" cap and a darker parallelogram
+        // "side" face along the right edge, matching the depth/perspective
+        // effect the brief asks for.
+        const bar3dDepthPlugin = {
+            id: 'bar3dDepth',
+            afterDatasetsDraw(chart) {
+                const depth = 7;
+                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    if (meta.hidden) return;
+
+                    const { ctx } = chart;
+                    meta.data.forEach((bar, i) => {
+                        const props = bar.getProps(['x', 'y', 'base', 'width'], true);
+                        if (props.y === props.base) return; // zero-height bar, nothing to extrude
+
+                        const color = Array.isArray(dataset.backgroundColor)
+                            ? dataset.backgroundColor[i % dataset.backgroundColor.length]
+                            : dataset.backgroundColor;
+                        if (typeof color !== 'string' || !color.startsWith('#')) return;
+
+                        const halfWidth = props.width / 2;
+                        const top = Math.min(props.y, props.base);
+                        const bottom = Math.max(props.y, props.base);
+
+                        ctx.save();
+
+                        // Side face (right edge)
+                        ctx.beginPath();
+                        ctx.moveTo(props.x + halfWidth, top);
+                        ctx.lineTo(props.x + halfWidth + depth, top - depth);
+                        ctx.lineTo(props.x + halfWidth + depth, bottom - depth);
+                        ctx.lineTo(props.x + halfWidth, bottom);
+                        ctx.closePath();
+                        ctx.fillStyle = shadeColor(color, -35);
+                        ctx.fill();
+
+                        // Top face
+                        ctx.beginPath();
+                        ctx.moveTo(props.x - halfWidth, top);
+                        ctx.lineTo(props.x - halfWidth + depth, top - depth);
+                        ctx.lineTo(props.x + halfWidth + depth, top - depth);
+                        ctx.lineTo(props.x + halfWidth, top);
+                        ctx.closePath();
+                        ctx.fillStyle = shadeColor(color, 25);
+                        ctx.fill();
+
+                        ctx.restore();
+                    });
+                });
+            },
+        };
+
         // Live clock — ticks every second so the header date/time never goes
         // stale while the dashboard is left open, without needing a reload.
         (function () {
@@ -636,9 +1043,33 @@
             requestAnimationFrame(tick);
         });
 
-        // Sales Trend (line, daily/weekly/monthly/yearly toggle)
+        // Sales Trend (line, daily/weekly/monthly/yearly toggle) — smooth
+        // curve, gradient fill, and per-point dots colored by how each value
+        // ranks against the strongest period currently on screen (>=66% of
+        // that max = high/green, >=33% = medium/orange, else low/red). The
+        // thresholds are relative to the visible range rather than a fixed
+        // peso amount so the coloring stays meaningful across daily vs.
+        // yearly totals, which differ by orders of magnitude.
+        const PERFORMANCE_COLORS = { high: '#34d399', medium: '#fbbf24', low: '#f87171' };
+
+        function performanceColorsFor(values) {
+            const max = Math.max(0, ...values);
+            if (max <= 0) return values.map(() => PERFORMANCE_COLORS.low);
+            return values.map((v) => {
+                const ratio = v / max;
+                if (ratio >= 0.66) return PERFORMANCE_COLORS.high;
+                if (ratio >= 0.33) return PERFORMANCE_COLORS.medium;
+                return PERFORMANCE_COLORS.low;
+            });
+        }
+
         const trendCanvas = document.getElementById('salesTrendChart');
         if (trendCanvas) {
+            const trendCtx = trendCanvas.getContext('2d');
+            const trendGradient = trendCtx.createLinearGradient(0, 0, 0, trendCanvas.clientHeight || 300);
+            trendGradient.addColorStop(0, 'rgba(96, 165, 250, 0.32)');
+            trendGradient.addColorStop(1, 'rgba(96, 165, 250, 0)');
+
             const trendChart = new Chart(trendCanvas, {
                 type: 'line',
                 data: {
@@ -647,18 +1078,41 @@
                         label: 'Revenue',
                         data: trendData.daily.data,
                         borderColor: '#60a5fa',
-                        backgroundColor: 'rgba(96, 165, 250, 0.12)',
-                        tension: 0.35,
+                        backgroundColor: trendGradient,
+                        borderWidth: 2.5,
+                        tension: 0.4,
                         fill: true,
-                        pointRadius: 2,
-                        pointHoverRadius: 5,
+                        cubicInterpolationMode: 'monotone',
+                        pointStyle: 'circle',
+                        pointRadius: 4,
+                        pointHoverRadius: 7,
+                        pointBorderWidth: 2,
+                        pointBorderColor: '#0f172a',
+                        pointBackgroundColor: performanceColorsFor(trendData.daily.data),
+                        pointHoverBorderWidth: 2,
                     }],
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: { duration: 500 },
-                    plugins: { legend: { display: false } },
+                    animation: { duration: 600, easing: 'easeOutQuart' },
+                    interaction: { mode: 'nearest', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            borderColor: 'rgba(148, 163, 184, 0.2)',
+                            borderWidth: 1,
+                            padding: 10,
+                            titleColor: '#f8fafc',
+                            bodyColor: '#cbd5e1',
+                            displayColors: false,
+                            callbacks: {
+                                title: (items) => items[0]?.label ?? '',
+                                label: (ctx) => 'Sales: ' + window.formatPeso(ctx.raw),
+                            },
+                        },
+                    },
                     scales: {
                         y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.08)' } },
                         x: { grid: { display: false } },
@@ -673,15 +1127,86 @@
                     const range = trendData[btn.dataset.range];
                     trendChart.data.labels = range.labels;
                     trendChart.data.datasets[0].data = range.data;
+                    trendChart.data.datasets[0].pointBackgroundColor = performanceColorsFor(range.data);
                     trendChart.update();
                 });
             });
         }
 
-        // Sales by Category (doughnut)
+        // Sales by Category — interactive ring (doughnut) chart with a
+        // custom hover-synced legend and a center label, replacing the
+        // built-in Chart.js legend entirely so the legend can show
+        // value + percentage + a progress bar per category and stay in
+        // sync with which ring segment is highlighted.
         const categoryCanvas = document.getElementById('categoryChart');
+        const categorySkeleton = document.getElementById('categoryChartSkeleton');
+        const categoryLegendList = document.getElementById('categoryLegendList');
+        const ringCenterValueEl = document.getElementById('categoryRingCenterValue');
+        const ringCenterCaptionEl = document.getElementById('categoryRingCenterCaption');
+        let categoryChartInstance = null;
+
+        function categoryTotal() {
+            return categoryChartData.data.reduce((sum, v) => sum + v, 0);
+        }
+
+        function setRingCenter(index) {
+            if (!ringCenterValueEl || !ringCenterCaptionEl) return;
+            const total = categoryTotal();
+            if (index === null) {
+                ringCenterValueEl.textContent = window.formatPeso(total);
+                ringCenterCaptionEl.textContent = 'Sales';
+            } else {
+                ringCenterValueEl.textContent = window.formatPeso(categoryChartData.data[index]);
+                ringCenterCaptionEl.textContent = categoryChartData.labels[index];
+            }
+        }
+
+        function highlightCategory(index) {
+            if (categoryChartInstance) {
+                categoryChartInstance.setActiveElements(index === null ? [] : [{ datasetIndex: 0, index }]);
+                categoryChartInstance.update();
+            }
+            if (categoryLegendList) {
+                categoryLegendList.querySelectorAll('.ring-legend-item').forEach((el) => {
+                    const idx = Number(el.dataset.index);
+                    el.classList.toggle('is-active', idx === index);
+                    el.classList.toggle('is-dimmed', index !== null && idx !== index);
+                });
+            }
+            setRingCenter(index);
+        }
+
+        function renderCategoryLegend() {
+            if (!categoryLegendList) return;
+            const total = categoryTotal();
+
+            categoryLegendList.innerHTML = categoryChartData.labels.map((label, i) => {
+                const value = categoryChartData.data[i];
+                const pct = total > 0 ? (value / total) * 100 : 0;
+                const color = PALETTE[i % PALETTE.length];
+                return `
+                    <button type="button" class="ring-legend-item" data-index="${i}">
+                        <span class="ring-legend-marker" style="background:${color}"></span>
+                        <span class="ring-legend-info">
+                            <span class="ring-legend-label" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+                            <span class="ring-legend-value">${window.formatPeso(value)} &middot; ${pct.toFixed(1)}%</span>
+                            <span class="ring-legend-progress-track">
+                                <span class="ring-legend-progress-fill" data-target-width="${pct}%" style="background:${color}"></span>
+                            </span>
+                        </span>
+                    </button>
+                `;
+            }).join('');
+
+            requestAnimationFrame(() => {
+                categoryLegendList.querySelectorAll('.ring-legend-progress-fill').forEach((el) => {
+                    el.style.width = el.dataset.targetWidth;
+                });
+            });
+        }
+
         if (categoryCanvas) {
-            new Chart(categoryCanvas, {
+            categoryChartInstance = new Chart(categoryCanvas, {
                 type: 'doughnut',
                 data: {
                     labels: categoryChartData.labels,
@@ -690,92 +1215,201 @@
                         backgroundColor: PALETTE,
                         borderColor: '#0f172a',
                         borderWidth: 2,
+                        hoverOffset: 10,
                     }],
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: { duration: 500 },
+                    cutout: '68%',
+                    animation: {
+                        duration: 700,
+                        easing: 'easeOutQuart',
+                        onComplete: () => { if (categorySkeleton) categorySkeleton.classList.add('is-hidden'); },
+                    },
+                    onHover: (evt, elements) => highlightCategory(elements.length ? elements[0].index : null),
                     plugins: {
-                        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
+                        legend: { display: false },
                         tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            borderColor: 'rgba(148, 163, 184, 0.2)',
+                            borderWidth: 1,
+                            padding: 10,
+                            titleColor: '#f8fafc',
+                            bodyColor: '#cbd5e1',
                             callbacks: {
-                                label: (ctx) => `${ctx.label}: ${window.formatPeso(ctx.raw)}`,
+                                label: (ctx) => {
+                                    const total = categoryTotal();
+                                    const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : '0.0';
+                                    return `${ctx.label}: ${window.formatPeso(ctx.raw)} (${pct}%)`;
+                                },
                             },
                         },
                     },
                 },
             });
+
+            renderCategoryLegend();
+            setRingCenter(null);
+
+            if (categoryLegendList) {
+                categoryLegendList.addEventListener('mouseover', (e) => {
+                    const item = e.target.closest('.ring-legend-item');
+                    if (item) highlightCategory(Number(item.dataset.index));
+                });
+                categoryLegendList.addEventListener('mouseout', (e) => {
+                    if (e.target.closest('.ring-legend-item')) highlightCategory(null);
+                });
+                categoryLegendList.addEventListener('focusin', (e) => {
+                    const item = e.target.closest('.ring-legend-item');
+                    if (item) highlightCategory(Number(item.dataset.index));
+                });
+                categoryLegendList.addEventListener('focusout', (e) => {
+                    if (e.target.closest('.ring-legend-item')) highlightCategory(null);
+                });
+            }
         }
 
-        // Inventory Status (horizontal bar)
+        // Inventory Status — 3D-effect vertical bar chart, toggled between
+        // quantity-by-category and quantity-by-product views. Both views'
+        // data are already on hand (server sent both), so switching is an
+        // instant client-side `.update()`, matching the Sales Trend
+        // chart's daily/weekly/monthly/yearly toggle elsewhere on this page.
+        const inventoryViewData = { category: inventoryStatusData.byCategory, product: inventoryStatusData.byProduct };
+        let currentInventoryView = 'category';
         const inventoryCanvas = document.getElementById('inventoryStatusChart');
+        const inventorySkeleton = document.getElementById('inventoryChartSkeleton');
         let inventoryStatusChartInstance = null;
+
         if (inventoryCanvas) {
+            const initialView = inventoryViewData.category;
             inventoryStatusChartInstance = new Chart(inventoryCanvas, {
                 type: 'bar',
                 data: {
-                    labels: inventoryStatusData.labels,
+                    labels: initialView.labels,
                     datasets: [{
-                        data: inventoryStatusData.data,
-                        backgroundColor: ['#34d399', '#fbbf24', '#f87171', '#a78bfa'],
-                        borderRadius: 6,
+                        data: initialView.data,
+                        backgroundColor: PALETTE,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                        maxBarThickness: 46,
                     }],
                 },
+                plugins: [bar3dDepthPlugin],
                 options: {
-                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: { duration: 500 },
-                    plugins: { legend: { display: false } },
+                    layout: { padding: { top: 10, right: 10 } },
+                    animation: {
+                        duration: 800,
+                        easing: 'easeOutQuart',
+                        delay: (ctx) => (ctx.type === 'data' ? ctx.dataIndex * 80 : 0),
+                        onComplete: () => { if (inventorySkeleton) inventorySkeleton.classList.add('is-hidden'); },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            borderColor: 'rgba(148, 163, 184, 0.2)',
+                            borderWidth: 1,
+                            padding: 10,
+                            titleColor: '#f8fafc',
+                            bodyColor: '#cbd5e1',
+                            displayColors: false,
+                            callbacks: {
+                                label: (ctx) => `${ctx.raw.toLocaleString('en-US')} unit(s)`,
+                            },
+                        },
+                    },
                     scales: {
-                        x: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.08)' } },
-                        y: { grid: { display: false } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.08)' } },
+                        x: { grid: { display: false }, ticks: { maxRotation: 40, minRotation: 0, autoSkip: true } },
                     },
                 },
             });
-        }
 
-        // Top / Least Selling Products (horizontal bar, quantity/revenue toggle for Top)
-        function buildSellingChart(canvasId, rows, metric) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas || !rows.length) return null;
-            return new Chart(canvas, {
-                type: 'bar',
-                data: {
-                    labels: rows.map((r) => r.label),
-                    datasets: [{
-                        data: rows.map((r) => r[metric]),
-                        backgroundColor: '#60a5fa',
-                        borderRadius: 6,
-                    }],
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 500 },
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.08)' } },
-                        y: { grid: { display: false } },
-                    },
-                },
+            document.querySelectorAll('[data-toggle="inventory-view"] .chart-toggle-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    if (!inventoryStatusChartInstance) return;
+                    document.querySelectorAll('[data-toggle="inventory-view"] .chart-toggle-btn').forEach((b) => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentInventoryView = btn.dataset.view;
+                    const view = inventoryViewData[currentInventoryView];
+                    inventoryStatusChartInstance.data.labels = view.labels;
+                    inventoryStatusChartInstance.data.datasets[0].data = view.data;
+                    inventoryStatusChartInstance.update();
+                });
             });
         }
 
-        let topSellingChart = buildSellingChart('topSellingChart', topSellingRaw, 'quantity');
-        buildSellingChart('leastSellingChart', leastSellingRaw, 'quantity');
+        // Product Performance — ranked list with horizontal bars. Both bar
+        // width and the displayed percentage are each product's quantity
+        // relative to the all-time #1 top seller (never the max within
+        // whichever tab is currently showing) — Top Selling is always
+        // sorted descending, so its first row is guaranteed to be that
+        // top seller regardless of how many rows are actually displayed.
+        // Using a single shared baseline for both tabs means Least
+        // Selling's percentages stay genuinely low (reflecting how far
+        // below the top performer they are) instead of being renormalized
+        // to 100% for whichever item happens to be the best of a small,
+        // non-overlapping "least selling" slice.
+        const perfListEl = document.getElementById('productPerformanceList');
+        const globalMaxQty = Math.max(1, topSellingRaw[0]?.quantity || 0);
 
-        document.querySelectorAll('[data-toggle="top"] .chart-toggle-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('[data-toggle="top"] .chart-toggle-btn').forEach((b) => b.classList.remove('active'));
-                btn.classList.add('active');
-                if (!topSellingChart) return;
-                topSellingChart.data.datasets[0].data = topSellingRaw.map((r) => r[btn.dataset.metric]);
-                topSellingChart.update();
+        function renderPerformanceList(rows) {
+            if (!perfListEl) return;
+
+            if (rows.length === 0) {
+                perfListEl.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon"><i class="fas fa-ranking-star"></i></div>
+                        <p class="empty-title">Not Enough Data Yet</p>
+                        <p class="empty-text">Once more distinct products have sales, this tab will show its own ranking.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            perfListEl.innerHTML = rows.map((r, i) => {
+                const pct = Math.round((r.quantity / globalMaxQty) * 100);
+                const safeName = escapeHtml(r.label);
+                return `
+                    <div class="perf-item">
+                        <div class="perf-bar-fill" data-target-width="${pct}%"></div>
+                        <div class="perf-bar-content">
+                            <div class="perf-bar-left">
+                                <span class="perf-rank">#${i + 1}</span>
+                                <span class="perf-name" title="${safeName}">${safeName}</span>
+                            </div>
+                            <div class="perf-bar-right">
+                                <span class="perf-units">${r.quantity.toLocaleString('en-US')} Sold</span>
+                                <span class="perf-pct">${pct}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Animate bars growing in from 0 on every render (including tab
+            // switches) for the "smooth transition between tabs" requirement.
+            requestAnimationFrame(() => {
+                perfListEl.querySelectorAll('.perf-bar-fill').forEach((el) => {
+                    el.style.width = el.dataset.targetWidth;
+                });
             });
-        });
+        }
+
+        if (perfListEl) {
+            renderPerformanceList(topSellingRaw);
+
+            document.querySelectorAll('[data-toggle="performance"] .chart-toggle-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-toggle="performance"] .chart-toggle-btn').forEach((b) => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    renderPerformanceList(btn.dataset.tab === 'least' ? leastSellingRaw : topSellingRaw);
+                });
+            });
+        }
 
         // Poll inventory-derived widgets (Products, Inventory Value, Inventory
         // Status chart, Stock Alerts) so sales/refunds/receiving/adjustments/
@@ -793,10 +1427,23 @@
                     const valueEl = document.getElementById('statInventoryValue');
                     if (valueEl) valueEl.textContent = window.formatPeso(data.inventoryValue);
 
-                    if (inventoryStatusChartInstance) {
-                        inventoryStatusChartInstance.data.labels = data.inventoryStatusChart.labels;
-                        inventoryStatusChartInstance.data.datasets[0].data = data.inventoryStatusChart.data;
+                    if (inventoryStatusChartInstance && data.inventoryStatusChart) {
+                        inventoryViewData.category = data.inventoryStatusChart.byCategory;
+                        inventoryViewData.product = data.inventoryStatusChart.byProduct;
+                        const view = inventoryViewData[currentInventoryView];
+                        inventoryStatusChartInstance.data.labels = view.labels;
+                        inventoryStatusChartInstance.data.datasets[0].data = view.data;
                         inventoryStatusChartInstance.update();
+                    }
+
+                    if (categoryChartInstance && data.categoryChart) {
+                        categoryChartData.labels = data.categoryChart.labels;
+                        categoryChartData.data = data.categoryChart.data;
+                        categoryChartInstance.data.labels = categoryChartData.labels;
+                        categoryChartInstance.data.datasets[0].data = categoryChartData.data;
+                        categoryChartInstance.update();
+                        renderCategoryLegend();
+                        setRingCenter(null);
                     }
 
                     const alertsContainer = document.getElementById('stockAlertsContainer');

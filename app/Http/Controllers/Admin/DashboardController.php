@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Billing;
-use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\SalesItem;
@@ -58,36 +57,12 @@ class DashboardController extends Controller
         ];
 
         // Sales by category — top 6 by revenue, remainder folded into "Others"
-        $categorySales = SalesItem::join('Product', 'SalesItem.ProductID', '=', 'Product.ProductID')
-            ->join('Category', 'Product.CategoryID', '=', 'Category.CategoryID')
-            ->selectRaw('Category.CategoryName as name, SUM(SalesItem.Quantity * SalesItem.UnitPrice) as revenue')
-            ->groupBy('Category.CategoryName')
-            ->orderByDesc('revenue')
-            ->get();
+        $categoryChart = $this->buildCategorySalesChart();
 
-        $categoryLabels = [];
-        $categoryData = [];
-        foreach ($categorySales->take(6) as $cat) {
-            $categoryLabels[] = $cat->name;
-            $categoryData[] = (float) $cat->revenue;
-        }
-        $othersRevenue = (float) $categorySales->slice(6)->sum('revenue');
-        if ($othersRevenue > 0) {
-            $categoryLabels[] = 'Others';
-            $categoryData[] = $othersRevenue;
-        }
-        $categoryChart = ['labels' => $categoryLabels, 'data' => $categoryData];
-
-        // Top / least selling products — both expose quantity and revenue so
-        // the chart can toggle between the two client-side.
-        $sellingBase = SalesItem::select(
-            'ProductID',
-            DB::raw('SUM(Quantity) as total_quantity'),
-            DB::raw('SUM(Quantity * UnitPrice) as total_revenue')
-        )->groupBy('ProductID');
-
-        $topSelling = (clone $sellingBase)->orderByDesc('total_quantity')->take(10)->get()->load('product');
-        $leastSelling = (clone $sellingBase)->orderBy('total_quantity')->take(10)->get()->load('product');
+        // Top / least selling products — see buildProductRankings() for why
+        // each side is an independent top/bottom N rather than a strict
+        // non-overlapping half-split.
+        ['topSelling' => $topSelling, 'leastSelling' => $leastSelling] = $this->buildProductRankings();
 
         // Recent transactions — searchable/sortable/paginated in place,
         // namespaced query params so it doesn't collide with any other
@@ -98,7 +73,7 @@ class DashboardController extends Controller
         $recentTransactions = SalesTransaction::query()
             ->select('SalesTransaction.*')
             ->leftJoin('Billing', 'Billing.SalesTransactionID', '=', 'SalesTransaction.SalesTransactionID')
-            ->with(['staff', 'billing.payment'])
+            ->with(['staff.user', 'billing.payment'])
             ->when($txnSearch, function ($query, $search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('SalesTransaction.SalesTransactionID', 'like', "%{$search}%")
@@ -150,16 +125,126 @@ class DashboardController extends Controller
             'inventoryValue' => $snapshot['inventoryValue'],
             'inventoryStatusChart' => $snapshot['inventoryStatusChart'],
             'stockAlertsHtml' => view('admin.dashboard.partials.stock-alerts', ['stockAlerts' => $snapshot['stockAlerts']])->render(),
+            'categoryChart' => $this->buildCategorySalesChart(),
         ]);
+    }
+
+    /**
+     * Top 6 categories by revenue, remainder folded into "Others" — shared
+     * by the initial page load and the live-polling endpoint so the Sales
+     * by Category ring chart stays in sync with the same aggregation logic
+     * either way.
+     */
+    private function buildCategorySalesChart(): array
+    {
+        $categorySales = SalesItem::join('Product', 'SalesItem.ProductID', '=', 'Product.ProductID')
+            ->join('Category', 'Product.CategoryID', '=', 'Category.CategoryID')
+            ->selectRaw('Category.CategoryName as name, SUM(SalesItem.Quantity * SalesItem.UnitPrice) as revenue')
+            ->groupBy('Category.CategoryName')
+            ->orderByDesc('revenue')
+            ->get();
+
+        $categoryLabels = [];
+        $categoryData = [];
+        foreach ($categorySales->take(6) as $cat) {
+            $categoryLabels[] = $cat->name;
+            $categoryData[] = (float) $cat->revenue;
+        }
+        $othersRevenue = (float) $categorySales->slice(6)->sum('revenue');
+        if ($othersRevenue > 0) {
+            $categoryLabels[] = 'Others';
+            $categoryData[] = $othersRevenue;
+        }
+
+        return ['labels' => $categoryLabels, 'data' => $categoryData];
+    }
+
+    /**
+     * Top / least selling products — both expose quantity and revenue so
+     * the Product Ranking widget can toggle between the two client-side.
+     * Cap each side at half the number of distinct sold products (max 10)
+     * so Top and Least Selling never share a product — explicitly required
+     * over the alternative (independent top-N/bottom-N, which lets a thin
+     * catalog show the same products in both tabs reversed): a product
+     * must never appear in both lists at once, even at the cost of each
+     * list being small when few distinct products have ever sold.
+     */
+    private function buildProductRankings(): array
+    {
+        $sellingBase = SalesItem::select(
+            'ProductID',
+            DB::raw('SUM(Quantity) as total_quantity'),
+            DB::raw('SUM(Quantity * UnitPrice) as total_revenue')
+        )->groupBy('ProductID');
+
+        $soldProductCount = (clone $sellingBase)->get()->count();
+        if ($soldProductCount <= 1) {
+            // Only one (or zero) distinct product has ever sold, so there's
+            // nothing "least selling" that isn't also the top seller —
+            // populate Top Selling only and leave Least Selling empty
+            // instead of showing the same single product in both tabs.
+            $topTake = $soldProductCount;
+            $leastTake = 0;
+        } else {
+            $topTake = $leastTake = min(10, intdiv($soldProductCount, 2));
+        }
+
+        $topSelling = (clone $sellingBase)->orderByDesc('total_quantity')->take($topTake)->get()->load('product');
+        $leastSelling = $leastTake > 0
+            ? (clone $sellingBase)->orderBy('total_quantity')->take($leastTake)->get()->load('product')
+            : collect();
+
+        return ['topSelling' => $topSelling, 'leastSelling' => $leastSelling];
+    }
+
+    /**
+     * Inventory quantities grouped by Category and by Product (top 10),
+     * feeding the Inventory Status bar chart's By Category / By Product
+     * toggle. Both are computed unconditionally (not just whichever view is
+     * currently active) so the client can switch views instantly with no
+     * server round-trip, matching the Sales Trend chart's daily/weekly/
+     * monthly/yearly toggle pattern elsewhere on this page.
+     */
+    private function buildInventoryQuantityChart(): array
+    {
+        $byCategoryRows = Inventory::join('Product', 'Inventory.ProductID', '=', 'Product.ProductID')
+            ->join('Category', 'Product.CategoryID', '=', 'Category.CategoryID')
+            ->selectRaw('Category.CategoryName as name, SUM(Inventory.Quantity) as qty')
+            ->groupBy('Category.CategoryName')
+            ->orderByDesc('qty')
+            ->get();
+
+        $categoryLabels = [];
+        $categoryData = [];
+        foreach ($byCategoryRows->take(7) as $row) {
+            $categoryLabels[] = $row->name;
+            $categoryData[] = (int) $row->qty;
+        }
+        $othersQty = (int) $byCategoryRows->slice(7)->sum('qty');
+        if ($othersQty > 0) {
+            $categoryLabels[] = 'Others';
+            $categoryData[] = $othersQty;
+        }
+
+        $byProductRows = Inventory::join('Product', 'Inventory.ProductID', '=', 'Product.ProductID')
+            ->selectRaw('Product.ProductName as name, Inventory.Quantity as qty')
+            ->orderByDesc('Inventory.Quantity')
+            ->take(10)
+            ->get();
+
+        return [
+            'byCategory' => ['labels' => $categoryLabels, 'data' => $categoryData],
+            'byProduct' => [
+                'labels' => $byProductRows->pluck('name')->toArray(),
+                'data' => $byProductRows->pluck('qty')->map(fn ($q) => (int) $q)->toArray(),
+            ],
+        ];
     }
 
     /**
      * Computed live from Quantity vs. ReorderThreshold rather than the
      * stored Inventory.Status string, since that string uses inconsistent
-     * vocabulary across write paths. Damaged is supplementary info from
-     * DamagedProduct, not a re-slice of the same Quantity total (damaged
-     * units are already subtracted out of Inventory.Quantity by
-     * DamageController).
+     * vocabulary across write paths.
      */
     private function buildInventorySnapshot(): array
     {
@@ -167,18 +252,7 @@ class DashboardController extends Controller
         $inventoryValue = (float) Inventory::join('Product', 'Inventory.ProductID', '=', 'Product.ProductID')
             ->sum(DB::raw('Inventory.Quantity * Product.CostPrice'));
 
-        $totalInventoryRows = Inventory::count();
-        $lowStockCount = Inventory::where('Quantity', '>', 0)
-            ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
-            ->count();
-        $outOfStockCount = Inventory::where('Quantity', '<=', 0)->count();
-        $inStockCount = max(0, $totalInventoryRows - $lowStockCount - $outOfStockCount);
-        $damagedCount30d = (int) DamagedProduct::where('DateRecorded', '>=', now()->subDays(30))->sum('Quantity');
-
-        $inventoryStatusChart = [
-            'labels' => ['In Stock', 'Low Stock', 'Out of Stock', 'Damaged (30d)'],
-            'data' => [$inStockCount, $lowStockCount, $outOfStockCount, $damagedCount30d],
-        ];
+        $inventoryStatusChart = $this->buildInventoryQuantityChart();
 
         $stockAlerts = Inventory::with('product')
             ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
