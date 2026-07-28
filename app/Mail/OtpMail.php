@@ -3,17 +3,19 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-// ShouldQueue: outbound network calls (SMTP or HTTP API alike) triggered
-// directly from a web request on this host are unreliable — proven via many
-// side-by-side tests where the identical send succeeds 100% of the time from
-// a CLI process but intermittently vanishes with no error when triggered by
-// a real page load. Queuing moves the actual send to the cron-triggered
-// `queue:work` CLI process instead, which has been reliable in every test.
-class OtpMail extends Mailable implements ShouldQueue
+// Not ShouldQueue: an OTP must reach the recipient before they act on the
+// page, so it has to send synchronously in the request — a queued OTP is
+// only as good as whatever processes the queue, and this app has no
+// reliable persistent worker (Hostinger shared hosting has no crontab
+// access, and a scheduled GitHub Actions workaround never actually fired).
+// The earlier "web requests can't send mail reliably" finding turned out to
+// be a misdiagnosis: production's live document root has its own .env,
+// separate from the directory these fixes were mistakenly tested against —
+// once that was corrected, direct synchronous sending works correctly.
+class OtpMail extends Mailable
 {
     use Queueable, SerializesModels;
 

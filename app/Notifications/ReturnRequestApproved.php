@@ -3,22 +3,15 @@
 namespace App\Notifications;
 
 use App\Models\SalesReturn;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Queue\SerializesModels;
 
-// ShouldQueue: outbound network calls (mail) triggered directly from a web
-// request on this host are unreliable — proven via repeated side-by-side
-// tests where the identical send succeeds every time from a CLI process but
-// intermittently vanishes with no error from a real page load. A cron job
-// runs `queue:work` so dispatch always happens from that reliable CLI path.
-// The caller already wraps ->notify() in a try/catch so a queue-dispatch
-// hiccup here can't break the approve/decline response.
-class ReturnRequestApproved extends Notification implements ShouldQueue
+// Not ShouldQueue: this app has no reliable persistent queue worker
+// (Hostinger shared hosting has no crontab access), so dispatch inline. The
+// caller already wraps ->notify() in a try/catch so a mail hiccup here
+// can't break the approve/decline response.
+class ReturnRequestApproved extends Notification
 {
-    use Queueable, SerializesModels;
 
     public function __construct(
         public SalesReturn $salesReturn,
