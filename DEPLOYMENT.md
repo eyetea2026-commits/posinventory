@@ -1,5 +1,31 @@
 # Deployment Guide
 
+## IMPORTANT: the real production directory
+
+Hostinger's GitHub auto-deployment is real, working, and already
+configured — it deploys automatically on every push to `main`, into:
+
+```
+~/domains/cctvexpresstacurong.com/public_html
+```
+
+**This is the ONLY directory that serves the live site.** Its `.env` is
+gitignored and independent of git — if you change mail/queue/cache config,
+edit `.env` in *this* directory specifically, then re-run the relevant
+`artisan` cache-rebuild commands there.
+
+There may also be an unrelated manual clone at `~/posinventory` from early
+manual-deployment work, predating the discovery that auto-deploy was
+already active. It has no bearing on the live site — don't deploy to it,
+don't diagnose production issues by checking it, and it's safe to delete
+per user confirmation.
+
+If a production bug reproduces via SSH/CLI but not through the actual
+website (or vice versa), check `base_path()` / `.env` from an actual web
+request first (e.g. a temporary diagnostic route) — this exact confusion
+(fixing the wrong checkout for days) is the single most expensive mistake
+made on this project's deployment history.
+
 ## 1. Push to GitHub
 
 The local repo is already initialized and committed. To push it:
