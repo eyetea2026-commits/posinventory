@@ -6,6 +6,25 @@ use App\Http\Controllers\Auth\AdminAuthController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
 
+// TEMPORARY diagnostic route — remove after use.
+Route::get('/__diag', function () {
+    $file = app_path('Mail/OtpMail.php');
+
+    return response()->json([
+        'opcache_enabled' => ini_get('opcache.enable'),
+        'validate_timestamps' => ini_get('opcache.validate_timestamps'),
+        'revalidate_freq' => ini_get('opcache.revalidate_freq'),
+        'file_mtime' => date('Y-m-d H:i:s', filemtime($file)),
+        'file_contains_shouldqueue' => str_contains(file_get_contents($file), 'ShouldQueue'),
+        'class_implements' => class_implements(\App\Mail\OtpMail::class),
+        'opcache_status' => function_exists('opcache_get_status') ? (opcache_get_status(false)['opcache_enabled'] ?? null) : 'function not available',
+        'queue_default' => config('queue.default'),
+        'mail_default' => config('mail.default'),
+        'php_sapi' => php_sapi_name(),
+        'server_time' => now()->toDateTimeString(),
+    ]);
+});
+
 // The one sign-in entry point for the whole system — see AuthController for
 // why this replaced separate admin/cashier login forms and a portal-picker
 // landing page.
