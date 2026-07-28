@@ -6,32 +6,6 @@ use App\Http\Controllers\Auth\AdminAuthController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
 
-// TEMPORARY diagnostic route — remove after use.
-Route::get('/__diag', function () {
-    $cachedConfigPath = base_path('bootstrap/cache/config.php');
-    $envPath = base_path('.env');
-
-    $cachedConfigContent = file_exists($cachedConfigPath) ? include $cachedConfigPath : null;
-
-    return response()->json([
-        'php_sapi' => php_sapi_name(),
-        'queue_default_resolved' => config('queue.default'),
-        'mail_default_resolved' => config('mail.default'),
-        'cached_config_file_exists' => file_exists($cachedConfigPath),
-        'cached_config_file_mtime' => file_exists($cachedConfigPath) ? date('Y-m-d H:i:s', filemtime($cachedConfigPath)) : null,
-        'cached_config_mail_default_raw' => $cachedConfigContent['mail']['default'] ?? 'NOT SET IN CACHED FILE',
-        'cached_config_queue_default_raw' => $cachedConfigContent['queue']['default'] ?? 'NOT SET IN CACHED FILE',
-        'app_config_loaded_from_cache' => app()->configurationIsCached(),
-        'env_file_exists' => file_exists($envPath),
-        'env_file_mail_mailer_line' => file_exists($envPath) ? collect(file($envPath))->first(fn ($l) => str_starts_with($l, 'MAIL_MAILER')) : null,
-        'raw_env_MAIL_MAILER' => env('MAIL_MAILER'),
-        'raw_env_QUEUE_CONNECTION' => env('QUEUE_CONNECTION'),
-        'base_path' => base_path(),
-        'cwd' => getcwd(),
-        'server_time' => now()->toDateTimeString(),
-    ]);
-});
-
 // The one sign-in entry point for the whole system — see AuthController for
 // why this replaced separate admin/cashier login forms and a portal-picker
 // landing page.

@@ -23,5 +23,5 @@ jobs:
           username: ${{ secrets.HOSTINGER_SSH_USERNAME }}
           password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
           script: |
-            cd ~/posinventory
+            cd ~/domains/cctvexpresstacurong.com/public_html
             php artisan queue:work --stop-when-empty --tries=3
