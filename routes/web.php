@@ -8,19 +8,26 @@ use App\Http\Controllers\Auth\CashierAuthController;
 
 // TEMPORARY diagnostic route — remove after use.
 Route::get('/__diag', function () {
-    $file = app_path('Mail/OtpMail.php');
+    $cachedConfigPath = base_path('bootstrap/cache/config.php');
+    $envPath = base_path('.env');
+
+    $cachedConfigContent = file_exists($cachedConfigPath) ? include $cachedConfigPath : null;
 
     return response()->json([
-        'opcache_enabled' => ini_get('opcache.enable'),
-        'validate_timestamps' => ini_get('opcache.validate_timestamps'),
-        'revalidate_freq' => ini_get('opcache.revalidate_freq'),
-        'file_mtime' => date('Y-m-d H:i:s', filemtime($file)),
-        'file_contains_shouldqueue' => str_contains(file_get_contents($file), 'ShouldQueue'),
-        'class_implements' => class_implements(\App\Mail\OtpMail::class),
-        'opcache_status' => function_exists('opcache_get_status') ? (opcache_get_status(false)['opcache_enabled'] ?? null) : 'function not available',
-        'queue_default' => config('queue.default'),
-        'mail_default' => config('mail.default'),
         'php_sapi' => php_sapi_name(),
+        'queue_default_resolved' => config('queue.default'),
+        'mail_default_resolved' => config('mail.default'),
+        'cached_config_file_exists' => file_exists($cachedConfigPath),
+        'cached_config_file_mtime' => file_exists($cachedConfigPath) ? date('Y-m-d H:i:s', filemtime($cachedConfigPath)) : null,
+        'cached_config_mail_default_raw' => $cachedConfigContent['mail']['default'] ?? 'NOT SET IN CACHED FILE',
+        'cached_config_queue_default_raw' => $cachedConfigContent['queue']['default'] ?? 'NOT SET IN CACHED FILE',
+        'app_config_loaded_from_cache' => app()->configurationIsCached(),
+        'env_file_exists' => file_exists($envPath),
+        'env_file_mail_mailer_line' => file_exists($envPath) ? collect(file($envPath))->first(fn ($l) => str_starts_with($l, 'MAIL_MAILER')) : null,
+        'raw_env_MAIL_MAILER' => env('MAIL_MAILER'),
+        'raw_env_QUEUE_CONNECTION' => env('QUEUE_CONNECTION'),
+        'base_path' => base_path(),
+        'cwd' => getcwd(),
         'server_time' => now()->toDateTimeString(),
     ]);
 });
