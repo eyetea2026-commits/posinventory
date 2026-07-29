@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Notifications\Concerns\FormatsMailBadge;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -11,6 +12,8 @@ use Illuminate\Notifications\Notification;
 // (Hostinger shared hosting has no crontab access), so dispatch inline.
 class ProductReceived extends Notification
 {
+    use FormatsMailBadge;
+
     public function __construct(
         public Product $product,
         public Supplier $supplier,
@@ -27,8 +30,9 @@ class ProductReceived extends Notification
     {
         return (new MailMessage)
             ->subject("Product Received: {$this->product->ProductName}")
-            ->line("Received {$this->quantity} x \"{$this->product->ProductName}\" from \"{$this->supplier->SupplierName}\".")
-            ->line('Date & Time: ' . now()->format('F j, Y g:i A'))
+            ->line($this->badgeHtml('STOCK RECEIVED', '#16a34a'))
+            ->line("Received **{$this->quantity} x \"{$this->product->ProductName}\"** from **\"{$this->supplier->SupplierName}\"**.")
+            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
             ->action('View Stock Receiving', route('admin.stock-receivings.index'));
     }
 

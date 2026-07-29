@@ -30,7 +30,7 @@ class OtpMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Your OTP Code')->view('emails.otp')->with([
+        return $this->subject('Your OTP Code')->markdown('emails.otp')->with([
             'otp' => $this->otp,
             'expiryMinutes' => $this->expiryMinutes,
         ]);
