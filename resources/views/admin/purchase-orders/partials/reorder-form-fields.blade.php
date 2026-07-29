@@ -52,20 +52,12 @@
             <span>{{ $product->ProductName }}</span>
         </div>
         <div class="reorder-detail-item">
-            <label>SKU</label>
-            <span>{{ $product->SKU ?? 'N/A' }}</span>
-        </div>
-        <div class="reorder-detail-item">
             <label>Category</label>
             <span>{{ $product->category?->CategoryName ?? 'N/A' }}</span>
         </div>
         <div class="reorder-detail-item">
             <label>Brand</label>
             <span>{{ $product->brand?->BrandName ?? 'N/A' }}</span>
-        </div>
-        <div class="reorder-detail-item">
-            <label>Unit of Measure</label>
-            <span>{{ $product->UnitOfMeasure ?? 'N/A' }}</span>
         </div>
         <div class="reorder-detail-item">
             <label>Current Stock</label>

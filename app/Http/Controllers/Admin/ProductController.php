@@ -195,7 +195,7 @@ class ProductController extends Controller
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'Price' => ['nullable', 'numeric', 'min:0.01'],
-            'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
+            'BrandName' => ['nullable', 'string', 'max:100'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
         ], [
@@ -203,6 +203,14 @@ class ProductController extends Controller
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
         ]);
+
+        // The Brand field accepts either an existing brand name (via the
+        // datalist) or a freshly typed one — resolve to a BrandID here
+        // rather than requiring a pre-existing Brand row.
+        $brandId = null;
+        if (! empty($data['BrandName'])) {
+            $brandId = Brand::firstOrCreate(['BrandName' => trim($data['BrandName'])])->BrandID;
+        }
 
         // Block duplicate Product Name and Model (case-insensitive, whitespace-normalized).
         // SKU and Barcode are already covered by the `unique` validation rules above.
@@ -248,7 +256,7 @@ class ProductController extends Controller
             'Barcode' => $data['Barcode'] ?? null,
             'CostPrice' => $data['CostPrice'],
             'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
-            'BrandID' => $data['BrandID'] ?? null,
+            'BrandID' => $brandId,
             'CategoryID' => $data['CategoryID'],
         ]);
 
@@ -308,7 +316,7 @@ class ProductController extends Controller
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode,' . $product->ProductID . ',ProductID'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'Price' => ['nullable', 'numeric', 'min:0.01'],
-            'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
+            'BrandName' => ['nullable', 'string', 'max:100'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
         ], [
@@ -316,6 +324,13 @@ class ProductController extends Controller
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
         ]);
+
+        // See store() — resolve the typed/selected brand name to a BrandID,
+        // creating a new Brand row on the fly if it doesn't exist yet.
+        $brandId = null;
+        if (! empty($data['BrandName'])) {
+            $brandId = Brand::firstOrCreate(['BrandName' => trim($data['BrandName'])])->BrandID;
+        }
 
         // Block duplicate Model against every OTHER product (case-insensitive,
         // whitespace-normalized) — the authoritative server-side check
@@ -365,7 +380,7 @@ class ProductController extends Controller
             'Barcode' => $data['Barcode'] ?? null,
             'CostPrice' => $data['CostPrice'],
             'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
-            'BrandID' => $data['BrandID'] ?? null,
+            'BrandID' => $brandId,
             'CategoryID' => $data['CategoryID'],
         ]);
 

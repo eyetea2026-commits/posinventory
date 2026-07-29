@@ -43,15 +43,16 @@
 
     <div class="form-group">
         <label class="form-label">Brand</label>
-        <select name="BrandID" class="form-select @error('BrandID') is-invalid @enderror">
-            <option value="">Select Brand (optional)</option>
+        <input type="text" name="BrandName" id="BrandName" class="form-input @error('BrandName') is-invalid @enderror"
+               list="brandOptions" autocomplete="off"
+               value="{{ old('BrandName', $product->brand->BrandName ?? null) }}"
+               placeholder="Select a brand or type a new one">
+        <datalist id="brandOptions">
             @foreach($brands as $brand)
-                <option value="{{ $brand->BrandID }}" {{ old('BrandID', $product->BrandID ?? null) == $brand->BrandID ? 'selected' : '' }}>
-                    {{ $brand->BrandName }}
-                </option>
+                <option value="{{ $brand->BrandName }}"></option>
             @endforeach
-        </select>
-        <span class="form-error" id="error-BrandID">@error('BrandID'){{ $message }}@enderror</span>
+        </datalist>
+        <span class="form-error" id="error-BrandName">@error('BrandName'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
