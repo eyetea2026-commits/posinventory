@@ -54,9 +54,10 @@
     .cart-item-info h4 { margin: 0; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .cart-item-info p { margin: 4px 0 0; color: #94a3b8; font-size: 0.8rem; }
     .cart-item-qty { display: flex; align-items: center; gap: 8px; background: #1a1d2d; border-radius: 8px; padding: 4px; }
-    .qty-btn { width: 28px; height: 28px; background: #4a5568; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .qty-btn { width: 28px; height: 28px; background: #4a5568; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
     .qty-btn:hover { background: #3b82f6; }
     .qty-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .qty-btn.long-pressing { background: #3b82f6; }
     .qty-input {
         width: 40px;
         height: 28px;
@@ -480,11 +481,11 @@
                         <p>${window.formatPeso(item.price)} each</p>
                     </div>
                     <div class="cart-item-qty">
-                        <button class="qty-btn" onclick="updateQty(${item.id}, -1)" ${item.qty <= 1 ? 'disabled' : ''}>-</button>
+                        <button class="qty-btn" data-item-id="${item.id}" data-step="-1" ${item.qty <= 1 ? 'disabled' : ''}>-</button>
                         <input type="number" class="qty-input" value="${item.qty}" min="1" max="${item.stock}"
                                onchange="setQty(${item.id}, this.value)"
                                onkeydown="if (event.key === 'Enter') this.blur();">
-                        <button class="qty-btn" onclick="updateQty(${item.id}, 1)" ${item.qty >= item.stock ? 'disabled' : ''}>+</button>
+                        <button class="qty-btn" data-item-id="${item.id}" data-step="1" ${item.qty >= item.stock ? 'disabled' : ''}>+</button>
                     </div>
                     <div class="cart-item-price">
                         <div class="item-total">${window.formatPeso(itemTotal)}</div>
@@ -498,6 +499,89 @@
 
         updateTotals();
     }
+
+    // Holding down a qty +/- button repeats it instead of requiring one tap
+    // per unit. Delegated on the (stable) cart container rather than bound
+    // per-button, because renderCart() tears down and rebuilds every button
+    // on each quantity change — a listener on the button itself would be
+    // destroyed mid-press. The eventual "click" after a long-press release
+    // is swallowed so the button doesn't apply one extra step on top of
+    // whatever the repeat loop already did.
+    (function setupQtyLongPress() {
+        const container = document.getElementById('cart-items');
+        const LONG_PRESS_DELAY = 450; // ms held before repeating starts
+        const REPEAT_INTERVAL = 120;  // ms between repeats while held
+
+        let pressTimer = null;
+        let repeatTimer = null;
+        let longPressActive = false;
+
+        function qtyBtnFrom(target) {
+            const btn = target.closest && target.closest('.qty-btn');
+            return (btn && container.contains(btn) && !btn.disabled) ? btn : null;
+        }
+
+        function applyStep(id, delta) {
+            const item = cart.find(i => i.id === id);
+            if (!item) return false;
+            const newQty = item.qty + delta;
+            if (newQty < 1 || newQty > item.stock) return false;
+            updateQty(id, delta);
+            return true;
+        }
+
+        function stopPress() {
+            clearTimeout(pressTimer);
+            clearInterval(repeatTimer);
+            pressTimer = null;
+            repeatTimer = null;
+        }
+
+        function startPress(btn) {
+            const id = parseInt(btn.dataset.itemId, 10);
+            const delta = parseInt(btn.dataset.step, 10);
+            longPressActive = false;
+
+            pressTimer = setTimeout(() => {
+                longPressActive = true;
+                if (!applyStep(id, delta)) { stopPress(); return; }
+                repeatTimer = setInterval(() => {
+                    if (!applyStep(id, delta)) stopPress();
+                }, REPEAT_INTERVAL);
+            }, LONG_PRESS_DELAY);
+        }
+
+        container.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            const btn = qtyBtnFrom(e.target);
+            if (btn) startPress(btn);
+        });
+
+        container.addEventListener('touchstart', function (e) {
+            const btn = qtyBtnFrom(e.target);
+            if (btn) startPress(btn);
+        }, { passive: true });
+
+        container.addEventListener('click', function (e) {
+            const btn = qtyBtnFrom(e.target);
+            if (!btn) return;
+            if (longPressActive) {
+                // Repeat loop already stepped this during the hold — the
+                // trailing click from mouseup/touchend must not step again.
+                longPressActive = false;
+                return;
+            }
+            applyStep(parseInt(btn.dataset.itemId, 10), parseInt(btn.dataset.step, 10));
+        });
+
+        container.addEventListener('contextmenu', function (e) {
+            if (qtyBtnFrom(e.target)) e.preventDefault();
+        });
+
+        ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(function (evt) {
+            document.addEventListener(evt, stopPress);
+        });
+    })();
 
     // Rounds to the nearest cent — matches the server-side computation
     // exactly, so a payment equal to what's displayed here is never rejected
