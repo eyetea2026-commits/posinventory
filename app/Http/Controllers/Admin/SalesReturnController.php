@@ -85,11 +85,27 @@ class SalesReturnController extends Controller
             'transaction.billing.payment',
             'transaction.staff.user',
             'items.product.category',
-            'staff.user',
+            'staff.user.role',
             'approvedByUser',
             'processedByUser',
             'replacement.product',
         ]);
+
+        // Who actually submitted THIS return request (SalesReturn.StaffID) —
+        // deliberately separate from "OriginalCashier" below, which is
+        // whoever processed the original sale via SalesTransaction.StaffID.
+        // They're very often the same person but not guaranteed to be (a
+        // return can be filed by a different cashier than the one who rang
+        // up the original sale), so this must be resolved from the return
+        // record itself, never assumed to match the transaction.
+        $requestStaff = $salesReturn->staff;
+        $requestUser = $requestStaff?->user;
+        $requestedBy = [
+            'Name' => $requestUser?->full_name ?? 'Unknown User',
+            'EmployeeID' => $requestStaff ? ('EMP-' . str_pad((string) $requestStaff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
+            'Role' => $requestUser?->role?->role_name ? ucfirst($requestUser->role->role_name) : 'Unknown',
+            'RequestDate' => optional($salesReturn->created_at)->format('F j, Y g:i A'),
+        ];
 
         $transaction = $salesReturn->transaction;
         $receiptNumber = $transaction ? 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) : null;
@@ -120,6 +136,7 @@ class SalesReturnController extends Controller
                 'PaymentMethod' => $transaction?->billing?->payment?->PaymentMethod,
             ],
             'items' => $items,
+            'requestedBy' => $requestedBy,
             'return' => [
                 'SalesReturnID' => $salesReturn->SalesReturnID,
                 'ReturnType' => $salesReturn->ReturnType,

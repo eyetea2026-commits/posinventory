@@ -198,6 +198,7 @@ class DamageController extends Controller
             'supplier',
             'purchaseOrder',
             'salesReturn.transaction',
+            'salesReturn.staff.user.role',
             'stockAdjustment',
             'resolvedByUser',
         ]);
@@ -207,6 +208,24 @@ class DamageController extends Controller
             ->orWhere('Description', 'like', "%damage record #{$damage->DamageID}%")
             ->orderByDesc('DateRecorded')
             ->get(['Action', 'Description', 'DateRecorded']);
+
+        // Who actually submitted the return request this damage originated
+        // from — resolved via SalesReturn.StaffID -> Staff -> User rather
+        // than hardcoded, so it correctly shows whichever real account (any
+        // role) created the request, or "Unknown User" if that chain is
+        // broken (e.g. the staff record was later deleted).
+        $requestedBy = null;
+        if ($damage->salesReturn) {
+            $staff = $damage->salesReturn->staff;
+            $user = $staff?->user;
+
+            $requestedBy = [
+                'Name' => $user?->full_name ?? 'Unknown User',
+                'EmployeeID' => $staff ? ('EMP-' . str_pad((string) $staff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
+                'Role' => $user?->role?->role_name ? ucfirst($user->role->role_name) : 'Unknown',
+                'RequestDate' => optional($damage->salesReturn->created_at)->format('F j, Y g:i A'),
+            ];
+        }
 
         return response()->json([
             'damage' => [
@@ -243,6 +262,7 @@ class DamageController extends Controller
                 'SalesReturnID' => $damage->salesReturn->SalesReturnID,
                 'ReceiptNumber' => $damage->salesReturn->SalesTransactionID ? ('RCT-' . str_pad($damage->salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT)) : null,
             ] : null,
+            'requestedBy' => $requestedBy,
             'stockAdjustment' => $damage->stockAdjustment ? [
                 'AdjustmentID' => $damage->stockAdjustment->AdjustmentID,
                 'QuantityAdjust' => $damage->stockAdjustment->QuantityAdjust,

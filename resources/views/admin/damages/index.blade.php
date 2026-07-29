@@ -557,8 +557,17 @@
         fetch(`/admin/damages/${damageId}`, { headers: { 'Accept': 'application/json' } })
             .then(res => res.json())
             .then(data => {
-                const d = data.damage, p = data.product, s = data.supplier;
-                let html = '<h4>Product Information</h4>';
+                const d = data.damage, p = data.product, s = data.supplier, r = data.requestedBy;
+                let html = '';
+                if (r) {
+                    html += '<h4>Requested By</h4>';
+                    html += `<p><strong>Cashier Name:</strong> ${escapeHtml(r.Name)}</p>`;
+                    html += `<p><strong>Employee ID:</strong> ${escapeHtml(r.EmployeeID)}</p>`;
+                    html += `<p><strong>Role:</strong> ${escapeHtml(r.Role)}</p>`;
+                    html += `<p><strong>Request Date:</strong> ${escapeHtml(r.RequestDate ?? 'N/A')}</p>`;
+                    html += '<hr>';
+                }
+                html += '<h4>Product Information</h4>';
                 html += `<p><strong>Product:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>`;
                 html += `<p><strong>SKU:</strong> ${escapeHtml(p.SKU ?? 'N/A')}</p>`;
                 html += `<p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>`;

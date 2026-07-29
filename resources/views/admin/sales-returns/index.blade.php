@@ -237,7 +237,7 @@ function viewReturnDetails(id) {
     fetch(`/admin/sales-returns/${id}`, { headers: { 'Accept': 'application/json' } })
         .then(res => res.json())
         .then(data => {
-            const t = data.transaction, items = data.items || [], r = data.return;
+            const t = data.transaction, items = data.items || [], r = data.return, rb = data.requestedBy;
             // Customer name, reason text, and decline reason all originate as
             // free text from the cashier/admin request forms — escape every
             // server-supplied string before it goes into innerHTML so a
@@ -255,6 +255,14 @@ function viewReturnDetails(id) {
             `).join('');
 
             body.innerHTML = `
+                ${rb ? `
+                <h4>Requested By</h4>
+                <p><strong>Cashier Name:</strong> ${escapeHtml(rb.Name)}</p>
+                <p><strong>Employee ID:</strong> ${escapeHtml(rb.EmployeeID)}</p>
+                <p><strong>Role:</strong> ${escapeHtml(rb.Role)}</p>
+                <p><strong>Request Date:</strong> ${escapeHtml(rb.RequestDate ?? 'N/A')}</p>
+                <hr style="border-color: var(--border); margin: 16px 0;">
+                ` : ''}
                 <h4>Transaction Information</h4>
                 <p><strong>Receipt Number:</strong> ${escapeHtml(t.ReceiptNumber ?? 'N/A')}</p>
                 <p><strong>Invoice Number:</strong> ${escapeHtml(t.InvoiceNumber ?? 'N/A')}</p>

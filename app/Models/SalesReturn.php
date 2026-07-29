@@ -9,8 +9,10 @@ class SalesReturn extends Model
 {
     use HasFactory;
 
-    public $timestamps = false;
-
+    // created_at is the real "return request submitted at" timestamp used
+    // by the Damage Record "Requested By" section — ReturnDate remains a
+    // separate DATE-only field used elsewhere (reports, return-window
+    // calculations) and is left untouched.
     protected $table = 'SalesReturn';
     protected $primaryKey = 'SalesReturnID';
 
