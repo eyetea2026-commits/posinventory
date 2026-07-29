@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\DamagedProduct;
 use App\Models\Inventory;
+use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\StockAdjustment;
@@ -65,6 +68,410 @@ class ReportController extends Controller
             ]))->render(),
             'dateRangeError' => $dateRangeError,
         ]);
+    }
+
+    /**
+     * AJAX: "View Details" modal for a single report row, shared by every
+     * Report Type. Each type builds the same generic {title, sections,
+     * audit} shape — a list of {heading, fields|table} sections — so the
+     * front-end has exactly one renderer and adding a future report type
+     * only means adding one more match arm here, not new modal markup or JS.
+     */
+    public function details(Request $request)
+    {
+        $type = $request->get('type');
+        $id = $request->get('id');
+
+        $payload = match ($type) {
+            'sales' => $this->salesDetail($id),
+            'inventory' => $this->inventoryDetail($id),
+            'orders' => $this->orderDetail($id),
+            'returns' => $this->returnDetail($id),
+            'damage' => $this->damageDetail($id),
+            'supplier' => $this->supplierDetail($id),
+            default => null,
+        };
+
+        if (! $payload) {
+            return response()->json(['error' => 'Report record not found.'], 404);
+        }
+
+        return response()->json($payload);
+    }
+
+    private function money($value): string
+    {
+        return '₱' . number_format((float) $value, 2);
+    }
+
+    private function fmtDateTime($value): string
+    {
+        return $value ? \Illuminate\Support\Carbon::parse($value)->format('F j, Y g:i A') : 'N/A';
+    }
+
+    private function fmtDate($value): string
+    {
+        return $value ? \Illuminate\Support\Carbon::parse($value)->format('F j, Y') : 'N/A';
+    }
+
+    /**
+     * Best-effort "who/when" for record types that have no dedicated
+     * created-by/updated-by columns, mined from ActivityLog the same way
+     * DamageController::show() already does for its Audit History — the
+     * earliest matching entry is "Created", the latest is "Last Updated".
+     * $fallback lets a type substitute a real column value (e.g. a proper
+     * CreatedBy relation) instead of the log search where one exists.
+     */
+    private function auditFromLog(string $needle, array $fallback = []): array
+    {
+        $entries = ActivityLog::with('user')
+            ->where('Description', 'like', "%{$needle}%")
+            ->orderBy('DateRecorded')
+            ->get();
+
+        $created = $entries->first();
+        $updated = $entries->count() > 1 ? $entries->last() : null;
+
+        return [
+            'heading' => 'Audit Information',
+            'fields' => [
+                ['label' => 'Created By', 'value' => $created?->user?->full_name ?? $fallback['createdBy'] ?? 'Unknown User'],
+                ['label' => 'Created Date & Time', 'value' => $created ? $this->fmtDateTime($created->DateRecorded) : ($fallback['createdAt'] ?? 'N/A')],
+                ['label' => 'Last Updated By', 'value' => $updated?->user?->full_name ?? $fallback['updatedBy'] ?? 'N/A'],
+                ['label' => 'Last Updated Date & Time', 'value' => $updated ? $this->fmtDateTime($updated->DateRecorded) : ($fallback['updatedAt'] ?? 'N/A')],
+            ],
+        ];
+    }
+
+    private function salesDetail($id): ?array
+    {
+        $billing = Billing::with(['transaction.staff.user', 'transaction.items.product', 'discount', 'payment'])
+            ->find($id);
+
+        if (! $billing) {
+            return null;
+        }
+
+        $transaction = $billing->transaction;
+        $cashierName = $transaction?->staff?->user?->full_name ?? 'Unknown User';
+        $reportNumber = 'SALE-' . str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT);
+
+        $hasReturn = $transaction ? SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
+            ->whereIn('Status', [SalesReturn::STATUS_APPROVED, SalesReturn::STATUS_PROCESSED])
+            ->exists() : false;
+
+        $discountValue = $billing->discount
+            ? ($billing->discount->Name ? "{$billing->discount->Name} ({$billing->discount->DiscountRate}%)" : "{$billing->discount->DiscountRate}%")
+            : 'None';
+        if ($billing->DiscountAmount) {
+            $discountValue .= ' — ' . $this->money($billing->DiscountAmount);
+        }
+
+        $productsTable = [
+            'columns' => ['Product', 'Quantity', 'Unit Price', 'Subtotal'],
+            'rows' => ($transaction?->items ?? collect())->map(fn (SalesItem $item) => [
+                $item->product?->ProductName ?? 'N/A',
+                $item->Quantity,
+                $this->money($item->UnitPrice),
+                $this->money($item->Quantity * $item->UnitPrice),
+            ])->all(),
+        ];
+
+        return [
+            'title' => "Sales Report — {$reportNumber}",
+            'sections' => [
+                [
+                    'heading' => 'Report Information',
+                    'fields' => [
+                        ['label' => 'Report Number', 'value' => $reportNumber],
+                        ['label' => 'Transaction Date & Time', 'value' => $this->fmtDate($billing->BillingDate)],
+                        ['label' => 'Cashier Name', 'value' => $cashierName],
+                        ['label' => 'Receipt Number', 'value' => $billing->payment?->ReceiptNumber ?? 'N/A'],
+                        ['label' => 'Customer', 'value' => $billing->CustomerName ?: 'Walk-in'],
+                        ['label' => 'Discount Applied', 'value' => $discountValue],
+                        ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ?? 'N/A'],
+                        ['label' => 'Total Amount', 'value' => $this->money($billing->BillingAmount)],
+                        ['label' => 'Status', 'value' => $hasReturn ? 'Completed (Return Filed)' : 'Completed'],
+                    ],
+                ],
+                ['heading' => 'Products Sold', 'table' => $productsTable],
+                [
+                    'heading' => 'Audit Information',
+                    'fields' => [
+                        ['label' => 'Created By', 'value' => $cashierName],
+                        ['label' => 'Created Date & Time', 'value' => $this->fmtDate($billing->BillingDate)],
+                        ['label' => 'Last Updated By', 'value' => 'N/A'],
+                        ['label' => 'Last Updated Date & Time', 'value' => 'N/A'],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private function inventoryDetail($id): ?array
+    {
+        $product = Product::with(['category', 'brand', 'inventory'])->find($id);
+
+        if (! $product) {
+            return null;
+        }
+
+        $stockIn = (int) StockReceiving::where('ProductID', $product->ProductID)->sum('Quantity');
+        $stockOut = (int) SalesItem::where('ProductID', $product->ProductID)->sum('Quantity');
+        $stockAdjust = (int) StockAdjustment::where('ProductID', $product->ProductID)->sum('QuantityAdjust');
+
+        $lastReceived = StockReceiving::where('ProductID', $product->ProductID)->max('DateReceived');
+        $lastAdjusted = StockAdjustment::where('ProductID', $product->ProductID)->max('Date');
+        $lastUpdated = collect([$lastReceived, $lastAdjusted])->filter()->sort()->last();
+
+        return [
+            'title' => "Inventory Report — {$product->ProductName}",
+            'sections' => [
+                [
+                    'heading' => 'Report Information',
+                    'fields' => [
+                        ['label' => 'Product Name', 'value' => $product->ProductName],
+                        ['label' => 'SKU', 'value' => $product->SKU ?? 'N/A'],
+                        ['label' => 'Category', 'value' => $product->category?->CategoryName ?? 'N/A'],
+                        ['label' => 'Brand', 'value' => $product->brand?->BrandName ?? 'N/A'],
+                        ['label' => 'Current Stock', 'value' => (string) ($product->inventory?->Quantity ?? 0)],
+                        ['label' => 'Stock In (All Time)', 'value' => (string) $stockIn],
+                        ['label' => 'Stock Out (All Time)', 'value' => (string) $stockOut],
+                        ['label' => 'Stock Adjustment (Net)', 'value' => ($stockAdjust >= 0 ? '+' : '') . $stockAdjust],
+                        ['label' => 'Remaining Stock', 'value' => (string) ($product->inventory?->Quantity ?? 0)],
+                        ['label' => 'Reorder Threshold', 'value' => (string) ($product->inventory?->ReorderThreshold ?? 'N/A')],
+                        ['label' => 'Last Updated', 'value' => $lastUpdated ? $this->fmtDate($lastUpdated) : 'N/A'],
+                    ],
+                ],
+                $this->auditFromLog("\"{$product->ProductName}\"", ['createdBy' => 'Unknown User']),
+            ],
+        ];
+    }
+
+    private function orderDetail($id): ?array
+    {
+        $order = PurchaseOrder::with(['supplier', 'items.product', 'createdByUser'])->find($id);
+
+        if (! $order) {
+            return null;
+        }
+
+        $approvalStatus = match ($order->Status) {
+            PurchaseOrder::STATUS_CANCELLED => 'Cancelled',
+            PurchaseOrder::STATUS_DRAFT, PurchaseOrder::STATUS_PENDING => 'Pending Approval',
+            default => 'Approved',
+        };
+
+        $receivedStatus = match ($order->Status) {
+            PurchaseOrder::STATUS_FULLY_RECEIVED => 'Fully Received',
+            PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'Partially Received',
+            default => 'Not Received',
+        };
+
+        $totalCost = $order->items->sum(fn ($item) => $item->Quantity * $item->CostPriceAtOrder);
+
+        $itemsTable = [
+            'columns' => ['Product', 'Quantity Ordered', 'Quantity Received', 'Unit Cost', 'Line Total'],
+            'rows' => $order->items->map(fn ($item) => [
+                $item->product?->ProductName ?? 'N/A',
+                $item->Quantity,
+                $item->ReceivedQuantity,
+                $this->money($item->CostPriceAtOrder),
+                $this->money($item->Quantity * $item->CostPriceAtOrder),
+            ])->all(),
+        ];
+
+        $audit = $this->auditFromLog(
+            "PO #{$order->PONumber}",
+            [
+                'createdBy' => $order->createdByUser?->full_name ?? 'Unknown User',
+                'createdAt' => $this->fmtDate($order->PurchaseDate),
+            ]
+        );
+
+        return [
+            'title' => "Purchase Order Report — {$order->PONumber}",
+            'sections' => [
+                [
+                    'heading' => 'Report Information',
+                    'fields' => [
+                        ['label' => 'Purchase Order Number', 'value' => $order->PONumber],
+                        ['label' => 'Supplier', 'value' => $order->supplier?->SupplierName ?? 'N/A'],
+                        ['label' => 'Requested By', 'value' => $order->createdByUser?->full_name ?? 'Unknown User'],
+                        ['label' => 'Date Created', 'value' => $this->fmtDate($order->PurchaseDate)],
+                        ['label' => 'Expected Delivery Date', 'value' => $order->ExpectedDeliveryDate ? $this->fmtDate($order->ExpectedDeliveryDate) : 'N/A'],
+                        ['label' => 'Total Cost', 'value' => $this->money($totalCost)],
+                        ['label' => 'Approval Status', 'value' => $approvalStatus],
+                        ['label' => 'Received Status', 'value' => $receivedStatus],
+                        ['label' => 'Notes', 'value' => $order->Notes ?: 'None'],
+                    ],
+                ],
+                ['heading' => 'Ordered Products', 'table' => $itemsTable],
+                $audit,
+            ],
+        ];
+    }
+
+    private function returnDetail($id): ?array
+    {
+        $return = SalesReturn::with(['items.product', 'staff.user.role', 'transaction.billing.payment', 'approvedByUser'])
+            ->find($id);
+
+        if (! $return) {
+            return null;
+        }
+
+        $requestedByName = $return->staff?->user?->full_name ?? 'Unknown User';
+        $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? 'N/A';
+
+        $itemsTable = [
+            'columns' => ['Product', 'Quantity', 'Reason'],
+            'rows' => $return->items->map(fn (SalesReturnItem $item) => [
+                $item->product?->ProductName ?? 'N/A',
+                $item->Quantity,
+                ucfirst(str_replace('_', ' ', $item->Reason)),
+            ])->all(),
+        ];
+
+        return [
+            'title' => "Return Report — Return #{$return->SalesReturnID}",
+            'sections' => [
+                [
+                    'heading' => 'Report Information',
+                    'fields' => [
+                        ['label' => 'Return Number', 'value' => "RTN-" . str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT)],
+                        ['label' => 'Receipt Number', 'value' => $receiptNumber],
+                        ['label' => 'Requested By (Cashier)', 'value' => $requestedByName],
+                        ['label' => 'Customer', 'value' => $return->CustomerName ?: ($return->transaction?->CustomerName ?: 'Walk-in')],
+                        ['label' => 'Return Type', 'value' => ucfirst($return->ReturnType)],
+                        ['label' => 'Return Status', 'value' => ucfirst($return->Status)],
+                        ['label' => 'Approved By', 'value' => $return->approvedByUser?->full_name ?? 'N/A'],
+                        ['label' => 'Date Requested', 'value' => $this->fmtDateTime($return->created_at ?? $return->ReturnDate)],
+                        ['label' => 'Date Approved', 'value' => in_array($return->Status, [SalesReturn::STATUS_APPROVED, SalesReturn::STATUS_PROCESSED], true) ? $this->fmtDateTime($return->updated_at) : 'N/A'],
+                        ['label' => 'Decline Reason', 'value' => $return->DeclineReason ?: 'N/A'],
+                    ],
+                ],
+                ['heading' => 'Products Returned', 'table' => $itemsTable],
+                [
+                    'heading' => 'Audit Information',
+                    'fields' => [
+                        ['label' => 'Created By', 'value' => $requestedByName],
+                        ['label' => 'Created Date & Time', 'value' => $this->fmtDateTime($return->created_at)],
+                        ['label' => 'Last Updated By', 'value' => $return->approvedByUser?->full_name ?? $requestedByName],
+                        ['label' => 'Last Updated Date & Time', 'value' => $this->fmtDateTime($return->updated_at)],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private function damageDetail($id): ?array
+    {
+        $damage = DamagedProduct::with(['product.category', 'supplier', 'purchaseOrder', 'salesReturn.staff.user.role', 'resolvedByUser'])
+            ->find($id);
+
+        if (! $damage) {
+            return null;
+        }
+
+        $requestedBy = 'N/A';
+        if ($damage->salesReturn) {
+            $requestedBy = $damage->salesReturn->staff?->user?->full_name ?? 'Unknown User';
+        }
+
+        // "damage #{id}" alone would also match unrelated log lines that
+        // merely mention this damage in passing (e.g. a later replacement
+        // received against it) — creation is identified by its own distinct
+        // phrasing ("Recorded ... as damaged"), while every other action
+        // touching this record ("Updated damage record #N", "Cancelled
+        // damage #N", ...) counts as an update.
+        $created = ActivityLog::with('user')
+            ->where('Description', 'like', '%as damaged%')
+            ->where('Description', 'like', "%\"{$damage->product?->ProductName}\"%")
+            ->orderBy('DateRecorded')
+            ->first();
+        $updated = ActivityLog::with('user')
+            ->where('Description', 'like', "%damage #{$damage->DamageID}%")
+            ->orWhere('Description', 'like', "%damage record #{$damage->DamageID}%")
+            ->orderByDesc('DateRecorded')
+            ->first();
+
+        $audit = [
+            'heading' => 'Audit Information',
+            'fields' => [
+                ['label' => 'Created By', 'value' => $created?->user?->full_name ?? $requestedBy],
+                ['label' => 'Created Date & Time', 'value' => $created ? $this->fmtDateTime($created->DateRecorded) : $this->fmtDate($damage->DateRecorded)],
+                ['label' => 'Last Updated By', 'value' => $updated?->user?->full_name ?? 'N/A'],
+                ['label' => 'Last Updated Date & Time', 'value' => $updated ? $this->fmtDateTime($updated->DateRecorded) : 'N/A'],
+            ],
+        ];
+
+        return [
+            'title' => "Damage Report — Damage #{$damage->DamageID}",
+            'sections' => [
+                [
+                    'heading' => 'Report Information',
+                    'fields' => [
+                        ['label' => 'Damage Record Number', 'value' => 'DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT)],
+                        ['label' => 'Product', 'value' => $damage->product?->ProductName ?? 'N/A'],
+                        ['label' => 'Category', 'value' => $damage->product?->category?->CategoryName ?? 'N/A'],
+                        ['label' => 'Quantity Damaged', 'value' => (string) $damage->Quantity],
+                        ['label' => 'Damage Type', 'value' => DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType],
+                        ['label' => 'Source', 'value' => DamagedProduct::SOURCE_LABELS[$damage->SourceModule] ?? ($damage->SourceModule ?? 'Unknown')],
+                        ['label' => 'Requested By', 'value' => $requestedBy],
+                        ['label' => 'Status', 'value' => DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status],
+                        ['label' => 'Date Recorded', 'value' => $this->fmtDate($damage->DateRecorded)],
+                        ['label' => 'Supplier Return Status', 'value' => $damage->supplier ? (DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status) : 'Not Applicable'],
+                        ['label' => 'Supplier', 'value' => $damage->supplier?->SupplierName ?? 'N/A'],
+                        ['label' => 'Description', 'value' => $damage->Description ?: 'N/A'],
+                    ],
+                ],
+                $audit,
+            ],
+        ];
+    }
+
+    private function supplierDetail($id): ?array
+    {
+        $supplier = Supplier::with(['purchaseOrders.items'])->find($id);
+
+        if (! $supplier) {
+            return null;
+        }
+
+        $orders = $supplier->purchaseOrders;
+        $totalAmount = $orders->flatMap->items->sum(fn ($item) => $item->ReceivedQuantity * $item->CostPriceAtOrder);
+
+        $ordersTable = [
+            'columns' => ['PO Number', 'Date', 'Status', 'Total Cost'],
+            'rows' => $orders->sortByDesc('PurchaseDate')->map(fn (PurchaseOrder $po) => [
+                $po->PONumber,
+                $this->fmtDate($po->PurchaseDate),
+                PurchaseOrder::STATUS_LABELS[$po->Status] ?? $po->Status,
+                $this->money($po->items->sum(fn ($item) => $item->Quantity * $item->CostPriceAtOrder)),
+            ])->values()->all(),
+        ];
+
+        return [
+            'title' => "Supplier Report — {$supplier->SupplierName}",
+            'sections' => [
+                [
+                    'heading' => 'Report Information',
+                    'fields' => [
+                        ['label' => 'Supplier Name', 'value' => $supplier->SupplierName],
+                        ['label' => 'Contact Person', 'value' => $supplier->ContactPerson ?? 'N/A'],
+                        ['label' => 'Contact Number', 'value' => $supplier->ContactNumber ?? 'N/A'],
+                        ['label' => 'Email', 'value' => $supplier->Email ?? 'N/A'],
+                        ['label' => 'Address', 'value' => $supplier->Address ?? 'N/A'],
+                        ['label' => 'Status', 'value' => ucfirst($supplier->Status ?? 'active')],
+                        ['label' => 'Total Orders', 'value' => (string) $orders->count()],
+                        ['label' => 'Total Amount', 'value' => $this->money($totalAmount)],
+                    ],
+                ],
+                ['heading' => 'Purchase Orders', 'table' => $ordersTable],
+                $this->auditFromLog("\"{$supplier->SupplierName}\"", ['createdBy' => 'Unknown User']),
+            ],
+        ];
     }
 
     public function export(Request $request)

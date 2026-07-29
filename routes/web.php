@@ -301,6 +301,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.reports.preview')->middleware(['auth', 'role:admin']);
     Route::get('reports/export', [App\Http\Controllers\Admin\ReportController::class, 'export'])
         ->name('admin.reports.export')->middleware(['auth', 'role:admin']);
+    Route::get('reports/details', [App\Http\Controllers\Admin\ReportController::class, 'details'])
+        ->name('admin.reports.details')->middleware(['auth', 'role:admin']);
 });
 
 // Cashier routes

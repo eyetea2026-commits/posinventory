@@ -12,7 +12,7 @@
         <div class="table-container" style="max-height: 480px; overflow-y: auto;">
             <table class="table">
                 <thead>
-                    <tr><th>ID</th><th>Product</th><th>Quantity</th><th>Status</th></tr>
+                    <tr><th>ID</th><th>Product</th><th>Quantity</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($inventoryRows as $row)
@@ -21,9 +21,14 @@
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
                             <td>{{ number_format($row->Quantity) }}</td>
                             <td>{{ $row->Status }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('inventory', {{ $row->ProductID }})">
+                                    <i class="fas fa-eye"></i> View Details
+                                </button>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -69,7 +74,7 @@
         <div class="table-container" style="max-height: 480px; overflow-y: auto;">
             <table class="table">
                 <thead>
-                    <tr><th>ID</th><th>Date</th><th>Amount</th><th>Customer</th><th>Payment Method</th></tr>
+                    <tr><th>ID</th><th>Date</th><th>Amount</th><th>Customer</th><th>Payment Method</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($salesRows as $row)
@@ -79,9 +84,14 @@
                             <td class="text-success">₱{{ number_format($row->BillingAmount, 2) }}</td>
                             <td>{{ $row->CustomerName ?? 'Walk-in' }}</td>
                             <td>{{ $row->payment?->PaymentMethod ?? 'N/A' }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('sales', {{ $row->BillingID }})">
+                                    <i class="fas fa-eye"></i> View Details
+                                </button>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -98,7 +108,7 @@
         <div class="table-container">
             <table class="table">
                 <thead>
-                    <tr><th>PO Number</th><th>Date</th><th>Status</th><th>Supplier</th></tr>
+                    <tr><th>PO Number</th><th>Date</th><th>Status</th><th>Supplier</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($orderRows as $row)
@@ -107,9 +117,14 @@
                             <td>{{ $row->PurchaseDate }}</td>
                             <td><span class="badge badge-info">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$row->Status] ?? $row->Status }}</span></td>
                             <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('orders', {{ $row->PurchaseOrderID }})">
+                                    <i class="fas fa-eye"></i> View Details
+                                </button>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -126,7 +141,7 @@
         <div class="table-container">
             <table class="table">
                 <thead>
-                    <tr><th>ID</th><th>Product</th><th>Qty</th><th>Reason</th><th>Cashier</th><th>Status</th><th>Date</th></tr>
+                    <tr><th>ID</th><th>Product</th><th>Qty</th><th>Reason</th><th>Cashier</th><th>Status</th><th>Date</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($returnRows as $row)
@@ -138,9 +153,14 @@
                             <td>{{ $row->CashierName }}</td>
                             <td><span class="badge badge-info">{{ ucfirst($row->Status) }}</span></td>
                             <td>{{ $row->ReturnDate }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('returns', {{ $row->SalesReturnID }})">
+                                    <i class="fas fa-eye"></i> View Details
+                                </button>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -157,7 +177,7 @@
         <div class="table-container">
             <table class="table">
                 <thead>
-                    <tr><th>ID</th><th>Date</th><th>Product</th><th>Supplier</th><th>Qty</th><th>Damage Type</th><th>Status</th></tr>
+                    <tr><th>ID</th><th>Date</th><th>Product</th><th>Supplier</th><th>Qty</th><th>Damage Type</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($damageRows as $row)
@@ -169,9 +189,14 @@
                             <td>{{ $row->Quantity }}</td>
                             <td>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$row->DamageType] ?? $row->DamageType }}</td>
                             <td><span class="badge badge-info">{{ \App\Models\DamagedProduct::STATUS_LABELS[$row->Status] ?? $row->Status }}</span></td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('damage', {{ $row->DamageID }})">
+                                    <i class="fas fa-eye"></i> View Details
+                                </button>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -188,7 +213,7 @@
         <div class="table-container">
             <table class="table">
                 <thead>
-                    <tr><th>Supplier</th><th>Status</th><th>Total Orders</th><th>Total Amount</th></tr>
+                    <tr><th>Supplier</th><th>Status</th><th>Total Orders</th><th>Total Amount</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($supplierRows as $row)
@@ -197,9 +222,14 @@
                             <td><span class="badge {{ $row->Status === 'inactive' ? 'badge-secondary' : 'badge-success' }}">{{ ucfirst($row->Status ?? 'active') }}</span></td>
                             <td>{{ $row->TotalOrders }}</td>
                             <td>₱{{ number_format($row->TotalAmount, 2) }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('supplier', {{ $row->SupplierID }})">
+                                    <i class="fas fa-eye"></i> View Details
+                                </button>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>

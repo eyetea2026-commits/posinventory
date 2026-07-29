@@ -115,6 +115,175 @@
         ])
     </div>
 
+    {{-- Report Details modal: shared by every Report Type's "View Details"
+         row action. Lives outside #reportBodyContainer (which gets wholesale
+         replaced on every type/date change) so it survives those refreshes.
+         The body is rendered generically from whatever {sections} the
+         admin.reports.details endpoint returns for the given type/id, so a
+         future report type needs no new modal markup or JS — only a new
+         section builder server-side. --}}
+    <div id="reportDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reportDetailsTitle" aria-hidden="true">
+        <div class="modal modal-report-details">
+            <div class="modal-header">
+                <h2 class="modal-title" id="reportDetailsTitle"><i class="fas fa-file-lines"></i> Report Details</h2>
+                <button type="button" class="modal-close no-print" onclick="closeReportDetailsModal()" aria-label="Close">&times;</button>
+            </div>
+            <div id="reportDetailsBody">
+                <p class="text-muted">Loading...</p>
+            </div>
+            <div class="modal-footer no-print">
+                <button type="button" class="btn btn-secondary" onclick="printReportDetails()"><i class="fas fa-print"></i> Print Report</button>
+                <button type="button" class="btn btn-primary" onclick="closeReportDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal-report-details { max-width: 820px; }
+        .report-section-heading { margin: 0 0 14px; font-size: 1rem; font-weight: 600; color: var(--text-primary, #f8fafc); }
+        .report-section-divider { border: none; border-top: 1px solid var(--border, #334155); margin: 20px 0; }
+        .report-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .report-detail-item {
+            padding: 12px;
+            background: var(--bg-hover, rgba(30, 41, 59, 0.6));
+            border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+            border-radius: 10px;
+        }
+        .report-detail-item label {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-secondary, #94a3b8);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+        .report-detail-item span { font-weight: 600; color: var(--text-primary, #f8fafc); font-size: 0.92rem; word-break: break-word; }
+
+        @media print {
+            body.printing-report-details * { visibility: hidden !important; }
+            body.printing-report-details #reportDetailsModal,
+            body.printing-report-details #reportDetailsModal * { visibility: visible !important; }
+            body.printing-report-details #reportDetailsModal {
+                position: absolute !important;
+                inset: auto !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                background: #fff !important;
+                display: block !important;
+                padding: 0 !important;
+            }
+            body.printing-report-details #reportDetailsModal .modal {
+                max-width: 100% !important;
+                width: 100% !important;
+                max-height: none !important;
+                overflow: visible !important;
+                box-shadow: none !important;
+                transform: none !important;
+                background: #fff !important;
+                color: #000 !important;
+                border: none !important;
+                padding: 0 !important;
+            }
+            body.printing-report-details .no-print { display: none !important; }
+            body.printing-report-details .modal-title,
+            body.printing-report-details .report-section-heading { color: #0f172a !important; }
+            body.printing-report-details .report-detail-item { background: #f8fafc !important; border: 1px solid #cbd5e1 !important; }
+            body.printing-report-details .report-detail-item label { color: #475569 !important; }
+            body.printing-report-details .report-detail-item span { color: #0f172a !important; }
+            body.printing-report-details table.table th,
+            body.printing-report-details table.table td { color: #0f172a !important; border-color: #cbd5e1 !important; }
+        }
+    </style>
+
+    <script>
+        function escapeReportDetailHtml(value) {
+            if (value === null || value === undefined || value === '') return 'N/A';
+            return String(value)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function renderReportSections(sections) {
+            return (sections || []).map(function (section) {
+                let html = `<h4 class="report-section-heading">${escapeReportDetailHtml(section.heading)}</h4>`;
+
+                if (section.fields && section.fields.length) {
+                    html += '<div class="report-detail-grid">';
+                    section.fields.forEach(function (f) {
+                        html += `<div class="report-detail-item"><label>${escapeReportDetailHtml(f.label)}</label><span>${escapeReportDetailHtml(f.value)}</span></div>`;
+                    });
+                    html += '</div>';
+                }
+
+                if (section.table) {
+                    if (!section.table.rows || !section.table.rows.length) {
+                        html += '<p class="text-muted" style="font-size:0.85rem;">No records.</p>';
+                    } else {
+                        html += '<div class="table-container"><table class="table"><thead><tr>';
+                        section.table.columns.forEach(function (c) { html += `<th>${escapeReportDetailHtml(c)}</th>`; });
+                        html += '</tr></thead><tbody>';
+                        section.table.rows.forEach(function (row) {
+                            html += '<tr>' + row.map(function (cell) { return `<td>${escapeReportDetailHtml(cell)}</td>`; }).join('') + '</tr>';
+                        });
+                        html += '</tbody></table></div>';
+                    }
+                }
+
+                return html;
+            }).join('<hr class="report-section-divider">');
+        }
+
+        function viewReportDetails(type, id) {
+            const modal = document.getElementById('reportDetailsModal');
+            const body = document.getElementById('reportDetailsBody');
+            const title = document.getElementById('reportDetailsTitle');
+
+            body.innerHTML = '<p class="text-muted">Loading...</p>';
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+
+            fetch(`{{ route('admin.reports.details') }}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (data.error) {
+                        body.innerHTML = `<p class="text-muted">${escapeReportDetailHtml(data.error)}</p>`;
+                        return;
+                    }
+                    title.innerHTML = `<i class="fas fa-file-lines"></i> ${escapeReportDetailHtml(data.title)}`;
+                    body.innerHTML = renderReportSections(data.sections);
+                })
+                .catch(() => {
+                    body.innerHTML = '<p class="text-muted">Failed to load report details.</p>';
+                });
+        }
+
+        function closeReportDetailsModal() {
+            const modal = document.getElementById('reportDetailsModal');
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        function printReportDetails() {
+            document.body.classList.add('printing-report-details');
+            window.print();
+        }
+
+        window.addEventListener('afterprint', function () {
+            document.body.classList.remove('printing-report-details');
+        });
+
+        document.getElementById('reportDetailsModal').addEventListener('mousedown', function (e) {
+            if (e.target === this) closeReportDetailsModal();
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeReportDetailsModal();
+        });
+    </script>
+
     <script>
         (function () {
             const typeSelect = document.getElementById('reportTypeSelect');
