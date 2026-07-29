@@ -191,8 +191,6 @@ Route::prefix('admin')->group(function () {
         ->name('admin.damages.create')->middleware(['auth', 'role:admin']);
     Route::post('damages', [App\Http\Controllers\Admin\DamageController::class, 'store'])
         ->name('admin.damages.store')->middleware(['auth', 'role:admin']);
-    Route::get('damages/export', [App\Http\Controllers\Admin\DamageController::class, 'export'])
-        ->name('admin.damages.export')->middleware(['auth', 'role:admin']);
     Route::get('damages/{damage}/print', [App\Http\Controllers\Admin\DamageController::class, 'printReport'])
         ->name('admin.damages.print')->middleware(['auth', 'role:admin']);
     Route::get('damages/{damage}', [App\Http\Controllers\Admin\DamageController::class, 'show'])

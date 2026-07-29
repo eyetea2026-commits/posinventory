@@ -30,12 +30,7 @@ class DamageController extends Controller
     public function index(Request $request)
     {
         $search = $request->get('search');
-        $dateFrom = $request->get('date_from');
-        $dateTo = $request->get('date_to');
-        $status = $request->get('status');
-        $damageType = $request->get('damage_type');
         $supplierId = $request->get('supplier_id');
-        $poId = $request->get('po_id');
 
         $damagedProducts = DamagedProduct::with(['product', 'supplier', 'purchaseOrder'])
             ->when($search, function ($query) use ($search) {
@@ -43,27 +38,27 @@ class DamageController extends Controller
                     $q->where('ProductName', 'like', "%{$search}%");
                 });
             })
-            ->when($dateFrom, function ($query) use ($dateFrom) {
-                return $query->whereDate('DateRecorded', '>=', $dateFrom);
-            })
-            ->when($dateTo, function ($query) use ($dateTo) {
-                return $query->whereDate('DateRecorded', '<=', $dateTo);
-            })
-            ->when($status, function ($query) use ($status) {
-                return $query->where('Status', $status);
-            })
-            ->when($damageType, function ($query) use ($damageType) {
-                return $query->where('DamageType', $damageType);
-            })
             ->when($supplierId, function ($query) use ($supplierId) {
                 return $query->where('SupplierID', $supplierId);
-            })
-            ->when($poId, function ($query) use ($poId) {
-                return $query->where('PurchaseOrderID', $poId);
             })
             ->orderBy('DamageID', 'desc')
             ->paginate(15)
             ->withQueryString();
+
+        // Live search (explicit ?ajax=1, not just an XHR header) — return
+        // just the table rows + pagination as rendered partials. Deliberately
+        // NOT keyed off $request->ajax()/wantsJson()/X-Requested-With alone:
+        // the Add/Edit Damage modals' own AJAX POSTs (mark-supplier-return,
+        // store, update, ...) carry those same headers, and fetch() follows
+        // their redirect back to this same index route — if that redirect-
+        // follow also matched here, it would return this JSON instead of the
+        // full HTML page those modals' shared submit helper expects to parse.
+        if ($request->boolean('ajax')) {
+            return response()->json([
+                'rows' => view('admin.damages.partials.rows', ['damagedProducts' => $damagedProducts])->render(),
+                'pagination' => view('admin.damages.partials.pagination', ['damagedProducts' => $damagedProducts])->render(),
+            ]);
+        }
 
         $kpis = [
             'total' => DamagedProduct::count(),
@@ -85,7 +80,7 @@ class DamageController extends Controller
         $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
 
         return view('admin.damages.index', compact(
-            'damagedProducts', 'search', 'dateFrom', 'dateTo', 'status', 'damageType', 'supplierId', 'poId',
+            'damagedProducts', 'search', 'supplierId',
             'kpis', 'recentlyAdded', 'suppliers', 'products', 'purchaseOrders'
         ));
     }
@@ -214,7 +209,6 @@ class DamageController extends Controller
         // than hardcoded, so it correctly shows whichever real account (any
         // role) created the request, or "Unknown User" if that chain is
         // broken (e.g. the staff record was later deleted).
-        $requestedBy = null;
         if ($damage->salesReturn) {
             $staff = $damage->salesReturn->staff;
             $user = $staff?->user;
@@ -225,11 +219,46 @@ class DamageController extends Controller
                 'Role' => $user?->role?->role_name ? ucfirst($user->role->role_name) : 'Unknown',
                 'RequestDate' => optional($damage->salesReturn->created_at)->format('F j, Y g:i A'),
             ];
+        } else {
+            // Manually recorded damage (no originating return) has no
+            // CreatedBy column of its own — best-effort resolve who
+            // recorded it from its own creation ActivityLog entry instead,
+            // the same technique used for its Audit History below.
+            $created = ActivityLog::with('user.role')
+                ->where('Description', 'like', '%as damaged%')
+                ->where('Description', 'like', "%\"{$damage->product?->ProductName}\"%")
+                ->orderBy('DateRecorded')
+                ->first();
+
+            $requestedBy = [
+                'Name' => $created?->user?->full_name ?? 'Unknown User',
+                'EmployeeID' => 'N/A',
+                'Role' => $created?->user?->role?->role_name ? ucfirst($created->user->role->role_name) : 'Admin',
+                'RequestDate' => $created ? $created->DateRecorded->format('F j, Y g:i A') : optional($damage->DateRecorded)->format('F j, Y'),
+            ];
         }
+
+        // The record's overall Status already doubles as its supplier-return
+        // progress once it enters that path — label that explicitly here.
+        // Gated on the STATUS value itself (not SupplierID presence): a
+        // return-originated damage record often has no SupplierID of its
+        // own yet still genuinely went through for_supplier_return ->
+        // returned_to_supplier -> replacement_received. "Not Applicable"
+        // means the record simply never engaged that path (still pending,
+        // or disposed straight from pending).
+        $supplierReturnStatus = in_array($damage->Status, [
+            DamagedProduct::STATUS_FOR_SUPPLIER_RETURN,
+            DamagedProduct::STATUS_RETURNED_TO_SUPPLIER,
+            DamagedProduct::STATUS_REPLACEMENT_RECEIVED,
+            DamagedProduct::STATUS_CANCELLED,
+        ], true)
+            ? (DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status)
+            : 'Not Applicable';
 
         return response()->json([
             'damage' => [
                 'DamageID' => $damage->DamageID,
+                'DamageNumber' => 'DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
                 'Quantity' => $damage->Quantity,
                 'DamageType' => DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType,
                 'Status' => DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status,
@@ -263,6 +292,7 @@ class DamageController extends Controller
                 'ReceiptNumber' => $damage->salesReturn->SalesTransactionID ? ('RCT-' . str_pad($damage->salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT)) : null,
             ] : null,
             'requestedBy' => $requestedBy,
+            'supplierReturnStatus' => $supplierReturnStatus,
             'stockAdjustment' => $damage->stockAdjustment ? [
                 'AdjustmentID' => $damage->stockAdjustment->AdjustmentID,
                 'QuantityAdjust' => $damage->stockAdjustment->QuantityAdjust,
@@ -627,90 +657,4 @@ class DamageController extends Controller
         return back()->with('success', 'Damage record cancelled and quantity restored to inventory.');
     }
 
-    public function export(Request $request)
-    {
-        $format = $request->get('format', 'csv');
-        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'damage_type', 'supplier_id', 'po_id']);
-
-        if ($format === 'pdf') {
-            $damagedProducts = $this->filteredQuery($filters)->orderByDesc('DamageID')->get();
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.damages.pdf', compact('damagedProducts'));
-            return $pdf->download('damage-records-' . now()->format('Y-m-d') . '.pdf');
-        }
-
-        if ($format === 'excel') {
-            return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\DamagesExport($filters),
-                'damage-records-' . now()->format('Y-m-d') . '.xlsx'
-            );
-        }
-
-        return $this->exportCSV($filters);
-    }
-
-    private function filteredQuery(array $filters)
-    {
-        return DamagedProduct::with(['product', 'supplier', 'purchaseOrder'])
-            ->when($filters['search'] ?? null, function ($query, $search) {
-                return $query->whereHas('product', function ($q) use ($search) {
-                    $q->where('ProductName', 'like', "%{$search}%");
-                });
-            })
-            ->when($filters['date_from'] ?? null, function ($query, $dateFrom) {
-                return $query->whereDate('DateRecorded', '>=', $dateFrom);
-            })
-            ->when($filters['date_to'] ?? null, function ($query, $dateTo) {
-                return $query->whereDate('DateRecorded', '<=', $dateTo);
-            })
-            ->when($filters['status'] ?? null, function ($query, $status) {
-                return $query->where('Status', $status);
-            })
-            ->when($filters['damage_type'] ?? null, function ($query, $damageType) {
-                return $query->where('DamageType', $damageType);
-            })
-            ->when($filters['supplier_id'] ?? null, function ($query, $supplierId) {
-                return $query->where('SupplierID', $supplierId);
-            })
-            ->when($filters['po_id'] ?? null, function ($query, $poId) {
-                return $query->where('PurchaseOrderID', $poId);
-            });
-    }
-
-    private function exportCSV(array $filters)
-    {
-        return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($filters) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['ID', 'Date', 'Product', 'Supplier', 'PO#', 'Quantity', 'Damage Type', 'Status', 'Description']);
-
-            $this->filteredQuery($filters)->orderByDesc('DamageID')->chunk(100, function ($items) use ($handle) {
-                foreach ($items as $item) {
-                    fputcsv($handle, [
-                        $item->DamageID,
-                        optional($item->DateRecorded)->format('Y-m-d'),
-                        $this->csvSafe($item->product?->ProductName ?? 'N/A'),
-                        $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
-                        $item->PurchaseOrderID ?? '',
-                        $item->Quantity,
-                        $this->csvSafe(DamagedProduct::DAMAGE_TYPES[$item->DamageType] ?? $item->DamageType),
-                        $item->Status,
-                        $this->csvSafe($item->Description),
-                    ]);
-                }
-            });
-
-            fclose($handle);
-        }, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="damage-records-' . now()->format('Y-m-d') . '.csv"',
-        ]);
-    }
-
-    private function csvSafe($value)
-    {
-        if (is_string($value) && preg_match('/^[=+\-@\t\r]/', $value)) {
-            return "'" . $value;
-        }
-
-        return $value;
-    }
 }

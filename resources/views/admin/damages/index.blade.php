@@ -119,8 +119,45 @@
         flex-wrap: wrap;
         gap: 12px;
         flex: 1;
+        align-items: center;
     }
-    .search-form input, .search-form select {
+    .search-box-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        flex: 1;
+        min-width: 220px;
+        max-width: 380px;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 10px;
+        transition: all 0.2s ease;
+    }
+    .search-box-wrapper:focus-within {
+        border-color: rgba(59, 130, 246, 0.5);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .search-box-wrapper .search-icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 0.9rem;
+        pointer-events: none;
+    }
+    .search-input {
+        flex: 1;
+        width: 100%;
+        padding: 12px 14px 12px 40px;
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+    }
+    .search-input::placeholder { color: #64748b; }
+    .search-input:focus { outline: none; }
+    .search-form select {
         padding: 12px 16px;
         background: rgba(15, 23, 42, 0.8);
         border: 1px solid rgba(148, 163, 184, 0.2);
@@ -128,32 +165,10 @@
         color: var(--text-primary);
         font-size: 0.95rem;
     }
-    .search-form input[type="text"] {
-        flex: 1;
-        min-width: 180px;
-        max-width: 320px;
-    }
-    .search-form input[type="date"] {
-        color-scheme: dark;
-    }
-    .search-form input:focus, .search-form select:focus {
+    .search-form select:focus {
         outline: none;
         border-color: rgba(59, 130, 246, 0.5);
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    .search-form button {
-        padding: 12px 20px;
-        background: linear-gradient(135deg, #3b82f6, #10b981);
-        border: none;
-        border-radius: 10px;
-        color: white;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    .export-links {
-        display: flex;
-        gap: 8px;
-        margin-left: auto;
     }
     .card-body {
         padding: 0;
@@ -306,34 +321,19 @@
 
 <div class="card">
     <div class="card-header">
-        <form method="GET" action="{{ route('admin.damages.index') }}" class="search-form">
-            <input type="text" name="search" placeholder="Search products..." value="{{ $search ?? '' }}">
-            <input type="date" name="date_from" value="{{ $dateFrom ?? '' }}" title="From Date">
-            <input type="date" name="date_to" value="{{ $dateTo ?? '' }}" title="To Date">
-            <select name="status">
-                <option value="">All Statuses</option>
-                <option value="pending" {{ ($status ?? '') === 'pending' ? 'selected' : '' }}>Pending</option>
-                <option value="for_supplier_return" {{ ($status ?? '') === 'for_supplier_return' ? 'selected' : '' }}>Pending Supplier Return</option>
-                <option value="returned_to_supplier" {{ ($status ?? '') === 'returned_to_supplier' ? 'selected' : '' }}>Returned to Supplier</option>
-                <option value="replacement_received" {{ ($status ?? '') === 'replacement_received' ? 'selected' : '' }}>Replacement Received</option>
-                <option value="disposed" {{ ($status ?? '') === 'disposed' ? 'selected' : '' }}>Disposed</option>
-                <option value="cancelled" {{ ($status ?? '') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-            </select>
-            <select name="supplier_id">
+        <form method="GET" action="{{ route('admin.damages.index') }}" id="damageFilterForm" class="search-form" autocomplete="off">
+            <div class="search-box-wrapper">
+                <i class="search-icon fas fa-search"></i>
+                <input type="text" name="search" id="damageSearchInput" class="search-input" placeholder="Search products..." value="{{ $search ?? '' }}">
+            </div>
+            <select name="supplier_id" id="damageSupplierInput">
                 <option value="">All Suppliers</option>
                 @foreach($suppliers as $supplier)
                     <option value="{{ $supplier->SupplierID }}" {{ ($supplierId ?? '') == $supplier->SupplierID ? 'selected' : '' }}>{{ $supplier->SupplierName }}</option>
                 @endforeach
             </select>
-            <button type="submit"><i class="fa-solid fa-search"></i></button>
-            <div class="export-links">
-                <a href="{{ route('admin.damages.export', array_merge(request()->query(), ['format' => 'csv'])) }}" class="btn btn-sm btn-secondary"><i class="fa-solid fa-file-csv"></i> CSV</a>
-                <a href="{{ route('admin.damages.export', array_merge(request()->query(), ['format' => 'pdf'])) }}" class="btn btn-sm btn-secondary"><i class="fa-solid fa-file-pdf"></i> PDF</a>
-                <a href="{{ route('admin.damages.export', array_merge(request()->query(), ['format' => 'excel'])) }}" class="btn btn-sm btn-secondary"><i class="fa-solid fa-file-excel"></i> Excel</a>
-                <button type="button" class="btn btn-sm btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
-            </div>
         </form>
-        <a href="{{ route('admin.damages.create') }}" class="btn btn-primary no-print" title="Record Damage" onclick="openDamageModal(event)">
+        <a href="{{ route('admin.damages.create') }}" class="btn btn-primary" title="Record Damage" onclick="openDamageModal(event)">
             <i class="fa-solid fa-plus"></i> Record Damage
         </a>
     </div>
@@ -349,123 +349,17 @@
                     <th>Quantity</th>
                     <th>Reason</th>
                     <th>Status</th>
-                    <th class="no-print">Actions</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="damagesTbody">
-                @forelse($damagedProducts as $damage)
-                    <tr>
-                        <td>{{ $damage->DamageID }}</td>
-                        <td>{{ \Carbon\Carbon::parse($damage->DateRecorded)->format('M d, Y') }}</td>
-                        <td>
-                            <strong>{{ $damage->product->ProductName ?? 'N/A' }}</strong>
-                            @if($damage->SalesReturnID)
-                                <br><span class="badge badge-info">From Return #{{ $damage->SalesReturnID }}</span>
-                            @endif
-                        </td>
-                        <td>{{ $damage->supplier->SupplierName ?? 'N/A' }}</td>
-                        <td>{{ $damage->PurchaseOrderID ? '#' . $damage->PurchaseOrderID : '-' }}</td>
-                        <td><span class="badge badge-danger">{{ $damage->Quantity }}</span></td>
-                        <td class="description-cell">{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType }}</td>
-                        <td>
-                            @if($damage->Status === 'pending')
-                                <span class="badge badge-warning">Pending</span>
-                            @elseif($damage->Status === 'for_supplier_return')
-                                <span class="badge badge-info">Pending Supplier Return</span>
-                            @elseif($damage->Status === 'returned_to_supplier')
-                                <span class="badge badge-success">Returned to Supplier</span>
-                            @elseif($damage->Status === 'replacement_received')
-                                <span class="badge badge-success">Replacement Received</span>
-                            @elseif($damage->Status === 'cancelled')
-                                <span class="badge badge-secondary">Cancelled</span>
-                            @else
-                                <span class="badge badge-secondary">Disposed</span>
-                            @endif
-                        </td>
-                        <td class="no-print">
-                            <div class="actions-group">
-                                <button type="button" class="btn btn-sm btn-secondary" title="View Details" onclick="viewDamageDetails({{ $damage->DamageID }})">
-                                    <i class="fa-solid fa-eye"></i>
-                                </button>
-                                <a href="{{ route('admin.damages.print', $damage->DamageID) }}" target="_blank" class="btn btn-sm btn-secondary" title="Print Report">
-                                    <i class="fa-solid fa-print"></i>
-                                </a>
-                                @if($damage->Status === 'pending')
-                                    <a href="{{ route('admin.damages.edit', $damage->DamageID) }}" class="btn btn-sm btn-primary" onclick="openEditDamageModal(event, {{ $damage->DamageID }})">
-                                        <i class="fa-solid fa-edit"></i>
-                                    </a>
-                                    <form method="POST" action="{{ route('admin.damages.mark-supplier-return', $damage->DamageID) }}" onsubmit="return confirm('Mark this record for supplier return?');">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-secondary" title="Mark for Supplier Return"><i class="fa-solid fa-truck"></i></button>
-                                    </form>
-                                    <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" onsubmit="return confirm('Mark this record as disposed?');">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-secondary" title="Dispose"><i class="fa-solid fa-trash-can"></i></button>
-                                    </form>
-                                    <form method="POST" action="{{ route('admin.damages.destroy', $damage->DamageID) }}" style="display:inline;" id="deleteForm{{ $damage->DamageID }}">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete({{ $damage->DamageID }})">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
-                                    </form>
-                                @elseif($damage->Status === 'for_supplier_return')
-                                    <form method="POST" action="{{ route('admin.damages.confirm-supplier-return', $damage->DamageID) }}" onsubmit="return confirm('Confirm this item was returned to the supplier?');">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-secondary" title="Confirm Returned"><i class="fa-solid fa-check"></i> Confirm Returned</button>
-                                    </form>
-                                    <form method="POST" action="{{ route('admin.damages.cancel', $damage->DamageID) }}" onsubmit="return confirm('Cancel this supplier return and restore the quantity to inventory?');">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-secondary" title="Cancel"><i class="fa-solid fa-rotate-left"></i> Cancel</button>
-                                    </form>
-                                    <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" onsubmit="return confirm('Mark this record as disposed?');">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-secondary" title="Dispose"><i class="fa-solid fa-trash-can"></i></button>
-                                    </form>
-                                @elseif($damage->Status === 'returned_to_supplier')
-                                    <form method="POST" action="{{ route('admin.damages.receive-replacement', $damage->DamageID) }}" onsubmit="return confirm('Confirm the supplier sent a replacement and increase inventory?');">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-secondary" title="Receive Replacement"><i class="fa-solid fa-box"></i> Receive Replacement</button>
-                                    </form>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="9">
-                            <div class="empty-state">
-                                <div class="empty-icon"><i class="fa-solid fa-box-open"></i></div>
-                                <p class="empty-title">No Damage Records Found</p>
-                                <p class="empty-text">Record your first damaged product to get started.</p>
-                            </div>
-                        </td>
-                    </tr>
-                @endforelse
+                @include('admin.damages.partials.rows', ['damagedProducts' => $damagedProducts])
             </tbody>
         </table>
 
-        @if($damagedProducts->hasPages())
-            <div class="pagination">
-                @if($damagedProducts->onFirstPage())
-                    <span class="pagination-link disabled"><i class="fas fa-chevron-left"></i></span>
-                @else
-                    <a href="{{ $damagedProducts->previousPageUrl() }}" class="pagination-link"><i class="fas fa-chevron-left"></i></a>
-                @endif
-
-                @foreach($damagedProducts->getUrlRange(1, $damagedProducts->lastPage()) as $page => $url)
-                    <a href="{{ $url }}" class="pagination-link {{ $page == $damagedProducts->currentPage() ? 'active' : '' }}">{{ $page }}</a>
-                @endforeach
-
-                @if($damagedProducts->hasMorePages())
-                    <a href="{{ $damagedProducts->nextPageUrl() }}" class="pagination-link"><i class="fas fa-chevron-right"></i></a>
-                @else
-                    <span class="pagination-link disabled"><i class="fas fa-chevron-right"></i></span>
-                @endif
-            </div>
-        @endif
+        <div id="damagePaginationWrapper">
+            @include('admin.damages.partials.pagination', ['damagedProducts' => $damagedProducts])
+        </div>
     </div>
 </div>
 
@@ -532,6 +426,9 @@
             <p class="text-muted">Loading...</p>
         </div>
         <div class="modal-actions">
+            <a id="printDamageRecordBtn" href="#" target="_blank" class="btn btn-secondary" style="display:none;">
+                <i class="fa-solid fa-print"></i> Print Damage Record
+            </a>
             <button type="button" class="btn btn-secondary" onclick="closeViewDamageModal()">Close</button>
         </div>
     </div>
@@ -550,7 +447,9 @@
     function viewDamageDetails(damageId) {
         const modal = document.getElementById('viewDamageModal');
         const body = document.getElementById('viewDamageBody');
+        const printBtn = document.getElementById('printDamageRecordBtn');
         body.innerHTML = '<p class="text-muted">Loading...</p>';
+        printBtn.style.display = 'none';
         modal.classList.add('active');
         modal.style.display = 'flex';
 
@@ -559,26 +458,31 @@
             .then(data => {
                 const d = data.damage, p = data.product, s = data.supplier, r = data.requestedBy;
                 let html = '';
-                if (r) {
-                    html += '<h4>Requested By</h4>';
-                    html += `<p><strong>Cashier Name:</strong> ${escapeHtml(r.Name)}</p>`;
-                    html += `<p><strong>Employee ID:</strong> ${escapeHtml(r.EmployeeID)}</p>`;
-                    html += `<p><strong>Role:</strong> ${escapeHtml(r.Role)}</p>`;
-                    html += `<p><strong>Request Date:</strong> ${escapeHtml(r.RequestDate ?? 'N/A')}</p>`;
-                    html += '<hr>';
-                }
-                html += '<h4>Product Information</h4>';
+                html += `<p><strong>Damage Record Number:</strong> ${escapeHtml(d.DamageNumber)}</p>`;
+                html += '<hr><h4>Product Information</h4>';
                 html += `<p><strong>Product:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>`;
                 html += `<p><strong>SKU:</strong> ${escapeHtml(p.SKU ?? 'N/A')}</p>`;
                 html += `<p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>`;
                 html += `<p><strong>Cost Price:</strong> ${window.formatPeso ? window.formatPeso(p.CostPrice ?? 0) : p.CostPrice}</p>`;
                 html += `<p><strong>Current Stock:</strong> ${escapeHtml(p.CurrentStock ?? 0)}</p>`;
-                html += '<hr><h4>Inventory / Damage Information</h4>';
+                if (r) {
+                    html += '<hr><h4>Requested By</h4>';
+                    html += `<p><strong>Name:</strong> ${escapeHtml(r.Name)}</p>`;
+                    html += `<p><strong>Employee ID:</strong> ${escapeHtml(r.EmployeeID)}</p>`;
+                    html += `<p><strong>Role:</strong> ${escapeHtml(r.Role)}</p>`;
+                    html += `<p><strong>Date:</strong> ${escapeHtml(r.RequestDate ?? 'N/A')}</p>`;
+                }
+                if (data.salesReturn) {
+                    html += '<hr><h4>Return Information</h4>';
+                    html += `<p><strong>Return #${escapeHtml(data.salesReturn.SalesReturnID)}</strong> — Receipt ${escapeHtml(data.salesReturn.ReceiptNumber ?? 'N/A')}</p>`;
+                }
+                html += '<hr><h4>Damage Information</h4>';
                 html += `<p><strong>Quantity Damaged:</strong> ${escapeHtml(d.Quantity)}</p>`;
                 html += `<p><strong>Damage Type:</strong> ${escapeHtml(d.DamageType)}</p>`;
                 html += `<p><strong>Source:</strong> ${escapeHtml(d.SourceModule)}</p>`;
-                html += `<p><strong>Status:</strong> ${escapeHtml(d.Status)}</p>`;
+                html += `<p><strong>Current Status:</strong> ${escapeHtml(d.Status)}</p>`;
                 html += `<p><strong>Date Recorded:</strong> ${escapeHtml(d.DateRecorded)}</p>`;
+                html += `<p><strong>Supplier Return Status:</strong> ${escapeHtml(data.supplierReturnStatus)}</p>`;
                 if (s) {
                     html += '<hr><h4>Supplier Information</h4>';
                     html += `<p><strong>Supplier:</strong> ${escapeHtml(s.SupplierName)}</p>`;
@@ -586,10 +490,6 @@
                 }
                 if (data.purchaseOrder) {
                     html += `<p><strong>Purchase Order:</strong> ${escapeHtml(data.purchaseOrder.PONumber)}</p>`;
-                }
-                if (data.salesReturn) {
-                    html += '<hr><h4>Return Information</h4>';
-                    html += `<p><strong>Return #${escapeHtml(data.salesReturn.SalesReturnID)}</strong> — Receipt ${escapeHtml(data.salesReturn.ReceiptNumber ?? 'N/A')}</p>`;
                 }
                 if (data.stockAdjustment) {
                     html += '<hr><h4>Stock Adjustment Reference</h4>';
@@ -608,9 +508,14 @@
                     data.auditHistory.forEach(function (entry) {
                         html += `<p style="font-size:0.85rem; color:#94a3b8;">${escapeHtml(entry.DateRecorded)} — ${escapeHtml(entry.Description)}</p>`;
                     });
+                } else {
+                    html += '<hr><h4>Audit History</h4>';
+                    html += '<p class="text-muted" style="font-size:0.85rem;">No audit history recorded.</p>';
                 }
 
                 body.innerHTML = html;
+                printBtn.href = `/admin/damages/${damageId}/print`;
+                printBtn.style.display = '';
             })
             .catch(() => { body.innerHTML = '<p class="text-muted">Failed to load details.</p>'; });
     }
@@ -712,7 +617,107 @@
         if (newTbody && currentTbody) {
             currentTbody.innerHTML = newTbody.innerHTML;
         }
+        const newPagination = parsed.querySelector('#damagePaginationWrapper');
+        const currentPagination = document.getElementById('damagePaginationWrapper');
+        if (newPagination && currentPagination) {
+            currentPagination.innerHTML = newPagination.innerHTML;
+            if (window.rebindDamagePagination) window.rebindDamagePagination();
+        }
     }
+
+    // ---- Live search (matches the Inventory module's pattern) ----
+    (function setupDamageLiveSearch() {
+        const filterForm = document.getElementById('damageFilterForm');
+        const searchInput = document.getElementById('damageSearchInput');
+        const supplierInput = document.getElementById('damageSupplierInput');
+        const tbody = document.getElementById('damagesTbody');
+        const paginationWrapper = document.getElementById('damagePaginationWrapper');
+
+        let debounceTimer = null;
+        let currentController = null;
+
+        function buildQuery(page) {
+            const params = new URLSearchParams();
+            const search = searchInput.value.trim();
+            const supplierId = supplierInput.value;
+
+            if (search) params.set('search', search);
+            if (supplierId) params.set('supplier_id', supplierId);
+            if (page > 1) params.set('page', page);
+
+            return params.toString();
+        }
+
+        async function applyFilters(page = 1) {
+            window.currentDamagePage = page;
+            const query = buildQuery(page);
+            const url = `${filterForm.action}${query ? '?' + query : ''}`;
+            // ?ajax=1 is only ever sent on the fetch itself, never pushed
+            // into the visible URL bar — it's the explicit signal the
+            // controller uses to tell this deliberate live-search request
+            // apart from an unrelated redirect-follow landing on the same
+            // route with the same XHR headers (see DamageController::index()).
+            const fetchUrl = url + (query ? '&' : '?') + 'ajax=1';
+
+            window.history.replaceState({}, '', url);
+
+            if (currentController) currentController.abort();
+            currentController = new AbortController();
+
+            try {
+                const response = await fetch(fetchUrl, {
+                    method: 'GET',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    signal: currentController.signal,
+                });
+                if (!response.ok) throw new Error(`Request failed (${response.status})`);
+
+                const data = await response.json();
+                tbody.innerHTML = data.rows || '';
+                paginationWrapper.innerHTML = data.pagination || '';
+                rebindPagination();
+            } catch (err) {
+                if (err.name === 'AbortError') return;
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9">
+                            <div class="empty-state">
+                                <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                                <p class="empty-title">Unable to load damage records</p>
+                                <p class="empty-text">Please try again.</p>
+                            </div>
+                        </td>
+                    </tr>`;
+                paginationWrapper.innerHTML = '';
+            }
+        }
+
+        function rebindPagination() {
+            paginationWrapper.querySelectorAll('a.pagination-link').forEach(function (link) {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const page = new URL(this.href).searchParams.get('page') || 1;
+                    applyFilters(page);
+                });
+            });
+        }
+
+        searchInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () { applyFilters(1); }, 300);
+        });
+
+        supplierInput.addEventListener('change', function () { applyFilters(1); });
+
+        filterForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            applyFilters(1);
+        });
+
+        rebindPagination();
+        window.applyDamageFilters = applyFilters;
+        window.rebindDamagePagination = rebindPagination;
+    })();
 
     function resetAddDamageSubmitButton() {
         const btn = document.getElementById('addDamageSubmitBtn');
@@ -1034,8 +1039,4 @@
         });
     });
 </script>
-
-<style media="print">
-    .no-print, .search-form, .header-actions, .sidebar { display: none !important; }
-</style>
 @endsection
