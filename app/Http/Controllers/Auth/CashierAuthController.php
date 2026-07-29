@@ -11,10 +11,15 @@ use App\Models\Billing;
 use App\Models\Payment;
 use App\Models\Discount;
 use App\Models\Staff;
+use App\Models\User;
+use App\Notifications\SaleCompleted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class CashierAuthController extends Controller
 {
@@ -265,6 +270,7 @@ class CashierAuthController extends Controller
                 return [
                     'receipt_number' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'total' => $total,
+                    'transaction_id' => $transaction->SalesTransactionID,
                 ];
             });
         } catch (\RuntimeException $e) {
@@ -274,6 +280,20 @@ class CashierAuthController extends Controller
             ], 400);
         } finally {
             $lock->release();
+        }
+
+        // Dispatched after the transaction has committed — a notification
+        // failure must never roll back an otherwise-successful sale.
+        try {
+            $completedTransaction = SalesTransaction::with(['items', 'billing'])->find($result['transaction_id']);
+            if ($completedTransaction) {
+                Notification::send(User::admins(), new SaleCompleted($completedTransaction));
+            }
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch SaleCompleted notification', [
+                'transaction_id' => $result['transaction_id'],
+                'exception' => $e->getMessage(),
+            ]);
         }
 
         return response()->json([

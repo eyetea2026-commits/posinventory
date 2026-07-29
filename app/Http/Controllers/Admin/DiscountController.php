@@ -5,7 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Discount;
+use App\Models\User;
+use App\Notifications\DiscountUpdated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class DiscountController extends Controller
 {
@@ -54,12 +59,21 @@ class DiscountController extends Controller
             'DiscountRate.unique' => 'A discount policy with this rate already exists.',
         ]);
 
-        Discount::create([
+        $discount = Discount::create([
             'Name' => $request->Name,
             'DiscountRate' => $request->DiscountRate
         ]);
 
         ActivityLog::record('discount.created', "Created discount policy \"{$request->DiscountRate}%\"");
+
+        try {
+            Notification::send(User::admins(), new DiscountUpdated($discount, 'Created'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch DiscountUpdated notification', [
+                'discount_id' => $discount->DiscountID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('admin.discounts.index')->with('success', 'Discount policy created successfully.');
     }
@@ -98,6 +112,15 @@ class DiscountController extends Controller
             'Name' => $request->Name,
             'DiscountRate' => $request->DiscountRate
         ]);
+
+        try {
+            Notification::send(User::admins(), new DiscountUpdated($discount, 'Updated'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch DiscountUpdated notification', [
+                'discount_id' => $discount->DiscountID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('admin.discounts.index')->with('success', 'Discount policy updated successfully.');
     }

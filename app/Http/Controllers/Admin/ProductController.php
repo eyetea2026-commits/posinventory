@@ -8,7 +8,12 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Inventory;
+use App\Models\User;
+use App\Notifications\ProductUpdated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class ProductController extends Controller
 {
@@ -256,6 +261,15 @@ class ProductController extends Controller
 
         ActivityLog::record('product.created', "Added product \"{$product->ProductName}\"");
 
+        try {
+            Notification::send(User::admins(), new ProductUpdated($product, 'Created'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch ProductUpdated notification', [
+                'product_id' => $product->ProductID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
         return redirect()->route('admin.products.index')->with('status', 'Product added successfully.');
     }
 
@@ -367,6 +381,15 @@ class ProductController extends Controller
         );
 
         ActivityLog::record('product.updated', "Updated product \"{$product->ProductName}\"");
+
+        try {
+            Notification::send(User::admins(), new ProductUpdated($product, 'Updated'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch ProductUpdated notification', [
+                'product_id' => $product->ProductID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('admin.products.index')->with('status', 'Product updated successfully.');
     }

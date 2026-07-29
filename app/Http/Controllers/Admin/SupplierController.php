@@ -6,8 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Models\User;
+use App\Notifications\SupplierUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class SupplierController extends Controller
 {
@@ -61,6 +66,15 @@ class SupplierController extends Controller
         $supplier = Supplier::create($data);
 
         ActivityLog::record('supplier.created', "Added supplier \"{$supplier->SupplierName}\"");
+
+        try {
+            Notification::send(User::admins(), new SupplierUpdated($supplier, 'Created'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch SupplierUpdated notification', [
+                'supplier_id' => $supplier->SupplierID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('admin.suppliers.index')->with('status', 'Supplier added successfully.');
     }
@@ -217,6 +231,15 @@ class SupplierController extends Controller
         $supplier->update($data);
 
         ActivityLog::record('supplier.updated', "Updated supplier \"{$supplier->SupplierName}\"");
+
+        try {
+            Notification::send(User::admins(), new SupplierUpdated($supplier, 'Updated'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch SupplierUpdated notification', [
+                'supplier_id' => $supplier->SupplierID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('admin.suppliers.index')->with('status', 'Supplier updated successfully.');
     }

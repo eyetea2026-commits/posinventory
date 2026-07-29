@@ -6,10 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Role;
 use App\Models\User;
+use App\Notifications\UserAccountCreated;
+use App\Notifications\UserAccountDeactivated;
+use App\Notifications\UserAccountUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Throwable;
 
 class UserController extends Controller
 {
@@ -168,6 +174,15 @@ class UserController extends Controller
 
         ActivityLog::record('user.created', "Created user \"{$newUser->name}\" (Cashier)");
 
+        try {
+            Notification::send(User::admins(), new UserAccountCreated($newUser));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch UserAccountCreated notification', [
+                'user_id' => $newUser->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
         return redirect()->route('admin.users.index')->with('status', 'User account created successfully.');
     }
 
@@ -246,6 +261,15 @@ class UserController extends Controller
             ActivityLog::record('user.role_changed', "Changed \"{$user->name}\"'s role from \"{$oldRoleName}\" to \"{$newRoleName}\"");
         }
 
+        try {
+            Notification::send(User::admins(), new UserAccountUpdated($user));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch UserAccountUpdated notification', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
         return redirect()->route('admin.users.index')->with('status', 'User account updated successfully.');
     }
 
@@ -261,6 +285,15 @@ class UserController extends Controller
 
         $user->update(['is_active' => false]);
         ActivityLog::record('user.deactivated', "Deactivated user \"{$user->name}\"");
+
+        try {
+            Notification::send(User::admins(), new UserAccountDeactivated($user));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch UserAccountDeactivated notification', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User account deactivated.']);

@@ -4,7 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\User;
+use App\Notifications\CategoryUpdated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 class CategoryController extends Controller
 {
@@ -57,10 +62,19 @@ class CategoryController extends Controller
             'CategoryName.unique' => 'This category already exists.',
         ]);
 
-        Category::create([
+        $category = Category::create([
             'CategoryName' => $request->CategoryName,
             'Description' => $request->Description
         ]);
+
+        try {
+            Notification::send(User::admins(), new CategoryUpdated($category, 'Created'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch CategoryUpdated notification', [
+                'category_id' => $category->CategoryID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('admin.categories.index')->with('success', 'Category created successfully.');
     }
@@ -96,6 +110,15 @@ class CategoryController extends Controller
             'CategoryName' => $request->CategoryName,
             'Description' => $request->Description
         ]);
+
+        try {
+            Notification::send(User::admins(), new CategoryUpdated($category, 'Updated'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch CategoryUpdated notification', [
+                'category_id' => $category->CategoryID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('admin.categories.index')->with('success', 'Category updated successfully.');
     }

@@ -10,10 +10,16 @@ use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
+use App\Models\User;
+use App\Notifications\PurchaseOrderApproved;
+use App\Notifications\PurchaseOrderCancelled;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class PurchaseOrderController extends Controller
 {
@@ -319,6 +325,15 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_APPROVED]);
         ActivityLog::record('purchase_order.approved', "Approved PO #{$purchaseOrder->PONumber}");
 
+        try {
+            Notification::send(User::admins(), new PurchaseOrderApproved($purchaseOrder));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch PurchaseOrderApproved notification', [
+                'purchase_order_id' => $purchaseOrder->PurchaseOrderID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
         return back()->with('success', 'Purchase order approved and is now ready to receive against.');
     }
 
@@ -359,6 +374,15 @@ class PurchaseOrderController extends Controller
         }
 
         ActivityLog::record('purchase_order.cancelled', "Cancelled PO #{$purchaseOrder->PONumber}");
+
+        try {
+            Notification::send(User::admins(), new PurchaseOrderCancelled($purchaseOrder));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch PurchaseOrderCancelled notification', [
+                'purchase_order_id' => $purchaseOrder->PurchaseOrderID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return back()->with('success', 'Purchase order cancelled.');
     }
