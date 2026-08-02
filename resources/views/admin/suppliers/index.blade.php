@@ -353,5 +353,50 @@
                 confirmButtonColor: '#ef4444'
             });
         @endif
+
+        // Live duplicate name/email check for the Edit Supplier modal —
+        // delegated on document since #SupplierName/#Email are only in the
+        // DOM once the modal's form fields have been fetched and injected.
+        (function () {
+            let checkTimer = null;
+
+            document.addEventListener('input', function (e) {
+                if (e.target.id !== 'SupplierName' && e.target.id !== 'Email') return;
+
+                clearTimeout(checkTimer);
+                checkTimer = setTimeout(function () {
+                    const nameInput = document.getElementById('SupplierName');
+                    const emailInput = document.getElementById('Email');
+                    const nameError = document.getElementById('error-SupplierName');
+                    const emailError = document.getElementById('error-Email');
+                    if (!nameInput || !emailInput) return;
+
+                    fetch('{{ route('admin.suppliers.check-name') }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            SupplierName: nameInput.value,
+                            Email: emailInput.value,
+                            exclude_id: currentEditSupplierId,
+                        }),
+                    })
+                        .then((r) => r.json())
+                        .then((data) => {
+                            if (nameError && data.name_value === nameInput.value) {
+                                nameError.textContent = data.name ? 'A supplier with this name already exists.' : '';
+                                nameInput.classList.toggle('error', data.name);
+                            }
+                            if (emailError && data.email_value === emailInput.value) {
+                                emailError.textContent = data.email ? 'A supplier with this email already exists.' : '';
+                                emailInput.classList.toggle('error', data.email);
+                            }
+                        });
+                }, 400);
+            });
+        })();
     </script>
 @endsection

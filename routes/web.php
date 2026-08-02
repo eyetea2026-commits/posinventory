@@ -163,6 +163,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.categories.create')->middleware(['auth', 'role:admin']);
     Route::post('categories', [App\Http\Controllers\Admin\CategoryController::class, 'store'])
         ->name('admin.categories.store')->middleware(['auth', 'role:admin']);
+    Route::post('categories/check-name', [App\Http\Controllers\Admin\CategoryController::class, 'checkName'])
+        ->name('admin.categories.check-name')->middleware(['auth', 'role:admin']);
     Route::get('categories/{category}/edit', [App\Http\Controllers\Admin\CategoryController::class, 'edit'])
         ->name('admin.categories.edit')->middleware(['auth', 'role:admin']);
     Route::put('categories/{category}', [App\Http\Controllers\Admin\CategoryController::class, 'update'])
@@ -220,6 +222,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.suppliers.create')->middleware(['auth', 'role:admin']);
     Route::post('suppliers', [App\Http\Controllers\Admin\SupplierController::class, 'store'])
         ->name('admin.suppliers.store')->middleware(['auth', 'role:admin']);
+    Route::post('suppliers/check-name', [App\Http\Controllers\Admin\SupplierController::class, 'checkName'])
+        ->name('admin.suppliers.check-name')->middleware(['auth', 'role:admin']);
     Route::get('suppliers/{supplier}/edit', [App\Http\Controllers\Admin\SupplierController::class, 'edit'])
         ->name('admin.suppliers.edit')->middleware(['auth', 'role:admin']);
     Route::put('suppliers/{supplier}', [App\Http\Controllers\Admin\SupplierController::class, 'update'])

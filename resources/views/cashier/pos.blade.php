@@ -370,14 +370,14 @@
                         if (stock > 0) {
                             addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock);
                         } else {
-                            alert('Product out of stock!');
+                            toastWarning('Product out of stock!');
                         }
                     } else {
-                        alert('Product not found!');
+                        toastError('Product not found!');
                     }
                 })
                 .catch(() => {
-                    alert('Product not found!');
+                    toastError('Product not found!');
                 });
             document.getElementById('barcode-input').value = '';
         }
@@ -397,7 +397,7 @@
             if (existingItem.qty < stock) {
                 existingItem.qty++;
             } else {
-                alert('Maximum stock reached!');
+                toastWarning('Maximum stock reached!');
                 return;
             }
         } else {
@@ -432,7 +432,7 @@
             qty = 1;
         } else if (qty > item.stock) {
             qty = item.stock;
-            alert('Only ' + item.stock + ' unit(s) of "' + item.name + '" in stock.');
+            toastWarning('Only ' + item.stock + ' unit(s) of "' + item.name + '" in stock.');
         }
 
         item.qty = qty;
@@ -445,12 +445,21 @@
     }
 
     function clearCart() {
-        if (cart.length > 0 && confirm('Are you sure you want to clear the cart?')) {
+        if (cart.length === 0) return;
+
+        window.confirmAction({
+            title: 'Clear Cart',
+            text: 'Are you sure you want to clear the cart?',
+            icon: 'warning',
+            confirmText: 'Clear',
+            confirmColor: '#ef4444',
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
             cart = [];
             renderCart();
             document.getElementById('customer-name').value = '';
             document.getElementById('discount-select').value = '';
-        }
+        });
     }
 
     function renderCart() {
@@ -656,7 +665,7 @@
         }
 
         if (cart.length === 0) {
-            alert('Please add products to the cart!');
+            toastWarning('Please add products to the cart!');
             return;
         }
 
@@ -666,7 +675,7 @@
         // is just as wrong as an under-amount cash one.
         const payment = window.parseMoney(document.getElementById('payment-amount').value);
         if (!payment || payment < currentTotal) {
-            alert('Please enter sufficient payment amount!');
+            toastWarning('Please enter sufficient payment amount!');
             return;
         }
 
@@ -725,13 +734,13 @@
                 window.location.reload();
             } else {
                 if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
-                alert('Error: ' + data.message);
+                toastError(data.message, 'Error');
                 checkoutBtn.disabled = false;
             }
         })
         .catch(error => {
             if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
-            alert('Error processing sale: ' + error.message);
+            toastError(error.message, 'Error Processing Sale');
             checkoutBtn.disabled = false;
         });
     }

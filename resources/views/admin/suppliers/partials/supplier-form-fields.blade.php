@@ -3,7 +3,7 @@
 <div class="form-grid">
     <div class="form-group full-width">
         <label class="form-label">Supplier Name <span class="required">*</span></label>
-        <input type="text" name="SupplierName" class="form-input" value="{{ old('SupplierName', $supplier->SupplierName ?? null) }}" required maxlength="150">
+        <input type="text" name="SupplierName" id="SupplierName" class="form-input" value="{{ old('SupplierName', $supplier->SupplierName ?? null) }}" required maxlength="150">
         <span class="form-error" id="error-SupplierName">@error('SupplierName'){{ $message }}@enderror</span>
     </div>
 
@@ -21,7 +21,7 @@
 
     <div class="form-group">
         <label class="form-label">Email <span class="required">*</span></label>
-        <input type="email" name="Email" class="form-input" value="{{ old('Email', $supplier->Email ?? null) }}" required maxlength="150">
+        <input type="email" name="Email" id="Email" class="form-input" value="{{ old('Email', $supplier->Email ?? null) }}" required maxlength="150">
         <span class="form-error" id="error-Email">@error('Email'){{ $message }}@enderror</span>
     </div>
 

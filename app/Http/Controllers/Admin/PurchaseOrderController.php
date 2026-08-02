@@ -310,8 +310,14 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Only draft purchase orders can be submitted.');
         }
 
-        $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_PENDING]);
-        ActivityLog::record('purchase_order.submitted', "Submitted PO #{$purchaseOrder->PONumber}");
+        try {
+            $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_PENDING]);
+            ActivityLog::record('purchase_order.submitted', "Submitted PO #{$purchaseOrder->PONumber}");
+        } catch (Throwable $e) {
+            Log::error('Failed to submit purchase order', ['purchase_order_id' => $purchaseOrder->PurchaseOrderID, 'exception' => $e->getMessage()]);
+
+            return back()->with('error', 'Failed to submit the purchase order. Please try again.');
+        }
 
         return back()->with('success', 'Purchase order submitted.');
     }
@@ -322,8 +328,14 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Only draft or pending purchase orders can be approved.');
         }
 
-        $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_APPROVED, 'ApprovedBy' => auth()->id()]);
-        ActivityLog::record('purchase_order.approved', "Approved PO #{$purchaseOrder->PONumber}");
+        try {
+            $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_APPROVED, 'ApprovedBy' => auth()->id()]);
+            ActivityLog::record('purchase_order.approved', "Approved PO #{$purchaseOrder->PONumber}");
+        } catch (Throwable $e) {
+            Log::error('Failed to approve purchase order', ['purchase_order_id' => $purchaseOrder->PurchaseOrderID, 'exception' => $e->getMessage()]);
+
+            return back()->with('error', 'Failed to approve the purchase order. Please try again.');
+        }
 
         try {
             Notification::send(User::admins(), new PurchaseOrderApproved($purchaseOrder));

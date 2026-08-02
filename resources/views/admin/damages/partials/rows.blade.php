@@ -38,11 +38,11 @@
                     <a href="{{ route('admin.damages.edit', $damage->DamageID) }}" class="btn btn-sm btn-primary" onclick="openEditDamageModal(event, {{ $damage->DamageID }})">
                         <i class="fa-solid fa-edit"></i>
                     </a>
-                    <form method="POST" action="{{ route('admin.damages.mark-supplier-return', $damage->DamageID) }}" onsubmit="return confirm('Mark this record for supplier return?');">
+                    <form method="POST" action="{{ route('admin.damages.mark-supplier-return', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Mark for Supplier Return" data-confirm-text="Mark this record for supplier return?">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-secondary" title="Mark for Supplier Return"><i class="fa-solid fa-truck"></i></button>
                     </form>
-                    <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" onsubmit="return confirm('Mark this record as disposed?');">
+                    <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Dispose" data-confirm-text="Mark this record as disposed?">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-secondary" title="Dispose"><i class="fa-solid fa-trash-can"></i></button>
                     </form>
@@ -54,20 +54,20 @@
                         </button>
                     </form>
                 @elseif($damage->Status === 'for_supplier_return')
-                    <form method="POST" action="{{ route('admin.damages.confirm-supplier-return', $damage->DamageID) }}" onsubmit="return confirm('Confirm this item was returned to the supplier?');">
+                    <form method="POST" action="{{ route('admin.damages.confirm-supplier-return', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Confirm Returned" data-confirm-text="Confirm this item was returned to the supplier?">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-secondary" title="Confirm Returned"><i class="fa-solid fa-check"></i> Confirm Returned</button>
                     </form>
-                    <form method="POST" action="{{ route('admin.damages.cancel', $damage->DamageID) }}" onsubmit="return confirm('Cancel this supplier return and restore the quantity to inventory?');">
+                    <form method="POST" action="{{ route('admin.damages.cancel', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Cancel Supplier Return" data-confirm-text="Cancel this supplier return and restore the quantity to inventory?" data-confirm-icon="warning" data-confirm-color="#f59e0b">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-secondary" title="Cancel"><i class="fa-solid fa-rotate-left"></i> Cancel</button>
                     </form>
-                    <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" onsubmit="return confirm('Mark this record as disposed?');">
+                    <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Dispose" data-confirm-text="Mark this record as disposed?">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-secondary" title="Dispose"><i class="fa-solid fa-trash-can"></i></button>
                     </form>
                 @elseif($damage->Status === 'returned_to_supplier')
-                    <form method="POST" action="{{ route('admin.damages.receive-replacement', $damage->DamageID) }}" onsubmit="return confirm('Confirm the supplier sent a replacement and increase inventory?');">
+                    <form method="POST" action="{{ route('admin.damages.receive-replacement', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Receive Replacement" data-confirm-text="Confirm the supplier sent a replacement and increase inventory?">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-secondary" title="Receive Replacement"><i class="fa-solid fa-box"></i> Receive Replacement</button>
                     </form>

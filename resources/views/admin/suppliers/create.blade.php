@@ -29,8 +29,8 @@
             <div class="form-grid">
                 <div class="form-group" style="grid-column: 1 / -1;">
                     <label class="form-label">Supplier Name <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="SupplierName" class="form-input" value="{{ old('SupplierName') }}" required>
-                    @error('SupplierName') <span class="form-error">{{ $message }}</span> @enderror
+                    <input type="text" name="SupplierName" id="SupplierName" class="form-input" value="{{ old('SupplierName') }}" required>
+                    <span class="form-error" id="error-SupplierName">@error('SupplierName'){{ $message }}@enderror</span>
                 </div>
 
                 <div class="form-group">
@@ -47,8 +47,8 @@
 
                 <div class="form-group">
                     <label class="form-label">Email <span style="color: var(--danger);">*</span></label>
-                    <input type="email" name="Email" class="form-input" value="{{ old('Email') }}" required>
-                    @error('Email') <span class="form-error">{{ $message }}</span> @enderror
+                    <input type="email" name="Email" id="Email" class="form-input" value="{{ old('Email') }}" required>
+                    <span class="form-error" id="error-Email">@error('Email'){{ $message }}@enderror</span>
                 </div>
 
                 <div class="form-group" style="grid-column: 1 / -1;">
@@ -66,4 +66,42 @@
             </div>
         </form>
     </div>
+
+    <script>
+        (function () {
+            const nameInput = document.getElementById('SupplierName');
+            const emailInput = document.getElementById('Email');
+            const nameError = document.getElementById('error-SupplierName');
+            const emailError = document.getElementById('error-Email');
+            let timer = null;
+
+            function checkDuplicate() {
+                fetch('{{ route('admin.suppliers.check-name') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ SupplierName: nameInput.value, Email: emailInput.value }),
+                })
+                    .then((r) => r.json())
+                    .then((data) => {
+                        if (data.name_value === nameInput.value) {
+                            nameError.textContent = data.name ? 'A supplier with this name already exists.' : '';
+                            nameInput.classList.toggle('error', data.name);
+                        }
+                        if (data.email_value === emailInput.value) {
+                            emailError.textContent = data.email ? 'A supplier with this email already exists.' : '';
+                            emailInput.classList.toggle('error', data.email);
+                        }
+                    });
+            }
+
+            [nameInput, emailInput].forEach((el) => el.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(checkDuplicate, 400);
+            }));
+        })();
+    </script>
 @endsection

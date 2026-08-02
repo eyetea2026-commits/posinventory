@@ -236,7 +236,7 @@
             </form>
         @endif
         @if(in_array($purchaseOrder->Status, [\App\Models\PurchaseOrder::STATUS_DRAFT, \App\Models\PurchaseOrder::STATUS_PENDING, \App\Models\PurchaseOrder::STATUS_APPROVED]) && ! $purchaseOrder->hasAnyReceivedQuantity())
-            <form method="POST" action="{{ route('admin.purchase-orders.cancel', $purchaseOrder) }}" onsubmit="return confirm('Cancel this purchase order?');">
+            <form method="POST" action="{{ route('admin.purchase-orders.cancel', $purchaseOrder) }}" class="js-confirm-submit" data-confirm-title="Cancel Purchase Order" data-confirm-text="Cancel this purchase order?" data-confirm-icon="warning" data-confirm-color="#ef4444">
                 @csrf
                 <button type="submit" class="btn btn-secondary"><i class="fas fa-ban"></i> Cancel</button>
             </form>

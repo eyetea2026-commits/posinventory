@@ -52,6 +52,48 @@ class SupplierController extends Controller
         return view('admin.suppliers.create');
     }
 
+    // Live duplicate-name/email check (mirrors ProductController::checkName)
+    // — SupplierName and Email are both unique constraints on store/update,
+    // so both get checked here rather than only surfacing the conflict
+    // after a full submit.
+    public function checkName(Request $request)
+    {
+        $name = trim((string) $request->input('SupplierName', ''));
+        $email = trim((string) $request->input('Email', ''));
+        $excludeId = $request->input('exclude_id');
+
+        $candidates = Supplier::when($excludeId, function ($query, $excludeId) {
+            $query->where('SupplierID', '!=', $excludeId);
+        })->get();
+
+        $normalize = function (string $value): string {
+            return preg_replace('/\s+/', ' ', strtolower($value));
+        };
+
+        $nameTaken = false;
+        if ($name !== '') {
+            $normalized = $normalize($name);
+            $nameTaken = $candidates->contains(function ($existing) use ($normalize, $normalized) {
+                return $normalize((string) ($existing->SupplierName ?? '')) === $normalized;
+            });
+        }
+
+        $emailTaken = false;
+        if ($email !== '') {
+            $normalized = strtolower($email);
+            $emailTaken = $candidates->contains(function ($existing) use ($normalized) {
+                return strtolower((string) ($existing->Email ?? '')) === $normalized;
+            });
+        }
+
+        return response()->json([
+            'name' => $nameTaken,
+            'email' => $emailTaken,
+            'name_value' => $name,
+            'email_value' => $email,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([

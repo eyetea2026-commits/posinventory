@@ -119,7 +119,7 @@
                                                 <i class="fas fa-check"></i>
                                             </button>
                                         @else
-                                            <form method="POST" action="{{ route('admin.sales-returns.approve', $return) }}" onsubmit="return confirm('Approve this return request?');">
+                                            <form method="POST" action="{{ route('admin.sales-returns.approve', $return) }}" class="js-confirm-submit" data-confirm-title="Approve Return" data-confirm-text="Approve this return request?">
                                                 @csrf
                                                 <button type="submit" class="action-btn" style="background: var(--success-light); color: var(--success);" title="Approve">
                                                     <i class="fas fa-check"></i>

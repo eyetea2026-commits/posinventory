@@ -577,6 +577,7 @@
         async function applyFilters(page = 1) {
             const query = buildQuery(page);
             const url = `${filterForm.action}${query ? '?' + query : ''}`;
+            const fetchUrl = url + (query ? '&' : '?') + 'ajax=1';
             window.history.replaceState({}, '', url);
             tableLoader.classList.add('active');
 
@@ -584,7 +585,7 @@
             currentController = new AbortController();
 
             try {
-                const response = await fetch(url, {
+                const response = await fetch(fetchUrl, {
                     method: 'GET',
                     headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
                     signal: currentController.signal,
@@ -945,5 +946,46 @@
             });
         });
     });
+
+    // Live duplicate-name check (mirrors the Products/Users pattern) —
+    // delegated on document since the Add and Edit modals' #CategoryName
+    // fields aren't necessarily both present/static in the DOM at once.
+    (function () {
+        let checkTimer = null;
+
+        document.addEventListener('input', function (e) {
+            if (e.target.id !== 'CategoryName') return;
+            const input = e.target;
+            const errorEl = document.getElementById('error-CategoryName');
+            if (!errorEl) return;
+
+            clearTimeout(checkTimer);
+            checkTimer = setTimeout(function () {
+                fetch('{{ route('admin.categories.check-name') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        CategoryName: input.value,
+                        exclude_id: currentEditCategoryId,
+                    }),
+                })
+                    .then((r) => r.json())
+                    .then((data) => {
+                        if (data.name_value !== input.value) return; // stale response
+                        if (data.name) {
+                            errorEl.textContent = 'A category with this name already exists.';
+                            input.classList.add('error');
+                        } else {
+                            errorEl.textContent = '';
+                            input.classList.remove('error');
+                        }
+                    });
+            }, 400);
+        });
+    })();
 </script>
 @endsection

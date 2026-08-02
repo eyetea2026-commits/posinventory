@@ -270,13 +270,19 @@ class SalesReturnController extends Controller
             'DeclineReason' => ['required', 'string', 'max:255'],
         ]);
 
-        $salesReturn->update([
-            'Status' => SalesReturn::STATUS_DECLINED,
-            'ApprovedBy' => auth()->id(),
-            'DeclineReason' => $data['DeclineReason'],
-        ]);
+        try {
+            $salesReturn->update([
+                'Status' => SalesReturn::STATUS_DECLINED,
+                'ApprovedBy' => auth()->id(),
+                'DeclineReason' => $data['DeclineReason'],
+            ]);
 
-        ActivityLog::record('return.declined', "Declined return #{$salesReturn->SalesReturnID}: {$data['DeclineReason']}");
+            ActivityLog::record('return.declined', "Declined return #{$salesReturn->SalesReturnID}: {$data['DeclineReason']}");
+        } catch (Throwable $e) {
+            Log::error('Failed to decline sales return', ['sales_return_id' => $salesReturn->SalesReturnID, 'exception' => $e->getMessage()]);
+
+            return back()->with('status', 'Failed to decline the return. Please try again.');
+        }
 
         $this->notifyCashier($salesReturn, new ReturnRequestDeclined($salesReturn));
 

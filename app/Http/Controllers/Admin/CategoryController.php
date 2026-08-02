@@ -34,8 +34,15 @@ class CategoryController extends Controller
 
         // Real-time search: matches the debounced-AJAX pattern used by
         // Products/Inventory — return just the rendered rows/pagination
-        // instead of a full page reload.
-        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+        // instead of a full page reload. Keyed off an explicit ?ajax=1 flag
+        // rather than the X-Requested-With header alone: the Add/Edit
+        // Category modal's own AJAX POST (via the shared submitAjaxForm
+        // helper) carries that same header and follows its redirect back to
+        // this same index route — a header-only check would hijack that
+        // redirect-follow into returning this JSON instead of the full HTML
+        // page submitAjaxForm parses for its success/error state (see the
+        // identical fix + regression test on the Damage module).
+        if ($request->boolean('ajax')) {
             return response()->json([
                 'rows' => view('admin.categories.partials.rows', ['categories' => $categories])->render(),
                 'pagination' => view('admin.categories.partials.pagination', ['categories' => $categories])->render(),
@@ -49,6 +56,34 @@ class CategoryController extends Controller
     public function create()
     {
         return view('admin.categories.create');
+    }
+
+    // Live duplicate-name check (mirrors ProductController::checkName) — lets
+    // the Add/Edit Category form surface a uniqueness conflict before
+    // submit, instead of only finding out after a full round trip.
+    public function checkName(Request $request)
+    {
+        $name = trim((string) $request->input('CategoryName', ''));
+        $excludeId = $request->input('exclude_id');
+
+        $normalize = function (string $value): string {
+            return preg_replace('/\s+/', ' ', strtolower($value));
+        };
+
+        $nameTaken = false;
+        if ($name !== '') {
+            $normalized = $normalize($name);
+            $nameTaken = Category::when($excludeId, function ($query, $excludeId) {
+                $query->where('CategoryID', '!=', $excludeId);
+            })->get()->contains(function ($existing) use ($normalize, $normalized) {
+                return $normalize((string) ($existing->CategoryName ?? '')) === $normalized;
+            });
+        }
+
+        return response()->json([
+            'name' => $nameTaken,
+            'name_value' => $name,
+        ]);
     }
 
     // Store new category

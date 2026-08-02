@@ -429,7 +429,7 @@ function searchTransaction() {
         .then(response => response.json())
         .then(data => {
             if (!data.success) {
-                alert(data.message);
+                toastError(data.message, 'Error');
                 return;
             }
 
@@ -440,7 +440,7 @@ function searchTransaction() {
                 populateTransactionDetails(data.transaction);
             }
         })
-        .catch(() => alert('Error searching for transaction.'));
+        .catch(() => toastError('Error searching for transaction.'));
 }
 
 function showMatchPicker(matches) {
@@ -577,7 +577,7 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
     }));
 
     if (items.length === 0) {
-        alert('Please select at least one product to return');
+        toastWarning('Please select at least one product to return');
         return;
     }
 
@@ -598,14 +598,15 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Return request submitted successfully! Awaiting admin approval.');
-            closeCreateRefundModal();
-            location.reload();
+            toastSuccess('Return request submitted successfully! Awaiting admin approval.').then(function () {
+                closeCreateRefundModal();
+                location.reload();
+            });
         } else {
-            alert(data.message);
+            toastError(data.message, 'Error');
         }
     })
-    .catch(() => alert('Error submitting return request'));
+    .catch(() => toastError('Error submitting return request'));
 });
 
 function viewRefundDetails(refundId) {
@@ -636,10 +637,10 @@ function viewRefundDetails(refundId) {
                 `;
                 document.getElementById('view-refund-modal').classList.add('active');
             } else {
-                alert(data.message);
+                toastError(data.message, 'Error');
             }
         })
-        .catch(() => alert('Error loading return details'));
+        .catch(() => toastError('Error loading return details'));
 }
 
 function closeViewRefundModal() {
@@ -656,7 +657,7 @@ function showProcessRefundModal(refundId) {
                 document.getElementById('process-amount').textContent = window.formatPeso(data.refund.refund_amount);
                 document.getElementById('process-refund-modal').classList.add('active');
             } else {
-                alert(data.message);
+                toastError(data.message, 'Error');
             }
         });
 }
@@ -697,16 +698,16 @@ document.getElementById('process-refund-form').addEventListener('submit', functi
             const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
             if (printWindow) {
                 printWindow.focus();
+                setTimeout(() => window.location.reload(), 300);
             } else {
-                alert('Refund processed successfully!\nReceipt: ' + data.receipt_number + '\n\nPlease allow popups to print receipts.');
+                toastWarning('Refund processed successfully! Receipt: ' + data.receipt_number + '. Please allow popups to print receipts.', 'Popup Blocked')
+                    .then(function () { window.location.reload(); });
             }
-
-            setTimeout(() => window.location.reload(), 300);
         } else {
-            alert(data.message);
+            toastError(data.message, 'Error');
         }
     })
-    .catch(() => alert('Error processing refund'));
+    .catch(() => toastError('Error processing refund'));
 });
 
 function showProcessReplacementModal(refundId, maxQty) {
@@ -756,17 +757,17 @@ document.getElementById('process-replacement-form').addEventListener('submit', f
     e.preventDefault();
 
     if (!selectedReplacementProduct) {
-        alert('Please select a replacement product.');
+        toastWarning('Please select a replacement product.');
         return;
     }
 
     const qty = parseInt(document.getElementById('replacement-quantity').value);
     if (qty > selectedReplacementProduct.stock) {
-        alert('Insufficient stock for the selected replacement item.');
+        toastWarning('Insufficient stock for the selected replacement item.');
         return;
     }
     if (qty > currentMaxReplacementQty) {
-        alert('Replacement quantity cannot exceed the approved return quantity.');
+        toastWarning('Replacement quantity cannot exceed the approved return quantity.');
         return;
     }
 
@@ -785,14 +786,15 @@ document.getElementById('process-replacement-form').addEventListener('submit', f
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Replacement processed successfully! Slip: ' + data.slip_number);
-            closeProcessReplacementModal();
-            location.reload();
+            toastSuccess('Replacement processed successfully! Slip: ' + data.slip_number).then(function () {
+                closeProcessReplacementModal();
+                location.reload();
+            });
         } else {
-            alert(data.message);
+            toastError(data.message, 'Error');
         }
     })
-    .catch(() => alert('Error processing replacement'));
+    .catch(() => toastError('Error processing replacement'));
 });
 </script>
 @endsection
