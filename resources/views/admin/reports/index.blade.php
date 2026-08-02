@@ -14,15 +14,21 @@
 @section('content')
     <!-- Summary Stats -->
     <div class="stats-grid">
-        <div class="stat-card">
+        <div class="stat-card" id="filteredRevenueCard">
             <div class="stat-icon green">
                 <i class="fas fa-peso-sign"></i>
             </div>
             <div class="stat-content">
-                <div class="stat-label">Total Revenue</div>
-                <div class="stat-value">₱{{ number_format($sales->total_revenue ?? 0, 2) }}</div>
+                <div class="stat-label">Total Revenue <span class="text-muted" style="font-weight:400;">(Selected Range)</span></div>
+                <div class="stat-value" id="filteredRevenueValue">₱{{ number_format($sales->total_revenue ?? 0, 2) }}</div>
             </div>
         </div>
+    </div>
+
+    <p class="text-muted mt-4 mb-2" style="font-size:0.82rem;">
+        <i class="fas fa-circle-info"></i> The cards below always show today/this-week/this-month regardless of the filter below — they're quick reference points, not affected by the Report Type / Date Range picker.
+    </p>
+    <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-icon blue">
                 <i class="fas fa-calendar-day"></i>
@@ -70,7 +76,9 @@
                         <i class="fas fa-download"></i> Download
                     </button>
                     <div id="downloadMenu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:#0f172a; border:1px solid #334155; border-radius:10px; min-width:180px; z-index:20; box-shadow: 0 12px 28px rgba(0,0,0,0.4);">
+                        <a href="#" id="printPreviewLink" target="_blank" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-print"></i> Print Preview</a>
                         <a href="#" id="exportPdfLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-pdf"></i> Export as PDF</a>
+                        <a href="#" id="exportCsvLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-csv"></i> Export as CSV</a>
                         <a href="#" id="exportExcelLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-excel"></i> Export as Excel</a>
                     </div>
                 </div>
@@ -98,6 +106,20 @@
                 <label class="form-label">End Date</label>
                 <input type="date" id="reportDateTo" class="form-input" value="{{ $dateTo }}" @if($dateFrom) min="{{ $dateFrom }}" @endif>
                 <span class="form-error" id="dateToError"></span>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top:4px;">
+            <label class="form-label">Quick Range</label>
+            <div id="datePresetGroup" style="display:flex; flex-wrap:wrap; gap:8px;">
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="today">Today</button>
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="yesterday">Yesterday</button>
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="this_week">This Week</button>
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="last_week">Last Week</button>
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="this_month">This Month</button>
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="last_month">Last Month</button>
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="this_year">This Year</button>
+                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="custom">Custom</button>
             </div>
         </div>
     </div>
@@ -295,11 +317,16 @@
             const errorBanner = document.getElementById('dateRangeErrorBanner');
             const errorText = document.getElementById('dateRangeErrorText');
             const pdfLink = document.getElementById('exportPdfLink');
+            const csvLink = document.getElementById('exportCsvLink');
             const excelLink = document.getElementById('exportExcelLink');
+            const printPreviewLink = document.getElementById('printPreviewLink');
             const downloadMenuBtn = document.getElementById('downloadMenuBtn');
             const downloadMenu = document.getElementById('downloadMenu');
+            const filteredRevenueValue = document.getElementById('filteredRevenueValue');
+            const presetButtons = document.querySelectorAll('.date-preset-btn');
             const previewUrl = '{{ route('admin.reports.preview') }}';
             const exportBaseUrl = '{{ route('admin.reports.export') }}';
+            const printBaseUrl = '{{ route('admin.reports.print') }}';
 
             // Keeps each date input's HTML5 min/max in sync with the other
             // field's current value, so the browser itself blocks picking an
@@ -322,11 +349,12 @@
             // separate "preview then unlock" step needed.
             function refreshDownloadTargets() {
                 const params = currentParams();
-                [['pdf', pdfLink], ['excel', excelLink]].forEach(([format, el]) => {
+                [['pdf', pdfLink], ['csv', csvLink], ['excel', excelLink]].forEach(([format, el]) => {
                     const p = new URLSearchParams(params);
                     p.set('format', format);
                     el.href = exportBaseUrl + '?' + p.toString();
                 });
+                printPreviewLink.href = printBaseUrl + '?' + params.toString();
             }
 
             // Guards against out-of-order responses: if the admin changes
@@ -360,6 +388,9 @@
                         } else {
                             errorBanner.style.display = 'none';
                         }
+                        if (typeof data.totalRevenue === 'number') {
+                            filteredRevenueValue.textContent = '₱' + data.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        }
                         refreshDownloadTargets();
                     })
                     .catch(() => {
@@ -371,7 +402,90 @@
             [typeSelect, dateFrom, dateTo].forEach((el) => el.addEventListener('change', function () {
                 syncDateConstraints();
                 refreshReportBody();
+                updateActivePreset();
             }));
+
+            // Presets just fill the same two date inputs the manual pickers
+            // use, then run through the exact same syncDateConstraints() +
+            // refreshReportBody() path — no separate request logic to keep
+            // in sync with the manual-entry flow.
+            function pad(n) { return String(n).padStart(2, '0'); }
+            function toDateInputValue(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+
+            function presetRange(preset) {
+                const now = new Date();
+                const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+                switch (preset) {
+                    case 'today': {
+                        const d = startOfDay(now);
+                        return [d, d];
+                    }
+                    case 'yesterday': {
+                        const d = new Date(now); d.setDate(d.getDate() - 1);
+                        const y = startOfDay(d);
+                        return [y, y];
+                    }
+                    case 'this_week': {
+                        const d = startOfDay(now);
+                        const day = d.getDay(); // 0=Sun..6=Sat
+                        const monday = new Date(d); monday.setDate(d.getDate() - ((day + 6) % 7));
+                        const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+                        return [monday, sunday];
+                    }
+                    case 'last_week': {
+                        const d = startOfDay(now);
+                        const day = d.getDay();
+                        const thisMonday = new Date(d); thisMonday.setDate(d.getDate() - ((day + 6) % 7));
+                        const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate() - 7);
+                        const lastSunday = new Date(lastMonday); lastSunday.setDate(lastMonday.getDate() + 6);
+                        return [lastMonday, lastSunday];
+                    }
+                    case 'this_month': {
+                        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                        return [start, end];
+                    }
+                    case 'last_month': {
+                        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                        const end = new Date(now.getFullYear(), now.getMonth(), 0);
+                        return [start, end];
+                    }
+                    case 'this_year': {
+                        const start = new Date(now.getFullYear(), 0, 1);
+                        const end = new Date(now.getFullYear(), 11, 31);
+                        return [start, end];
+                    }
+                    default:
+                        return null;
+                }
+            }
+
+            function updateActivePreset() {
+                presetButtons.forEach((btn) => btn.classList.remove('btn-primary'));
+            }
+
+            presetButtons.forEach((btn) => {
+                btn.addEventListener('click', function () {
+                    updateActivePreset();
+
+                    if (btn.dataset.preset === 'custom') {
+                        btn.classList.add('btn-primary');
+                        dateFrom.focus();
+                        return;
+                    }
+
+                    const range = presetRange(btn.dataset.preset);
+                    if (!range) return;
+                    const [start, end] = range;
+
+                    dateFrom.value = toDateInputValue(start);
+                    dateTo.value = toDateInputValue(end);
+                    btn.classList.add('btn-primary');
+                    syncDateConstraints();
+                    refreshReportBody();
+                });
+            });
 
             downloadMenuBtn.addEventListener('click', function (e) {
                 e.stopPropagation();

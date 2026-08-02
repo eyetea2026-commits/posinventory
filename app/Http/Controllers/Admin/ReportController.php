@@ -67,6 +67,12 @@ class ReportController extends Controller
                 'dateTo' => $effectiveTo,
             ]))->render(),
             'dateRangeError' => $dateRangeError,
+            // The "Total Revenue (Selected Range)" card lives outside the
+            // swapped #reportBodyContainer, so it needs its own value in
+            // this payload — otherwise it silently stays stuck at whatever
+            // the very first page load showed no matter how the filter
+            // changes afterward.
+            'totalRevenue' => (float) ($data['sales']->total_revenue ?? 0),
         ]);
     }
 
@@ -474,6 +480,24 @@ class ReportController extends Controller
         ];
     }
 
+    // In-browser Print Preview (window.print()) for the currently filtered
+    // report — distinct from export()'s dompdf download, reviewed on-screen
+    // first. Shares admin.reports.partials.print-table with the PDF export
+    // so the two surfaces never drift out of sync.
+    public function printPreview(Request $request)
+    {
+        $type = $request->get('type', 'sales');
+        [, , $dateFrom, $dateTo] = $this->resolveDateRange($request);
+        $rows = $this->rowsForType($type, $dateFrom, $dateTo);
+
+        return view('admin.reports.print', [
+            'type' => $type,
+            'rows' => $rows,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+        ]);
+    }
+
     public function export(Request $request)
     {
         $type = $request->get('type', 'sales');
@@ -522,15 +546,38 @@ class ReportController extends Controller
         $dateTo = $request->get('date_to') ?: null;
 
         $error = null;
+
+        // A hand-edited URL or stale bookmark can send something that isn't
+        // a real Y-m-d date at all — whereDate() against that wouldn't
+        // throw, it would just silently fail to filter anything, which
+        // looks like "the date range doesn't work" from the outside. Reject
+        // it up front instead, the same way the backwards-range case below
+        // already surfaces a friendly error rather than degrading silently.
+        if ($dateFrom && ! $this->isValidDate($dateFrom)) {
+            $error = 'Start Date is not a valid date.';
+            $dateFrom = null;
+        }
+        if ($dateTo && ! $this->isValidDate($dateTo)) {
+            $error = $error ?? 'End Date is not a valid date.';
+            $dateTo = null;
+        }
+
         $effectiveFrom = $dateFrom;
         $effectiveTo = $dateTo;
 
-        if ($dateFrom && $dateTo && $dateTo < $dateFrom) {
+        if (! $error && $dateFrom && $dateTo && $dateTo < $dateFrom) {
             $error = 'End Date cannot be earlier than Start Date.';
             $effectiveTo = $dateFrom;
         }
 
         return [$dateFrom, $dateTo, $effectiveFrom, $effectiveTo, $error];
+    }
+
+    private function isValidDate(string $value): bool
+    {
+        $parsed = \DateTime::createFromFormat('Y-m-d', $value);
+
+        return $parsed && $parsed->format('Y-m-d') === $value;
     }
 
     /**
