@@ -30,6 +30,14 @@
             transition: all 0.3s ease;
             opacity: 0;
             animation: fadeInUp 0.4s ease forwards;
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+        }
+
+        .stat-card:active {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
         }
 
         @keyframes fadeInUp {
@@ -675,7 +683,7 @@
 @section('content')
     {{-- KPI Summary Cards --}}
     <div class="stats-grid mb-4">
-        <div class="stat-card" style="animation-delay: 0.02s">
+        <a href="{{ route('admin.reports.index', ['type' => 'sales']) }}" class="stat-card" style="animation-delay: 0.02s" title="View Sales Report">
             <div class="stat-icon green"><i class="fas fa-peso-sign"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Sales Today</div>
@@ -688,39 +696,39 @@
                     <div class="stat-trend down"><i class="fas fa-arrow-down"></i> {{ abs($salesChangePct) }}% vs yesterday</div>
                 @endif
             </div>
-        </div>
-        <div class="stat-card" style="animation-delay: 0.06s">
+        </a>
+        <a href="{{ route('admin.reports.index', ['type' => 'sales']) }}" class="stat-card" style="animation-delay: 0.06s" title="View Sales Report">
             <div class="stat-icon blue"><i class="fas fa-receipt"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Transactions</div>
                 <div class="stat-value" data-counter data-value="{{ $transactionsToday }}">0</div>
                 <div class="stat-subtitle">Today</div>
             </div>
-        </div>
-        <div class="stat-card" style="animation-delay: 0.1s">
+        </a>
+        <a href="{{ route('admin.products.index') }}" class="stat-card" style="animation-delay: 0.1s" title="View Products">
             <div class="stat-icon purple"><i class="fas fa-boxes"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Products</div>
                 <div class="stat-value" id="statTotalProducts" data-counter data-value="{{ $totalProducts }}">0</div>
                 <div class="stat-subtitle">Total registered</div>
             </div>
-        </div>
-        <div class="stat-card" style="animation-delay: 0.14s">
+        </a>
+        <a href="{{ route('admin.inventory.index') }}" class="stat-card" style="animation-delay: 0.14s" title="View Inventory">
             <div class="stat-icon cyan"><i class="fas fa-warehouse"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Inventory Value</div>
                 <div class="stat-value" id="statInventoryValue" data-counter data-value="{{ $inventoryValue }}" data-prefix="₱" data-decimals="2">₱0.00</div>
                 <div class="stat-subtitle">At cost price</div>
             </div>
-        </div>
-        <div class="stat-card" style="animation-delay: 0.18s">
+        </a>
+        <a href="{{ route('admin.suppliers.index') }}" class="stat-card" style="animation-delay: 0.18s" title="View Suppliers">
             <div class="stat-icon orange"><i class="fas fa-truck"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Suppliers</div>
                 <div class="stat-value" data-counter data-value="{{ $totalSuppliers }}">0</div>
                 <div class="stat-subtitle">Registered</div>
             </div>
-        </div>
+        </a>
     </div>
 
     {{-- Section 1: Sales Analytics + Product Performance, side by side --}}

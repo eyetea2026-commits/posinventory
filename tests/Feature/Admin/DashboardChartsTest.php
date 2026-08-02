@@ -120,6 +120,19 @@ class DashboardChartsTest extends TestCase
         $this->assertStringNotContainsString('No Sales Data Available', $html);
     }
 
+    public function test_stat_cards_link_to_their_respective_modules(): void
+    {
+        $this->actingAs($this->admin);
+        $html = view('admin.dashboard', $this->baseViewData())->render();
+
+        $this->assertStringContainsString('href="' . route('admin.reports.index', ['type' => 'sales']) . '" class="stat-card"', $html);
+        $this->assertStringContainsString('href="' . route('admin.products.index') . '" class="stat-card"', $html);
+        $this->assertStringContainsString('href="' . route('admin.inventory.index') . '" class="stat-card"', $html);
+        $this->assertStringContainsString('href="' . route('admin.suppliers.index') . '" class="stat-card"', $html);
+        // Every stat card is now an <a>, not a plain non-interactive <div>.
+        $this->assertStringNotContainsString('<div class="stat-card"', $html);
+    }
+
     public function test_live_inventory_endpoint_groups_quantities_by_category_and_product(): void
     {
         $this->makeProductWithStock('CCTV', 'Dome Camera', 20);
