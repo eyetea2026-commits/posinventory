@@ -149,6 +149,45 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertSame(PurchaseOrder::STATUS_APPROVED, $po->fresh()->Status);
     }
 
+    public function test_approve_records_who_approved_it(): void
+    {
+        $po = $this->makeOrder();
+
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.approve', $po));
+
+        $this->assertSame($this->admin->id, $po->fresh()->ApprovedBy);
+    }
+
+    public function test_print_preview_renders_po_number_supplier_and_line_items(): void
+    {
+        $po = $this->makeOrder(['CreatedBy' => $this->admin->id]);
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.approve', $po));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+
+        $response->assertOk();
+        $response->assertSee($po->PONumber);
+        $response->assertSee('Acme Supplies');
+        $response->assertSee('DVR Camera');
+        $response->assertSee('CCTV Express');
+        $response->assertSee('Prepared By');
+        $response->assertSee('Approved By');
+        $response->assertSee($this->admin->full_name);
+        // 10 ordered x 600 cost = 6,000.00 grand total (ordered-based, not
+        // the received-based total the dompdf export/show page use).
+        $response->assertSee('6,000.00');
+    }
+
+    public function test_print_preview_shows_pending_approval_when_not_yet_approved(): void
+    {
+        $po = $this->makeOrder();
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+
+        $response->assertOk();
+        $response->assertSee('Pending Approval');
+    }
+
     public function test_index_shows_an_edit_action_for_editable_statuses_only(): void
     {
         $editablePo = $this->makeOrder(['PONumber' => 'PO-TEST-EDITABLE', 'Status' => PurchaseOrder::STATUS_PENDING]);

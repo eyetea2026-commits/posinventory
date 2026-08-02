@@ -217,6 +217,9 @@
     <div class="items-total">Total (received): ₱{{ number_format($purchaseOrder->items->sum('line_total'), 2) }}</div>
 
     <div class="detail-actions">
+        <a href="{{ route('admin.purchase-orders.print', $purchaseOrder) }}" target="_blank" class="btn btn-secondary">
+            <i class="fas fa-print"></i> Print
+        </a>
         <a href="{{ route('admin.purchase-orders.export', $purchaseOrder) }}" class="btn btn-secondary">
             <i class="fas fa-file-pdf"></i> Export PDF
         </a>

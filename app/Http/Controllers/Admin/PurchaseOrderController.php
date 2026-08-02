@@ -322,7 +322,7 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Only draft or pending purchase orders can be approved.');
         }
 
-        $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_APPROVED]);
+        $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_APPROVED, 'ApprovedBy' => auth()->id()]);
         ActivityLog::record('purchase_order.approved', "Approved PO #{$purchaseOrder->PONumber}");
 
         try {
@@ -393,5 +393,16 @@ class PurchaseOrderController extends Controller
 
         return Pdf::loadView('admin.purchase-orders.pdf', ['purchaseOrder' => $purchaseOrder])
             ->download("{$purchaseOrder->PONumber}.pdf");
+    }
+
+    // In-browser Print Preview (window.print()), as distinct from export()'s
+    // dompdf download — reviewed on-screen before printing, matching the
+    // admin.damages.print / cashier receipt convention already used
+    // elsewhere for printable documents.
+    public function printPreview(PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load(['supplier', 'items.product', 'createdByUser', 'approvedByUser']);
+
+        return view('admin.purchase-orders.print', ['purchaseOrder' => $purchaseOrder]);
     }
 }

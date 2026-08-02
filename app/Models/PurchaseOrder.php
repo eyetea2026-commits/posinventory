@@ -22,6 +22,7 @@ class PurchaseOrder extends Model
         'Status',
         'SupplierID',
         'CreatedBy',
+        'ApprovedBy',
     ];
 
     const STATUS_DRAFT = 'draft';
@@ -67,6 +68,11 @@ class PurchaseOrder extends Model
     public function createdByUser()
     {
         return $this->belongsTo(User::class, 'CreatedBy', 'id');
+    }
+
+    public function approvedByUser()
+    {
+        return $this->belongsTo(User::class, 'ApprovedBy', 'id');
     }
 
     public function isFullyReceived(): bool

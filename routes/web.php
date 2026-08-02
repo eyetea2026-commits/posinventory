@@ -269,6 +269,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.purchase-orders.cancel')->middleware(['auth', 'role:admin']);
     Route::get('purchase-orders/{purchaseOrder}/export', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'export'])
         ->name('admin.purchase-orders.export')->middleware(['auth', 'role:admin']);
+    Route::get('purchase-orders/{purchaseOrder}/print', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'printPreview'])
+        ->name('admin.purchase-orders.print')->middleware(['auth', 'role:admin']);
 
     Route::get('stock-adjustments', [App\Http\Controllers\Admin\StockAdjustmentController::class, 'index'])
         ->name('admin.stock-adjustments.index')->middleware(['auth', 'role:admin']);
