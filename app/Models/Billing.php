@@ -20,6 +20,7 @@ class Billing extends Model
         'BillingAmount',
         'Subtotal',
         'DiscountAmount',
+        'PromoCode',
         'VatAmount',
         'BillingDate',
         'DiscountID',

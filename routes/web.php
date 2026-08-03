@@ -179,12 +179,20 @@ Route::prefix('admin')->group(function () {
         ->name('admin.discounts.create')->middleware(['auth', 'role:admin']);
     Route::post('discounts', [App\Http\Controllers\Admin\DiscountController::class, 'store'])
         ->name('admin.discounts.store')->middleware(['auth', 'role:admin']);
+    Route::post('discounts/check-promo-code', [App\Http\Controllers\Admin\DiscountController::class, 'checkPromoCode'])
+        ->name('admin.discounts.check-promo-code')->middleware(['auth', 'role:admin']);
     Route::get('discounts/{discount}/edit', [App\Http\Controllers\Admin\DiscountController::class, 'edit'])
         ->name('admin.discounts.edit')->middleware(['auth', 'role:admin']);
     Route::put('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'update'])
         ->name('admin.discounts.update')->middleware(['auth', 'role:admin']);
     Route::delete('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'destroy'])
         ->name('admin.discounts.destroy')->middleware(['auth', 'role:admin']);
+    Route::post('discounts/{discount}/activate', [App\Http\Controllers\Admin\DiscountController::class, 'activate'])
+        ->name('admin.discounts.activate')->middleware(['auth', 'role:admin']);
+    Route::post('discounts/{discount}/deactivate', [App\Http\Controllers\Admin\DiscountController::class, 'deactivate'])
+        ->name('admin.discounts.deactivate')->middleware(['auth', 'role:admin']);
+    Route::get('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'show'])
+        ->name('admin.discounts.show')->middleware(['auth', 'role:admin']);
 
     // Damages
     Route::get('damages', [App\Http\Controllers\Admin\DamageController::class, 'index'])
@@ -319,7 +327,7 @@ Route::prefix('cashier')->group(function () {
     // Cashier users must contact the Administrator for password resets
 
     Route::get('pos', [CashierAuthController::class, 'pos'])->name('cashier.pos')->middleware(['auth', 'role:cashier']);
-    Route::get('pos/discounts', [CashierAuthController::class, 'discounts'])->name('cashier.pos.discounts')->middleware(['auth', 'role:cashier']);
+    Route::post('pos/apply-promo', [CashierAuthController::class, 'applyPromo'])->name('cashier.pos.apply-promo')->middleware(['auth', 'role:cashier']);
     Route::post('pos/process-sale', [CashierAuthController::class, 'processSale'])->name('cashier.process-sale')->middleware(['auth', 'role:cashier']);
     Route::get('transactions', [CashierAuthController::class, 'transactions'])->name('cashier.transactions')->middleware(['auth', 'role:cashier']);
 

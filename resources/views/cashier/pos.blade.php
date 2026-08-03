@@ -78,6 +78,22 @@
     .cart-item-price .item-total { font-weight: bold; color: #60a5fa; font-size: 1rem; }
     .cart-item-price .item-price { font-size: 0.75rem; color: #94a3b8; }
     .remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; font-size: 1rem; margin-left: 8px; }
+
+    .cart-item-promo-row { flex-basis: 100%; margin-top: 8px; }
+    .apply-promo-btn {
+        background: none; border: 1px dashed #4a5568; color: #93c5fd; cursor: pointer;
+        padding: 4px 10px; font-size: 0.72rem; border-radius: 6px; transition: all 0.2s;
+    }
+    .apply-promo-btn:hover { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+    .promo-applied-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(16, 185, 129, 0.15); color: #6ee7b7;
+        padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+    }
+    .promo-applied-chip button {
+        background: none; border: none; color: #6ee7b7; cursor: pointer; padding: 0; font-size: 0.85rem; line-height: 1;
+    }
+    .applied-promo-badge { font-size: 0.7rem; color: #6ee7b7; font-weight: 400; }
     .remove-btn:hover { color: #dc2626; }
 
     .cart-summary { background: #2d3748; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; flex-shrink: 0; }
@@ -205,29 +221,14 @@
                 <span>VAT (12%)</span>
                 <span id="vat">₱0.00</span>
             </div>
-            <div class="summary-row">
-                <span>Discount</span>
-                <span id="discount">₱0.00</span>
+            <div class="summary-row" id="discount-summary-row" style="display:none;">
+                <span>Discount <span id="applied-promo-badge" class="applied-promo-badge"></span></span>
+                <span id="discount">-₱0.00</span>
             </div>
             <div class="summary-row total">
                 <span>Total</span>
                 <span id="total">₱0.00</span>
             </div>
-        </div>
-
-        <div class="form-group">
-            <label>Apply Discount</label>
-            <select id="discount-select" onchange="updateTotals()">
-                <option value="" selected>No Discount</option>
-                @foreach($discounts as $discount)
-                    @php
-                        $rateLabel = rtrim(rtrim(number_format($discount->DiscountRate, 2), '0'), '.') . '%';
-                    @endphp
-                    <option value="{{ $discount->DiscountID }}" data-rate="{{ $discount->DiscountRate }}">
-                        {{ $discount->Name ? "{$rateLabel} — {$discount->Name}" : $rateLabel }}
-                    </option>
-                @endforeach
-            </select>
         </div>
 
         <div class="form-group">
@@ -310,46 +311,17 @@
         setInterval(tick, 1000);
     })();
 
-    // Poll for discount changes so a policy an admin creates/updates/deletes
-    // mid-shift shows up here without the cashier reloading the page.
-    // Pauses while the tab is hidden to avoid pointless requests.
-    function refreshDiscounts() {
-        if (document.hidden) return;
-
-        fetch('{{ route('cashier.pos.discounts') }}', { headers: { 'Accept': 'application/json' } })
-            .then(response => response.json())
-            .then(data => {
-                const select = document.getElementById('discount-select');
-                const previousValue = select.value;
-                select.innerHTML = '';
-
-                const noDiscountOption = document.createElement('option');
-                noDiscountOption.value = '';
-                noDiscountOption.textContent = 'No Discount';
-                select.appendChild(noDiscountOption);
-
-                (data.discounts || []).forEach(discount => {
-                    const option = document.createElement('option');
-                    option.value = discount.DiscountID;
-                    option.dataset.rate = discount.DiscountRate;
-                    const rate = parseFloat(discount.DiscountRate);
-                    const rateLabel = (rate % 1 === 0 ? rate : rate.toFixed(2)) + '%';
-                    option.textContent = discount.Name ? `${rateLabel} — ${discount.Name}` : rateLabel;
-                    select.appendChild(option);
-                });
-                // Keep the cashier's current selection if it still exists;
-                // otherwise fall back to "No Discount".
-                const stillExists = Array.from(select.options).some(o => o.value === previousValue);
-                select.value = stillExists ? previousValue : '';
-                updateTotals();
-            })
-            .catch(() => {
-                // Non-fatal — keep showing the last known discount list.
-            });
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
-    setInterval(refreshDiscounts, 20000);
 
     let cart = [];
+    // At most one promo applies per checkout, tied to one specific product
+    // already in the cart — { discountId, productId, code, name, rate }.
+    let appliedPromo = null;
     let selectedPaymentMethod = 'cash';
     let currentTotal = 0;
 
@@ -456,13 +428,25 @@
         }).then(function (result) {
             if (!result.isConfirmed) return;
             cart = [];
+            appliedPromo = null;
             renderCart();
             document.getElementById('customer-name').value = '';
-            document.getElementById('discount-select').value = '';
         });
     }
 
+    // If the promo'd product was removed from the cart (or its whole line
+    // deleted) since the promo was applied, the promo no longer has
+    // anything to discount — clear it up front so both the per-item badges
+    // and the summary totals built below stay consistent within this same
+    // render pass, rather than only catching it a render later.
+    function syncAppliedPromo() {
+        if (appliedPromo && !cart.find((i) => i.id === appliedPromo.productId)) {
+            appliedPromo = null;
+        }
+    }
+
     function renderCart() {
+        syncAppliedPromo();
         const container = document.getElementById('cart-items');
 
         if (cart.length === 0) {
@@ -483,10 +467,33 @@
 
         cart.forEach(item => {
             const itemTotal = item.price * item.qty;
+            const isPromoItem = appliedPromo && appliedPromo.productId === item.id;
+            let promoRowHtml;
+            if (isPromoItem) {
+                promoRowHtml = `
+                    <div class="cart-item-promo-row">
+                        <span class="promo-applied-chip">
+                            <i class="fas fa-tag"></i> ${escapeHtml(appliedPromo.code)} (-${appliedPromo.rate}%)
+                            <button type="button" onclick="removePromo()" title="Remove promo">&times;</button>
+                        </span>
+                    </div>
+                `;
+            } else if (!appliedPromo) {
+                promoRowHtml = `
+                    <div class="cart-item-promo-row">
+                        <button type="button" class="apply-promo-btn" onclick="applyPromoToItem(${item.id})">
+                            <i class="fas fa-tag"></i> Apply Promo
+                        </button>
+                    </div>
+                `;
+            } else {
+                promoRowHtml = '';
+            }
+
             container.innerHTML += `
-                <div class="cart-item">
+                <div class="cart-item" style="flex-wrap: wrap;">
                     <div class="cart-item-info">
-                        <h4>${item.name}</h4>
+                        <h4>${escapeHtml(item.name)}</h4>
                         <p>${window.formatPeso(item.price)} each</p>
                     </div>
                     <div class="cart-item-qty">
@@ -502,11 +509,65 @@
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
+                    ${promoRowHtml}
                 </div>
             `;
         });
 
         updateTotals();
+    }
+
+    function applyPromoToItem(productId) {
+        const item = cart.find((i) => i.id === productId);
+        if (!item) return;
+
+        Swal.fire({
+            title: 'Apply Promo Code',
+            input: 'text',
+            inputLabel: `For "${item.name}"`,
+            inputPlaceholder: 'Enter promo code',
+            showCancelButton: true,
+            confirmButtonText: 'Apply',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b',
+            customClass: { popup: 'swal-compact' },
+            inputValidator: (value) => (!value ? 'Please enter a promo code.' : undefined),
+        }).then((result) => {
+            if (!result.isConfirmed || !result.value) return;
+
+            fetch('{{ route('cashier.pos.apply-promo') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ promo_code: result.value, product_id: productId }),
+            })
+                .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok || !data.success) {
+                        toastError(data.message || 'Unable to apply this promo code.', 'Invalid Promo');
+                        return;
+                    }
+
+                    appliedPromo = {
+                        discountId: data.discount_id,
+                        productId: data.product_id,
+                        code: data.promo_code,
+                        name: data.promo_name,
+                        rate: data.discount_rate,
+                    };
+                    renderCart();
+                    toastSuccess(`Promo "${data.promo_code}" applied to ${item.name}.`);
+                })
+                .catch(() => toastError('Error applying promo code. Please try again.'));
+        });
+    }
+
+    function removePromo() {
+        appliedPromo = null;
+        renderCart();
     }
 
     // Holding down a qty +/- button repeats it instead of requiring one tap
@@ -602,18 +663,26 @@
 
     function updateTotals() {
         const subtotal = roundMoney(cart.reduce((sum, item) => sum + (item.price * item.qty), 0));
-        const discountSelect = document.getElementById('discount-select');
-        const hasDiscount = discountSelect.value !== '';
-        const selectedOption = discountSelect.options[discountSelect.selectedIndex];
-        const discountRate = hasDiscount && selectedOption ? (parseFloat(selectedOption.dataset.rate) || 0) : 0;
-        const discountAmount = roundMoney(subtotal * (discountRate / 100));
+
+        // A promo only ever discounts its own product's line, not the whole
+        // cart — matches how processSale() computes it server-side.
+        let discountAmount = 0;
+        if (appliedPromo) {
+            const promoItem = cart.find((i) => i.id === appliedPromo.productId);
+            if (promoItem) {
+                const promoLineSubtotal = promoItem.price * promoItem.qty;
+                discountAmount = roundMoney(promoLineSubtotal * (appliedPromo.rate / 100));
+            }
+        }
+
         const vatAmount = roundMoney((subtotal - discountAmount) * 0.12);
         currentTotal = roundMoney(subtotal - discountAmount + vatAmount);
 
         document.getElementById('subtotal').textContent = window.formatPeso(subtotal);
         document.getElementById('vat').textContent = window.formatPeso(vatAmount);
-        document.getElementById('discount').textContent = window.formatPeso(discountAmount);
-        document.getElementById('discount').closest('.summary-row').style.display = hasDiscount ? 'flex' : 'none';
+        document.getElementById('discount').textContent = '-' + window.formatPeso(discountAmount);
+        document.getElementById('discount-summary-row').style.display = appliedPromo ? 'flex' : 'none';
+        document.getElementById('applied-promo-badge').textContent = appliedPromo ? `(${appliedPromo.code})` : '';
         document.getElementById('total').textContent = window.formatPeso(currentTotal);
 
         calculateChange();
@@ -683,7 +752,7 @@
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
             items: cart,
-            discount_id: document.getElementById('discount-select').value || null,
+            discount_id: appliedPromo ? appliedPromo.discountId : null,
             payment_method: selectedPaymentMethod,
             account_number: document.getElementById('account-number').value,
             payment_amount: window.parseMoney(document.getElementById('payment-amount').value),

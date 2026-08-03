@@ -1,189 +1,81 @@
 @extends('admin.layout')
 
-@section('title', 'Edit Discount - CCTV Express')
+@section('title', 'Edit Promo Code - CCTV Express')
 
 @section('header')
     <div class="header-title">
-        <h1>Edit Discount Policy</h1>
-        <p>Update this discount rate</p>
+        <h1>Edit Promo Code</h1>
+        <p>Update this product's promotional discount</p>
     </div>
 @endsection
 
 @section('header-actions')
     <a href="{{ route('admin.discounts.index') }}" class="btn btn-secondary">
-        <i class="fa-solid fa-arrow-left"></i> Back to Discounts
+        <i class="fa-solid fa-arrow-left"></i> Back to Promo Codes
     </a>
 @endsection
 
 @section('content')
 <style>
-    :root {
-        --glass-bg: rgba(15, 23, 42, 0.7);
-        --glass-border: rgba(148, 163, 184, 0.1);
-        --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        --primary: #3b82f6;
-        --success: #10b981;
-    }
-
     .glass-card {
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.1);
         border-radius: 20px;
-        box-shadow: var(--glass-shadow);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         backdrop-filter: blur(10px);
-        max-width: 600px;
+        max-width: 640px;
         margin: 0 auto;
         padding: 32px;
     }
-
     .btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-weight: 600;
-        text-decoration: none;
-        transition: all 0.2s ease;
-        border: none;
-        cursor: pointer;
-        font-size: 0.95rem;
+        display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 10px;
+        font-weight: 600; text-decoration: none; transition: all 0.2s ease; border: none; cursor: pointer; font-size: 0.95rem;
     }
-
-    .btn-primary {
-        background: linear-gradient(135deg, var(--primary), var(--success));
-        color: white;
-    }
-
-    .btn-primary:hover {
-        transform: translateY(-2px);
-    }
-
-    .btn-secondary {
-        background: rgba(148, 163, 184, 0.15);
-        color: var(--text-secondary);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-    }
-
-    .form-group {
-        margin-bottom: 24px;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #cbd5e1;
-    }
-
-    .form-group label .required {
-        color: #ef4444;
-    }
-
-    .form-group label .text-optional {
-        color: #64748b;
-        font-weight: 500;
-    }
-
+    .btn-primary { background: linear-gradient(135deg, #3b82f6, #10b981); color: white; }
+    .btn-primary:hover { transform: translateY(-2px); }
+    .btn-secondary { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.2); }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #cbd5e1; }
+    .form-group label .required { color: #ef4444; }
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .form-control {
-        width: 100%;
-        padding: 14px 16px;
-        background: rgba(30, 41, 59, 0.8);
-        border: 1px solid rgba(59, 130, 246, 0.2);
-        border-radius: 12px;
-        color: #f8fafc;
-        font-size: 1rem;
+        width: 100%; padding: 12px 14px; background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; color: #f8fafc; font-size: 0.95rem;
     }
-
-    .form-control:focus {
-        outline: none;
-        border-color: var(--primary);
-    }
-
-    .form-text {
-        display: block;
-        margin-top: 8px;
-        color: #94a3b8;
-        font-size: 0.85rem;
-    }
-
-    .error {
-        display: block;
-        margin-top: 8px;
-        color: #fca5a5;
-        font-size: 0.85rem;
-    }
-
-    .form-actions {
-        display: flex;
-        gap: 12px;
-        margin-top: 32px;
-    }
-
-    .form-actions .btn {
-        padding: 14px 28px;
-    }
-
-    .alert {
-        padding: 16px 20px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .alert-danger {
-        background: rgba(239, 68, 68, 0.15);
-        color: #fca5a5;
-    }
+    .form-control:focus { outline: none; border-color: var(--primary); }
+    .form-control:disabled { opacity: 0.7; }
+    .error { display: block; margin-top: 6px; color: #fca5a5; font-size: 0.82rem; }
+    .form-actions { display: flex; gap: 12px; margin-top: 28px; }
+    .form-actions .btn { padding: 14px 28px; }
+    .alert { padding: 16px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+    .alert-danger { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
 </style>
 
 @if($errors->any())
-    <div class="alert alert-danger">
-        <i class="fa-solid fa-circle-exclamation"></i>
-        Please fix the errors below.
-    </div>
+    <div class="alert alert-danger"><i class="fa-solid fa-circle-exclamation"></i> Please fix the errors below.</div>
 @endif
 
 <div class="card glass-card">
     <form method="POST" action="{{ route('admin.discounts.update', $discount->DiscountID) }}" id="discountForm">
         @csrf
         @method('PUT')
-
-        <div class="form-group">
-            <label for="Name">Promo Name <span class="text-optional">(optional)</span></label>
-            <input type="text" id="Name" name="Name" class="form-control"
-                   value="{{ old('Name', $discount->Name) }}" maxlength="100" placeholder="e.g., Summer Sale">
-            @error('Name')
-                <span class="error">{{ $message }}</span>
-            @enderror
-        </div>
-
-        <div class="form-group">
-            <label for="DiscountRate">Discount Rate (%) <span class="required">*</span></label>
-            <input type="number" id="DiscountRate" name="DiscountRate" class="form-control"
-                   value="{{ old('DiscountRate', $discount->DiscountRate) }}" required min="0" max="100" step="0.01" placeholder="e.g., 10 for 10%">
-            @error('DiscountRate')
-                <span class="error">{{ $message }}</span>
-            @enderror
-        </div>
+        @include('admin.discounts.partials.discount-form-fields', ['discount' => $discount, 'products' => $products])
 
         <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="confirmCancel()">
-                <i class="fas fa-times"></i> Cancel
-            </button>
-            <button type="button" class="btn btn-primary" id="submitBtn" onclick="confirmSave()">
-                <i class="fas fa-save"></i> Update Discount
-            </button>
+            <button type="button" class="btn btn-secondary" onclick="confirmCancel()"><i class="fas fa-times"></i> Cancel</button>
+            <button type="button" class="btn btn-primary" id="submitBtn" onclick="confirmSave()"><i class="fas fa-save"></i> Update Promo</button>
         </div>
     </form>
 </div>
+
+@include('admin.discounts.partials.discount-form-behavior')
 
 <script>
     const form = document.getElementById('discountForm');
     const submitBtn = document.getElementById('submitBtn');
     let formChanged = false;
+
+    window.initDiscountFormPrice(form);
 
     form.querySelectorAll('input, textarea, select').forEach(input => {
         input.addEventListener('change', () => formChanged = true);
@@ -191,21 +83,9 @@
     });
 
     function confirmSave() {
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
+        if (!form.checkValidity()) { form.reportValidity(); return; }
 
-        Swal.fire({
-            title: 'Confirm Update',
-            text: 'Are you sure you want to update this discount policy?',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Yes',
-            cancelButtonText: 'No',
-            confirmButtonColor: '#10b981',
-            cancelButtonColor: '#64748b'
-        }).then((result) => {
+        window.confirmAction({ title: 'Confirm Update', text: 'Save changes to this promo code?' }).then((result) => {
             if (result.isConfirmed) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
@@ -216,51 +96,21 @@
     }
 
     function confirmCancel() {
-        if (!formChanged) {
-            window.location.href = '{{ route("admin.discounts.index") }}';
-            return;
-        }
+        if (!formChanged) { window.location.href = '{{ route("admin.discounts.index") }}'; return; }
 
-        Swal.fire({
-            title: 'Discard Changes',
-            text: 'You have unsaved changes. Are you sure you want to cancel? Any unsaved information will be lost.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Yes',
-            cancelButtonText: 'No',
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: '#64748b'
+        window.confirmAction({
+            title: 'Discard Changes', text: 'You have unsaved changes. Are you sure you want to cancel?',
+            icon: 'warning', confirmText: 'Yes', confirmColor: '#ef4444',
         }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = '{{ route("admin.discounts.index") }}';
-            }
+            if (result.isConfirmed) window.location.href = '{{ route("admin.discounts.index") }}';
         });
     }
 
-    window.addEventListener('beforeunload', function(e) {
-        if (formChanged) {
-            e.preventDefault();
-            e.returnValue = '';
-        }
+    window.addEventListener('beforeunload', function (e) {
+        if (formChanged) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    @if(session('success'))
-        Swal.fire({
-            title: 'Success',
-            text: '{{ session('success') }}',
-            icon: 'success',
-            confirmButtonColor: '#10b981',
-            timer: 3000,
-            timerProgressBar: true
-        });
-    @endif
-    @if(session('error'))
-        Swal.fire({
-            title: 'Error',
-            text: '{{ session('error') }}',
-            icon: 'error',
-            confirmButtonColor: '#ef4444'
-        });
-    @endif
+    @if(session('success')) toastSuccess('{{ session('success') }}'); @endif
+    @if(session('error')) toastError('{{ session('error') }}'); @endif
 </script>
 @endsection

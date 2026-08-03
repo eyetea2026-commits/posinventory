@@ -46,16 +46,43 @@ class CashierAuthController extends Controller
         $products = Product::with('inventory')->get()->filter(function($product) {
             return $product->inventory && $product->inventory->Quantity > 0;
         });
-        $discounts = Discount::orderBy('DiscountRate')->get();
-        return view('cashier.pos', compact('products', 'discounts'));
+        return view('cashier.pos', compact('products'));
     }
 
-    // Polled by the POS screen so a discount an admin creates/updates
-    // mid-shift shows up without the cashier reloading the page.
-    public function discounts()
+    // "Apply Promo" — validates a promo code against one specific product
+    // already in the cart. Never trusts a client-sent rate/amount: only the
+    // resolved DiscountID is handed back, and processSale() re-validates and
+    // recomputes everything itself from that ID at checkout time.
+    public function applyPromo(Request $request)
     {
+        $data = $request->validate([
+            'promo_code' => 'required|string|max:30',
+            'product_id' => 'required|integer|exists:Product,ProductID',
+        ]);
+
+        $code = strtoupper(trim($data['promo_code']));
+        $discount = Discount::where('PromoCode', $code)->first();
+
+        if (! $discount) {
+            return response()->json(['success' => false, 'message' => 'Promo code not found.'], 404);
+        }
+
+        if ((int) $discount->ProductID !== (int) $data['product_id']) {
+            return response()->json(['success' => false, 'message' => 'This promo code does not apply to the selected product.'], 422);
+        }
+
+        if ($discount->effective_status !== Discount::STATUS_ACTIVE) {
+            $reason = $discount->effective_status === Discount::STATUS_EXPIRED ? 'has expired' : 'is not currently active';
+            return response()->json(['success' => false, 'message' => "This promo code {$reason}."], 422);
+        }
+
         return response()->json([
-            'discounts' => Discount::orderBy('DiscountRate')->get(['DiscountID', 'DiscountRate', 'Name']),
+            'success' => true,
+            'discount_id' => $discount->DiscountID,
+            'discount_rate' => (float) $discount->DiscountRate,
+            'promo_name' => $discount->Name,
+            'promo_code' => $discount->PromoCode,
+            'product_id' => $discount->ProductID,
         ]);
     }
 
@@ -160,18 +187,33 @@ class CashierAuthController extends Controller
                     $subtotal += $products->get($item['id'])->Price * $item['qty'];
                 }
 
-                // Discounts are admin-managed policies now, not a rate a cashier
-                // can type — look up the chosen row and use its rate, never a
-                // client-submitted percentage. No selection at all means no
-                // discount applies, not an error.
+                // Promo codes are admin-managed, product-specific policies —
+                // never a rate the cashier can type. Re-validated from
+                // scratch here exactly like Apply Promo does client-side,
+                // since the id alone is all the client ever sent: it must
+                // still exist, still be active/within its date window, and
+                // still apply to a product actually in this cart. No
+                // selection at all means no discount applies, not an error.
                 $discount = null;
+                $discountAmount = 0.0;
                 if ($discountId) {
                     $discount = Discount::find($discountId);
                     if (!$discount) {
-                        throw new \RuntimeException('Selected discount is no longer available.');
+                        throw new \RuntimeException('Selected promo is no longer available.');
                     }
+                    if ($discount->effective_status !== Discount::STATUS_ACTIVE) {
+                        throw new \RuntimeException('Selected promo is no longer active.');
+                    }
+                    if (!array_key_exists($discount->ProductID, $quantitiesByProduct)) {
+                        throw new \RuntimeException('Selected promo does not apply to any product in this cart.');
+                    }
+
+                    // The discount applies only to its own product's line —
+                    // not the whole cart — so it's computed against just
+                    // that line's subtotal.
+                    $promoProductSubtotal = $products->get($discount->ProductID)->Price * $quantitiesByProduct[$discount->ProductID];
+                    $discountAmount = round($promoProductSubtotal * ((float) $discount->DiscountRate / 100), 2);
                 }
-                $discountRate = $discount ? (float) $discount->DiscountRate : 0.0;
 
                 // Round every money value to the cent immediately after
                 // computing it — carrying raw floating-point results into
@@ -180,7 +222,6 @@ class CashierAuthController extends Controller
                 // due to residual binary-fraction error a step or two back
                 // in this same formula.
                 $subtotal = round($subtotal, 2);
-                $discountAmount = round($subtotal * ($discountRate / 100), 2);
                 $vatAmount = round(($subtotal - $discountAmount) * 0.12, 2);
                 $total = round($subtotal - $discountAmount + $vatAmount, 2);
 
@@ -224,6 +265,7 @@ class CashierAuthController extends Controller
                     'BillingAmount' => $total,
                     'Subtotal' => $subtotal,
                     'DiscountAmount' => $discountAmount,
+                    'PromoCode' => $discount?->PromoCode,
                     'VatAmount' => $vatAmount,
                     'BillingDate' => now(),
                     'DiscountID' => $discount?->DiscountID,
@@ -330,18 +372,31 @@ class CashierAuthController extends Controller
         })->toArray();
 
         $hasDiscount = $billing && $billing->DiscountID !== null;
+        $promoCode = null;
+        $promoProductName = null;
 
         if ($billing && $billing->Subtotal !== null) {
             // Historically-accurate path: read back exactly what was charged
-            // at sale time, immune to the Discount's rate being edited since
-            // then. The rate shown is derived from the stored amount/subtotal
-            // (not the Discount's current rate) so the percentage and amount
-            // on screen always agree with each other.
+            // at sale time, immune to the Discount's rate/code being edited
+            // since then (PromoCode is frozen onto Billing itself for that
+            // reason). The rate shown is derived from the promo'd product's
+            // OWN line subtotal, not the whole cart — a promo only ever
+            // discounts the one product it's tied to — so the percentage and
+            // amount on screen always agree with each other.
             $subtotal = (float) $billing->Subtotal;
             $discountAmount = (float) $billing->DiscountAmount;
             $vatAmount = (float) $billing->VatAmount;
             $total = (float) $billing->BillingAmount;
-            $discountRate = $subtotal > 0 ? round(($discountAmount / $subtotal) * 100, 2) : 0;
+
+            $discountRate = 0;
+            if ($hasDiscount) {
+                $promoCode = $billing->PromoCode ?? $billing->discount?->PromoCode;
+                $promoProductId = $billing->discount?->ProductID;
+                $promoLine = collect($items)->firstWhere('id', $promoProductId);
+                $promoProductName = $promoLine['name'] ?? null;
+                $promoProductSubtotal = $promoLine ? $promoLine['price'] * $promoLine['qty'] : 0;
+                $discountRate = $promoProductSubtotal > 0 ? round(($discountAmount / $promoProductSubtotal) * 100, 2) : 0;
+            }
         } else {
             // Legacy fallback for rows predating the Subtotal/DiscountAmount/
             // VatAmount columns — recomputed live from SalesItem + the
@@ -378,6 +433,8 @@ class CashierAuthController extends Controller
             'hasDiscount' => $hasDiscount,
             'discountRate' => $discountRate,
             'discountAmount' => $discountAmount,
+            'promoCode' => $promoCode,
+            'promoProductName' => $promoProductName,
             'vatAmount' => $vatAmount,
             'total' => $total,
             'paymentMethod' => $paymentMethod,

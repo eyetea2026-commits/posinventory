@@ -70,6 +70,18 @@
                 <span>₱{{ number_format($subtotal, 2) }}</span>
             </div>
             @if($hasDiscount)
+                @if($promoCode)
+                    <div class="total-row">
+                        <span>Promo Code:</span>
+                        <span>{{ $promoCode }}</span>
+                    </div>
+                @endif
+                @if($promoProductName)
+                    <div class="total-row">
+                        <span>Applied To:</span>
+                        <span>{{ $promoProductName }}</span>
+                    </div>
+                @endif
                 <div class="total-row">
                     <span>Discount ({{ $discountRate }}%):</span>
                     <span>-₱{{ number_format($discountAmount, 2) }}</span>
