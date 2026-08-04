@@ -94,4 +94,45 @@ class Phase5PolishTest extends TestCase
         $response->assertSee('data-confirm-title="Submit Purchase Order"', false);
         $response->assertSee('data-confirm-title="Approve Purchase Order"', false);
     }
+
+    // Regression test for a real bug found during the SweetAlert2 redesign:
+    // admin/layout.blade.php carried its own older `.swal2-popup { width:
+    // 28em !important; ... }` block, positioned AFTER the shared
+    // partials/swal-helpers.blade.php include — with matching specificity
+    // and !important, source order made it win every time, silently
+    // no-op'ing the shared partial's sizing on every single admin page.
+    public function test_admin_layout_does_not_carry_a_duplicate_swal2_popup_override(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.suppliers.index'));
+
+        $response->assertOk();
+        // The shared partial's compact rule should be present exactly once.
+        $content = $response->getContent();
+        $this->assertSame(1, substr_count($content, 'width: 380px !important'));
+        // The old layout-local override (a competing "28em !important" width
+        // declaration) must not have come back — checked as the exact
+        // duplicate-rule signature, not a bare "28em" substring, since that
+        // string alone also appears inside this file's own explanatory CSS
+        // comment describing the bug that was fixed.
+        $this->assertStringNotContainsString('width: 28em !important', $content);
+    }
+
+    // Regression test for the "receipt never appears" bug: when the
+    // browser's popup blocker prevents window.open() from succeeding, the
+    // sale still completed successfully server-side but the cashier saw
+    // nothing — no receipt, no error. The POS page must always ship the
+    // in-page fallback viewer so a receipt is guaranteed to display
+    // regardless of whether popups are allowed.
+    public function test_pos_page_ships_the_receipt_fallback_viewer_for_blocked_popups(): void
+    {
+        $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);
+        $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
+
+        $response = $this->actingAs($cashier)->get(route('cashier.pos'));
+
+        $response->assertOk();
+        $response->assertSee('id="receiptFallbackOverlay"', false);
+        $response->assertSee('showReceiptFallback', false);
+        $response->assertSee('printReceiptFallback', false);
+    }
 }

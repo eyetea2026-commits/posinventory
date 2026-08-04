@@ -283,6 +283,28 @@
     </div>
 </div>
 
+{{-- Fallback receipt viewer — shown automatically in-page whenever the
+     preferred pop-up receipt window can't open (browser popup blocker,
+     an extension, or a policy that blocks window.open() entirely). Every
+     sale still gets its receipt displayed immediately either way; this
+     path just doesn't depend on popups being allowed at all. --}}
+<div id="receiptFallbackOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:#1a1d2d; border-radius:16px; width:min(420px, 92vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid rgba(148,163,184,0.15);">
+            <strong style="color:#f8fafc;"><i class="fas fa-receipt"></i> Sale Complete — Receipt</strong>
+        </div>
+        <iframe id="receiptFallbackFrame" style="border:0; width:100%; flex:1; min-height:420px; background:#fff;"></iframe>
+        <div style="display:flex; gap:10px; padding:14px 20px; border-top:1px solid rgba(148,163,184,0.15);">
+            <button type="button" class="btn-checkout" style="flex:1;" onclick="printReceiptFallback()">
+                <i class="fas fa-print"></i> Print Receipt
+            </button>
+            <button type="button" class="clear-cart-btn" style="flex:0 0 auto;" onclick="closeReceiptFallbackAndReset()">
+                <i class="fas fa-check"></i> New Sale
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     window.attachMoneyInput(document.getElementById('payment-amount'));
 
@@ -723,6 +745,22 @@
         document.getElementById('change-amount').textContent = window.formatPeso(change);
     }
 
+    function showReceiptFallback(receiptUrl) {
+        document.getElementById('receiptFallbackFrame').src = receiptUrl;
+        document.getElementById('receiptFallbackOverlay').style.display = 'flex';
+    }
+
+    function printReceiptFallback() {
+        const frame = document.getElementById('receiptFallbackFrame');
+        if (frame.contentWindow) frame.contentWindow.print();
+    }
+
+    function closeReceiptFallbackAndReset() {
+        document.getElementById('receiptFallbackOverlay').style.display = 'none';
+        document.getElementById('receiptFallbackFrame').src = 'about:blank';
+        window.location.reload();
+    }
+
     function processCheckout() {
         const checkoutBtn = document.getElementById('checkout-btn');
 
@@ -808,15 +846,24 @@
                     if (receiptWindow && !receiptWindow.closed) {
                         receiptWindow.location.href = receiptUrl;
                         receiptWindow.focus();
-                    }
 
-                    // Reload so the product grid reflects the stock the sale just
-                    // deducted — it's rendered server-side once at page load, so
-                    // without this the displayed "Stock: X" (and the cart's own
-                    // stock-limit checks) stay stale until a manual refresh. The
-                    // receipt is in its own separate popup window, so reloading
-                    // this tab doesn't affect it.
-                    window.location.reload();
+                        // Reload so the product grid reflects the stock the sale
+                        // just deducted — it's rendered server-side once at page
+                        // load, so without this the displayed "Stock: X" (and the
+                        // cart's own stock-limit checks) stay stale until a manual
+                        // refresh. The receipt is in its own separate popup
+                        // window, so reloading this tab doesn't affect it.
+                        window.location.reload();
+                    } else {
+                        // Popup was blocked (or got closed) — the sale still went
+                        // through, so the receipt must still appear automatically
+                        // without depending on popup permission. Shown in-page
+                        // instead; the POS only resets once the cashier
+                        // acknowledges it via "New Sale", per the same "receipt
+                        // first, reset after" order the popup path already
+                        // follows in practice.
+                        showReceiptFallback(receiptUrl);
+                    }
                 } else {
                     if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
                     toastError(data.message, 'Error');

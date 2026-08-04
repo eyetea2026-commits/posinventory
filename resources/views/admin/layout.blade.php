@@ -178,33 +178,13 @@
             .header-controls { gap: 8px; }
             .header-profile-name { display: none; }
         }
-        /* SweetAlert2 Custom Styles - Smaller Dialogs */
-        .swal2-popup {
-            width: 28em !important;
-            max-width: 90% !important;
-            padding: 1.5em !important;
-            border-radius: 16px !important;
-        }
-
-        .swal2-title {
-            font-size: 1.25rem !important;
-            margin-bottom: 0.5em !important;
-        }
-
-        .swal2-content {
-            font-size: 0.9rem !important;
-        }
-
-        .swal2-actions {
-            gap: 8px !important;
-            margin-top: 1em !important;
-        }
-
-        .swal2-actions .swal2-styled {
-            padding: 10px 20px !important;
-            border-radius: 8px !important;
-            font-size: 0.85rem !important;
-        }
+        /* SweetAlert2 dialog styling lives in partials/swal-helpers.blade.php
+           (included above, shared with cashier.layout) — a duplicate
+           .swal2-popup override used to live here too and, being later in
+           source order with matching !important + specificity, silently
+           won every tie and made the shared partial's sizing a no-op on
+           every admin page. Removed in favor of that single source of
+           truth instead of maintaining two competing definitions. */
 
         /* Custom scrollbar */
         ::-webkit-scrollbar {
