@@ -149,72 +149,7 @@
 </style>
 
 <div class="product-detail-card">
-    <h2 class="section-title">Order Information</h2>
-    <div class="detail-row">
-        <span class="detail-label">Order Date</span>
-        <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('M d, Y') }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Supplier</span>
-        <span class="detail-value">{{ $purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Expected Delivery</span>
-        <span class="detail-value">{{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('M d, Y') : 'Not set' }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Status</span>
-        <span class="detail-value">
-            @php
-                $statusClass = match($purchaseOrder->Status) {
-                    \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-completed',
-                    \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-pending',
-                    \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-approved',
-                    \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-cancelled',
-                    \App\Models\PurchaseOrder::STATUS_DRAFT => 'badge-draft',
-                    default => 'badge-other',
-                };
-            @endphp
-            <span class="badge {{ $statusClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? ucfirst($purchaseOrder->Status) }}</span>
-        </span>
-    </div>
-    @if($purchaseOrder->Notes)
-        <div class="detail-row">
-            <span class="detail-label">Notes</span>
-            <span class="detail-value">{{ $purchaseOrder->Notes }}</span>
-        </div>
-    @endif
-</div>
-
-<div class="product-detail-card">
-    <h2 class="section-title">Order Items</h2>
-    <div style="overflow-x: auto;">
-        <table class="items-table">
-            <thead>
-                <tr>
-                    <th>Product</th>
-                    <th>Ordered</th>
-                    <th>Received</th>
-                    <th>Remaining</th>
-                    <th>Cost Price</th>
-                    <th>Line Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($purchaseOrder->items as $item)
-                    <tr>
-                        <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
-                        <td>{{ $item->Quantity }}</td>
-                        <td>{{ $item->ReceivedQuantity }}</td>
-                        <td>{{ $item->remaining_quantity }}</td>
-                        <td>₱{{ number_format($item->CostPriceAtOrder, 2) }}</td>
-                        <td>₱{{ number_format($item->line_total, 2) }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-    <div class="items-total">Total (received): ₱{{ number_format($purchaseOrder->items->sum('line_total'), 2) }}</div>
+    @include('admin.purchase-orders.partials.purchase-order-details', ['purchaseOrder' => $purchaseOrder, 'showStatus' => true])
 
     <div class="detail-actions">
         <a href="{{ route('admin.purchase-orders.print', $purchaseOrder) }}" target="_blank" class="btn btn-secondary">

@@ -73,9 +73,21 @@ class PurchaseOrderController extends Controller
         ]);
     }
 
-    public function show(PurchaseOrder $purchaseOrder)
+    public function show(Request $request, PurchaseOrder $purchaseOrder)
     {
         $purchaseOrder->load(['supplier', 'items.product', 'stockReceivings']);
+
+        // View Details modal: return just the rendered detail rows (no
+        // Status badge, no Approve/Cancel/Submit/Export PDF) instead of a
+        // full page, so the index page can inject it without navigating.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.purchase-orders.partials.purchase-order-details', [
+                    'purchaseOrder' => $purchaseOrder,
+                    'showStatus' => false,
+                ])->render(),
+            ]);
+        }
 
         return view('admin.purchase-orders.show', [
             'purchaseOrder' => $purchaseOrder,

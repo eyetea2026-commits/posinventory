@@ -176,6 +176,11 @@ class PurchaseOrderModuleTest extends TestCase
         // 10 ordered x 600 cost = 6,000.00 grand total (ordered-based, not
         // the received-based total the dompdf export/show page use).
         $response->assertSee('6,000.00');
+        $response->assertSee('Purchase Order Information');
+        $response->assertSee('Supplier Information');
+        $response->assertSee('Order Summary');
+        $response->assertSee('Remarks');
+        $response->assertSee('Checked By');
     }
 
     public function test_print_preview_shows_pending_approval_when_not_yet_approved(): void
@@ -186,6 +191,48 @@ class PurchaseOrderModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Pending Approval');
+    }
+
+    public function test_show_ajax_branch_returns_read_only_details_without_status_or_action_buttons(): void
+    {
+        $po = $this->makeOrder(['CreatedBy' => $this->admin->id]);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.purchase-orders.show', $po));
+
+        $response->assertOk();
+        $response->assertJsonStructure(['html']);
+        $html = $response->json('html');
+
+        $this->assertStringContainsString('Order Information', $html);
+        $this->assertStringContainsString('Order Items', $html);
+        $this->assertStringContainsString('DVR Camera', $html);
+        $this->assertStringNotContainsString('Approve', $html);
+        $this->assertStringNotContainsString('Cancel', $html);
+        $this->assertStringNotContainsString('Export PDF', $html);
+    }
+
+    public function test_show_full_page_still_renders_status_and_action_buttons(): void
+    {
+        $po = $this->makeOrder(['CreatedBy' => $this->admin->id]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.show', $po));
+
+        $response->assertOk();
+        $response->assertSee('Status');
+        $response->assertSee('Approve');
+        $response->assertSee('Export PDF');
+    }
+
+    public function test_index_actions_column_links_to_print_not_export(): void
+    {
+        $po = $this->makeOrder();
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'));
+
+        $response->assertOk();
+        $response->assertSee(route('admin.purchase-orders.print', $po), false);
+        $response->assertDontSee(route('admin.purchase-orders.export', $po), false);
+        $response->assertSee("openViewPurchaseOrderModal(event, {$po->PurchaseOrderID})", false);
     }
 
     public function test_index_shows_an_edit_action_for_editable_statuses_only(): void

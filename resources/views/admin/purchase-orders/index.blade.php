@@ -14,6 +14,60 @@
 @section('content')
     @include('admin.partials.modal-styles')
 
+    <style>
+        /* View Details Modal — mirrors the read-only detail-row/items-table
+           styling already used on the standalone show page, duplicated here
+           (same convention as admin/products/index.blade.php's own View
+           Details modal) since the fetched partial is injected into this
+           page, not the show page's own <style> block. */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            gap: 16px;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label {
+            color: #94a3b8;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            flex: 0 0 150px;
+        }
+        .detail-value {
+            color: #f8fafc;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: right;
+            flex: 1;
+        }
+        .section-title {
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin: 20px 0 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+        }
+        .items-table { width: 100%; border-collapse: collapse; }
+        .items-table th {
+            text-align: left; padding: 10px 12px; font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+        }
+        .items-table td {
+            padding: 10px 12px; color: #f8fafc; font-size: 0.85rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        }
+        .items-table tbody tr:last-child td { border-bottom: none; }
+        .items-total { text-align: right; margin-top: 14px; color: #f8fafc; font-size: 1rem; font-weight: 700; }
+    </style>
+
     <div class="card">
         <div class="toolbar">
             <form method="GET" action="{{ route('admin.purchase-orders.index') }}" id="purchaseOrderFilterForm" style="display:flex; gap:10px; flex-wrap:wrap; flex:1;">
@@ -92,7 +146,7 @@
                             <td>
                                 <div class="actions-group">
                                     <!-- REQ059: View purchase order details -->
-                                    <a href="{{ route('admin.purchase-orders.show', $order) }}" class="action-btn view" title="View Details">
+                                    <a href="#" class="action-btn view" title="View Details" onclick="openViewPurchaseOrderModal(event, {{ $order->PurchaseOrderID }})">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     @if(in_array($order->Status, \App\Models\PurchaseOrder::EDITABLE_STATUSES, true))
@@ -100,8 +154,8 @@
                                             <i class="fas fa-edit"></i>
                                         </a>
                                     @endif
-                                    <a href="{{ route('admin.purchase-orders.export', $order) }}" class="action-btn" title="Export PDF">
-                                        <i class="fas fa-file-pdf"></i>
+                                    <a href="{{ route('admin.purchase-orders.print', $order) }}" target="_blank" class="action-btn" title="Print">
+                                        <i class="fas fa-print"></i>
                                     </a>
                                 </div>
                             </td>
@@ -164,6 +218,29 @@
                 <button type="button" class="btn btn-primary" id="addPurchaseOrderSubmitBtn">
                     <i class="fas fa-save"></i> Save Order
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Purchase Order Details Modal -->
+    <div id="viewPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="viewPurchaseOrderModalTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="viewPurchaseOrderModalTitle"><i class="fas fa-eye"></i> Purchase Order Details</h2>
+                <button type="button" class="modal-close" onclick="closeViewPurchaseOrderModal()" aria-label="Close">&times;</button>
+            </div>
+
+            <div id="viewPurchaseOrderBody">
+                <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="viewPurchaseOrderCloseBtn">
+                    <i class="fas fa-times"></i> Close
+                </button>
+                <a href="#" target="_blank" class="btn btn-primary" id="viewPurchaseOrderPrintBtn">
+                    <i class="fas fa-print"></i> Print
+                </a>
             </div>
         </div>
     </div>
@@ -426,6 +503,58 @@
                 });
             });
         });
+
+        // ---- View Purchase Order Details modal ----
+        let viewPurchaseOrderLastFocused = null;
+
+        function handleViewPurchaseOrderModalKeydown(e) {
+            const modal = document.getElementById('viewPurchaseOrderModal');
+            if (!modal.classList.contains('active')) return;
+            if (e.key === 'Escape') closeViewPurchaseOrderModal();
+        }
+
+        window.openViewPurchaseOrderModal = function (event, purchaseOrderId) {
+            if (event) event.preventDefault();
+            const modal = document.getElementById('viewPurchaseOrderModal');
+            if (modal.classList.contains('active')) return; // prevent duplicate modals
+
+            const body = document.getElementById('viewPurchaseOrderBody');
+
+            viewPurchaseOrderLastFocused = document.activeElement;
+            body.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+            document.getElementById('viewPurchaseOrderPrintBtn').href = '{{ url('admin/purchase-orders') }}/' + purchaseOrderId + '/print';
+
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            void modal.offsetHeight;
+            requestAnimationFrame(function () { modal.classList.add('active'); });
+            document.addEventListener('keydown', handleViewPurchaseOrderModalKeydown);
+
+            fetch('{{ url('admin/purchase-orders') }}/' + purchaseOrderId, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) { body.innerHTML = data.html; })
+                .catch(function () {
+                    body.innerHTML = '<p class="form-error">Failed to load this purchase order. Please try again.</p>';
+                });
+        };
+
+        window.closeViewPurchaseOrderModal = function () {
+            const modal = document.getElementById('viewPurchaseOrderModal');
+            modal.classList.remove('active');
+            document.removeEventListener('keydown', handleViewPurchaseOrderModalKeydown);
+            setTimeout(function () { modal.style.display = 'none'; }, 250);
+            document.body.style.overflow = '';
+            if (viewPurchaseOrderLastFocused && typeof viewPurchaseOrderLastFocused.focus === 'function') {
+                viewPurchaseOrderLastFocused.focus();
+            }
+        };
+
+        document.getElementById('viewPurchaseOrderModal').addEventListener('mousedown', function (e) {
+            if (e.target === this) closeViewPurchaseOrderModal();
+        });
+        document.getElementById('viewPurchaseOrderCloseBtn').addEventListener('click', closeViewPurchaseOrderModal);
 
         // ---- Edit Purchase Order modal ----
         const EDIT_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate', 'Notes'];
