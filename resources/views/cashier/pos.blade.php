@@ -798,28 +798,6 @@
 
         checkoutBtn.disabled = true;
 
-        // window.open() only counts as a genuine user gesture (and so only
-        // reliably bypasses popup blockers) when it's called synchronously
-        // inside the click handler itself — not after an awaited fetch
-        // response, which is what silently got blocked before, and not
-        // after an awaited Swal confirm either. So the window is opened
-        // here, immediately and synchronously, with a placeholder page; the
-        // confirm dialog then shows on top of it, and the placeholder is
-        // closed again if the cashier cancels. Once confirmed, it's
-        // redirected to the real receipt once the sale actually succeeds —
-        // this is what makes the receipt genuinely pop up automatically
-        // instead of needing a manual click.
-        const receiptWindow = window.open('', '_blank', 'width=400,height=600');
-        if (receiptWindow) {
-            // No <head> tag here on purpose — some local dev tooling scans
-            // outgoing HTML for literal "<head>" text to inject a logger
-            // script, which doesn't know this one is just JS string content
-            // rather than a real tag, and ends up corrupting this script
-            // block. A bare <body> is all a placeholder needs anyway.
-            receiptWindow.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#666;">Processing receipt&hellip;</body>');
-            receiptWindow.document.title = 'Receipt';
-        }
-
         window.confirmAction({
             title: 'Complete Sale',
             text: 'Charge ' + window.formatPeso(currentTotal) + ' and complete this transaction?',
@@ -828,9 +806,30 @@
             confirmColor: '#10b981',
         }).then(function (result) {
             if (!result.isConfirmed) {
-                if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
                 checkoutBtn.disabled = false;
                 return;
+            }
+
+            // Only now — after the cashier has actually clicked "Complete
+            // Sale" in the confirm dialog, not when they first clicked the
+            // checkout button — does a receipt window get opened. It's
+            // still opened synchronously inside this click's own handler
+            // (SweetAlert2 resolves the confirm button's click synchronously,
+            // before any network round-trip), which is what keeps it counting
+            // as a genuine user gesture for the popup blocker; waiting until
+            // after the fetch() response below would arrive too late for
+            // that and get silently blocked. If the popup still doesn't open
+            // (blocked by a stricter blocker or extension), the receipt
+            // falls back to the in-page viewer once the sale finishes.
+            const receiptWindow = window.open('', '_blank', 'width=400,height=600');
+            if (receiptWindow) {
+                // No <head> tag here on purpose — some local dev tooling scans
+                // outgoing HTML for literal "<head>" text to inject a logger
+                // script, which doesn't know this one is just JS string content
+                // rather than a real tag, and ends up corrupting this script
+                // block. A bare <body> is all a placeholder needs anyway.
+                receiptWindow.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#666;">Processing receipt&hellip;</body>');
+                receiptWindow.document.title = 'Receipt';
             }
 
             fetch('{{ route("cashier.process-sale") }}', {

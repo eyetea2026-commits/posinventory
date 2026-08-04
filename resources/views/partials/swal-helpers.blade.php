@@ -24,26 +24,26 @@
        just the handful of box-model properties this needs to change. */
     .swal2-popup {
         border-radius: 14px !important;
-        padding: 0.9rem 1.1rem 1.2rem !important;
+        padding: 0.65rem 1.1rem 0.85rem !important;
         width: 380px !important;
         max-width: 92vw !important;
         font-family: inherit !important;
     }
-    .swal2-popup .swal2-title { font-size: 1.05rem !important; margin-top: 0.3rem !important; padding: 0 0.3rem !important; }
-    .swal2-popup .swal2-html-container { font-size: 0.88rem !important; margin: 0.35rem 0.4rem 0.3rem !important; }
-    .swal2-popup .swal2-icon { margin-top: 0.5rem !important; margin-bottom: 0.35rem !important; width: 3em !important; height: 3em !important; }
-    .swal2-popup .swal2-actions { margin-top: 0.8rem !important; gap: 8px !important; }
+    .swal2-popup .swal2-title { font-size: 1rem !important; margin: 0.1rem 0.3rem 0.15rem !important; padding: 0 !important; }
+    .swal2-popup .swal2-html-container { font-size: 0.85rem !important; margin: 0.15rem 0.4rem 0.1rem !important; }
+    .swal2-popup .swal2-icon { margin-top: 0.25rem !important; margin-bottom: 0.15rem !important; width: 2.4em !important; height: 2.4em !important; }
+    .swal2-popup .swal2-actions { margin-top: 0.5rem !important; margin-bottom: 0 !important; gap: 8px !important; }
     .swal2-popup .swal2-styled {
         border-radius: 8px !important;
-        padding: 0.45em 1.2em !important;
-        min-height: 2.35em !important;
+        padding: 0.32em 1.1em !important;
+        min-height: 2.1em !important;
         font-weight: 600 !important;
-        font-size: 0.92rem !important;
+        font-size: 0.88rem !important;
     }
-    .swal2-popup .swal2-close { font-size: 1.4rem !important; }
+    .swal2-popup .swal2-close { font-size: 1.3rem !important; top: 4px !important; right: 4px !important; }
 
     @media (max-width: 480px) {
-        .swal2-popup { width: 92vw !important; padding: 0.8rem 0.9rem 1rem !important; }
+        .swal2-popup { width: 92vw !important; padding: 0.55rem 0.85rem 0.75rem !important; }
     }
 </style>
 <script>
