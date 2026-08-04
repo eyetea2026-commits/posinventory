@@ -67,6 +67,17 @@ class StockAdjustmentModuleTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'stock.adjusted')->count() >= 2);
     }
 
+    public function test_zero_quantity_adjustment_is_rejected(): void
+    {
+        $response = $this->actingAs($this->admin)->post(
+            route('admin.stock-adjustments.store'),
+            $this->basePayload(['QuantityAdjust' => 0])
+        );
+
+        $response->assertSessionHasErrors('QuantityAdjust');
+        $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
+    }
+
     public function test_negative_inventory_is_rejected(): void
     {
         $response = $this->actingAs($this->admin)->post(

@@ -680,34 +680,49 @@ document.getElementById('process-refund-form').addEventListener('submit', functi
 
     const refundId = document.getElementById('process-refund-id').value;
 
-    fetch(`/cashier/refunds/${refundId}/process-refund`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            _token: '{{ csrf_token() }}',
-            refund_method: selectedRefundPaymentMethod,
-            account_number: document.getElementById('refund-account-number').value,
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            closeProcessRefundModal();
+    if (selectedRefundPaymentMethod !== 'cash' && !document.getElementById('refund-account-number').value.trim()) {
+        toastWarning('Please enter a reference/account number for this refund method.');
+        return;
+    }
 
-            const receiptUrl = '/cashier/refunds/' + refundId + '/receipt';
-            const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
-            if (printWindow) {
-                printWindow.focus();
-                setTimeout(() => window.location.reload(), 300);
+    window.confirmAction({
+        title: 'Process Refund',
+        text: 'Refund ' + window.formatPeso(currentRefundAmount) + ' via ' + selectedRefundPaymentMethod + '?',
+        icon: 'question',
+        confirmText: 'Process Refund',
+        confirmColor: '#10b981',
+    }).then(function (result) {
+        if (!result.isConfirmed) return;
+
+        fetch(`/cashier/refunds/${refundId}/process-refund`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                _token: '{{ csrf_token() }}',
+                refund_method: selectedRefundPaymentMethod,
+                account_number: document.getElementById('refund-account-number').value,
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                closeProcessRefundModal();
+
+                const receiptUrl = '/cashier/refunds/' + refundId + '/receipt';
+                const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
+                if (printWindow) {
+                    printWindow.focus();
+                    setTimeout(() => window.location.reload(), 300);
+                } else {
+                    toastWarning('Refund processed successfully! Receipt: ' + data.receipt_number + '. Please allow popups to print receipts.', 'Popup Blocked')
+                        .then(function () { window.location.reload(); });
+                }
             } else {
-                toastWarning('Refund processed successfully! Receipt: ' + data.receipt_number + '. Please allow popups to print receipts.', 'Popup Blocked')
-                    .then(function () { window.location.reload(); });
+                toastError(data.message, 'Error');
             }
-        } else {
-            toastError(data.message, 'Error');
-        }
-    })
-    .catch(() => toastError('Error processing refund'));
+        })
+        .catch(() => toastError('Error processing refund'));
+    });
 });
 
 function showProcessReplacementModal(refundId, maxQty) {
@@ -773,28 +788,38 @@ document.getElementById('process-replacement-form').addEventListener('submit', f
 
     const refundId = document.getElementById('process-replacement-id').value;
 
-    fetch(`/cashier/refunds/${refundId}/process-replacement`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            _token: '{{ csrf_token() }}',
-            replacement_product_id: selectedReplacementProduct.productId,
-            quantity: qty,
-            notes: document.getElementById('replacement-notes').value,
+    window.confirmAction({
+        title: 'Process Replacement',
+        text: 'Replace with ' + qty + ' x ' + selectedReplacementProduct.name + '?',
+        icon: 'question',
+        confirmText: 'Process Replacement',
+        confirmColor: '#10b981',
+    }).then(function (result) {
+        if (!result.isConfirmed) return;
+
+        fetch(`/cashier/refunds/${refundId}/process-replacement`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                _token: '{{ csrf_token() }}',
+                replacement_product_id: selectedReplacementProduct.productId,
+                quantity: qty,
+                notes: document.getElementById('replacement-notes').value,
+            })
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            toastSuccess('Replacement processed successfully! Slip: ' + data.slip_number).then(function () {
-                closeProcessReplacementModal();
-                location.reload();
-            });
-        } else {
-            toastError(data.message, 'Error');
-        }
-    })
-    .catch(() => toastError('Error processing replacement'));
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                toastSuccess('Replacement processed successfully! Slip: ' + data.slip_number).then(function () {
+                    closeProcessReplacementModal();
+                    location.reload();
+                });
+            } else {
+                toastError(data.message, 'Error');
+            }
+        })
+        .catch(() => toastError('Error processing replacement'));
+    });
 });
 </script>
 @endsection

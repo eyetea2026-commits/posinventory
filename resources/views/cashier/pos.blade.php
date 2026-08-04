@@ -763,11 +763,14 @@
         // window.open() only counts as a genuine user gesture (and so only
         // reliably bypasses popup blockers) when it's called synchronously
         // inside the click handler itself — not after an awaited fetch
-        // response, which is what silently got blocked before. So the
-        // window is opened here, immediately, with a placeholder page,
-        // then redirected to the real receipt once the sale actually
-        // succeeds. This is what makes the receipt genuinely pop up
-        // automatically instead of needing a manual click.
+        // response, which is what silently got blocked before, and not
+        // after an awaited Swal confirm either. So the window is opened
+        // here, immediately and synchronously, with a placeholder page; the
+        // confirm dialog then shows on top of it, and the placeholder is
+        // closed again if the cashier cancels. Once confirmed, it's
+        // redirected to the real receipt once the sale actually succeeds —
+        // this is what makes the receipt genuinely pop up automatically
+        // instead of needing a manual click.
         const receiptWindow = window.open('', '_blank', 'width=400,height=600');
         if (receiptWindow) {
             // No <head> tag here on purpose — some local dev tooling scans
@@ -779,38 +782,52 @@
             receiptWindow.document.title = 'Receipt';
         }
 
-        fetch('{{ route("cashier.process-sale") }}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const receiptUrl = '{{ url('cashier/receipt') }}/' + data.receipt_number;
-
-                if (receiptWindow && !receiptWindow.closed) {
-                    receiptWindow.location.href = receiptUrl;
-                    receiptWindow.focus();
-                }
-
-                // Reload so the product grid reflects the stock the sale just
-                // deducted — it's rendered server-side once at page load, so
-                // without this the displayed "Stock: X" (and the cart's own
-                // stock-limit checks) stay stale until a manual refresh. The
-                // receipt is in its own separate popup window, so reloading
-                // this tab doesn't affect it.
-                window.location.reload();
-            } else {
+        window.confirmAction({
+            title: 'Complete Sale',
+            text: 'Charge ' + window.formatPeso(currentTotal) + ' and complete this transaction?',
+            icon: 'question',
+            confirmText: 'Complete Sale',
+            confirmColor: '#10b981',
+        }).then(function (result) {
+            if (!result.isConfirmed) {
                 if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
-                toastError(data.message, 'Error');
                 checkoutBtn.disabled = false;
+                return;
             }
-        })
-        .catch(error => {
-            if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
-            toastError(error.message, 'Error Processing Sale');
-            checkoutBtn.disabled = false;
+
+            fetch('{{ route("cashier.process-sale") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const receiptUrl = '{{ url('cashier/receipt') }}/' + data.receipt_number;
+
+                    if (receiptWindow && !receiptWindow.closed) {
+                        receiptWindow.location.href = receiptUrl;
+                        receiptWindow.focus();
+                    }
+
+                    // Reload so the product grid reflects the stock the sale just
+                    // deducted — it's rendered server-side once at page load, so
+                    // without this the displayed "Stock: X" (and the cart's own
+                    // stock-limit checks) stay stale until a manual refresh. The
+                    // receipt is in its own separate popup window, so reloading
+                    // this tab doesn't affect it.
+                    window.location.reload();
+                } else {
+                    if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
+                    toastError(data.message, 'Error');
+                    checkoutBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
+                toastError(error.message, 'Error Processing Sale');
+                checkoutBtn.disabled = false;
+            });
         });
     }
 </script>

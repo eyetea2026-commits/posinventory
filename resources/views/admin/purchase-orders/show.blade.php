@@ -159,13 +159,13 @@
             <i class="fas fa-file-pdf"></i> Export PDF
         </a>
         @if($purchaseOrder->Status === \App\Models\PurchaseOrder::STATUS_DRAFT)
-            <form method="POST" action="{{ route('admin.purchase-orders.submit', $purchaseOrder) }}">
+            <form method="POST" action="{{ route('admin.purchase-orders.submit', $purchaseOrder) }}" class="js-confirm-submit" data-confirm-title="Submit Purchase Order" data-confirm-text="Submit this purchase order for approval?" data-confirm-icon="question" data-confirm-color="#10b981">
                 @csrf
                 <button type="submit" class="btn btn-secondary"><i class="fas fa-paper-plane"></i> Submit</button>
             </form>
         @endif
         @if(in_array($purchaseOrder->Status, [\App\Models\PurchaseOrder::STATUS_DRAFT, \App\Models\PurchaseOrder::STATUS_PENDING]))
-            <form method="POST" action="{{ route('admin.purchase-orders.approve', $purchaseOrder) }}">
+            <form method="POST" action="{{ route('admin.purchase-orders.approve', $purchaseOrder) }}" class="js-confirm-submit" data-confirm-title="Approve Purchase Order" data-confirm-text="Approve this purchase order? It will become eligible to receive stock against." data-confirm-icon="question" data-confirm-color="#10b981">
                 @csrf
                 <button type="submit" class="btn btn-secondary"><i class="fas fa-check"></i> Approve</button>
             </form>

@@ -64,7 +64,7 @@ class StockAdjustmentController extends Controller
     {
         $data = $request->validate([
             'ProductID' => ['required', 'integer', 'exists:Product,ProductID'],
-            'QuantityAdjust' => ['required', 'integer'],
+            'QuantityAdjust' => ['required', 'integer', 'not_in:0'],
             'Reason' => ['required', 'string', 'in:' . implode(',', StockAdjustment::REASONS)],
             'Remarks' => ['nullable', 'string', 'max:500'],
             'Date' => ['required', 'date'],

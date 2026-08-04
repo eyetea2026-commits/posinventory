@@ -338,7 +338,7 @@ class CashierReturnController extends Controller
     {
         $data = $request->validate([
             'refund_method' => 'required|in:cash,gcash,bank,cheque',
-            'account_number' => 'nullable|string|max:50',
+            'account_number' => 'required_if:refund_method,gcash,bank,cheque|nullable|string|max:50',
         ]);
 
         $salesReturn = SalesReturn::find($salesReturnId);

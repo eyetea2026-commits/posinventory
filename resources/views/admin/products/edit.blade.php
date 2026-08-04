@@ -367,7 +367,7 @@
         const supplierId = document.getElementById('newSupplierId').value;
         const cost = document.getElementById('newSupplierCost').value;
         if (!supplierId || !cost) {
-            Swal.fire({ title: 'Missing info', text: 'Select a supplier and enter a cost price.', icon: 'warning' });
+            Swal.fire({ title: 'Missing info', text: 'Select a supplier and enter a cost price.', icon: 'warning', confirmButtonColor: '#f59e0b' });
             return;
         }
         fetch(productSuppliersEndpoint, {

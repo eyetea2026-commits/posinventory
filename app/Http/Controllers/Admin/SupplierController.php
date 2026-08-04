@@ -99,7 +99,7 @@ class SupplierController extends Controller
         $data = $request->validate([
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName'],
             'ContactPerson' => ['nullable', 'string', 'max:150'],
-            'ContactNumber' => ['required', 'string', 'max:50'],
+            'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email'],
             'Address' => ['required', 'string', 'max:255'],
             'Status' => ['nullable', 'string', 'in:' . Supplier::STATUS_ACTIVE . ',' . Supplier::STATUS_INACTIVE],
@@ -264,7 +264,7 @@ class SupplierController extends Controller
         $data = $request->validate([
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName,' . $supplier->SupplierID . ',SupplierID'],
             'ContactPerson' => ['nullable', 'string', 'max:150'],
-            'ContactNumber' => ['required', 'string', 'max:50'],
+            'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email,' . $supplier->SupplierID . ',SupplierID'],
             'Address' => ['required', 'string', 'max:255'],
             'Status' => ['nullable', 'string', 'in:' . Supplier::STATUS_ACTIVE . ',' . Supplier::STATUS_INACTIVE],

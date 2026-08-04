@@ -329,7 +329,7 @@
                             </span>
                         </button>
                         <div class="header-dropdown header-profile-dropdown" x-show="profileOpen" x-cloak>
-                            <form method="POST" action="{{ route('admin.logout') }}">
+                            <form method="POST" action="{{ route('admin.logout') }}" class="js-confirm-submit" data-confirm-title="Log Out" data-confirm-text="Are you sure you want to log out?" data-confirm-icon="question" data-confirm-color="#10b981">
                                 @csrf
                                 <button type="submit"><i class="fas fa-right-from-bracket"></i> Logout</button>
                             </form>

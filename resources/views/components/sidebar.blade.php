@@ -92,7 +92,7 @@
 
     {{-- Logout --}}
     <div class="shrink-0 border-t border-white/5 p-3">
-        <form method="POST" action="{{ route('admin.logout') }}">
+        <form method="POST" action="{{ route('admin.logout') }}" class="js-confirm-submit" data-confirm-title="Log Out" data-confirm-text="Are you sure you want to log out?" data-confirm-icon="question" data-confirm-color="#10b981">
             @csrf
             <button
                 type="submit"

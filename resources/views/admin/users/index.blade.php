@@ -687,7 +687,9 @@
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Yes',
-                cancelButtonText: 'No'
+                cancelButtonText: 'No',
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#64748b'
             }).then((result) => {
                 if (result.isConfirmed) {
                     toggleStatus(userId, true);
@@ -702,7 +704,9 @@
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Yes',
-                cancelButtonText: 'No'
+                cancelButtonText: 'No',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b'
             }).then((result) => {
                 if (result.isConfirmed) {
                     toggleStatus(userId, false);
@@ -733,6 +737,7 @@
                     title: 'Success',
                     text: isActive ? 'User activated successfully.' : 'User deactivated successfully.',
                     icon: 'success',
+                    confirmButtonColor: '#10b981',
                     timer: 2000,
                     showConfirmButton: false
                 });
@@ -740,7 +745,8 @@
                 Swal.fire({
                     title: 'Error',
                     text: data.error,
-                    icon: 'error'
+                    icon: 'error',
+                    confirmButtonColor: '#ef4444'
                 });
                 const checkbox = document.querySelector(`input[type="checkbox"][onchange*="${userId}"]`);
                 if (checkbox) checkbox.checked = !isActive;
@@ -750,7 +756,8 @@
             Swal.fire({
                 title: 'Error',
                 text: 'An unexpected error occurred.',
-                icon: 'error'
+                icon: 'error',
+                confirmButtonColor: '#ef4444'
             });
             const checkbox = document.querySelector(`input[type="checkbox"][onchange*="${userId}"]`);
             if (checkbox) checkbox.checked = !isActive;
@@ -1328,6 +1335,7 @@
             title: 'Success',
             text: '{{ session('status') }}',
             icon: 'success',
+            confirmButtonColor: '#10b981',
             timer: 2000,
             showConfirmButton: false
         });
@@ -1336,7 +1344,8 @@
         Swal.fire({
             title: 'Error',
             text: '{{ session('error') }}',
-            icon: 'error'
+            icon: 'error',
+            confirmButtonColor: '#ef4444'
         });
     @endif
 </script>

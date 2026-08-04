@@ -201,7 +201,7 @@
             </nav>
 
             <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.1);">
-                <form method="POST" action="{{ route('cashier.logout') }}">
+                <form method="POST" action="{{ route('cashier.logout') }}" class="js-confirm-submit" data-confirm-title="Log Out" data-confirm-text="Are you sure you want to log out?" data-confirm-icon="question" data-confirm-color="#10b981">
                     @csrf
                     <button type="submit" class="btn btn-danger w-full">
                         <i class="fas fa-sign-out-alt"></i> Logout

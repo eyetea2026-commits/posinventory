@@ -135,6 +135,31 @@ class ReturnProcessingTest extends TestCase
         $response->assertStatus(400);
     }
 
+    public function test_process_refund_requires_account_number_for_non_cash_methods(): void
+    {
+        $return = $this->makeReturn(['Status' => 'approved']);
+
+        $response = $this->actingAs($this->cashierUser)->postJson(
+            route('cashier.refunds.process', $return),
+            ['refund_method' => 'gcash']
+        );
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('account_number');
+    }
+
+    public function test_process_refund_does_not_require_account_number_for_cash(): void
+    {
+        $return = $this->makeReturn(['Status' => 'approved']);
+
+        $response = $this->actingAs($this->cashierUser)->postJson(
+            route('cashier.refunds.process', $return),
+            ['refund_method' => 'cash']
+        );
+
+        $response->assertJson(['success' => true]);
+    }
+
     public function test_process_refund_restores_inventory_and_marks_processed(): void
     {
         // Salable reason — the only case that should ever restore stock.
