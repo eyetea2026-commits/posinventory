@@ -15,8 +15,18 @@
         border-radius: 20px;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         backdrop-filter: blur(12px);
-        padding: 28px;
+        padding: 40px;
         margin: 0 auto 24px;
+        width: 100%;
+        max-width: 1200px;
+        min-height: 480px;
+    }
+    @media (max-width: 768px) {
+        .supplier-card {
+            padding: 20px;
+            min-height: 0;
+            border-radius: 14px;
+        }
     }
     .section-title {
         color: #cbd5e1; font-size: 1rem; font-weight: 700; text-transform: uppercase;
