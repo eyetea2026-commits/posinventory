@@ -522,7 +522,7 @@ class ReportController extends Controller
             $rows = $this->rowsForType($type, $dateFrom, $dateTo);
 
             return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\ReportExport($type, $rows),
+                new \App\Exports\ReportExport($type, $rows, $dateFrom, $dateTo),
                 $filenameBase . '.xlsx'
             );
         }
@@ -648,7 +648,7 @@ class ReportController extends Controller
         return Billing::query()
             ->when($dateFrom, fn ($q) => $q->whereDate('BillingDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('BillingDate', '<=', $dateTo))
-            ->with('payment')
+            ->with(['payment', 'transaction.items'])
             ->orderByDesc('BillingDate')
             ->get();
     }
@@ -726,7 +726,7 @@ class ReportController extends Controller
 
     private function orderRows(?string $dateFrom, ?string $dateTo)
     {
-        return PurchaseOrder::with('supplier')
+        return PurchaseOrder::with(['supplier', 'items'])
             ->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
             ->orderByDesc('PurchaseDate')

@@ -89,8 +89,6 @@
             @endforelse
         </tbody>
     </table>
-    @php $grandTotal = $rows->sum('TotalAmount'); @endphp
-    <p class="grand-total">Total Amount (all suppliers): {{ number_format($grandTotal, 2) }}</p>
 @else
     <table>
         <thead><tr><th>ID</th><th>Date</th><th>Amount</th><th>Customer</th><th>Payment Method</th></tr></thead>
@@ -108,6 +106,14 @@
             @endforelse
         </tbody>
     </table>
-    @php $grandTotal = $rows->sum('BillingAmount'); @endphp
-    <p class="grand-total">Total Amount: {{ number_format($grandTotal, 2) }}</p>
 @endif
+
+<div class="report-summary">
+    <div class="report-summary-title">Report Summary</div>
+    @foreach(\App\Services\ReportSummaryBuilder::forType($type, $rows) as $entry)
+        <div class="summary-row">
+            <span>{{ $entry['label'] }}</span>
+            <span>{{ \App\Services\ReportSummaryBuilder::formatValue($entry) }}</span>
+        </div>
+    @endforeach
+</div>
