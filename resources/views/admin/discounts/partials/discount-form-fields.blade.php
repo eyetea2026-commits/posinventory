@@ -74,11 +74,6 @@
     </div>
 </div>
 
-<div class="form-group">
-    <label for="Status">Status <span class="required">*</span></label>
-    <select id="Status" name="Status" class="form-control" required>
-        <option value="active" {{ old('Status', $discount->Status ?? 'active') === 'active' ? 'selected' : '' }}>Active</option>
-        <option value="inactive" {{ old('Status', $discount->Status ?? 'active') === 'inactive' ? 'selected' : '' }}>Inactive</option>
-    </select>
-    <span class="error" id="error-Status">@error('Status'){{ $message }}@enderror</span>
-</div>
+{{-- No manual Status field — a promo's Active / Inactive / Expired state is
+     always computed from Start Date / End Date against today
+     (Discount::getEffectiveStatusAttribute()), never admin-set. --}}

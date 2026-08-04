@@ -262,14 +262,6 @@
         toastError('{{ session('error') }}');
     @endif
 
-    function deleteDiscount(discountId) {
-        window.confirmDelete('Are you sure you want to delete this promo code? This action cannot be undone.').then(function (result) {
-            if (result.isConfirmed) {
-                document.getElementById('deleteDiscountForm' + discountId).submit();
-            }
-        });
-    }
-
     // ---- Live search ----
     (function () {
         const filterForm = document.getElementById('discountFilterForm');
@@ -335,7 +327,7 @@
     })();
 
     // ---- Add Promo modal ----
-    const ADD_DISCOUNT_FIELD_IDS = ['ProductID', 'DiscountRate', 'Name', 'PromoCode', 'Description', 'StartDate', 'EndDate', 'Status'];
+    const ADD_DISCOUNT_FIELD_IDS = ['ProductID', 'DiscountRate', 'Name', 'PromoCode', 'Description', 'StartDate', 'EndDate'];
     let addDiscountLastFocused = null;
 
     function addDiscountIsSubmitting() {

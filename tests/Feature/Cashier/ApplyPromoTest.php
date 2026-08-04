@@ -50,7 +50,6 @@ class ApplyPromoTest extends TestCase
             'PromoCode' => 'SUMMER20',
             'StartDate' => now()->subDay()->format('Y-m-d'),
             'EndDate' => now()->addMonth()->format('Y-m-d'),
-            'Status' => 'active',
         ], $overrides));
     }
 
@@ -100,9 +99,9 @@ class ApplyPromoTest extends TestCase
         $response->assertJsonFragment(['message' => 'This promo code has expired.']);
     }
 
-    public function test_apply_promo_rejects_an_inactive_promo(): void
+    public function test_apply_promo_rejects_a_promo_that_has_not_started_yet(): void
     {
-        $this->makePromo(['Status' => 'inactive']);
+        $this->makePromo(['StartDate' => now()->addDays(5)->format('Y-m-d'), 'EndDate' => now()->addMonth()->format('Y-m-d')]);
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
             'promo_code' => 'SUMMER20', 'product_id' => $this->product->ProductID,

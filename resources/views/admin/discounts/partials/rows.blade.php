@@ -26,26 +26,6 @@
                 <a href="{{ route('admin.discounts.edit', $discount->DiscountID) }}" class="btn btn-sm btn-primary" onclick="openEditDiscountModal(event, {{ $discount->DiscountID }})" title="Edit">
                     <i class="fa-solid fa-edit"></i>
                 </a>
-                @if($discount->effective_status !== \App\Models\Discount::STATUS_EXPIRED)
-                    @if($discount->Status === \App\Models\Discount::STATUS_ACTIVE)
-                        <form method="POST" action="{{ route('admin.discounts.deactivate', $discount->DiscountID) }}" class="js-confirm-submit" data-confirm-title="Deactivate Promo" data-confirm-text="Deactivate this promo code?" data-confirm-icon="warning" data-confirm-color="#f59e0b" style="display:inline;">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-secondary" title="Deactivate"><i class="fa-solid fa-toggle-off"></i></button>
-                        </form>
-                    @else
-                        <form method="POST" action="{{ route('admin.discounts.activate', $discount->DiscountID) }}" class="js-confirm-submit" data-confirm-title="Activate Promo" data-confirm-text="Activate this promo code?" style="display:inline;">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-secondary" title="Activate"><i class="fa-solid fa-toggle-on"></i></button>
-                        </form>
-                    @endif
-                @endif
-                <button type="button" class="btn btn-sm btn-danger" title="Delete" onclick="deleteDiscount({{ $discount->DiscountID }})">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-                <form method="POST" action="{{ route('admin.discounts.destroy', $discount->DiscountID) }}" id="deleteDiscountForm{{ $discount->DiscountID }}" style="display:none;">
-                    @csrf
-                    @method('DELETE')
-                </form>
             </div>
         </td>
     </tr>

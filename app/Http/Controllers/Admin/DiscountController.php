@@ -101,7 +101,6 @@ class DiscountController extends Controller
             'Description' => $data['Description'] ?? null,
             'StartDate' => $data['StartDate'],
             'EndDate' => $data['EndDate'],
-            'Status' => $data['Status'],
             'CreatedBy' => auth()->id(),
         ]);
 
@@ -151,7 +150,6 @@ class DiscountController extends Controller
             'Description' => $data['Description'] ?? null,
             'StartDate' => $data['StartDate'],
             'EndDate' => $data['EndDate'],
-            'Status' => $data['Status'],
         ]);
 
         ActivityLog::record('discount.updated', "Updated promo \"{$discount->PromoCode}\"");
@@ -174,30 +172,6 @@ class DiscountController extends Controller
         $discount->load(['product.category', 'createdByUser']);
 
         return view('admin.discounts.show', ['discount' => $discount]);
-    }
-
-    public function activate(Discount $discount)
-    {
-        if ($discount->effective_status === Discount::STATUS_EXPIRED) {
-            return back()->with('error', 'An expired promo cannot be reactivated — extend its End Date first.');
-        }
-
-        if ($this->hasOverlappingActivePromo($discount->ProductID, $discount->StartDate?->toDateString(), $discount->EndDate?->toDateString(), $discount->DiscountID)) {
-            return back()->with('error', 'This product already has another active promo covering an overlapping date range.');
-        }
-
-        $discount->update(['Status' => Discount::STATUS_ACTIVE]);
-        ActivityLog::record('discount.activated', "Activated promo \"{$discount->PromoCode}\"");
-
-        return back()->with('success', 'Promo activated.');
-    }
-
-    public function deactivate(Discount $discount)
-    {
-        $discount->update(['Status' => Discount::STATUS_INACTIVE]);
-        ActivityLog::record('discount.deactivated', "Deactivated promo \"{$discount->PromoCode}\"");
-
-        return back()->with('success', 'Promo deactivated.');
     }
 
     // Delete promo code
@@ -236,7 +210,6 @@ class DiscountController extends Controller
             'Description' => ['nullable', 'string', 'max:1000'],
             'StartDate' => ['required', 'date'],
             'EndDate' => ['required', 'date', 'after_or_equal:StartDate'],
-            'Status' => ['required', Rule::in([Discount::STATUS_ACTIVE, Discount::STATUS_INACTIVE])],
         ], [
             'ProductID.required' => 'Please select a product.',
             'DiscountRate.min' => 'Discount percentage must be at least 1%.',
@@ -246,14 +219,15 @@ class DiscountController extends Controller
             'EndDate.after_or_equal' => 'End Date cannot be earlier than Start Date.',
         ]);
 
-        // Only one ACTIVE promo may cover a given product at any point in
-        // time — a date-range overlap check rather than a flat "one row
-        // per product" rule, so a future promo can still be scheduled while
-        // a current one is running as long as their windows don't collide.
-        if ($data['Status'] === Discount::STATUS_ACTIVE
-            && $this->hasOverlappingActivePromo($data['ProductID'], $data['StartDate'], $data['EndDate'], $discountId)) {
+        // Only one promo may cover a given product for any overlapping date
+        // window — status is no longer a manual admin toggle, so every
+        // stored promo is "live" during its own window and must be checked,
+        // not just ones an admin happened to mark active. A future promo
+        // can still be scheduled while a current one is running as long as
+        // their windows don't collide.
+        if ($this->hasOverlappingActivePromo($data['ProductID'], $data['StartDate'], $data['EndDate'], $discountId)) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'ProductID' => 'This product already has another active promo covering an overlapping date range.',
+                'ProductID' => 'This product already has another promo covering an overlapping date range.',
             ]);
         }
 
@@ -263,7 +237,6 @@ class DiscountController extends Controller
     private function hasOverlappingActivePromo(int $productId, ?string $startDate, ?string $endDate, ?int $excludeId = null): bool
     {
         return Discount::where('ProductID', $productId)
-            ->where('Status', Discount::STATUS_ACTIVE)
             ->when($excludeId, fn ($q) => $q->where('DiscountID', '!=', $excludeId))
             ->where(function ($q) use ($startDate) {
                 $q->whereNull('EndDate')->orWhereDate('EndDate', '>=', $startDate ?? now()->toDateString());

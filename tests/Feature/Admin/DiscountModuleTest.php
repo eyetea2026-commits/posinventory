@@ -44,7 +44,6 @@ class DiscountModuleTest extends TestCase
             'Description' => 'Seasonal promo',
             'StartDate' => now()->format('Y-m-d'),
             'EndDate' => now()->addDays(30)->format('Y-m-d'),
-            'Status' => 'active',
         ], $overrides);
     }
 
@@ -95,11 +94,11 @@ class DiscountModuleTest extends TestCase
     public function test_prevents_overlapping_active_promotions_for_the_same_product(): void
     {
         Discount::create(array_merge($this->basePromoPayload(), [
-            'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30', 'Status' => 'active',
+            'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30',
         ]));
 
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
-            'PromoCode' => 'SECOND', 'StartDate' => '2026-06-15', 'EndDate' => '2026-07-15', 'Status' => 'active',
+            'PromoCode' => 'SECOND', 'StartDate' => '2026-06-15', 'EndDate' => '2026-07-15',
         ]));
 
         $response->assertSessionHasErrors('ProductID');
@@ -109,25 +108,11 @@ class DiscountModuleTest extends TestCase
     public function test_allows_a_future_promo_for_the_same_product_when_windows_dont_overlap(): void
     {
         Discount::create(array_merge($this->basePromoPayload(), [
-            'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30', 'Status' => 'active',
+            'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30',
         ]));
 
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
-            'PromoCode' => 'SECOND', 'StartDate' => '2026-07-01', 'EndDate' => '2026-07-31', 'Status' => 'active',
-        ]));
-
-        $response->assertRedirect(route('admin.discounts.index'));
-        $this->assertDatabaseHas('Discount', ['PromoCode' => 'SECOND']);
-    }
-
-    public function test_inactive_promos_dont_block_overlap_check(): void
-    {
-        Discount::create(array_merge($this->basePromoPayload(), [
-            'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30', 'Status' => 'inactive',
-        ]));
-
-        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
-            'PromoCode' => 'SECOND', 'StartDate' => '2026-06-15', 'EndDate' => '2026-07-15', 'Status' => 'active',
+            'PromoCode' => 'SECOND', 'StartDate' => '2026-07-01', 'EndDate' => '2026-07-31',
         ]));
 
         $response->assertRedirect(route('admin.discounts.index'));
@@ -167,41 +152,32 @@ class DiscountModuleTest extends TestCase
     public function test_effective_status_is_expired_once_end_date_passes(): void
     {
         $discount = Discount::create(array_merge($this->basePromoPayload(), [
-            'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31', 'Status' => 'active',
+            'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
         ]));
 
         $this->assertSame(Discount::STATUS_EXPIRED, $discount->effective_status);
     }
 
-    public function test_effective_status_reflects_stored_status_when_not_expired(): void
+    public function test_effective_status_is_inactive_before_start_date(): void
     {
-        $discount = Discount::create($this->basePromoPayload(['Status' => 'inactive']));
+        $discount = Discount::create(array_merge($this->basePromoPayload(), [
+            'StartDate' => now()->addDays(10)->format('Y-m-d'), 'EndDate' => now()->addDays(40)->format('Y-m-d'),
+        ]));
 
         $this->assertSame(Discount::STATUS_INACTIVE, $discount->effective_status);
     }
 
-    public function test_activate_is_blocked_for_an_expired_promo(): void
+    public function test_effective_status_is_active_within_the_date_window(): void
     {
-        $discount = Discount::create(array_merge($this->basePromoPayload(), [
-            'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31', 'Status' => 'inactive',
-        ]));
+        $discount = Discount::create($this->basePromoPayload());
 
-        $response = $this->actingAs($this->admin)->post(route('admin.discounts.activate', $discount));
-
-        $response->assertSessionHas('error');
-        $this->assertSame('inactive', $discount->fresh()->Status);
+        $this->assertSame(Discount::STATUS_ACTIVE, $discount->effective_status);
     }
 
-    public function test_activate_and_deactivate_toggle_status(): void
-    {
-        $discount = Discount::create(array_merge($this->basePromoPayload(), ['Status' => 'inactive']));
-
-        $this->actingAs($this->admin)->post(route('admin.discounts.deactivate', $discount));
-        $this->assertSame('inactive', $discount->fresh()->Status);
-
-        $this->actingAs($this->admin)->post(route('admin.discounts.activate', $discount));
-        $this->assertSame('active', $discount->fresh()->Status);
-    }
+    // No manual activate/deactivate exists anymore — status is derived
+    // purely from the date fields, so it can't drift out of sync with the
+    // calendar (and there's no admin action left that could leave a promo
+    // "active" past its own End Date, or "inactive" within its own window).
 
     public function test_destroy_is_blocked_once_referenced_by_a_billing_record(): void
     {
@@ -301,20 +277,48 @@ class DiscountModuleTest extends TestCase
         $this->assertStringNotContainsString('NOMATCH', $response->json('rows'));
     }
 
-    public function test_currently_active_scope_only_returns_product_tied_non_expired_active_promos(): void
+    public function test_currently_active_scope_only_returns_product_tied_non_expired_started_promos(): void
     {
         // Legacy general-rate row from before the redesign (ProductID null).
         Discount::create(['DiscountRate' => 10, 'Name' => 'Old General Discount']);
 
         $expired = Discount::create(array_merge($this->basePromoPayload(), ['PromoCode' => 'EXPIRED', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31']));
-        $inactive = Discount::create(array_merge($this->basePromoPayload(), ['PromoCode' => 'INACTIVE', 'Status' => 'inactive']));
+        $notYetStarted = Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'FUTURE', 'StartDate' => now()->addDays(10)->format('Y-m-d'), 'EndDate' => now()->addDays(40)->format('Y-m-d'),
+        ]));
         $valid = Discount::create(array_merge($this->basePromoPayload(), ['PromoCode' => 'VALID']));
 
         $results = Discount::currentlyActive()->pluck('PromoCode');
 
         $this->assertTrue($results->contains('VALID'));
         $this->assertFalse($results->contains('EXPIRED'));
-        $this->assertFalse($results->contains('INACTIVE'));
+        $this->assertFalse($results->contains('FUTURE'));
         $this->assertFalse($results->contains(null));
+    }
+
+    public function test_index_no_longer_shows_activate_deactivate_or_delete_controls(): void
+    {
+        Discount::create($this->basePromoPayload());
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertDontSee('Deactivate');
+        $response->assertDontSee('title="Activate"', false);
+        $response->assertDontSee('deleteDiscount', false);
+    }
+
+    public function test_create_form_no_longer_has_a_status_field(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.create'));
+
+        $response->assertOk();
+        $response->assertDontSee('id="Status"', false);
+    }
+
+    public function test_activate_and_deactivate_routes_no_longer_exist(): void
+    {
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.discounts.activate'));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.discounts.deactivate'));
     }
 }

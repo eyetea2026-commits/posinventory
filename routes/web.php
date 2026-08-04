@@ -187,10 +187,6 @@ Route::prefix('admin')->group(function () {
         ->name('admin.discounts.update')->middleware(['auth', 'role:admin']);
     Route::delete('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'destroy'])
         ->name('admin.discounts.destroy')->middleware(['auth', 'role:admin']);
-    Route::post('discounts/{discount}/activate', [App\Http\Controllers\Admin\DiscountController::class, 'activate'])
-        ->name('admin.discounts.activate')->middleware(['auth', 'role:admin']);
-    Route::post('discounts/{discount}/deactivate', [App\Http\Controllers\Admin\DiscountController::class, 'deactivate'])
-        ->name('admin.discounts.deactivate')->middleware(['auth', 'role:admin']);
     Route::get('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'show'])
         ->name('admin.discounts.show')->middleware(['auth', 'role:admin']);
 

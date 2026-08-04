@@ -57,18 +57,28 @@ class Discount extends Model
         return $this->belongsTo(User::class, 'CreatedBy', 'id');
     }
 
-    // "Expired" is never stored — computed at read time against EndDate so
-    // it can't silently drift out of sync with the calendar the way a
-    // stored value would without a scheduler (this host doesn't reliably
-    // run one). The stored Status column only ever holds active/inactive,
-    // admin-controlled.
+    // Status is never manually toggled — it's derived entirely from
+    // StartDate/EndDate against today, computed at read time so it can't
+    // silently drift out of sync with the calendar the way a stored value
+    // would without a scheduler (this host doesn't reliably run one). A
+    // promo whose EndDate has passed reads as Expired; one whose StartDate
+    // hasn't arrived yet reads as Inactive; otherwise it's Active. The
+    // stored Status column is effectively vestigial (always 'active' from
+    // creation) and kept only so existing rows/migrations don't need a
+    // schema change.
     public function getEffectiveStatusAttribute(): string
     {
-        if ($this->EndDate && Carbon::parse($this->EndDate)->lt(now()->startOfDay())) {
+        $today = now()->startOfDay();
+
+        if ($this->EndDate && Carbon::parse($this->EndDate)->lt($today)) {
             return self::STATUS_EXPIRED;
         }
 
-        return $this->Status ?? self::STATUS_ACTIVE;
+        if ($this->StartDate && Carbon::parse($this->StartDate)->gt($today)) {
+            return self::STATUS_INACTIVE;
+        }
+
+        return self::STATUS_ACTIVE;
     }
 
     public function getEffectiveStatusLabelAttribute(): string
@@ -99,15 +109,16 @@ class Discount extends Model
     }
 
     // "Currently applicable" — the set a promo code lookup at POS checkout
-    // (and the admin list's default view) should consider: admin-marked
-    // active, tied to a real product, not expired, and within its date
-    // window (a window that simply wasn't set is treated as always-open).
+    // (and the admin list's default view) should consider: tied to a real
+    // product and within its date window (a window that simply wasn't set
+    // is treated as always-open). Purely date-driven, matching
+    // getEffectiveStatusAttribute() — there's no separate admin-set status
+    // to gate on anymore.
     public function scopeCurrentlyActive($query)
     {
         $today = now()->toDateString();
 
-        return $query->where('Status', self::STATUS_ACTIVE)
-            ->whereNotNull('ProductID')
+        return $query->whereNotNull('ProductID')
             ->where(function ($q) use ($today) {
                 $q->whereNull('StartDate')->orWhereDate('StartDate', '<=', $today);
             })
