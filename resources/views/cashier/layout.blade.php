@@ -41,6 +41,7 @@
         .pos-main { flex: 1; padding: 24px; overflow-y: auto; }
 
         .pos-sidebar-brand { padding-bottom: 20px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); margin-bottom: 20px; }
+        .pos-sidebar-logo { display: block; width: 44px; height: 44px; border-radius: 10px; background: #fff; padding: 4px; object-fit: contain; margin-bottom: 10px; }
         .pos-sidebar-brand h2 { color: #60a5fa; margin: 0; font-size: 1.2rem; font-weight: 700; }
         .pos-sidebar-brand p { color: #94a3b8; margin: 5px 0 0; font-size: 0.85rem; }
 
@@ -184,6 +185,7 @@
     <div class="pos-container">
         <aside class="pos-sidebar">
             <div class="pos-sidebar-brand">
+                <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo" class="pos-sidebar-logo">
                 <h2>CCTV Express</h2>
                 <p>Cashier Portal</p>
             </div>

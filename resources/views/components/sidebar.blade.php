@@ -14,8 +14,8 @@
 >
     {{-- Brand / system name --}}
     <div class="flex h-[70px] shrink-0 items-center gap-3 border-b border-white/5 px-4">
-        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 text-blue-400">
-            <x-icon name="camera" class="h-5 w-5" />
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white p-1">
+            <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo" class="h-full w-full object-contain">
         </div>
         <div class="min-w-0 leading-tight">
             <p class="truncate text-sm font-semibold text-white">POS Inventory System</p>

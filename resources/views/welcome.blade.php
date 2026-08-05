@@ -10,6 +10,9 @@
 <body>
     <div class="login-background">
         <section class="login-card">
+            <div class="login-logo">
+                <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo">
+            </div>
             <div class="brand">
                 <span class="brand-dot"></span>
                 <span>CCTV Express TACURONG</span>
@@ -147,6 +150,20 @@
     </script>
 
     <style>
+        .login-logo {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 22px;
+        }
+        .login-logo img {
+            width: 92px;
+            height: 92px;
+            border-radius: 20px;
+            background: #fff;
+            padding: 8px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+            object-fit: contain;
+        }
         .forgot-disabled {
             margin-top: 6px;
             font-size: 13px;
