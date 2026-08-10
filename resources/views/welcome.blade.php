@@ -149,7 +149,7 @@
            "CCTV Express Tacurong" text label and "System Login" heading
            have been removed — sized and spaced accordingly. */
         .login-logo {
-            padding: 28px 0;
+            padding: 10px 0 28px;
         }
         /* Fluid width instead of a fixed px value — the logo always matches
            the same left/right edges as the Username/Password fields below
@@ -180,7 +180,7 @@
         }
         @media (max-width: 680px) {
             .login-logo {
-                padding: 24px 0;
+                padding: 8px 0 24px;
             }
             .login-logo img {
                 border-radius: 32px;
