@@ -151,14 +151,14 @@
         .login-logo {
             display: flex;
             justify-content: center;
-            margin-bottom: 36px;
+            padding: 28px 0;
         }
         .login-logo img {
-            width: 160px;
-            height: 160px;
-            border-radius: 32px;
+            width: 240px;
+            height: auto;
+            border-radius: 40px;
             background: #fff;
-            padding: 14px;
+            padding: 18px;
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
             object-fit: contain;
         }
@@ -177,12 +177,12 @@
         }
         @media (max-width: 680px) {
             .login-logo {
-                margin-bottom: 28px;
+                padding: 24px 0;
             }
             .login-logo img {
-                width: 124px;
-                height: 124px;
-                border-radius: 26px;
+                width: 180px;
+                border-radius: 32px;
+                padding: 14px;
             }
         }
     </style>
