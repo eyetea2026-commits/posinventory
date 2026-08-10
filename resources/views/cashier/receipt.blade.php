@@ -99,6 +99,18 @@
 
         <div class="footer">
             <p>Payment Method: {{ ucfirst($paymentMethod) }}</p>
+            @if($referenceNumber ?? null)
+                <p>{{ $paymentMethod === 'cheque' ? 'Cheque No.' : 'Reference No.' }}: {{ $referenceNumber }}</p>
+            @endif
+            @if($bankName ?? null)
+                <p>Bank: {{ $bankName }}</p>
+            @endif
+            @if($accountName ?? null)
+                <p>{{ $paymentMethod === 'cheque' ? 'Issuer' : 'Sender' }}: {{ $accountName }}</p>
+            @endif
+            @if($paymentDate ?? null)
+                <p>{{ $paymentMethod === 'cheque' ? 'Cheque Date' : 'Transfer Date' }}: {{ \Illuminate\Support\Carbon::parse($paymentDate)->format('M d, Y') }}</p>
+            @endif
             @if($paymentAmount > 0)
             <div class="total-row">
                 <span>Cash Tendered:</span>

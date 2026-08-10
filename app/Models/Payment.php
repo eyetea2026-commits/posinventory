@@ -19,6 +19,16 @@ class Payment extends Model
         'PaymentMethod',
         'ReceiptNumber',
         'BillingID',
+        'ReferenceNumber',
+        'BankName',
+        'AccountName',
+        'PaymentDate',
+        'PaymentTime',
+        'Remarks',
+    ];
+
+    protected $casts = [
+        'PaymentDate' => 'date',
     ];
 
     public function billing()

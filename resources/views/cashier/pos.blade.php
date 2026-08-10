@@ -106,6 +106,17 @@
     .form-group input:focus { outline: none; border-color: #3b82f6; }
     .change-display { padding: 8px 10px; background: #1a1d2d; border: 1px solid #4a5568; color: #34d399; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
 
+    .payment-details-panel { background: #1a1d2d; border: 1px solid #4a5568; border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+    .payment-details-panel.confirmed { border-color: #34d399; }
+    .payment-details-panel .form-group:last-of-type { margin-bottom: 0; }
+    .payment-details-header { color: #cbd5e1; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .verify-checkbox-label { display: flex; align-items: flex-start; gap: 8px; color: #cbd5e1; font-size: 0.78rem; margin: 10px 0; cursor: pointer; line-height: 1.3; }
+    .verify-checkbox-label input[type="checkbox"] { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; accent-color: #3b82f6; cursor: pointer; }
+    .btn-verify-payment { width: 100%; padding: 9px; background: #3b82f6; border: none; color: white; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.82rem; transition: background 0.2s ease; }
+    .btn-verify-payment:hover { background: #2563eb; }
+    .payment-details-panel.confirmed .btn-verify-payment { display: none; }
+    .payment-verified-badge { display: flex; align-items: center; gap: 6px; color: #34d399; font-size: 0.8rem; font-weight: 600; padding: 8px; background: rgba(52, 211, 153, 0.1); border-radius: 8px; margin-top: 4px; }
+
     .payment-dropdown { position: relative; margin-bottom: 14px; }
     .payment-dropdown-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: #2d3748; border: 2px solid #4a5568; border-radius: 8px; color: #e2e8f0; cursor: pointer; font-size: 0.85rem; font-family: inherit; transition: border-color 0.2s ease; }
     .payment-dropdown-trigger:hover { border-color: #60a5fa; }
@@ -267,6 +278,76 @@
             <input type="text" id="account-number" placeholder="Enter reference number...">
         </div>
 
+        <div class="payment-details-panel" id="cheque-details-group" style="display: none;">
+            <div class="payment-details-header"><i class="fas fa-money-check"></i> Cheque Details</div>
+            <div class="form-group">
+                <label>Cheque Number</label>
+                <input type="text" id="cheque-number" placeholder="e.g., 0001234">
+            </div>
+            <div class="form-group">
+                <label>Bank Name</label>
+                <input type="text" id="cheque-bank-name" placeholder="e.g., BDO">
+            </div>
+            <div class="form-group">
+                <label>Account Name / Issuer</label>
+                <input type="text" id="cheque-account-name" placeholder="Name on the cheque">
+            </div>
+            <div class="form-group">
+                <label>Cheque Date</label>
+                <input type="date" id="cheque-date">
+            </div>
+            <div class="form-group">
+                <label>Remarks (optional)</label>
+                <input type="text" id="cheque-remarks" placeholder="Optional notes">
+            </div>
+            <label class="verify-checkbox-label">
+                <input type="checkbox" id="cheque-verified"> I have verified the cheque details.
+            </label>
+            <button type="button" class="btn-verify-payment" id="confirm-cheque-btn" onclick="confirmChequeDetails()">
+                Confirm Cheque Payment
+            </button>
+            <div class="payment-verified-badge" id="cheque-verified-badge" style="display:none;">
+                <i class="fas fa-check-circle"></i> Cheque details confirmed
+            </div>
+        </div>
+
+        <div class="payment-details-panel" id="bank-details-group" style="display: none;">
+            <div class="payment-details-header"><i class="fas fa-university"></i> Bank Transfer Details</div>
+            <div class="form-group">
+                <label>Bank / Financial Institution</label>
+                <input type="text" id="bank-name" placeholder="e.g., BPI">
+            </div>
+            <div class="form-group">
+                <label>Reference Number</label>
+                <input type="text" id="bank-reference" placeholder="Transaction reference number">
+            </div>
+            <div class="form-group">
+                <label>Account Name / Sender</label>
+                <input type="text" id="bank-account-name" placeholder="Sender's account name">
+            </div>
+            <div class="form-group">
+                <label>Transfer Date</label>
+                <input type="date" id="bank-date">
+            </div>
+            <div class="form-group">
+                <label>Transfer Time</label>
+                <input type="time" id="bank-time">
+            </div>
+            <div class="form-group">
+                <label>Remarks (optional)</label>
+                <input type="text" id="bank-remarks" placeholder="Optional notes">
+            </div>
+            <label class="verify-checkbox-label">
+                <input type="checkbox" id="bank-verified"> I have verified the bank transfer details.
+            </label>
+            <button type="button" class="btn-verify-payment" id="confirm-bank-btn" onclick="confirmBankTransferDetails()">
+                Confirm Bank Transfer
+            </button>
+            <div class="payment-verified-badge" id="bank-verified-badge" style="display:none;">
+                <i class="fas fa-check-circle"></i> Bank transfer details confirmed
+            </div>
+        </div>
+
         <div class="form-group">
             <label>Payment Amount</label>
             <input type="text" id="payment-amount" placeholder="0.00" oninput="calculateChange()">
@@ -346,6 +427,11 @@
     let appliedPromo = null;
     let selectedPaymentMethod = 'cash';
     let currentTotal = 0;
+    // Cheque/Bank Transfer require the cashier to explicitly confirm their
+    // payment details (a separate step from the final Complete Sale
+    // confirm) before Complete Sale is allowed to proceed. Cash/GCash have
+    // no such gate — this stays true/irrelevant for them.
+    let paymentDetailsConfirmed = false;
 
     function handleBarcode(event) {
         if (event.key === 'Enter') {
@@ -723,13 +809,99 @@
         document.getElementById('paymentDropdownSelected').innerHTML = element.innerHTML;
         document.getElementById('paymentDropdown').classList.remove('open');
 
-        const accountGroup = document.getElementById('account-number-group');
+        document.getElementById('account-number-group').style.display = method === 'gcash' ? 'block' : 'none';
+        document.getElementById('cheque-details-group').style.display = method === 'cheque' ? 'block' : 'none';
+        document.getElementById('bank-details-group').style.display = method === 'bank' ? 'block' : 'none';
 
-        if (method === 'cash') {
-            accountGroup.style.display = 'none';
-        } else {
-            accountGroup.style.display = 'block';
+        // Switching methods always invalidates any prior "details confirmed"
+        // state — the fields it referred to are no longer the active ones.
+        resetPaymentDetailsConfirmation();
+
+        const today = new Date().toISOString().slice(0, 10);
+        if (method === 'cheque' && !document.getElementById('cheque-date').value) {
+            document.getElementById('cheque-date').value = today;
         }
+        if (method === 'bank' && !document.getElementById('bank-date').value) {
+            document.getElementById('bank-date').value = today;
+        }
+    }
+
+    function resetPaymentDetailsConfirmation() {
+        paymentDetailsConfirmed = false;
+        ['cheque-details-group', 'bank-details-group'].forEach(function (panelId) {
+            const panel = document.getElementById(panelId);
+            panel.classList.remove('confirmed');
+            panel.querySelectorAll('input').forEach(function (input) { input.disabled = false; });
+        });
+        document.getElementById('cheque-verified-badge').style.display = 'none';
+        document.getElementById('bank-verified-badge').style.display = 'none';
+    }
+
+    function confirmChequeDetails() {
+        const fields = {
+            'Cheque Number': document.getElementById('cheque-number').value.trim(),
+            'Bank Name': document.getElementById('cheque-bank-name').value.trim(),
+            'Account Name / Issuer': document.getElementById('cheque-account-name').value.trim(),
+            'Cheque Date': document.getElementById('cheque-date').value,
+        };
+        const missing = Object.keys(fields).filter(function (label) { return !fields[label]; });
+        if (missing.length) {
+            toastWarning('Please fill in: ' + missing.join(', '));
+            return;
+        }
+        if (!document.getElementById('cheque-verified').checked) {
+            toastWarning('Please check "I have verified the cheque details" before confirming.');
+            return;
+        }
+
+        window.confirmAction({
+            title: 'Confirm Cheque Payment',
+            text: 'Please verify the cheque details before recording this payment.',
+            icon: 'question',
+            confirmText: 'Confirm Payment',
+            cancelText: 'Cancel',
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            paymentDetailsConfirmed = true;
+            const panel = document.getElementById('cheque-details-group');
+            panel.classList.add('confirmed');
+            panel.querySelectorAll('input').forEach(function (input) { input.disabled = true; });
+            document.getElementById('cheque-verified-badge').style.display = 'flex';
+        });
+    }
+
+    function confirmBankTransferDetails() {
+        const fields = {
+            'Bank / Financial Institution': document.getElementById('bank-name').value.trim(),
+            'Reference Number': document.getElementById('bank-reference').value.trim(),
+            'Account Name / Sender': document.getElementById('bank-account-name').value.trim(),
+            'Transfer Date': document.getElementById('bank-date').value,
+            'Transfer Time': document.getElementById('bank-time').value,
+        };
+        const missing = Object.keys(fields).filter(function (label) { return !fields[label]; });
+        if (missing.length) {
+            toastWarning('Please fill in: ' + missing.join(', '));
+            return;
+        }
+        if (!document.getElementById('bank-verified').checked) {
+            toastWarning('Please check "I have verified the bank transfer details" before confirming.');
+            return;
+        }
+
+        window.confirmAction({
+            title: 'Confirm Bank Transfer',
+            text: 'Please verify the transfer details before recording this payment.',
+            icon: 'question',
+            confirmText: 'Confirm Payment',
+            cancelText: 'Cancel',
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            paymentDetailsConfirmed = true;
+            const panel = document.getElementById('bank-details-group');
+            panel.classList.add('confirmed');
+            panel.querySelectorAll('input').forEach(function (input) { input.disabled = true; });
+            document.getElementById('bank-verified-badge').style.display = 'flex';
+        });
     }
 
     document.addEventListener('click', function (e) {
@@ -764,9 +936,10 @@
     function processCheckout() {
         const checkoutBtn = document.getElementById('checkout-btn');
 
-        // Guard against double-submit (double-click / double-tap): the sale
-        // request has no server-side idempotency check, so two near-simultaneous
-        // submits create two separate transactions and deduct stock twice.
+        // Guard against double-submit (double-click / double-tap): the disabled
+        // button catches the common case client-side; the server also holds a
+        // per-cashier Cache::lock for the rare cases this can't (a second
+        // browser tab, a fast double-tap before disable() takes effect).
         if (checkoutBtn.disabled) {
             return;
         }
@@ -786,15 +959,46 @@
             return;
         }
 
+        // Cheque/Bank Transfer must go through their own "Confirm Cheque
+        // Payment"/"Confirm Bank Transfer" step first — Cash/GCash have no
+        // such gate and proceed straight through, unchanged.
+        if ((selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank') && !paymentDetailsConfirmed) {
+            const label = selectedPaymentMethod === 'cheque' ? 'cheque' : 'bank transfer';
+            toastWarning('Please confirm the ' + label + ' details first.');
+            return;
+        }
+
         const data = {
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
             items: cart,
             discount_id: appliedPromo ? appliedPromo.discountId : null,
             payment_method: selectedPaymentMethod,
-            account_number: document.getElementById('account-number').value,
             payment_amount: window.parseMoney(document.getElementById('payment-amount').value),
+            reference_number: null,
+            bank_name: null,
+            account_name: null,
+            payment_date: null,
+            payment_time: null,
+            remarks: null,
         };
+
+        if (selectedPaymentMethod === 'gcash') {
+            data.reference_number = document.getElementById('account-number').value.trim() || null;
+        } else if (selectedPaymentMethod === 'cheque') {
+            data.reference_number = document.getElementById('cheque-number').value.trim();
+            data.bank_name = document.getElementById('cheque-bank-name').value.trim();
+            data.account_name = document.getElementById('cheque-account-name').value.trim();
+            data.payment_date = document.getElementById('cheque-date').value;
+            data.remarks = document.getElementById('cheque-remarks').value.trim() || null;
+        } else if (selectedPaymentMethod === 'bank') {
+            data.reference_number = document.getElementById('bank-reference').value.trim();
+            data.bank_name = document.getElementById('bank-name').value.trim();
+            data.account_name = document.getElementById('bank-account-name').value.trim();
+            data.payment_date = document.getElementById('bank-date').value;
+            data.payment_time = document.getElementById('bank-time').value;
+            data.remarks = document.getElementById('bank-remarks').value.trim() || null;
+        }
 
         checkoutBtn.disabled = true;
 
@@ -802,7 +1006,8 @@
             title: 'Complete Sale',
             text: 'Charge ' + window.formatPeso(currentTotal) + ' and complete this transaction?',
             icon: 'question',
-            confirmText: 'Complete Sale',
+            confirmText: 'Yes, Complete Sale',
+            cancelText: 'No, Go Back',
             confirmColor: '#10b981',
         }).then(function (result) {
             if (!result.isConfirmed) {
@@ -867,12 +1072,22 @@
                     if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
                     toastError(data.message, 'Error');
                     checkoutBtn.disabled = false;
+                    // Re-open the cheque/bank fields for editing — a failure
+                    // here (e.g. a duplicate reference number) usually means
+                    // something in those details needs to change before
+                    // retrying, and they were locked read-only on confirm.
+                    if (selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank') {
+                        resetPaymentDetailsConfirmation();
+                    }
                 }
             })
             .catch(error => {
                 if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
                 toastError(error.message, 'Error Processing Sale');
                 checkoutBtn.disabled = false;
+                if (selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank') {
+                    resetPaymentDetailsConfirmation();
+                }
             });
         });
     }

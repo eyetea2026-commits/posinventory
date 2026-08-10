@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 class CashierAuthController extends Controller
@@ -117,12 +118,29 @@ class CashierAuthController extends Controller
 
     public function processSale(Request $request)
     {
+        // Cheque/Bank Transfer genuinely need these fields captured — Cash
+        // never does, and GCash's reference number stays optional (matching
+        // its existing behavior; only the fact that it was being silently
+        // discarded is the bug being fixed, not its validation strictness).
+        $needsPaymentDetails = ['cheque', 'bank'];
         $data = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.id' => 'required|integer|exists:Product,ProductID',
             'items.*.qty' => 'required|integer|min:1',
             'payment_method' => 'required|in:cash,gcash,bank,cheque',
             'discount_id' => 'nullable|integer|exists:Discount,DiscountID',
+            'reference_number' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:50'],
+            'bank_name' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:100'],
+            'account_name' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:100'],
+            'payment_date' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'date'],
+            'payment_time' => [Rule::requiredIf(fn () => $request->input('payment_method') === 'bank'), 'nullable', 'date_format:H:i'],
+            'remarks' => 'nullable|string|max:500',
+        ], [
+            'reference_number.required' => 'Please enter the reference/cheque number.',
+            'bank_name.required' => 'Please enter the bank name.',
+            'account_name.required' => 'Please enter the account name.',
+            'payment_date.required' => 'Please enter the payment date.',
+            'payment_time.required' => 'Please enter the transfer time.',
         ]);
 
         $items = $data['items'];
@@ -134,8 +152,13 @@ class CashierAuthController extends Controller
         $customerName = trim((string) $request->input('customer_name')) ?: 'Walk-in Customer';
         $discountId = $data['discount_id'] ?? null;
         $paymentMethod = $data['payment_method'];
-        $accountNumber = $request->input('account_number');
         $paymentAmount = round(floatval($request->input('payment_amount', 0)), 2);
+        $referenceNumber = $data['reference_number'] ?? null;
+        $bankName = $data['bank_name'] ?? null;
+        $accountName = $data['account_name'] ?? null;
+        $paymentDate = $data['payment_date'] ?? null;
+        $paymentTime = $data['payment_time'] ?? null;
+        $remarks = $data['remarks'] ?? null;
 
         // Aggregate requested quantity per product: the cart can list the same
         // product across more than one line, and checking/decrementing stock
@@ -160,7 +183,18 @@ class CashierAuthController extends Controller
         }
 
         try {
-            $result = DB::transaction(function () use ($items, $quantitiesByProduct, $customerName, $discountId, $paymentMethod, $accountNumber, $paymentAmount, $user) {
+            $result = DB::transaction(function () use (
+                $items, $quantitiesByProduct, $customerName, $discountId, $paymentMethod, $paymentAmount,
+                $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user
+            ) {
+                // Prevent recording the same cheque/reference twice for the
+                // same payment method — a plain exists() check here (backed
+                // by the migration's unique index as the concurrency-safe
+                // fallback for two requests racing past this check at once).
+                if ($referenceNumber && Payment::where('PaymentMethod', $paymentMethod)->where('ReferenceNumber', $referenceNumber)->exists()) {
+                    throw new \RuntimeException("This {$paymentMethod} reference number has already been recorded for another sale.");
+                }
+
                 // Lock the inventory rows involved so a concurrent sale can't
                 // deduct the same stock before this transaction commits.
                 $inventories = Inventory::whereIn('ProductID', array_keys($quantitiesByProduct))
@@ -281,6 +315,12 @@ class CashierAuthController extends Controller
                     'PaymentMethod' => $paymentMethod,
                     'ReceiptNumber' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'BillingID' => $billing->BillingID,
+                    'ReferenceNumber' => $referenceNumber,
+                    'BankName' => $bankName,
+                    'AccountName' => $accountName,
+                    'PaymentDate' => $paymentDate,
+                    'PaymentTime' => $paymentTime,
+                    'Remarks' => $remarks,
                 ]);
 
                 // Create sales items, priced from the DB, not the request
@@ -440,6 +480,10 @@ class CashierAuthController extends Controller
             'paymentMethod' => $paymentMethod,
             'paymentAmount' => $paymentAmount,
             'change' => $change,
+            'referenceNumber' => $payment?->ReferenceNumber,
+            'bankName' => $payment?->BankName,
+            'accountName' => $payment?->AccountName,
+            'paymentDate' => $payment?->PaymentDate,
         ]);
     }
 }
