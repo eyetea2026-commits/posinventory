@@ -28,7 +28,7 @@
                 <div class="error-message">{{ $errors->first() }}</div>
             @endif
 
-            <form method="POST" action="{{ route('login.post') }}">
+            <form method="POST" action="{{ route('login.post') }}" class="login-form">
                 @csrf
 
                 <div class="form-field">
@@ -153,16 +153,22 @@
         .login-logo {
             display: flex;
             justify-content: center;
-            margin-bottom: 22px;
+            margin-bottom: 26px;
         }
         .login-logo img {
-            width: 92px;
-            height: 92px;
-            border-radius: 20px;
+            width: 106px;
+            height: 106px;
+            border-radius: 22px;
             background: #fff;
-            padding: 8px;
+            padding: 10px;
             box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
             object-fit: contain;
+        }
+        /* Pushes Username/Password (and everything after) down as one block,
+           without touching the internal gaps Login.css already defines
+           between the fields, Remember Me, and Sign In. */
+        .login-form {
+            margin-top: 16px;
         }
         .forgot-disabled {
             margin-top: 6px;
@@ -170,6 +176,13 @@
             color: #6b7280;
             display: flex;
             align-items: center;
+        }
+        @media (max-width: 680px) {
+            .login-logo img {
+                width: 88px;
+                height: 88px;
+                border-radius: 18px;
+            }
         }
     </style>
 </body>
