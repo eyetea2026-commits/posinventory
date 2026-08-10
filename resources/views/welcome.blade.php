@@ -151,22 +151,22 @@
         .login-logo {
             display: flex;
             justify-content: center;
-            margin-bottom: 32px;
+            margin-bottom: 36px;
         }
         .login-logo img {
-            width: 136px;
-            height: 136px;
-            border-radius: 28px;
+            width: 160px;
+            height: 160px;
+            border-radius: 32px;
             background: #fff;
-            padding: 12px;
-            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+            padding: 14px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
             object-fit: contain;
         }
         /* Pushes Username/Password (and everything after) down as one block,
            without touching the internal gaps Login.css already defines
            between the fields, Remember Me, and Sign In. */
         .login-form {
-            margin-top: 16px;
+            margin-top: 18px;
         }
         .forgot-disabled {
             margin-top: 6px;
@@ -176,10 +176,13 @@
             align-items: center;
         }
         @media (max-width: 680px) {
+            .login-logo {
+                margin-bottom: 28px;
+            }
             .login-logo img {
-                width: 112px;
-                height: 112px;
-                border-radius: 24px;
+                width: 124px;
+                height: 124px;
+                border-radius: 26px;
             }
         }
     </style>
