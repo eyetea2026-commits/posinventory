@@ -154,11 +154,11 @@
             padding: 28px 0;
         }
         .login-logo img {
-            width: 240px;
+            width: 200px;
             height: auto;
-            border-radius: 40px;
+            border-radius: 36px;
             background: #fff;
-            padding: 18px;
+            padding: 16px;
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
             object-fit: contain;
         }
@@ -180,9 +180,9 @@
                 padding: 24px 0;
             }
             .login-logo img {
-                width: 180px;
-                border-radius: 32px;
-                padding: 14px;
+                width: 150px;
+                border-radius: 28px;
+                padding: 12px;
             }
         }
     </style>
