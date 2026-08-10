@@ -106,9 +106,9 @@ class Phase5PolishTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.suppliers.index'));
 
         $response->assertOk();
-        // The shared partial's compact rule should be present exactly once.
+        // The shared partial's popup-width rule should be present exactly once.
         $content = $response->getContent();
-        $this->assertSame(1, substr_count($content, 'width: 380px !important'));
+        $this->assertSame(1, substr_count($content, 'width: 520px !important'));
         // The old layout-local override (a competing "28em !important" width
         // declaration) must not have come back — checked as the exact
         // duplicate-rule signature, not a bare "28em" substring, since that

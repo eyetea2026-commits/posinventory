@@ -1,18 +1,27 @@
 {{-- Shared SweetAlert2 house style + convenience helpers, included by both
      admin.layout and cashier.layout right after the SweetAlert2 script tag.
      Replaces raw alert()/confirm() calls system-wide with a single
-     consistent look (slim, compact, rounded corners) instead of every call
-     site hand-rolling its own Swal.fire({...}) options.
+     consistent look instead of every call site hand-rolling its own
+     Swal.fire({...}) options.
+
+     Design system: WIDER + SHORTER rather than narrow + tall. A wider
+     popup gives text more horizontal room, which means fewer wrapped
+     lines and therefore a genuinely shorter popup for the same content
+     — a taller, narrower dialog does not actually look "more compact",
+     it just wraps its message across more lines. Values below sit
+     inside the 500-560px desktop width / 60-75px icon / 20-22px title
+     / 14-15px message ranges used throughout the app's other compact UI
+     (SweetAlert dialogs, receipt/report headers, etc).
 
      Deliberately UNSCOPED (plain .swal2-popup, not .swal-compact.swal2-popup)
      — an audit found ~90 raw Swal.fire({...}) call sites across 20+ admin
      views that never passed customClass:{popup:'swal-compact'} at all, so a
      class-scoped rule would only have styled a small fraction of the
      system's dialogs. Targeting the base SweetAlert2 class directly
-     guarantees every dialog gets the same compact design without having to
-     touch every call site by hand, and automatically covers any future one
-     too. The .swal-compact class (still passed by the shared helpers below)
-     is harmless now — kept only for call sites that reference it. --}}
+     guarantees every dialog gets the same design without having to touch
+     every call site by hand, and automatically covers any future one too.
+     The .swal-compact class (still passed by the shared helpers below) is
+     harmless now — kept only for call sites that reference it. --}}
 <style>
     /* SweetAlert2 v11 ships its own default width/padding as a plain
        (unlayered) `.swal2-popup { width: 28em; padding: 1.5em; }` rule.
@@ -24,26 +33,32 @@
        just the handful of box-model properties this needs to change. */
     .swal2-popup {
         border-radius: 14px !important;
-        padding: 0.65rem 1.1rem 0.85rem !important;
-        width: 380px !important;
+        padding: 1rem 1.6rem 1.3rem !important;
+        width: 520px !important;
         max-width: 92vw !important;
         font-family: inherit !important;
     }
-    .swal2-popup .swal2-title { font-size: 1rem !important; margin: 0.1rem 0.3rem 0.15rem !important; padding: 0 !important; }
-    .swal2-popup .swal2-html-container { font-size: 0.85rem !important; margin: 0.15rem 0.4rem 0.1rem !important; }
-    .swal2-popup .swal2-icon { margin-top: 0.25rem !important; margin-bottom: 0.15rem !important; width: 2.4em !important; height: 2.4em !important; }
-    .swal2-popup .swal2-actions { margin-top: 0.5rem !important; margin-bottom: 0 !important; gap: 8px !important; }
+    .swal2-popup .swal2-title { font-size: 1.3rem !important; margin: 0.2rem 0.2rem 0.3rem !important; padding: 0 !important; line-height: 1.3 !important; }
+    .swal2-popup .swal2-html-container { font-size: 0.9rem !important; line-height: 1.5 !important; margin: 0.2rem 0.3rem 0.1rem !important; }
+    .swal2-popup .swal2-icon { margin-top: 0.3rem !important; margin-bottom: 0.2rem !important; width: 68px !important; height: 68px !important; }
+    .swal2-popup .swal2-actions { margin-top: 0.9rem !important; margin-bottom: 0 !important; gap: 10px !important; }
     .swal2-popup .swal2-styled {
         border-radius: 8px !important;
-        padding: 0.32em 1.1em !important;
-        min-height: 2.1em !important;
+        padding: 0.5em 1.4em !important;
+        min-height: 2.3em !important;
         font-weight: 600 !important;
-        font-size: 0.88rem !important;
+        font-size: 0.92rem !important;
     }
-    .swal2-popup .swal2-close { font-size: 1.3rem !important; top: 4px !important; right: 4px !important; }
+    .swal2-popup .swal2-close { font-size: 1.4rem !important; top: 6px !important; right: 6px !important; }
 
-    @media (max-width: 480px) {
-        .swal2-popup { width: 92vw !important; padding: 0.55rem 0.85rem 0.75rem !important; }
+    /* Below this width a 520px popup no longer fits comfortably (tablets in
+       portrait, large phones) — matches the spec's 90-95vw mobile target. */
+    @media (max-width: 640px) {
+        .swal2-popup { width: 94vw !important; padding: 0.85rem 1.1rem 1rem !important; }
+        .swal2-popup .swal2-title { font-size: 1.15rem !important; }
+        .swal2-popup .swal2-icon { width: 56px !important; height: 56px !important; }
+        .swal2-popup .swal2-actions { flex-wrap: wrap !important; }
+        .swal2-popup .swal2-styled { flex: 1 1 auto !important; }
     }
 </style>
 <script>
