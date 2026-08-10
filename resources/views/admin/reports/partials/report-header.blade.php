@@ -2,15 +2,21 @@
      a Filters block. Included by both admin/reports/pdf.blade.php and
      admin/reports/print.blade.php so the two surfaces never drift out of
      sync with each other. Expects: $type, $dateFrom, $dateTo.
-     Company logo renders as text-only (no logo asset exists in this
-     project); Branch is a hardcoded label since no multi-branch concept
-     exists in the schema — both match how every other printed document in
-     this app already handles company branding. The Filters block only
-     lists Date Range because that's the only real filter this report
-     module has today; listing Category/Supplier/Payment Method/Cashier as
-     "All" would misrepresent the document since none of them actually
-     filter anything yet. --}}
+     Branch is a hardcoded label since no multi-branch concept exists in
+     the schema, matching how every other printed document in this app
+     handles it. The Filters block only lists Date Range because that's
+     the only real filter this report module has today; listing
+     Category/Supplier/Payment Method/Cashier as "All" would misrepresent
+     the document since none of them actually filter anything yet. --}}
+@php
+    // A data URI (not a URL or filesystem path) is the one representation
+    // that works unmodified in both consumers of this partial: the browser
+    // Print Preview (which can't load a C:\... filesystem path) and dompdf
+    // (which would otherwise need remote-fetch enabled to load a URL).
+    $logoDataUri = 'data:image/png;base64,' . base64_encode(file_get_contents(public_path('Images/logo.png')));
+@endphp
 <div class="company-header">
+    <img src="{{ $logoDataUri }}" alt="CCTV Express Solution" class="company-logo">
     <h1>CCTV Express</h1>
     <p>Your Trusted Security Partner</p>
 </div>

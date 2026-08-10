@@ -495,7 +495,16 @@ class ReportController extends Controller
             'rows' => $rows,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
+            'landscape' => $this->isLandscapeType($type),
         ]);
+    }
+
+    // Sales and Inventory carry the widest column sets (9-10 columns) —
+    // landscape keeps every column readable instead of shrinking text to
+    // fit portrait width. The other four types stay portrait.
+    private function isLandscapeType(string $type): bool
+    {
+        return in_array($type, ['sales', 'inventory'], true);
     }
 
     public function export(Request $request)
@@ -513,7 +522,8 @@ class ReportController extends Controller
                 'rows' => $rows,
                 'dateFrom' => $dateFrom,
                 'dateTo' => $dateTo,
-            ]);
+                'landscape' => $this->isLandscapeType($type),
+            ])->setPaper('a4', $this->isLandscapeType($type) ? 'landscape' : 'portrait');
 
             return $pdf->download($filenameBase . '.pdf');
         }
@@ -635,11 +645,11 @@ class ReportController extends Controller
     {
         return match ($type) {
             'inventory' => $this->inventoryRows($dateFrom, $dateTo),
-            'orders' => $this->orderRows($dateFrom, $dateTo),
+            'orders' => $this->orderItemRows($dateFrom, $dateTo),
             'returns' => $this->returnRows($dateFrom, $dateTo),
             'damage' => $this->damageRows($dateFrom, $dateTo),
             'supplier' => $this->supplierRows($dateFrom, $dateTo),
-            default => $this->salesBillingRows($dateFrom, $dateTo),
+            default => $this->salesItemRows($dateFrom, $dateTo),
         };
     }
 
@@ -653,6 +663,55 @@ class ReportController extends Controller
             ->get();
     }
 
+    // Print/PDF/Excel Sales Report: one row per product per invoice, so the
+    // documented columns (Product/Qty/Unit Price) mean something — unlike
+    // the on-screen preview (which still uses salesBillingRows() above,
+    // deliberately untouched), this is export-only. Discount/VAT/Total are
+    // transaction-level facts in this system (never stored per item), so
+    // they're only populated on each invoice's first item row — showing
+    // them on every row would imply an even per-item split that never
+    // happened. ReportSummaryBuilder::sales() relies on exactly this shape.
+    private function salesItemRows(?string $dateFrom, ?string $dateTo)
+    {
+        $billings = $this->salesBillingRows($dateFrom, $dateTo)->load('transaction.items.product');
+
+        $rows = collect();
+
+        foreach ($billings as $billing) {
+            $items = $billing->transaction?->items ?? collect();
+            $receiptNumber = $billing->payment?->ReceiptNumber ?? ('BILL-' . str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT));
+
+            if ($items->isEmpty()) {
+                $rows->push($this->salesItemRow($billing, $receiptNumber, null, true));
+                continue;
+            }
+
+            foreach ($items as $index => $item) {
+                $rows->push($this->salesItemRow($billing, $receiptNumber, $item, $index === 0));
+            }
+        }
+
+        return $rows;
+    }
+
+    private function salesItemRow(Billing $billing, string $receiptNumber, ?SalesItem $item, bool $isFirst): object
+    {
+        return (object) [
+            'ReceiptNumber' => $receiptNumber,
+            'BillingDate' => $billing->BillingDate,
+            'CustomerName' => $billing->CustomerName ?? 'Walk-in Customer',
+            'PaymentMethod' => $billing->payment?->PaymentMethod,
+            'ProductName' => $item?->product?->ProductName ?? 'N/A',
+            'Quantity' => $item?->Quantity ?? 0,
+            'UnitPrice' => $item?->UnitPrice ?? 0,
+            'ItemTotal' => round(($item?->Quantity ?? 0) * ($item?->UnitPrice ?? 0), 2),
+            'Discount' => $isFirst ? (float) ($billing->DiscountAmount ?? 0) : null,
+            'VatAmount' => $isFirst ? (float) ($billing->VatAmount ?? 0) : null,
+            'BillingAmount' => $isFirst ? (float) $billing->BillingAmount : null,
+            'is_first' => $isFirst,
+        ];
+    }
+
     // Inventory itself has no date column (it's a live quantity, not a
     // ledger), so "within the selected date range" is expressed as "this
     // product had stock movement — received or adjusted — in that range",
@@ -660,7 +719,7 @@ class ReportController extends Controller
     // selected still shows every tracked product, same as before.
     private function inventoryRows(?string $dateFrom, ?string $dateTo)
     {
-        return Inventory::with('product')
+        return Inventory::with(['product.category', 'product.suppliers.supplier'])
             ->when($dateFrom || $dateTo, function ($query) use ($dateFrom, $dateTo) {
                 $query->where(function ($q) use ($dateFrom, $dateTo) {
                     $q->whereHas('product.stockReceivings', function ($sr) use ($dateFrom, $dateTo) {
@@ -717,6 +776,10 @@ class ReportController extends Controller
             return (object) [
                 'SupplierID' => $supplier->SupplierID,
                 'SupplierName' => $supplier->SupplierName,
+                'ContactPerson' => $supplier->ContactPerson,
+                'ContactNumber' => $supplier->ContactNumber,
+                'Email' => $supplier->Email,
+                'Address' => $supplier->Address,
                 'Status' => $supplier->Status,
                 'TotalOrders' => $orders->count(),
                 'TotalAmount' => $orders->flatMap->items->sum(fn ($item) => $item->ReceivedQuantity * $item->CostPriceAtOrder),
@@ -726,32 +789,71 @@ class ReportController extends Controller
 
     private function orderRows(?string $dateFrom, ?string $dateTo)
     {
-        return PurchaseOrder::with(['supplier', 'items'])
+        return PurchaseOrder::with(['supplier', 'items.product'])
             ->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
             ->orderByDesc('PurchaseDate')
             ->get();
     }
 
+    // Print/PDF/Excel "Purchase Report": one row per ordered product line
+    // (PO Number/Date/Supplier/Product/Qty/Unit Price/Subtotal), not per PO
+    // — unlike the on-screen preview (which still uses orderRows() above,
+    // deliberately untouched). No VAT column: purchase orders have no VAT
+    // concept in this system (VAT only applies at POS checkout).
+    private function orderItemRows(?string $dateFrom, ?string $dateTo)
+    {
+        return $this->orderRows($dateFrom, $dateTo)->flatMap(function (PurchaseOrder $order) {
+            if ($order->items->isEmpty()) {
+                return collect([$this->orderItemRow($order, null)]);
+            }
+
+            return $order->items->map(fn ($item) => $this->orderItemRow($order, $item));
+        });
+    }
+
+    private function orderItemRow(PurchaseOrder $order, ?\App\Models\PurchaseOrderItem $item): object
+    {
+        return (object) [
+            'PONumber' => $order->PONumber,
+            'PurchaseDate' => $order->PurchaseDate,
+            'SupplierName' => $order->supplier?->SupplierName ?? 'N/A',
+            'ProductName' => $item?->product?->ProductName ?? 'N/A',
+            'Quantity' => $item?->Quantity ?? 0,
+            'UnitPrice' => (float) ($item?->CostPriceAtOrder ?? 0),
+            'Subtotal' => round(($item?->Quantity ?? 0) * ($item?->CostPriceAtOrder ?? 0), 2),
+            'Status' => $order->Status,
+        ];
+    }
+
     // One row per returned product line, not per request — a single
     // multi-item return request now flattens to one CSV/report row per item.
     private function returnRows(?string $dateFrom, ?string $dateTo)
     {
-        return SalesReturn::with(['items.product', 'staff.user'])
+        return SalesReturn::with(['items.product', 'staff.user', 'processedByUser', 'transaction.billing.payment'])
             ->when($dateFrom, fn ($q) => $q->whereDate('ReturnDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('ReturnDate', '<=', $dateTo))
             ->orderByDesc('ReturnDate')
             ->get()
             ->flatMap(function (SalesReturn $return) {
+                $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? ('TXN-' . $return->SalesTransactionID);
+                // Only set once an admin actually finalizes the refund/replacement —
+                // falls back to whoever logged the request so pending rows aren't blank.
+                $processedBy = $return->processedByUser?->full_name ?? $return->staff?->user?->full_name ?? 'N/A';
+
                 return $return->items->map(fn (SalesReturnItem $item) => (object) [
                     'SalesReturnID' => $return->SalesReturnID,
                     'SalesTransactionID' => $return->SalesTransactionID,
+                    'ReceiptNumber' => $receiptNumber,
+                    'CustomerName' => $return->CustomerName ?? 'N/A',
                     'product' => $item->product,
                     'Quantity' => $item->Quantity,
                     'Reason' => $item->Reason,
+                    'ReturnType' => $return->ReturnType,
                     'Status' => $return->Status,
                     'ReturnDate' => $return->ReturnDate,
                     'CashierName' => $return->staff?->user?->full_name ?? 'N/A',
+                    'ProcessedByName' => $processedBy,
                 ]);
             });
     }

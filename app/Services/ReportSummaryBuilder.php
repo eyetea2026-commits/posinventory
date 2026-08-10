@@ -31,14 +31,18 @@ class ReportSummaryBuilder
         };
     }
 
+    // Rows are item-level (ReportController::salesItemRows()) — Quantity is
+    // summed across every row, but Discount/VatAmount/BillingAmount are
+    // only populated on each invoice's first item row (is_first), so
+    // summing them still counts each invoice exactly once.
     private static function sales(Collection $rows): array
     {
         return [
-            ['label' => 'Total Transactions', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Quantity Sold', 'value' => $rows->sum(fn ($r) => $r->transaction?->items->sum('Quantity') ?? 0), 'money' => false],
-            ['label' => 'Gross Sales', 'value' => round($rows->sum(fn ($r) => $r->Subtotal ?? $r->BillingAmount), 2), 'money' => true],
-            ['label' => 'Discount', 'value' => round($rows->sum(fn ($r) => $r->DiscountAmount ?? 0), 2), 'money' => true],
-            ['label' => 'VAT', 'value' => round($rows->sum(fn ($r) => $r->VatAmount ?? 0), 2), 'money' => true],
+            ['label' => 'Total Transactions', 'value' => $rows->where('is_first', true)->count(), 'money' => false],
+            ['label' => 'Total Quantity Sold', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Subtotal (Gross Sales)', 'value' => round($rows->sum('ItemTotal'), 2), 'money' => true],
+            ['label' => 'Discount', 'value' => round($rows->sum('Discount'), 2), 'money' => true],
+            ['label' => 'VAT', 'value' => round($rows->sum('VatAmount'), 2), 'money' => true],
             ['label' => 'Net Sales', 'value' => round($rows->sum('BillingAmount'), 2), 'money' => true],
         ];
     }
@@ -46,17 +50,22 @@ class ReportSummaryBuilder
     private static function inventory(Collection $rows): array
     {
         return [
-            ['label' => 'Total Items', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Quantity', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Products', 'value' => $rows->count(), 'money' => false],
+            ['label' => 'Total Stock Quantity', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Inventory Value', 'value' => round($rows->sum(fn ($r) => $r->Quantity * (float) ($r->product?->CostPrice ?? 0)), 2), 'money' => true],
+            ['label' => 'Low Stock Items', 'value' => $rows->where('Status', 'Low Stock')->count(), 'money' => false],
+            ['label' => 'Out of Stock Items', 'value' => $rows->where('Status', 'Out of Stock')->count(), 'money' => false],
         ];
     }
 
+    // Rows are line-item level (ReportController::orderItemRows()) — Total
+    // Purchase Orders counts distinct PO numbers, not rows.
     private static function orders(Collection $rows): array
     {
         return [
-            ['label' => 'Total Orders', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Quantity Ordered', 'value' => $rows->sum(fn ($r) => $r->items->sum('Quantity')), 'money' => false],
-            ['label' => 'Total Amount', 'value' => round($rows->sum(fn ($r) => $r->items->sum(fn ($i) => $i->Quantity * $i->CostPriceAtOrder)), 2), 'money' => true],
+            ['label' => 'Total Purchase Orders', 'value' => $rows->pluck('PONumber')->unique()->count(), 'money' => false],
+            ['label' => 'Total Quantity Purchased', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Amount', 'value' => round($rows->sum('Subtotal'), 2), 'money' => true],
         ];
     }
 
@@ -80,6 +89,8 @@ class ReportSummaryBuilder
     {
         return [
             ['label' => 'Total Suppliers', 'value' => $rows->count(), 'money' => false],
+            ['label' => 'Active Suppliers', 'value' => $rows->where('Status', \App\Models\Supplier::STATUS_ACTIVE)->count(), 'money' => false],
+            ['label' => 'Inactive Suppliers', 'value' => $rows->where('Status', \App\Models\Supplier::STATUS_INACTIVE)->count(), 'money' => false],
             ['label' => 'Total Orders', 'value' => $rows->sum('TotalOrders'), 'money' => false],
             ['label' => 'Total Amount', 'value' => round($rows->sum('TotalAmount'), 2), 'money' => true],
         ];

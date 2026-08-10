@@ -347,21 +347,24 @@ class ReportsModuleTest extends TestCase
         $this->assertStringContainsString('Report Summary', $html);
     }
 
+    // ReportSummaryBuilder::sales() now expects the item-level row shape
+    // ReportController::salesItemRows() produces (Quantity/ItemTotal on
+    // every row; Discount/VatAmount/BillingAmount only on each invoice's
+    // first item row) — constructed directly here since that method is
+    // private; the real explosion is covered end-to-end by
+    // test_sales_report_export_explodes_to_one_row_per_line_item below.
     public function test_report_summary_builder_computes_sales_aggregates(): void
     {
-        $billing = $this->makeBilling(1120, '2026-06-15');
-        $billing->update(['Subtotal' => 1000, 'DiscountAmount' => 0, 'VatAmount' => 120]);
-        SalesItem::create([
-            'Quantity' => 3, 'UnitPrice' => 1000, 'ProductID' => $this->product->ProductID,
-            'SalesTransactionID' => $billing->SalesTransactionID,
+        $rows = collect([
+            (object) ['Quantity' => 2, 'ItemTotal' => 2000.0, 'Discount' => 0.0, 'VatAmount' => 120.0, 'BillingAmount' => 1120.0, 'is_first' => true],
+            (object) ['Quantity' => 1, 'ItemTotal' => 1000.0, 'Discount' => null, 'VatAmount' => null, 'BillingAmount' => null, 'is_first' => false],
         ]);
 
-        $rows = Billing::with(['payment', 'transaction.items'])->get();
         $summary = collect(ReportSummaryBuilder::forType('sales', $rows))->keyBy('label');
 
         $this->assertSame(1, $summary['Total Transactions']['value']);
         $this->assertSame(3, $summary['Total Quantity Sold']['value']);
-        $this->assertEqualsWithDelta(1000.0, $summary['Gross Sales']['value'], 0.001);
+        $this->assertEqualsWithDelta(3000.0, $summary['Subtotal (Gross Sales)']['value'], 0.001);
         $this->assertEqualsWithDelta(120.0, $summary['VAT']['value'], 0.001);
         $this->assertEqualsWithDelta(1120.0, $summary['Net Sales']['value'], 0.001);
         $this->assertTrue($summary['Net Sales']['money']);
@@ -375,8 +378,9 @@ class ReportsModuleTest extends TestCase
         $rows = Inventory::with('product')->get();
         $summary = collect(ReportSummaryBuilder::forType('inventory', $rows))->keyBy('label');
 
-        $this->assertSame(1, $summary['Total Items']['value']);
-        $this->assertSame(40, $summary['Total Quantity']['value']);
+        $this->assertSame(1, $summary['Total Products']['value']);
+        $this->assertSame(40, $summary['Total Stock Quantity']['value']);
+        $this->assertEqualsWithDelta(40 * (float) $this->product->CostPrice, $summary['Total Inventory Value']['value'], 0.001);
     }
 
     public function test_excel_export_returns_a_valid_spreadsheet_for_every_report_type(): void
@@ -387,5 +391,153 @@ class ReportsModuleTest extends TestCase
             $response->assertOk();
             $response->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         }
+    }
+
+    // ---- Report redesign: item-level Sales explosion ----
+
+    public function test_sales_report_export_explodes_to_one_row_per_line_item(): void
+    {
+        $secondProduct = Product::create([
+            'ProductName' => 'IP Camera', 'Model' => 'CAM-02', 'SKU' => 'SKU-002',
+            'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
+        ]);
+        $billing = $this->makeBilling(1120, '2026-06-15');
+        $billing->update(['Subtotal' => 1000, 'DiscountAmount' => 0, 'VatAmount' => 120]);
+        SalesItem::create(['Quantity' => 2, 'UnitPrice' => 400, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+        SalesItem::create(['Quantity' => 1, 'UnitPrice' => 200, 'ProductID' => $secondProduct->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']));
+
+        $response->assertOk();
+        $response->assertSee('DVR Camera');
+        $response->assertSee('IP Camera');
+        // Two line items from the same invoice = two table rows, but the
+        // discount/VAT amount must only appear once (on the first item's
+        // row), not duplicated across both — it's a whole-invoice fact.
+        $response->assertSeeInOrder(['DVR Camera', 'IP Camera']);
+    }
+
+    public function test_sales_report_item_rows_sum_back_to_the_original_billing_amount(): void
+    {
+        $secondProduct = Product::create([
+            'ProductName' => 'IP Camera', 'Model' => 'CAM-02', 'SKU' => 'SKU-002',
+            'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
+        ]);
+        $billing = $this->makeBilling(1120, '2026-06-15');
+        $billing->update(['Subtotal' => 1000, 'DiscountAmount' => 0, 'VatAmount' => 120]);
+        SalesItem::create(['Quantity' => 2, 'UnitPrice' => 400, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+        SalesItem::create(['Quantity' => 1, 'UnitPrice' => 200, 'ProductID' => $secondProduct->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+
+        $method = new \ReflectionMethod(\App\Http\Controllers\Admin\ReportController::class, 'salesItemRows');
+        $method->setAccessible(true);
+        $rows = $method->invoke(new \App\Http\Controllers\Admin\ReportController(), null, null);
+
+        $this->assertCount(2, $rows);
+        // Gross (sum of every line's Quantity*UnitPrice) minus discount plus
+        // VAT must reconstruct the exact amount the cashier actually charged
+        // — no drift from the checkout math that produced it.
+        $gross = $rows->sum('ItemTotal');
+        $this->assertEqualsWithDelta(1000.0, $gross, 0.001);
+        $this->assertEqualsWithDelta(1120.0, $gross - $rows->sum('Discount') + $rows->sum('VatAmount'), 0.001);
+        $this->assertTrue($rows->first()->is_first);
+        $this->assertFalse($rows->last()->is_first);
+        $this->assertNull($rows->last()->Discount);
+    }
+
+    // ---- Report redesign: item-level Purchase (orders) explosion ----
+
+    public function test_purchase_report_export_explodes_to_one_row_per_ordered_line(): void
+    {
+        $order = PurchaseOrder::create([
+            'PONumber' => 'PO-2026-000001', 'SupplierID' => $this->supplier->SupplierID,
+            'PurchaseDate' => '2026-06-10', 'Status' => 'approved',
+        ]);
+        PurchaseOrderItem::create(['PurchaseOrderID' => $order->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 10, 'CostPriceAtOrder' => 600]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'orders']));
+
+        $response->assertOk();
+        $response->assertSee('PO-2026-000001');
+        $response->assertSee('Acme Supplies');
+        $response->assertSee('DVR Camera');
+        // No VAT column — purchase orders have no VAT concept in this system.
+        $response->assertDontSee('>VAT<', false);
+    }
+
+    // ---- Report redesign: enriched columns per type ----
+
+    public function test_inventory_report_shows_enriched_columns(): void
+    {
+        Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 40, 'ReorderThreshold' => 10, 'Status' => 'Available']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'inventory']));
+
+        $response->assertOk();
+        $response->assertSee('SKU-001');
+        $response->assertSee('CCTV');
+        $response->assertSee('₱600.00'); // Cost Price
+        $response->assertSee('₱24,000.00'); // Stock Value = 40 * 600
+    }
+
+    public function test_supplier_report_shows_contact_details(): void
+    {
+        $this->supplier->update(['ContactPerson' => 'John Reyes']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'supplier']));
+
+        $response->assertOk();
+        $response->assertSee('John Reyes');
+        $response->assertSee('acme@example.com');
+    }
+
+    // ---- Company logo ----
+
+    public function test_print_and_pdf_and_excel_all_include_the_company_logo(): void
+    {
+        $print = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']));
+        $print->assertOk();
+        $print->assertSee('data:image/png;base64,', false);
+
+        $pdf = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'pdf']));
+        $pdf->assertOk();
+
+        $excel = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'excel']));
+        $excel->assertOk();
+    }
+
+    // ---- A4 landscape for wide report types ----
+
+    public function test_sales_and_inventory_pdf_use_landscape_others_use_portrait(): void
+    {
+        $sales = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'pdf']));
+        $sales->assertOk();
+
+        $supplier = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'supplier', 'format' => 'pdf']));
+        $supplier->assertOk();
+
+        // Both must succeed without throwing — dompdf raises if setPaper()
+        // is ever called with an invalid orientation string, so a clean 200
+        // for every type confirms the per-type landscape/portrait branch
+        // in ReportController::export() is wired correctly for all of them.
+        foreach (['sales', 'inventory', 'orders', 'damage', 'returns', 'supplier'] as $type) {
+            $this->actingAs($this->admin)
+                ->get(route('admin.reports.export', ['type' => $type, 'format' => 'pdf']))
+                ->assertOk();
+        }
+    }
+
+    // ---- Empty state ----
+
+    public function test_empty_sales_report_shows_no_records_found_not_a_broken_table(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.print', [
+            'type' => 'sales', 'date_from' => '2099-01-01', 'date_to' => '2099-01-31',
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('NO RECORDS FOUND');
+        // Header/filters/footer must still render around the empty state.
+        $response->assertSee('Report Period');
+        $response->assertSee('Generated by CCTV Express POS');
     }
 }

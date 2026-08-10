@@ -4,8 +4,10 @@
     <meta charset="utf-8">
     <title>{{ ucfirst($type) }} Report</title>
     <style>
+        @page { margin: 18mm 14mm; }
         body { font-family: sans-serif; font-size: 11px; color: #1a1a1a; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 10px; }
+        .company-logo { width: 46px; height: 46px; margin: 0 auto 6px; display: block; }
         .company-header h1 { margin: 0; font-size: 18px; letter-spacing: 0.04em; }
         .company-header p { margin: 2px 0 0; color: #555; font-size: 10px; }
         h2.report-title { font-size: 15px; margin: 10px 0 8px; text-transform: capitalize; text-align: center; }
@@ -15,8 +17,16 @@
         .report-filters-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; font-weight: bold; margin-bottom: 3px; }
         .report-filters p { margin: 1px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
         th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: left; }
         th { background: #f0f0f0; }
+        .col-date, td.col-date { text-align: center; }
+        .col-qty, td.col-qty { text-align: center; }
+        .col-money, td.col-money { text-align: right; }
+        .col-total, td.col-total { text-align: right; font-weight: bold; }
+        .no-records { text-align: center; padding: 30px 15px; color: #555; }
+        .no-records strong { display: block; font-size: 12px; color: #222; margin-bottom: 3px; }
         p.grand-total { text-align: right; font-weight: bold; margin-top: 10px; }
         .report-summary { margin-top: 12px; border-top: 1px solid #1a1a1a; padding-top: 6px; }
         .report-summary-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold; margin-bottom: 4px; }
