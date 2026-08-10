@@ -687,21 +687,23 @@
             <div class="stat-icon green"><i class="fas fa-peso-sign"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Sales Today</div>
-                <div class="stat-value" data-counter data-value="{{ $salesToday }}" data-prefix="₱" data-decimals="2">₱0.00</div>
-                @if(is_null($salesChangePct))
-                    <div class="stat-trend new"><i class="fas fa-sparkles"></i> New</div>
-                @elseif($salesChangePct >= 0)
-                    <div class="stat-trend up"><i class="fas fa-arrow-up"></i> {{ $salesChangePct }}% vs yesterday</div>
-                @else
-                    <div class="stat-trend down"><i class="fas fa-arrow-down"></i> {{ abs($salesChangePct) }}% vs yesterday</div>
-                @endif
+                <div class="stat-value" id="statSalesToday" data-counter data-value="{{ $salesToday }}" data-prefix="₱" data-decimals="2">₱0.00</div>
+                <div id="salesTrendBadge">
+                    @if(is_null($salesChangePct))
+                        <div class="stat-trend new"><i class="fas fa-sparkles"></i> New</div>
+                    @elseif($salesChangePct >= 0)
+                        <div class="stat-trend up"><i class="fas fa-arrow-up"></i> {{ $salesChangePct }}% vs yesterday</div>
+                    @else
+                        <div class="stat-trend down"><i class="fas fa-arrow-down"></i> {{ abs($salesChangePct) }}% vs yesterday</div>
+                    @endif
+                </div>
             </div>
         </a>
         <a href="{{ route('admin.reports.index', ['type' => 'sales']) }}" class="stat-card" style="animation-delay: 0.06s" title="View Sales Report">
             <div class="stat-icon blue"><i class="fas fa-receipt"></i></div>
             <div class="stat-content">
                 <div class="stat-label">Transactions</div>
-                <div class="stat-value" data-counter data-value="{{ $transactionsToday }}">0</div>
+                <div class="stat-value" id="statTransactionsToday" data-counter data-value="{{ $transactionsToday }}">0</div>
                 <div class="stat-subtitle">Today</div>
             </div>
         </a>
@@ -855,63 +857,9 @@
                     </form>
                 </div>
             </div>
-            <div class="table-container table-scroll">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Receipt No.</th>
-                            <th>Cashier</th>
-                            <th>
-                                <a href="{{ request()->fullUrlWithQuery(['txn_sort' => $txnSort === 'amount_desc' ? 'amount_asc' : 'amount_desc', 'txn_page' => 1]) }}">
-                                    Amount <i class="fas fa-sort"></i>
-                                </a>
-                            </th>
-                            <th>Payment Method</th>
-                            <th>Status</th>
-                            <th>
-                                <a href="{{ request()->fullUrlWithQuery(['txn_sort' => $txnSort === 'date_asc' ? 'date_desc' : 'date_asc', 'txn_page' => 1]) }}">
-                                    Date &amp; Time <i class="fas fa-sort"></i>
-                                </a>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($recentTransactions as $transaction)
-                            <tr>
-                                <td>RCT-{{ str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
-                                <td>{{ $transaction->staff?->user?->full_name ?? 'N/A' }}</td>
-                                <td class="text-success">₱{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
-                                <td>{{ strtoupper($transaction->billing?->payment?->PaymentMethod ?? 'N/A') }}</td>
-                                <td><span class="badge badge-success">Completed</span></td>
-                                <td>{{ \Illuminate\Support\Carbon::parse($transaction->SalesTransactionDate)->format('M d, Y h:i A') }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center text-muted">No transactions match your search.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+            <div id="recentTransactionsContainer">
+                @include('admin.dashboard.partials.recent-transactions', ['recentTransactions' => $recentTransactions, 'txnSort' => $txnSort])
             </div>
-            @if($recentTransactions->hasPages())
-                <div class="pagination">
-                    @if($recentTransactions->onFirstPage())
-                        <span class="pagination-link disabled"><i class="fas fa-chevron-left"></i></span>
-                    @else
-                        <a href="{{ $recentTransactions->previousPageUrl() }}" class="pagination-link"><i class="fas fa-chevron-left"></i></a>
-                    @endif
-
-                    @foreach($recentTransactions->getUrlRange(1, $recentTransactions->lastPage()) as $page => $url)
-                        <a href="{{ $url }}" class="pagination-link {{ $page == $recentTransactions->currentPage() ? 'active' : '' }}">{{ $page }}</a>
-                    @endforeach
-
-                    @if($recentTransactions->hasMorePages())
-                        <a href="{{ $recentTransactions->nextPageUrl() }}" class="pagination-link"><i class="fas fa-chevron-right"></i></a>
-                    @else
-                        <span class="pagination-link disabled"><i class="fas fa-chevron-right"></i></span>
-                    @endif
-                </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -922,8 +870,8 @@
         const trendData = @json($salesTrend);
         const categoryChartData = @json($categoryChart);
         const inventoryStatusData = @json($inventoryStatusChart);
-        const topSellingRaw = @json($topSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
-        const leastSellingRaw = @json($leastSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
+        let topSellingRaw = @json($topSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
+        let leastSellingRaw = @json($leastSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
 
         const PALETTE = ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c', '#94a3b8'];
         Chart.defaults.color = '#94a3b8';
@@ -1362,7 +1310,7 @@
         // to 100% for whichever item happens to be the best of a small,
         // non-overlapping "least selling" slice.
         const perfListEl = document.getElementById('productPerformanceList');
-        const globalMaxQty = Math.max(1, topSellingRaw[0]?.quantity || 0);
+        let globalMaxQty = Math.max(1, topSellingRaw[0]?.quantity || 0);
 
         function renderPerformanceList(rows) {
             if (!perfListEl) return;
@@ -1419,14 +1367,18 @@
             });
         }
 
-        // Poll inventory-derived widgets (Products, Inventory Value, Inventory
-        // Status chart, Stock Alerts) so sales/refunds/receiving/adjustments/
-        // damage recording made elsewhere show up here without a page reload.
-        // Pauses while the tab is hidden to avoid pointless requests.
+        // Poll dashboard-wide widgets (Products, Inventory Value, Inventory
+        // Status chart, Stock Alerts, Sales Today, Transactions, Recent
+        // Transactions, Product Rankings) so sales/refunds/receiving/
+        // adjustments/damage recording made elsewhere — including a sale
+        // completed by a Cashier in another tab — show up here without a
+        // page reload. Pauses while the tab is hidden to avoid pointless
+        // requests. Forwards the current URL's query string so an active
+        // Recent Transactions search/sort/page is preserved across polls.
         function refreshInventoryWidgets() {
             if (document.hidden) return;
 
-            fetch('{{ route('admin.dashboard.live-inventory') }}', { headers: { 'Accept': 'application/json' } })
+            fetch('{{ route('admin.dashboard.live-inventory') }}' + window.location.search, { headers: { 'Accept': 'application/json' } })
                 .then((response) => response.json())
                 .then((data) => {
                     const productsEl = document.getElementById('statTotalProducts');
@@ -1456,6 +1408,42 @@
 
                     const alertsContainer = document.getElementById('stockAlertsContainer');
                     if (alertsContainer) alertsContainer.innerHTML = data.stockAlertsHtml;
+
+                    if (typeof data.salesToday !== 'undefined') {
+                        const salesTodayEl = document.getElementById('statSalesToday');
+                        if (salesTodayEl) salesTodayEl.textContent = window.formatPeso(data.salesToday);
+
+                        const trendBadge = document.getElementById('salesTrendBadge');
+                        if (trendBadge) {
+                            if (data.salesChangePct === null) {
+                                trendBadge.innerHTML = '<div class="stat-trend new"><i class="fas fa-sparkles"></i> New</div>';
+                            } else if (data.salesChangePct >= 0) {
+                                trendBadge.innerHTML = `<div class="stat-trend up"><i class="fas fa-arrow-up"></i> ${data.salesChangePct}% vs yesterday</div>`;
+                            } else {
+                                trendBadge.innerHTML = `<div class="stat-trend down"><i class="fas fa-arrow-down"></i> ${Math.abs(data.salesChangePct)}% vs yesterday</div>`;
+                            }
+                        }
+                    }
+
+                    const transactionsEl = document.getElementById('statTransactionsToday');
+                    if (transactionsEl && typeof data.transactionsToday !== 'undefined') {
+                        transactionsEl.textContent = Number(data.transactionsToday).toLocaleString('en-US');
+                    }
+
+                    const recentTxnContainer = document.getElementById('recentTransactionsContainer');
+                    if (recentTxnContainer && typeof data.recentTransactionsHtml !== 'undefined') {
+                        recentTxnContainer.innerHTML = data.recentTransactionsHtml;
+                    }
+
+                    if (typeof data.topSelling !== 'undefined' && typeof data.leastSelling !== 'undefined') {
+                        topSellingRaw = data.topSelling;
+                        leastSellingRaw = data.leastSelling;
+                        globalMaxQty = Math.max(1, topSellingRaw[0]?.quantity || 0);
+
+                        const activeTabBtn = document.querySelector('[data-toggle="performance"] .chart-toggle-btn.active');
+                        const activeTab = activeTabBtn ? activeTabBtn.dataset.tab : 'top';
+                        renderPerformanceList(activeTab === 'least' ? leastSellingRaw : topSellingRaw);
+                    }
                 })
                 .catch(() => {
                     // Non-fatal — keep showing the last known values.

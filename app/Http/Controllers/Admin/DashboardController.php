@@ -69,27 +69,7 @@ class DashboardController extends Controller
         // paginated widget on this page.
         $txnSearch = $request->query('txn_search');
         $txnSort = $request->query('txn_sort', 'date_desc');
-
-        $recentTransactions = SalesTransaction::query()
-            ->select('SalesTransaction.*')
-            ->leftJoin('Billing', 'Billing.SalesTransactionID', '=', 'SalesTransaction.SalesTransactionID')
-            ->with(['staff.user', 'billing.payment'])
-            ->when($txnSearch, function ($query, $search) {
-                $query->where(function ($inner) use ($search) {
-                    $inner->where('SalesTransaction.SalesTransactionID', 'like', "%{$search}%")
-                        ->orWhere('SalesTransaction.CustomerName', 'like', "%{$search}%")
-                        ->orWhereHas('staff', function ($staff) use ($search) {
-                            $staff->where('FirstName', 'like', "%{$search}%")
-                                ->orWhere('LastName', 'like', "%{$search}%");
-                        });
-                });
-            })
-            ->when($txnSort === 'amount_desc', fn ($q) => $q->orderByDesc('Billing.BillingAmount'))
-            ->when($txnSort === 'amount_asc', fn ($q) => $q->orderBy('Billing.BillingAmount'))
-            ->when($txnSort === 'date_asc', fn ($q) => $q->orderBy('SalesTransaction.SalesTransactionDate'))
-            ->when(! in_array($txnSort, ['amount_desc', 'amount_asc', 'date_asc']), fn ($q) => $q->orderByDesc('SalesTransaction.SalesTransactionDate'))
-            ->paginate(10, ['*'], 'txn_page')
-            ->withQueryString();
+        $recentTransactions = $this->buildRecentTransactions($request);
 
         return view('admin.dashboard', [
             'salesToday' => $salesToday,
@@ -111,14 +91,29 @@ class DashboardController extends Controller
     }
 
     /**
-     * Polled by the dashboard so inventory-derived widgets (Products count,
-     * Inventory Value, Inventory Status chart, Stock Alerts) update without
-     * a page reload whenever a sale/refund/receiving/adjustment/damage
-     * record changes stock elsewhere.
+     * Polled by the dashboard so inventory- and sales-derived widgets
+     * (Products count, Inventory Value, Inventory Status chart, Stock
+     * Alerts, Sales Today, Transactions, Recent Transactions, Product
+     * Rankings) update without a page reload whenever a sale/refund/
+     * receiving/adjustment/damage record changes elsewhere — including from
+     * another cashier's tab. The Sales Trend chart is deliberately excluded
+     * (historical/comparative view, not "right now", and would multiply
+     * this poll's query cost by 4 for no visible benefit).
      */
-    public function liveInventory()
+    public function liveInventory(Request $request)
     {
         $snapshot = $this->buildInventorySnapshot();
+
+        $today = today();
+        $yesterday = $today->copy()->subDay();
+        $salesToday = (float) Billing::whereDate('BillingDate', $today)->sum('BillingAmount');
+        $salesYesterday = (float) Billing::whereDate('BillingDate', $yesterday)->sum('BillingAmount');
+        $salesChangePct = $salesYesterday > 0
+            ? round((($salesToday - $salesYesterday) / $salesYesterday) * 100, 1)
+            : null;
+
+        $recentTransactions = $this->buildRecentTransactions($request);
+        ['topSelling' => $topSelling, 'leastSelling' => $leastSelling] = $this->buildProductRankings();
 
         return response()->json([
             'totalProducts' => $snapshot['totalProducts'],
@@ -126,7 +121,48 @@ class DashboardController extends Controller
             'inventoryStatusChart' => $snapshot['inventoryStatusChart'],
             'stockAlertsHtml' => view('admin.dashboard.partials.stock-alerts', ['stockAlerts' => $snapshot['stockAlerts']])->render(),
             'categoryChart' => $this->buildCategorySalesChart(),
+            'salesToday' => $salesToday,
+            'salesChangePct' => $salesChangePct,
+            'transactionsToday' => Billing::whereDate('BillingDate', $today)->count(),
+            'recentTransactionsHtml' => view('admin.dashboard.partials.recent-transactions', [
+                'recentTransactions' => $recentTransactions,
+                'txnSort' => $request->query('txn_sort', 'date_desc'),
+            ])->render(),
+            'topSelling' => $topSelling->map(fn ($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]),
+            'leastSelling' => $leastSelling->map(fn ($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]),
         ]);
+    }
+
+    /**
+     * Shared by the initial page load and the live-polling endpoint so
+     * Recent Transactions stays in sync with the same query/filter/sort
+     * logic either way.
+     */
+    private function buildRecentTransactions(Request $request)
+    {
+        $txnSearch = $request->query('txn_search');
+        $txnSort = $request->query('txn_sort', 'date_desc');
+
+        return SalesTransaction::query()
+            ->select('SalesTransaction.*')
+            ->leftJoin('Billing', 'Billing.SalesTransactionID', '=', 'SalesTransaction.SalesTransactionID')
+            ->with(['staff.user', 'billing.payment'])
+            ->when($txnSearch, function ($query, $search) {
+                $query->where(function ($inner) use ($search) {
+                    $inner->where('SalesTransaction.SalesTransactionID', 'like', "%{$search}%")
+                        ->orWhere('SalesTransaction.CustomerName', 'like', "%{$search}%")
+                        ->orWhereHas('staff', function ($staff) use ($search) {
+                            $staff->where('FirstName', 'like', "%{$search}%")
+                                ->orWhere('LastName', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->when($txnSort === 'amount_desc', fn ($q) => $q->orderByDesc('Billing.BillingAmount'))
+            ->when($txnSort === 'amount_asc', fn ($q) => $q->orderBy('Billing.BillingAmount'))
+            ->when($txnSort === 'date_asc', fn ($q) => $q->orderBy('SalesTransaction.SalesTransactionDate'))
+            ->when(! in_array($txnSort, ['amount_desc', 'amount_asc', 'date_asc']), fn ($q) => $q->orderByDesc('SalesTransaction.SalesTransactionDate'))
+            ->paginate(10, ['*'], 'txn_page')
+            ->withQueryString();
     }
 
     /**

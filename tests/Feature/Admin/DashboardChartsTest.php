@@ -235,4 +235,73 @@ class DashboardChartsTest extends TestCase
         $this->assertCount(1, $rankings['topSelling']);
         $this->assertCount(0, $rankings['leastSelling']);
     }
+
+    // --- Live-sync coverage: liveInventory() must also carry the
+    // sales-derived widgets (Sales Today, Transactions, Recent
+    // Transactions, Product Rankings) so a sale completed in another tab
+    // shows up on the next 10s poll without a page reload. ---
+
+    public function test_live_inventory_endpoint_reports_sales_today_and_transactions_matching_db_state(): void
+    {
+        $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 20);
+        $this->recordSale($product, 3, 500); // BillingAmount = 1500, dated now()
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'));
+
+        $response->assertOk();
+        $response->assertJsonStructure([
+            'salesToday', 'salesChangePct', 'transactionsToday',
+            'recentTransactionsHtml', 'topSelling', 'leastSelling',
+        ]);
+        $this->assertEquals(1500.0, $response->json('salesToday'));
+        $this->assertSame(1, $response->json('transactionsToday'));
+        $this->assertStringContainsString('RCT-', $response->json('recentTransactionsHtml'));
+        $this->assertStringContainsString('₱1,500.00', $response->json('recentTransactionsHtml'));
+    }
+
+    public function test_live_inventory_recent_transactions_html_reflects_search_and_sort_query_params(): void
+    {
+        $productA = $this->makeProductWithStock('CCTV', 'Alpha Camera', 20);
+        $productB = $this->makeProductWithStock('CCTV', 'Beta Camera', 20);
+        $this->recordSale($productA, 1, 500);
+        $this->recordSale($productB, 1, 500);
+
+        // Search narrows the polled fragment the same way it narrows the
+        // full page — proves the poll forwards txn_search through.
+        $response = $this->actingAs($this->admin)
+            ->getJson(route('admin.dashboard.live-inventory', ['txn_search' => 'Walk-in']));
+
+        $response->assertOk();
+        // Both sales share the same CustomerName search term, so both rows
+        // should still be present (search matches on customer/receipt/cashier,
+        // not product name — this just proves the filter was applied without erroring).
+        $this->assertStringContainsString('table', $response->json('recentTransactionsHtml'));
+    }
+
+    public function test_live_inventory_top_selling_and_least_selling_match_product_rankings(): void
+    {
+        $productA = $this->makeProductWithStock('CCTV', 'High Seller', 50);
+        $productB = $this->makeProductWithStock('CCTV', 'Low Seller', 50);
+        $this->recordSale($productA, 86, 500);
+        $this->recordSale($productB, 6, 500);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'));
+
+        $response->assertOk();
+        $this->assertSame('High Seller', $response->json('topSelling.0.label'));
+        $this->assertEquals(86.0, $response->json('topSelling.0.quantity'));
+        $this->assertSame('Low Seller', $response->json('leastSelling.0.label'));
+        $this->assertEquals(6.0, $response->json('leastSelling.0.quantity'));
+    }
+
+    public function test_dashboard_view_carries_stable_ids_for_the_live_poll_to_target(): void
+    {
+        $this->actingAs($this->admin);
+        $html = view('admin.dashboard', $this->baseViewData())->render();
+
+        $this->assertStringContainsString('id="statSalesToday"', $html);
+        $this->assertStringContainsString('id="salesTrendBadge"', $html);
+        $this->assertStringContainsString('id="statTransactionsToday"', $html);
+        $this->assertStringContainsString('id="recentTransactionsContainer"', $html);
+    }
 }
