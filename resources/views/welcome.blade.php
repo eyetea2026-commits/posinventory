@@ -11,13 +11,8 @@
     <div class="login-background">
         <section class="login-card">
             <div class="login-logo">
-                <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo">
+                <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Tacurong logo">
             </div>
-            <div class="brand">
-                <span class="brand-dot"></span>
-                <span>CCTV Express TACURONG</span>
-            </div>
-            <h1>System Login</h1>
             <p>Enter your credentials to access the system.</p>
 
             @if(session('status'))
@@ -150,18 +145,21 @@
     </script>
 
     <style>
+        /* The logo is the page's primary branding element now that the
+           "CCTV Express Tacurong" text label and "System Login" heading
+           have been removed — sized and spaced accordingly. */
         .login-logo {
             display: flex;
             justify-content: center;
-            margin-bottom: 26px;
+            margin-bottom: 32px;
         }
         .login-logo img {
-            width: 106px;
-            height: 106px;
-            border-radius: 22px;
+            width: 136px;
+            height: 136px;
+            border-radius: 28px;
             background: #fff;
-            padding: 10px;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+            padding: 12px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
             object-fit: contain;
         }
         /* Pushes Username/Password (and everything after) down as one block,
@@ -179,9 +177,9 @@
         }
         @media (max-width: 680px) {
             .login-logo img {
-                width: 88px;
-                height: 88px;
-                border-radius: 18px;
+                width: 112px;
+                height: 112px;
+                border-radius: 24px;
             }
         }
     </style>
