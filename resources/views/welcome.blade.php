@@ -4,65 +4,105 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>System Login</title>
-    <link rel="stylesheet" href="{{ asset('Administrator/Login.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="login-background">
-        <section class="login-card">
-            <div class="login-logo">
-                <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Tacurong logo">
+    <div class="lv2-page">
+        <div class="lv2-frame">
+            <div class="lv2-left">
+                <div class="lv2-heading">
+                    <h1>CCTV Express Tacurong</h1>
+                    <p>POS &amp; Inventory Management System</p>
+                </div>
+
+                <section class="lv2-card">
+                    <h2>Login</h2>
+
+                    @if(session('status'))
+                        <div class="lv2-alert lv2-alert--success">{{ session('status') }}</div>
+                    @endif
+
+                    @if($errors->any())
+                        <div class="lv2-alert lv2-alert--error">{{ $errors->first() }}</div>
+                    @endif
+
+                    <form method="POST" action="{{ route('login.post') }}">
+                        @csrf
+
+                        <div class="lv2-field">
+                            <i class="fa-solid fa-user"></i>
+                            <label for="username" class="sr-only">Username</label>
+                            <input id="username" type="text" name="username" value="{{ old('username') }}" placeholder="Username" required autofocus autocomplete="off">
+                        </div>
+                        <div id="role-badge" class="role-badge" hidden>
+                            <i class="fa-solid fa-user-check"></i>
+                            <span id="role-badge-text"></span>
+                        </div>
+                        @error('username') <span class="lv2-field-error">{{ $message }}</span> @enderror
+
+                        <div class="lv2-field">
+                            <i class="fa-solid fa-lock"></i>
+                            <label for="password" class="sr-only">Password</label>
+                            <input id="password" type="password" name="password" placeholder="Password" required autocomplete="current-password">
+                            <span class="toggle-password" onclick="showPassword('password')">
+                                <i class="fa-regular fa-eye" id="password-icon"></i>
+                            </span>
+                        </div>
+                        @error('password') <span class="lv2-field-error">{{ $message }}</span> @enderror
+
+                        <div class="lv2-remember">
+                            <span>Remember Me</span>
+                            <label class="lv2-switch">
+                                <input id="remember" type="checkbox" name="remember">
+                                <span class="lv2-slider"></span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="lv2-submit">Log in</button>
+
+                        <div class="lv2-footer">
+                            <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}" hidden>Forgot Password?</a>
+                            <span id="cashier-note" class="lv2-cashier-note" hidden>
+                                <i class="fa-solid fa-lock"></i>
+                                Cashiers: please contact your Administrator for a password reset
+                            </span>
+                        </div>
+                    </form>
+                </section>
             </div>
-            <p>Enter your credentials to access the system.</p>
 
-            @if(session('status'))
-                <div class="status-message">{{ session('status') }}</div>
-            @endif
+            <div class="lv2-right" aria-hidden="true">
+                <svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="365" cy="150" r="150" fill="#e7e9ec"/>
+                    <circle cx="300" cy="330" r="120" fill="#dfe2e6"/>
 
-            @if($errors->any())
-                <div class="error-message">{{ $errors->first() }}</div>
-            @endif
+                    <rect x="35" y="378" width="430" height="18" fill="#3a3f47"/>
+                    <rect x="35" y="392" width="430" height="55" rx="8" fill="#2b2f36"/>
 
-            <form method="POST" action="{{ route('login.post') }}" class="login-form">
-                @csrf
+                    <rect x="252" y="255" width="42" height="58" rx="6" fill="#3a3f47"/>
+                    <rect x="259" y="264" width="28" height="18" rx="3" fill="#8fd3c7"/>
+                    <rect x="259" y="288" width="28" height="6" rx="2" fill="#5b616a"/>
 
-                <div class="form-field">
-                    <label for="username">Username</label>
-                    <input id="username" type="text" name="username" value="{{ old('username') }}" required autofocus autocomplete="off">
-                    <div id="role-badge" class="role-badge" hidden>
-                        <i class="fa-solid fa-user-check"></i>
-                        <span id="role-badge-text"></span>
-                    </div>
-                    @error('username') <span class="field-error">{{ $message }}</span> @enderror
-                </div>
+                    <rect x="150" y="345" width="62" height="18" rx="4" fill="#4b515b"/>
+                    <rect x="173" y="305" width="16" height="42" fill="#4b515b"/>
+                    <rect x="108" y="178" width="146" height="128" rx="12" fill="#ffffff" stroke="#c6cad0" stroke-width="4"/>
+                    <rect x="128" y="200" width="106" height="12" rx="6" fill="#c62828"/>
+                    <rect x="128" y="224" width="78" height="8" rx="4" fill="#d7dade"/>
+                    <rect x="128" y="240" width="94" height="8" rx="4" fill="#e3e5e8"/>
+                    <rect x="128" y="256" width="60" height="8" rx="4" fill="#e3e5e8"/>
 
-                <div class="form-field password-field">
-                    <label for="password">Password</label>
-                    <input id="password" type="password" name="password" required autocomplete="current-password">
-                    <span class="toggle-password" onclick="showPassword('password')">
-                        <i class="fa-regular fa-eye" id="password-icon"></i>
-                    </span>
-                    @error('password') <span class="field-error">{{ $message }}</span> @enderror
-                </div>
+                    <path d="M300,447 L300,318 Q300,282 336,270 L392,270 Q428,282 428,318 L428,447 Z" fill="#828d99"/>
+                    <path d="M336,270 L364,270 L358,300 L342,300 Z" fill="#ffffff"/>
+                    <path d="M352,270 L364,270 L370,314 L358,447 L350,447 L338,314 Z" fill="#c62828"/>
+                    <path d="M300,318 Q272,312 258,288 L270,278 Q286,298 306,302 Z" fill="#828d99"/>
+                    <circle cx="262" cy="282" r="13" fill="#e8b78a"/>
 
-                <div class="checkbox-field">
-                    <input id="remember" type="checkbox" name="remember">
-                    <label for="remember">Remember me</label>
-                </div>
-
-                <div class="button-grid">
-                    <button type="submit" class="button">Sign In</button>
-                </div>
-
-                <div class="login-footer">
-                    <a id="forgot-link" class="forgot-link" href="{{ route('admin.forgot') }}" hidden>Forgot Password?</a>
-                    <span id="cashier-note" class="forgot-disabled" hidden>
-                        <i class="fa-solid fa-lock" style="margin-right: 5px;"></i>
-                        Cashiers: please contact your Administrator for a password reset
-                    </span>
-                </div>
-            </form>
-        </section>
+                    <rect x="345" y="232" width="34" height="34" fill="#e8b78a"/>
+                    <circle cx="362" cy="212" r="34" fill="#e8b78a"/>
+                    <path d="M327,212 Q323,172 362,170 Q402,172 398,212 Q398,186 362,188 Q327,186 327,212 Z" fill="#262626"/>
+                </svg>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -145,44 +185,250 @@
     </script>
 
     <style>
-        /* The logo is the page's primary branding element now that the
-           "CCTV Express Tacurong" text label and "System Login" heading
-           have been removed — sized and spaced accordingly. */
-        .login-logo {
-            padding: 3px;
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            font-family: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
+            background: #eef1f4;
+            color: #1f2937;
         }
-        /* Fluid width instead of a fixed px value — the logo always matches
-           the same left/right edges as the Username/Password fields below
-           it (both are direct children of the same padded .login-card), at
-           every screen size, with no separate breakpoint math needed. */
-        .login-logo img {
-            display: block;
-            width: 100%;
-            height: auto;
-            border-radius: 40px;
-            background: #fff;
-            padding: 20px;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
-            object-fit: contain;
+        .sr-only {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
-        /* Pushes Username/Password (and everything after) down as one block,
-           without touching the internal gaps Login.css already defines
-           between the fields, Remember Me, and Sign In. */
-        .login-form {
-            margin-top: 18px;
+        .lv2-page {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            place-items: center;
+            min-height: 100vh;
+            padding: 32px;
         }
-        .forgot-disabled {
-            margin-top: 6px;
-            font-size: 13px;
+        .lv2-frame {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            align-items: center;
+            gap: 40px;
+            width: min(100%, 1040px);
+            background: #ffffff;
+            border: 12px solid #ccd1d7;
+            border-radius: 48px;
+            padding: 48px;
+        }
+        .lv2-heading h1 {
+            margin: 0 0 4px;
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: #16181d;
+        }
+        .lv2-heading p {
+            margin: 0 0 28px;
+            font-size: 0.95rem;
             color: #6b7280;
+        }
+        .lv2-card {
+            background: #ffffff;
+            border-radius: 22px;
+            padding: 32px;
+            box-shadow: 0 18px 44px rgba(20, 22, 30, 0.12);
+            border: 1px solid #eef0f2;
+        }
+        .lv2-card h2 {
+            margin: 0 0 20px;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #16181d;
+        }
+        .lv2-field {
+            position: relative;
+            display: flex;
+            align-items: center;
+            background: #f2f3f5;
+            border-radius: 14px;
+            padding: 0 16px;
+            margin-bottom: 14px;
+        }
+        .lv2-field i:first-child {
+            color: #9aa0a8;
+            font-size: 0.95rem;
+            margin-right: 12px;
+        }
+        .lv2-field input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            padding: 14px 0;
+            font-size: 0.95rem;
+            color: #1f2937;
+        }
+        .lv2-field input::placeholder {
+            color: #9aa0a8;
+        }
+        .lv2-field.lv2-field--focus,
+        .lv2-field:focus-within {
+            box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.14);
+        }
+        .toggle-password {
+            cursor: pointer;
+            color: #9aa0a8;
+            padding-left: 10px;
             display: flex;
             align-items: center;
         }
-        @media (max-width: 680px) {
-            .login-logo img {
+        .toggle-password:hover { color: #6b7280; }
+        .lv2-field-error {
+            display: block;
+            color: #b91c1c;
+            font-size: 0.82rem;
+            margin: -8px 0 14px 4px;
+        }
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 9999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin: -6px 0 14px 4px;
+        }
+        .role-badge.role-badge--admin[hidden],
+        .role-badge.role-badge--cashier[hidden],
+        .role-badge[hidden] {
+            display: none;
+        }
+        .role-badge--admin {
+            background: rgba(16, 185, 129, 0.12);
+            color: #0f9d6e;
+        }
+        .role-badge--cashier {
+            background: rgba(37, 99, 235, 0.12);
+            color: #2563eb;
+        }
+        .lv2-remember {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 4px 0 22px;
+            font-size: 0.9rem;
+            color: #374151;
+        }
+        .lv2-switch {
+            position: relative;
+            display: inline-block;
+            width: 42px;
+            height: 24px;
+        }
+        .lv2-switch input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            cursor: pointer;
+        }
+        .lv2-slider {
+            position: absolute;
+            inset: 0;
+            background: #d5d8dc;
+            border-radius: 9999px;
+            transition: background-color 0.2s ease;
+        }
+        .lv2-slider::before {
+            content: "";
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            top: 3px;
+            background: #ffffff;
+            border-radius: 50%;
+            transition: transform 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+        .lv2-switch input:checked + .lv2-slider {
+            background: #b91c1c;
+        }
+        .lv2-switch input:checked + .lv2-slider::before {
+            transform: translateX(18px);
+        }
+        .lv2-submit {
+            width: 100%;
+            border: none;
+            border-radius: 14px;
+            padding: 14px 0;
+            background: #a91f23;
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 12px 26px rgba(169, 31, 35, 0.32);
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+        .lv2-submit:hover { background: #931a1d; transform: translateY(-1px); }
+        .lv2-submit:active { transform: translateY(0); }
+        .lv2-footer {
+            margin-top: 16px;
+            text-align: center;
+            font-size: 0.88rem;
+        }
+        .lv2-forgot-link {
+            color: #a91f23;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .lv2-forgot-link:hover { text-decoration: underline; }
+        .lv2-cashier-note {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #6b7280;
+            font-size: 0.82rem;
+        }
+        .lv2-forgot-link[hidden],
+        .lv2-cashier-note[hidden] {
+            display: none;
+        }
+        .lv2-alert {
+            margin-bottom: 16px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 0.88rem;
+        }
+        .lv2-alert--success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #0f9d6e;
+        }
+        .lv2-alert--error {
+            background: rgba(185, 28, 28, 0.08);
+            color: #b91c1c;
+        }
+        .lv2-right svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        @media (max-width: 960px) {
+            .lv2-frame {
+                grid-template-columns: 1fr;
+                padding: 32px;
+                border-width: 8px;
                 border-radius: 32px;
-                padding: 16px;
             }
+            .lv2-right { display: none; }
+        }
+        @media (max-width: 480px) {
+            .lv2-page { padding: 16px; }
+            .lv2-frame { padding: 22px; border-radius: 24px; }
+            .lv2-card { padding: 24px; }
+            .lv2-heading h1 { font-size: 1.4rem; }
         }
     </style>
 </body>
