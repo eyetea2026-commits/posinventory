@@ -294,9 +294,9 @@
             function operatePOS() {
                 const RING_UP_STEPS = [
                     { at: 700, text: 'Scanning…' },
-                    { at: 2200, text: 'CCTV Camera    ₱2,500.00' },
-                    { at: 3700, text: 'HDD 1TB        ₱3,200.00' },
-                    { at: 5300, text: 'TOTAL:         ₱5,700.00' },
+                    { at: 2200, text: 'CCTV Camera\n₱2,500.00' },
+                    { at: 3700, text: 'HDD 1TB\n₱3,200.00' },
+                    { at: 5300, text: 'TOTAL\n₱5,700.00' },
                 ];
                 const TAP_DURATION_MS = 6200;
                 const TAP_INTERVAL_MS = 380;
@@ -646,18 +646,18 @@
            timers, independent of the greeting text/speech. */
         .lv2-pos-screen {
             position: absolute;
-            left: 24%;
+            left: 23%;
             top: 42.5%;
-            width: 21%;
+            width: 23%;
             height: 14.5%;
             display: none;
             align-items: center;
             justify-content: center;
             text-align: center;
-            font-size: 0.34rem;
-            font-weight: 700;
+            font-size: 0.62rem;
+            font-weight: 800;
             line-height: 1.3;
-            color: #16181d;
+            color: #0f1115;
             white-space: pre-line;
             letter-spacing: -0.01em;
         }
