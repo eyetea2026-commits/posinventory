@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <div class="lv2-topbar" id="lv2TopBar" aria-live="polite">
+        <span id="lv2TopBarText"></span><span class="lv2-caret" id="lv2TopBarCaret"></span>
+    </div>
+
     <div class="lv2-page">
         <div class="lv2-frame">
             <div class="lv2-left">
@@ -72,17 +76,13 @@
             </div>
 
             <div class="lv2-right" aria-hidden="true">
-                <div class="lv2-speech-bubble" id="lv2SpeechBubble"><span id="lv2SpeechText"></span></div>
-
                 <div class="lv2-character" id="lv2Character">
                     <img src="{{ asset('Images/Emoji.png') }}" alt="" class="lv2-character-img">
+                    <img src="{{ asset('Images/Emoji.png') }}" alt="" class="lv2-character-img lv2-hand-layer" id="lv2HandLayer">
                     <span class="lv2-eye lv2-eye--left" id="lv2EyeLeft"></span>
                     <span class="lv2-eye lv2-eye--right" id="lv2EyeRight"></span>
                     <span class="lv2-mouth" id="lv2Mouth"></span>
-                    <span class="lv2-typing-dots" id="lv2TypingDots"><i></i><i></i><i></i></span>
                 </div>
-
-                <div class="lv2-typebox" id="lv2TypeBox"><span id="lv2TypedText"></span><span class="lv2-caret"></span></div>
             </div>
         </div>
     </div>
@@ -165,11 +165,12 @@
             }, 2000);
         }
 
-        // Animated login character — greets the user, "talks" the greeting,
-        // then "types" it out again before settling into an idle loop.
-        // Only runs when the illustration panel is actually on screen (it's
-        // hidden below the 960px breakpoint), and is skipped entirely for
-        // anyone who prefers reduced motion.
+        // Animated login character — greets the user with its hands
+        // "typing" and mouth "talking" in sync while the greeting is
+        // revealed at the top of the screen, then settles into an idle
+        // loop. Only runs when the illustration panel is actually on
+        // screen (it's hidden below the 960px breakpoint), and is skipped
+        // entirely for anyone who prefers reduced motion.
         (function () {
             const character = document.getElementById('lv2Character');
             if (!character || !window.matchMedia('(min-width: 960px)').matches) return;
@@ -178,14 +179,12 @@
             const eyeLeft = document.getElementById('lv2EyeLeft');
             const eyeRight = document.getElementById('lv2EyeRight');
             const mouth = document.getElementById('lv2Mouth');
-            const typingDots = document.getElementById('lv2TypingDots');
-            const speechBubble = document.getElementById('lv2SpeechBubble');
-            const speechText = document.getElementById('lv2SpeechText');
-            const typeBox = document.getElementById('lv2TypeBox');
-            const typedText = document.getElementById('lv2TypedText');
-            const GREETING = 'Hello, There!';
+            const handLayer = document.getElementById('lv2HandLayer');
+            const topBar = document.getElementById('lv2TopBar');
+            const topBarText = document.getElementById('lv2TopBarText');
+            const GREETING = 'Hello, There! Welcome to CCTV Express Solution Tacurong';
 
-            let mouthTalkInterval = null;
+            let performTimer = null;
             let blinkTimer = null;
 
             function startIdleAnimation() {
@@ -227,88 +226,70 @@
                 })();
             }
 
-            function startMouthTalking() {
+            // Mouth-talk and hand-tap toggle on the same tick, so the
+            // "speaking" and "typing" reads as one synchronized performance
+            // rather than two independent animations.
+            function startPerforming() {
                 mouth.classList.add('lv2-mouth--talking');
-                let open = false;
-                mouthTalkInterval = setInterval(() => {
-                    open = !open;
-                    mouth.classList.toggle('lv2-mouth--open', open);
-                }, 130);
+                let active = false;
+                performTimer = setInterval(() => {
+                    active = !active;
+                    mouth.classList.toggle('lv2-mouth--open', active);
+                    handLayer.classList.toggle('lv2-hand-tap', active);
+                }, 150);
             }
 
-            function stopMouthTalking() {
-                clearInterval(mouthTalkInterval);
-                mouthTalkInterval = null;
+            function stopPerforming() {
+                clearInterval(performTimer);
+                performTimer = null;
                 mouth.classList.remove('lv2-mouth--talking', 'lv2-mouth--open');
+                handLayer.classList.remove('lv2-hand-tap');
             }
 
-            function showSpeechBubble(text) {
-                speechText.textContent = text;
-                speechBubble.classList.add('lv2-visible');
-            }
-
-            function hideSpeechBubble() {
-                speechBubble.classList.remove('lv2-visible');
-            }
-
+            // Reveals the greeting character-by-character in the fixed top
+            // bar — deliberately separate from the character/illustration
+            // so it never moves, drifts, or repositions with the Emoji.
             function typeText(fullText, onDone) {
-                typeBox.classList.add('lv2-visible');
-                typedText.textContent = '';
+                topBar.classList.add('lv2-visible');
+                topBarText.textContent = '';
                 let i = 0;
                 const interval = setInterval(() => {
                     i++;
-                    typedText.textContent = fullText.slice(0, i);
+                    topBarText.textContent = fullText.slice(0, i);
                     if (i >= fullText.length) {
                         clearInterval(interval);
                         if (onDone) onDone();
                     }
-                }, 90);
-            }
-
-            function startTyping() {
-                typingDots.classList.add('lv2-visible');
-                setTimeout(() => {
-                    typingDots.classList.remove('lv2-visible');
-                    typeText(GREETING);
-                }, 900);
+                }, 55);
             }
 
             function speakGreeting() {
-                showSpeechBubble(GREETING);
-                startMouthTalking();
-
-                // The visual "talking" duration is deliberately NOT driven by
-                // the utterance's onend/onerror events: browsers commonly
-                // reject speechSynthesis.speak() on a page that hasn't had a
-                // user gesture yet (Chrome fires a "not-allowed" error within
-                // ~1s of an autoplaying page load), which would otherwise cut
-                // the mouth animation short whenever audio is blocked. Using
-                // a fixed duration keeps the animation consistent regardless
-                // of whether the browser actually lets the audio play.
-                setTimeout(() => {
-                    stopMouthTalking();
-                    hideSpeechBubble();
-                    startTyping();
-                }, 1900);
-
+                // Best-effort audio only. Chrome (and others) commonly
+                // reject speechSynthesis.speak() with a "not-allowed" error
+                // when the page hasn't had a prior user gesture, so the
+                // visual sequence never waits on this succeeding — it's
+                // paced entirely by typeText()'s own timer instead.
                 try {
                     if ('speechSynthesis' in window) {
                         const utterance = new SpeechSynthesisUtterance(GREETING);
                         utterance.lang = 'en-US';
-                        utterance.rate = 0.9;
+                        utterance.rate = 0.95;
                         utterance.pitch = 1.1;
                         window.speechSynthesis.speak(utterance);
                     }
                 } catch (e) {
-                    // Best-effort audio only — the visual sequence above
-                    // proceeds on its own fixed timer either way.
+                    // Ignored — typeText() below carries the sequence forward regardless.
                 }
             }
 
             function startGreeting() {
                 startIdleAnimation();
                 startBlinking();
-                setTimeout(speakGreeting, 500);
+                setTimeout(() => {
+                    startPerforming();
+                    speakGreeting();
+                    typeText(GREETING, stopPerforming);
+                }, 500);
             }
 
             startGreeting();
@@ -568,6 +549,25 @@
             50% { transform: translateY(-3px); }
         }
 
+        /* A second copy of the same flat PNG, stacked exactly on top of the
+           base layer and clipped down to just the pointing hand/forearm, so
+           that region alone can rotate slightly — the base layer underneath
+           keeps the rest of the character (and the hand's resting position)
+           perfectly still. Coordinates are pixel-measured from the source
+           image, expressed as % of the character box (which shares the
+           image's exact aspect ratio). */
+        .lv2-hand-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            clip-path: polygon(54.5% 46.8%, 73.6% 46.8%, 73.6% 62.4%, 54.5% 62.4%);
+            transform-origin: 73% 47%;
+            transition: transform 0.14s ease;
+        }
+        .lv2-hand-layer.lv2-hand-tap {
+            transform: rotate(-4deg) translate(-2px, 1px);
+        }
+
         /* Eyes/mouth overlaid on the illustration — the source PNG is a
            flat, featureless face, so these are drawn fresh rather than
            animating anything already in the artwork. Positioned as % of
@@ -605,68 +605,34 @@
             border-radius: 40%;
         }
 
-        .lv2-typing-dots {
-            position: absolute;
-            left: 36%;
-            top: 53%;
-            display: none;
-            gap: 5px;
-            padding: 5px 8px;
-            background: rgba(20, 22, 30, 0.06);
-            border-radius: 999px;
-            transform: translate(-50%, -50%);
-        }
-        .lv2-typing-dots.lv2-visible { display: flex; }
-        .lv2-typing-dots i {
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-            background: #a91f23;
-            animation: lv2-dot-pulse 1s ease-in-out infinite;
-        }
-        .lv2-typing-dots i:nth-child(2) { animation-delay: 0.15s; }
-        .lv2-typing-dots i:nth-child(3) { animation-delay: 0.3s; }
-        @keyframes lv2-dot-pulse {
-            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-            30% { opacity: 1; transform: translateY(-3px); }
-        }
-
-        .lv2-speech-bubble {
+        /* Fixed to the viewport's top edge — deliberately NOT a child of
+           .lv2-right/.lv2-character, so it can never move, drift, or
+           reposition together with the Emoji. */
+        .lv2-topbar {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            z-index: 50;
+            max-width: min(90vw, 640px);
             visibility: hidden;
             opacity: 0;
-            transform: translateY(6px) scale(0.96);
-            transition: opacity 0.2s ease, transform 0.2s ease;
+            transform: translate(-50%, -8px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
             background: #ffffff;
             border: 1px solid #eef0f2;
-            box-shadow: 0 10px 26px rgba(20, 22, 30, 0.1);
+            box-shadow: 0 14px 34px rgba(20, 22, 30, 0.12);
             border-radius: 14px;
-            padding: 10px 16px;
-            font-size: 0.9rem;
+            padding: 10px 22px;
+            font-size: 0.92rem;
             font-weight: 600;
             color: #16181d;
-            margin-bottom: 14px;
+            text-align: center;
         }
-        .lv2-speech-bubble.lv2-visible {
+        .lv2-topbar.lv2-visible {
             visibility: visible;
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translate(-50%, 0);
         }
-
-        .lv2-typebox {
-            visibility: hidden;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            margin-top: 16px;
-            padding: 10px 16px;
-            background: #f7f5f0;
-            border: 1px solid #eef0f2;
-            border-radius: 12px;
-            font-size: 0.88rem;
-            font-weight: 600;
-            color: #16181d;
-            min-height: 1.4em;
-        }
-        .lv2-typebox.lv2-visible { visibility: visible; opacity: 1; }
         .lv2-caret {
             display: inline-block;
             width: 2px;
