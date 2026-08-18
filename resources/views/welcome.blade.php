@@ -76,20 +76,19 @@
                     <circle cx="365" cy="150" r="150" fill="#e7e9ec"/>
                     <circle cx="300" cy="330" r="120" fill="#dfe2e6"/>
 
-                    <rect x="35" y="378" width="430" height="18" fill="#3a3f47"/>
-                    <rect x="35" y="392" width="430" height="55" rx="8" fill="#2b2f36"/>
+                    <rect x="128" y="398" width="150" height="48" rx="24" fill="#2b2f36"/>
+                    <rect x="177" y="322" width="20" height="80" fill="#4b515b"/>
+                    <rect x="98" y="140" width="176" height="190" rx="16" fill="#ffffff" stroke="#c6cad0" stroke-width="4"/>
+                    <rect x="120" y="164" width="130" height="14" rx="7" fill="#c62828"/>
+                    <rect x="120" y="192" width="96" height="9" rx="4" fill="#d7dade"/>
+                    <rect x="120" y="212" width="116" height="9" rx="4" fill="#e3e5e8"/>
+                    <rect x="120" y="232" width="74" height="9" rx="4" fill="#e3e5e8"/>
 
-                    <rect x="252" y="255" width="42" height="58" rx="6" fill="#3a3f47"/>
-                    <rect x="259" y="264" width="28" height="18" rx="3" fill="#8fd3c7"/>
-                    <rect x="259" y="288" width="28" height="6" rx="2" fill="#5b616a"/>
-
-                    <rect x="150" y="345" width="62" height="18" rx="4" fill="#4b515b"/>
-                    <rect x="173" y="305" width="16" height="42" fill="#4b515b"/>
-                    <rect x="108" y="178" width="146" height="128" rx="12" fill="#ffffff" stroke="#c6cad0" stroke-width="4"/>
-                    <rect x="128" y="200" width="106" height="12" rx="6" fill="#c62828"/>
-                    <rect x="128" y="224" width="78" height="8" rx="4" fill="#d7dade"/>
-                    <rect x="128" y="240" width="94" height="8" rx="4" fill="#e3e5e8"/>
-                    <rect x="128" y="256" width="60" height="8" rx="4" fill="#e3e5e8"/>
+                    <g transform="rotate(14 258 372)">
+                        <rect x="226" y="332" width="60" height="78" rx="11" fill="#3a3f47"/>
+                        <rect x="233" y="341" width="46" height="36" rx="5" fill="#8fd3c7"/>
+                        <rect x="233" y="383" width="46" height="18" rx="4" fill="#5b616a"/>
+                    </g>
 
                     <path d="M300,447 L300,318 Q300,282 336,270 L392,270 Q428,282 428,318 L428,447 Z" fill="#828d99"/>
                     <path d="M336,270 L364,270 L358,300 L342,300 Z" fill="#ffffff"/>
@@ -215,10 +214,7 @@
             align-items: center;
             gap: 40px;
             width: min(100%, 1040px);
-            background: #ffffff;
-            border: 12px solid #ccd1d7;
-            border-radius: 48px;
-            padding: 48px;
+            padding: 24px;
         }
         .lv2-heading h1 {
             margin: 0 0 4px;
@@ -418,15 +414,13 @@
         @media (max-width: 960px) {
             .lv2-frame {
                 grid-template-columns: 1fr;
-                padding: 32px;
-                border-width: 8px;
-                border-radius: 32px;
+                padding: 16px;
             }
             .lv2-right { display: none; }
         }
         @media (max-width: 480px) {
             .lv2-page { padding: 16px; }
-            .lv2-frame { padding: 22px; border-radius: 24px; }
+            .lv2-frame { padding: 8px; }
             .lv2-card { padding: 24px; }
             .lv2-heading h1 { font-size: 1.4rem; }
         }
