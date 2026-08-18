@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <div class="lv2-speech-box" id="lv2TopBar" aria-live="polite">
+        <span id="lv2TopBarText"></span><span class="lv2-caret" id="lv2TopBarCaret"></span>
+    </div>
+
     <div class="lv2-page">
         <div class="lv2-frame">
             <div class="lv2-left">
@@ -78,9 +82,7 @@
                     <span class="lv2-eye lv2-eye--left" id="lv2EyeLeft"></span>
                     <span class="lv2-eye lv2-eye--right" id="lv2EyeRight"></span>
                     <span class="lv2-mouth" id="lv2Mouth"></span>
-                    <div class="lv2-speech-box" id="lv2TopBar" aria-live="polite">
-                        <span id="lv2TopBarText"></span><span class="lv2-caret" id="lv2TopBarCaret"></span>
-                    </div>
+                    <div class="lv2-pos-screen" id="lv2PosScreen"><span id="lv2PosScreenText"></span></div>
                 </div>
             </div>
         </div>
@@ -164,12 +166,15 @@
             }, 2000);
         }
 
-        // Animated login character — greets the user with its hands
-        // "typing" and mouth "talking" in sync while the greeting is
-        // revealed at the top of the screen, then settles into an idle
-        // loop. Only runs when the illustration panel is actually on
-        // screen (it's hidden below the 960px breakpoint), and is skipped
-        // entirely for anyone who prefers reduced motion.
+        // Animated login character. Two independent things happen on page
+        // load: (1) the character "speaks" the greeting, with its mouth
+        // synced to the text revealing in the fixed top bar, and (2) the
+        // character operates the POS terminal — pressing keys and ringing
+        // up products on the little screen — on its own separate timeline
+        // that has nothing to do with how long the greeting text takes.
+        // Only runs when the illustration panel is actually on screen (it's
+        // hidden below the 960px breakpoint), and is skipped entirely for
+        // anyone who prefers reduced motion.
         (function () {
             const character = document.getElementById('lv2Character');
             if (!character || !window.matchMedia('(min-width: 960px)').matches) return;
@@ -181,9 +186,11 @@
             const handLayer = document.getElementById('lv2HandLayer');
             const topBar = document.getElementById('lv2TopBar');
             const topBarText = document.getElementById('lv2TopBarText');
+            const posScreen = document.getElementById('lv2PosScreen');
+            const posScreenText = document.getElementById('lv2PosScreenText');
             const GREETING = 'Hello, There! Welcome to CCTV Express Solution Tacurong';
 
-            let performTimer = null;
+            let mouthTalkTimer = null;
             let blinkTimer = null;
 
             function startIdleAnimation() {
@@ -225,28 +232,27 @@
                 })();
             }
 
-            // Mouth-talk and hand-tap toggle on the same tick, so the
-            // "speaking" and "typing" reads as one synchronized performance
-            // rather than two independent animations.
-            function startPerforming() {
+            // The ONLY animation tied to the text: the mouth opens/closes
+            // for exactly as long as typeText() below is revealing the
+            // greeting, then stops the instant it finishes.
+            function startMouthTalking() {
                 mouth.classList.add('lv2-mouth--talking');
-                let active = false;
-                performTimer = setInterval(() => {
-                    active = !active;
-                    mouth.classList.toggle('lv2-mouth--open', active);
-                    handLayer.classList.toggle('lv2-hand-tap', active);
+                let open = false;
+                mouthTalkTimer = setInterval(() => {
+                    open = !open;
+                    mouth.classList.toggle('lv2-mouth--open', open);
                 }, 150);
             }
 
-            function stopPerforming() {
-                clearInterval(performTimer);
-                performTimer = null;
+            function stopMouthTalking() {
+                clearInterval(mouthTalkTimer);
+                mouthTalkTimer = null;
                 mouth.classList.remove('lv2-mouth--talking', 'lv2-mouth--open');
-                handLayer.classList.remove('lv2-hand-tap');
             }
 
-            // Reveals the greeting character-by-character in the speech box
-            // above the terminal / left of the character's head.
+            // Reveals the greeting character-by-character in the fixed top
+            // bar — deliberately separate from the character/illustration
+            // so it never moves, drifts, or repositions with the Emoji.
             function typeText(fullText, onDone) {
                 topBar.classList.add('lv2-visible');
                 topBarText.textContent = '';
@@ -262,6 +268,9 @@
             }
 
             function speakGreeting() {
+                startMouthTalking();
+                typeText(GREETING, stopMouthTalking);
+
                 // Best-effort audio only. Chrome (and others) commonly
                 // reject speechSynthesis.speak() with a "not-allowed" error
                 // when the page hasn't had a prior user gesture, so the
@@ -276,18 +285,47 @@
                         window.speechSynthesis.speak(utterance);
                     }
                 } catch (e) {
-                    // Ignored — typeText() below carries the sequence forward regardless.
+                    // Ignored — the visual sequence proceeds regardless.
                 }
+            }
+
+            // Runs the POS ring-up on its own clock — a fixed number of key
+            // presses, unrelated to the greeting text's length or speed, so
+            // "typing" never lines up letter-for-letter with what's being
+            // said. Ends with the sale total left showing on the screen.
+            function operatePOS() {
+                const RING_UP_STEPS = [
+                    { at: 700, text: 'Scanning…' },
+                    { at: 2200, text: 'CCTV Camera    ₱2,500.00' },
+                    { at: 3700, text: 'HDD 1TB        ₱3,200.00' },
+                    { at: 5300, text: 'TOTAL:         ₱5,700.00' },
+                ];
+                const TAP_DURATION_MS = 6200;
+                const TAP_INTERVAL_MS = 380;
+
+                posScreen.classList.add('lv2-visible');
+
+                RING_UP_STEPS.forEach((step) => {
+                    setTimeout(() => { posScreenText.textContent = step.text; }, step.at);
+                });
+
+                let tapping = false;
+                const tapTimer = setInterval(() => {
+                    tapping = !tapping;
+                    handLayer.classList.toggle('lv2-hand-tap', tapping);
+                }, TAP_INTERVAL_MS);
+
+                setTimeout(() => {
+                    clearInterval(tapTimer);
+                    handLayer.classList.remove('lv2-hand-tap');
+                }, TAP_DURATION_MS);
             }
 
             function startGreeting() {
                 startIdleAnimation();
                 startBlinking();
-                setTimeout(() => {
-                    startPerforming();
-                    speakGreeting();
-                    typeText(GREETING, stopPerforming);
-                }, 500);
+                setTimeout(speakGreeting, 500);
+                setTimeout(operatePOS, 500);
             }
 
             startGreeting();
@@ -603,35 +641,57 @@
             border-radius: 40%;
         }
 
-        /* Sits in the empty space above the POS terminal and left of the
-           character's head — positioned as % of the character box (same
-           system as the eyes/mouth/hand layer) so it stays put there at
-           any size, rather than tracking the character's own idle bob. */
-        .lv2-speech-box {
+        /* The small POS monitor screen in the illustration — coordinates
+           pixel-measured from the source image, expressed as % of the
+           character box so the overlay text stays glued to the screen at
+           any size. Sale progress is driven entirely by operatePOS()'s own
+           timers, independent of the greeting text/speech. */
+        .lv2-pos-screen {
             position: absolute;
-            left: 3%;
-            top: 3%;
-            width: 56%;
-            z-index: 5;
+            left: 24%;
+            top: 42.5%;
+            width: 21%;
+            height: 14.5%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 0.34rem;
+            font-weight: 700;
+            line-height: 1.3;
+            color: #16181d;
+            white-space: pre-line;
+            letter-spacing: -0.01em;
+        }
+        .lv2-pos-screen.lv2-visible { display: flex; }
+
+        /* Fixed to the viewport's top edge — deliberately NOT a child of
+           .lv2-right/.lv2-character, so it can never move, drift, or
+           reposition together with the Emoji. */
+        .lv2-speech-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            z-index: 50;
+            max-width: min(90vw, 640px);
             visibility: hidden;
             opacity: 0;
-            transform: translateY(-6px) scale(0.97);
+            transform: translate(-50%, -8px);
             transition: opacity 0.25s ease, transform 0.25s ease;
             background: #ffffff;
             border: 1px solid #eef0f2;
             box-shadow: 0 14px 34px rgba(20, 22, 30, 0.12);
             border-radius: 14px;
-            padding: 12px 16px;
-            font-size: 0.85rem;
+            padding: 10px 22px;
+            font-size: 0.92rem;
             font-weight: 600;
-            line-height: 1.35;
             color: #16181d;
-            text-align: left;
+            text-align: center;
         }
         .lv2-speech-box.lv2-visible {
             visibility: visible;
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translate(-50%, 0);
         }
         .lv2-caret {
             display: inline-block;
