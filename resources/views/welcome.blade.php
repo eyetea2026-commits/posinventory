@@ -76,18 +76,20 @@
                     <circle cx="365" cy="150" r="150" fill="#e7e9ec"/>
                     <circle cx="300" cy="330" r="120" fill="#dfe2e6"/>
 
-                    <rect x="128" y="398" width="150" height="48" rx="24" fill="#2b2f36"/>
-                    <rect x="177" y="322" width="20" height="80" fill="#4b515b"/>
+                    <rect x="90" y="392" width="340" height="16" rx="6" fill="#3a3f47"/>
+                    <rect x="90" y="404" width="340" height="46" rx="10" fill="#2b2f36"/>
+
+                    <rect x="177" y="322" width="20" height="70" fill="#4b515b"/>
                     <rect x="98" y="140" width="176" height="190" rx="16" fill="#ffffff" stroke="#c6cad0" stroke-width="4"/>
                     <rect x="120" y="164" width="130" height="14" rx="7" fill="#c62828"/>
                     <rect x="120" y="192" width="96" height="9" rx="4" fill="#d7dade"/>
                     <rect x="120" y="212" width="116" height="9" rx="4" fill="#e3e5e8"/>
                     <rect x="120" y="232" width="74" height="9" rx="4" fill="#e3e5e8"/>
 
-                    <g transform="rotate(14 258 372)">
-                        <rect x="226" y="332" width="60" height="78" rx="11" fill="#3a3f47"/>
-                        <rect x="233" y="341" width="46" height="36" rx="5" fill="#8fd3c7"/>
-                        <rect x="233" y="383" width="46" height="18" rx="4" fill="#5b616a"/>
+                    <g transform="rotate(14 260 362)">
+                        <rect x="228" y="322" width="60" height="76" rx="11" fill="#3a3f47"/>
+                        <rect x="235" y="331" width="46" height="34" rx="5" fill="#8fd3c7"/>
+                        <rect x="235" y="371" width="46" height="18" rx="4" fill="#5b616a"/>
                     </g>
 
                     <path d="M300,447 L300,318 Q300,282 336,270 L392,270 Q428,282 428,318 L428,447 Z" fill="#828d99"/>
@@ -213,30 +215,35 @@
             grid-template-columns: 1fr 1fr;
             align-items: center;
             gap: 40px;
-            width: min(100%, 1040px);
-            padding: 24px;
+            width: min(100%, 1080px);
+            padding: 40px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 28px;
+            box-shadow: 0 24px 60px rgba(20, 22, 30, 0.08);
         }
         .lv2-heading h1 {
-            margin: 0 0 4px;
-            font-size: 1.7rem;
+            margin: 0 0 2px;
+            font-size: 1.5rem;
             font-weight: 700;
             color: #16181d;
         }
         .lv2-heading p {
-            margin: 0 0 28px;
-            font-size: 0.95rem;
+            margin: 0 0 18px;
+            font-size: 0.88rem;
             color: #6b7280;
         }
         .lv2-card {
             background: #ffffff;
-            border-radius: 22px;
-            padding: 32px;
-            box-shadow: 0 18px 44px rgba(20, 22, 30, 0.12);
+            border-radius: 18px;
+            padding: 26px;
+            box-shadow: 0 14px 34px rgba(20, 22, 30, 0.1);
             border: 1px solid #eef0f2;
+            max-width: 360px;
         }
         .lv2-card h2 {
-            margin: 0 0 20px;
-            font-size: 1.4rem;
+            margin: 0 0 16px;
+            font-size: 1.3rem;
             font-weight: 700;
             color: #16181d;
         }
@@ -311,15 +318,15 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin: 4px 0 22px;
-            font-size: 0.9rem;
+            margin: 2px 0 18px;
+            font-size: 0.86rem;
             color: #374151;
         }
         .lv2-switch {
             position: relative;
             display: inline-block;
-            width: 42px;
-            height: 24px;
+            width: 36px;
+            height: 20px;
         }
         .lv2-switch input {
             position: absolute;
@@ -339,8 +346,8 @@
         .lv2-slider::before {
             content: "";
             position: absolute;
-            width: 18px;
-            height: 18px;
+            width: 14px;
+            height: 14px;
             left: 3px;
             top: 3px;
             background: #ffffff;
@@ -352,13 +359,13 @@
             background: #b91c1c;
         }
         .lv2-switch input:checked + .lv2-slider::before {
-            transform: translateX(18px);
+            transform: translateX(16px);
         }
         .lv2-submit {
             width: 100%;
             border: none;
             border-radius: 14px;
-            padding: 14px 0;
+            padding: 12px 0;
             background: #a91f23;
             color: #ffffff;
             font-size: 1rem;
