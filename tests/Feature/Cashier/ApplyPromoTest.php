@@ -67,24 +67,46 @@ class ApplyPromoTest extends TestCase
 
     public function test_apply_promo_rejects_an_unknown_code(): void
     {
+        // A promo exists for this product, so the "unknown code" path is
+        // isolated from the separate "product has no promo at all" path
+        // covered by test_apply_promo_rejects_a_product_with_no_promo_at_all().
+        $this->makePromo();
+
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
             'promo_code' => 'NOSUCHCODE', 'product_id' => $this->product->ProductID,
         ]);
 
         $response->assertStatus(404);
-        $response->assertJson(['success' => false]);
+        $response->assertJsonFragment(['message' => 'Invalid promo code.']);
+    }
+
+    public function test_apply_promo_rejects_a_product_with_no_promo_at_all(): void
+    {
+        // otherProduct has zero Discount rows created for it in this test —
+        // neither active, expired, nor future — matching a product that has
+        // simply never had a promo.
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
+            'promo_code' => 'ANYTHING', 'product_id' => $this->otherProduct->ProductID,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment(['message' => 'Walang promo sa product na ito.']);
     }
 
     public function test_apply_promo_rejects_a_code_that_belongs_to_a_different_product(): void
     {
         $this->makePromo();
+        // otherProduct has its own (different) promo, so this test isolates
+        // "wrong code for this product" from "product has no promo at all"
+        // (covered separately by test_apply_promo_rejects_a_product_with_no_promo_at_all()).
+        $this->makePromo(['ProductID' => $this->otherProduct->ProductID, 'PromoCode' => 'DVR20']);
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
             'promo_code' => 'SUMMER20', 'product_id' => $this->otherProduct->ProductID,
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonFragment(['message' => 'This promo code does not apply to the selected product.']);
+        $response->assertJsonFragment(['message' => 'No promo is available for this product.']);
     }
 
     public function test_apply_promo_rejects_an_expired_promo(): void

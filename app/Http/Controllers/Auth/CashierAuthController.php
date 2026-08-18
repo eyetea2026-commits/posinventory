@@ -62,14 +62,25 @@ class CashierAuthController extends Controller
         ]);
 
         $code = strtoupper(trim($data['promo_code']));
+
+        // Checked before the code lookup so the cashier gets the most useful
+        // message when this product has never had a promo at all — deliberately
+        // NOT scoped to currentlyActive() here, since a product with an expired
+        // or not-yet-started promo should still fall through to the code lookup
+        // below and get the more specific "has expired" / "not currently active"
+        // message rather than this generic one.
+        if (! Discount::query()->where('ProductID', $data['product_id'])->exists()) {
+            return response()->json(['success' => false, 'message' => 'Walang promo sa product na ito.'], 422);
+        }
+
         $discount = Discount::where('PromoCode', $code)->first();
 
         if (! $discount) {
-            return response()->json(['success' => false, 'message' => 'Promo code not found.'], 404);
+            return response()->json(['success' => false, 'message' => 'Invalid promo code.'], 404);
         }
 
         if ((int) $discount->ProductID !== (int) $data['product_id']) {
-            return response()->json(['success' => false, 'message' => 'This promo code does not apply to the selected product.'], 422);
+            return response()->json(['success' => false, 'message' => 'No promo is available for this product.'], 422);
         }
 
         if ($discount->effective_status !== Discount::STATUS_ACTIVE) {
