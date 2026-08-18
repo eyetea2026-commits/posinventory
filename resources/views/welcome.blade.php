@@ -7,10 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="lv2-speech-box" id="lv2TopBar" aria-live="polite">
-        <span id="lv2TopBarText"></span><span class="lv2-caret" id="lv2TopBarCaret"></span>
-    </div>
-
     <div class="lv2-page">
         <div class="lv2-frame">
             <div class="lv2-left">
@@ -83,6 +79,9 @@
                     <span class="lv2-eye lv2-eye--right" id="lv2EyeRight"></span>
                     <span class="lv2-mouth" id="lv2Mouth"></span>
                     <div class="lv2-pos-screen" id="lv2PosScreen"><span id="lv2PosScreenText"></span></div>
+                    <div class="lv2-speech-box" id="lv2TopBar" aria-live="polite">
+                        <span id="lv2TopBarText"></span><span class="lv2-caret" id="lv2TopBarCaret"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -250,9 +249,8 @@
                 mouth.classList.remove('lv2-mouth--talking', 'lv2-mouth--open');
             }
 
-            // Reveals the greeting character-by-character in the fixed top
-            // bar — deliberately separate from the character/illustration
-            // so it never moves, drifts, or repositions with the Emoji.
+            // Reveals the greeting character-by-character in the speech box
+            // above the terminal / left of the character's head.
             function typeText(fullText, onDone) {
                 topBar.classList.add('lv2-visible');
                 topBarText.textContent = '';
@@ -665,33 +663,35 @@
         }
         .lv2-pos-screen.lv2-visible { display: flex; }
 
-        /* Fixed to the viewport's top edge — deliberately NOT a child of
-           .lv2-right/.lv2-character, so it can never move, drift, or
-           reposition together with the Emoji. */
+        /* Sits in the empty space above the POS terminal and left of the
+           character's head — positioned as % of the character box (same
+           system as the eyes/mouth/hand layer/POS screen) so it stays put
+           there at any size. */
         .lv2-speech-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            z-index: 50;
-            max-width: min(90vw, 640px);
+            position: absolute;
+            left: 3%;
+            top: 3%;
+            width: 56%;
+            z-index: 5;
             visibility: hidden;
             opacity: 0;
-            transform: translate(-50%, -8px);
+            transform: translateY(-6px) scale(0.97);
             transition: opacity 0.25s ease, transform 0.25s ease;
             background: #ffffff;
             border: 1px solid #eef0f2;
             box-shadow: 0 14px 34px rgba(20, 22, 30, 0.12);
             border-radius: 14px;
-            padding: 10px 22px;
-            font-size: 0.92rem;
+            padding: 12px 16px;
+            font-size: 0.85rem;
             font-weight: 600;
+            line-height: 1.35;
             color: #16181d;
-            text-align: center;
+            text-align: left;
         }
         .lv2-speech-box.lv2-visible {
             visibility: visible;
             opacity: 1;
-            transform: translate(-50%, 0);
+            transform: translateY(0) scale(1);
         }
         .lv2-caret {
             display: inline-block;
