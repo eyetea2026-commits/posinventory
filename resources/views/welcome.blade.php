@@ -72,36 +72,7 @@
             </div>
 
             <div class="lv2-right" aria-hidden="true">
-                <svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="365" cy="150" r="150" fill="#e7e9ec"/>
-                    <circle cx="300" cy="330" r="120" fill="#dfe2e6"/>
-
-                    <rect x="90" y="392" width="340" height="16" rx="6" fill="#3a3f47"/>
-                    <rect x="90" y="404" width="340" height="46" rx="10" fill="#2b2f36"/>
-
-                    <rect x="177" y="322" width="20" height="70" fill="#4b515b"/>
-                    <rect x="98" y="140" width="176" height="190" rx="16" fill="#ffffff" stroke="#c6cad0" stroke-width="4"/>
-                    <rect x="120" y="164" width="130" height="14" rx="7" fill="#c62828"/>
-                    <rect x="120" y="192" width="96" height="9" rx="4" fill="#d7dade"/>
-                    <rect x="120" y="212" width="116" height="9" rx="4" fill="#e3e5e8"/>
-                    <rect x="120" y="232" width="74" height="9" rx="4" fill="#e3e5e8"/>
-
-                    <g transform="rotate(14 260 362)">
-                        <rect x="228" y="322" width="60" height="76" rx="11" fill="#3a3f47"/>
-                        <rect x="235" y="331" width="46" height="34" rx="5" fill="#8fd3c7"/>
-                        <rect x="235" y="371" width="46" height="18" rx="4" fill="#5b616a"/>
-                    </g>
-
-                    <path d="M300,447 L300,318 Q300,282 336,270 L392,270 Q428,282 428,318 L428,447 Z" fill="#828d99"/>
-                    <path d="M336,270 L364,270 L358,300 L342,300 Z" fill="#ffffff"/>
-                    <path d="M352,270 L364,270 L370,314 L358,447 L350,447 L338,314 Z" fill="#c62828"/>
-                    <path d="M300,318 Q272,312 258,288 L270,278 Q286,298 306,302 Z" fill="#828d99"/>
-                    <circle cx="262" cy="282" r="13" fill="#e8b78a"/>
-
-                    <rect x="345" y="232" width="34" height="34" fill="#e8b78a"/>
-                    <circle cx="362" cy="212" r="34" fill="#e8b78a"/>
-                    <path d="M327,212 Q323,172 362,170 Q402,172 398,212 Q398,186 362,188 Q327,186 327,212 Z" fill="#262626"/>
-                </svg>
+                <img src="{{ asset('Images/Emoji.png') }}" alt="">
             </div>
         </div>
     </div>
@@ -413,10 +384,11 @@
             background: rgba(185, 28, 28, 0.08);
             color: #b91c1c;
         }
-        .lv2-right svg {
+        .lv2-right img {
             width: 100%;
             height: auto;
             display: block;
+            object-fit: contain;
         }
         @media (max-width: 960px) {
             .lv2-frame {
