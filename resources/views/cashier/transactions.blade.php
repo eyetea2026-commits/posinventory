@@ -11,9 +11,6 @@
     .search-form { display: flex; gap: 10px; flex-wrap: wrap; }
     .search-form input, .search-form select { padding: 12px 16px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 10px; font-size: 0.9rem; }
     .search-form input:focus { outline: none; border-color: #3b82f6; }
-    .search-form button { padding: 12px 20px; background: #3b82f6; border: none; color: white; border-radius: 10px; cursor: pointer; font-weight: 600; }
-    .search-form button:hover { background: #2563eb; }
-    .btn-reset { padding: 12px 20px; background: #4b5563; border: none; color: white; border-radius: 10px; cursor: pointer; }
     .table { width: 100%; border-collapse: collapse; }
     .table th, .table td { padding: 14px 12px; text-align: left; border-bottom: 1px solid #2d3748; }
     .table th { color: #94a3b8; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
@@ -53,10 +50,8 @@
     <div class="toolbar">
         <form method="GET" action="{{ route('cashier.transactions') }}" class="search-form">
             <input type="text" name="search" placeholder="Search by customer..." value="{{ $search ?? '' }}">
-            <input type="date" name="date_from" value="{{ $dateFrom ?? '' }}">
-            <input type="date" name="date_to" value="{{ $dateTo ?? '' }}">
-            <button type="submit"><i class="fas fa-search"></i> Filter</button>
-            <a href="{{ route('cashier.transactions') }}" class="btn-reset"><i class="fas fa-redo"></i> Reset</a>
+            <input type="date" name="date_from" value="{{ $dateFrom ?? '' }}" onchange="this.form.submit()">
+            <input type="date" name="date_to" value="{{ $dateTo ?? '' }}" onchange="this.form.submit()">
         </form>
     </div>
 
