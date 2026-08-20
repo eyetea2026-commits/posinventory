@@ -75,6 +75,8 @@
                 <div class="lv2-character" id="lv2Character">
                     <img src="{{ asset('Images/Emoji.png') }}" alt="" class="lv2-character-img">
                     <img src="{{ asset('Images/Emoji.png') }}" alt="" class="lv2-character-img lv2-hand-layer" id="lv2HandLayer">
+                    <span class="lv2-eyebrow lv2-eyebrow--left"></span>
+                    <span class="lv2-eyebrow lv2-eyebrow--right"></span>
                     <span class="lv2-eye lv2-eye--left" id="lv2EyeLeft"></span>
                     <span class="lv2-eye lv2-eye--right" id="lv2EyeRight"></span>
                     <span class="lv2-mouth" id="lv2Mouth"></span>
@@ -602,37 +604,58 @@
             transform: rotate(-4deg) translate(-2px, 1px);
         }
 
-        /* Eyes/mouth overlaid on the illustration — the source PNG is a
-           flat, featureless face, so these are drawn fresh rather than
+        /* Eyes/eyebrows/mouth overlaid on the illustration — the source PNG
+           is a flat, featureless face, so these are drawn fresh rather than
            animating anything already in the artwork. Positioned as % of
            the character box, which shares the image's exact aspect ratio,
-           so they stay aligned with the face at any size. */
+           so they stay aligned with the face at any size. Styled as a
+           friendlier, more expressive face (visible eyebrows, white-and-
+           pupil eyes, a warm smile) per the reference look. */
+        .lv2-eyebrow {
+            position: absolute;
+            left: 70.4%;
+            top: 23.6%;
+            width: 2.6%;
+            height: 0.55%;
+            background: #262626;
+            border-radius: 999px;
+            transform: translate(-50%, -50%) rotate(-6deg);
+        }
+        .lv2-eyebrow--right {
+            left: 74.1%;
+            transform: translate(-50%, -50%) rotate(6deg);
+        }
+
         .lv2-eye {
             position: absolute;
             left: 70.4%;
-            top: 26.2%;
-            width: 1.5%;
-            height: 2%;
-            background: #2b2b2b;
+            top: 26.4%;
+            width: 2.3%;
+            height: 2.6%;
+            background: radial-gradient(circle, #262626 0% 38%, #fdfdfd 40% 100%);
+            border: 1px solid rgba(20, 20, 20, 0.18);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             transition: transform 0.12s ease;
         }
         .lv2-eye--right { left: 74.1%; }
         .lv2-eye.lv2-blink { transform: translate(-50%, -50%) scaleY(0.12); }
-        .lv2-eye.lv2-look-left { transform: translate(-150%, -50%); }
-        .lv2-eye.lv2-look-right { transform: translate(50%, -50%); }
+        .lv2-eye.lv2-look-left { transform: translate(-65%, -50%); }
+        .lv2-eye.lv2-look-right { transform: translate(-35%, -50%); }
 
+        /* Resting mouth: a solid, curved-bottom smile silhouette (a hollow
+           outline doesn't read clearly at this element's small rendered
+           size) — while talking, it grows into a rounder open-mouth shape. */
         .lv2-mouth {
             position: absolute;
             left: 72.1%;
-            top: 32.8%;
-            width: 4%;
-            height: 0.9%;
-            background: #9a5b56;
-            border-radius: 999px;
+            top: 33.6%;
+            width: 4.6%;
+            height: 1.15%;
+            background: #7a3b30;
+            border-radius: 0 0 60% 60% / 0 0 100% 100%;
             transform: translate(-50%, -50%);
-            transition: height 0.12s ease, border-radius 0.12s ease;
+            transition: height 0.12s ease, border-radius 0.12s ease, background-color 0.12s ease;
         }
         .lv2-mouth--talking.lv2-mouth--open {
             height: 2.6%;
