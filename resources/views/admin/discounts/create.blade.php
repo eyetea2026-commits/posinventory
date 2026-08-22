@@ -58,7 +58,7 @@
 <div class="card glass-card">
     <form method="POST" action="{{ route('admin.discounts.store') }}" id="discountForm">
         @csrf
-        @include('admin.discounts.partials.discount-form-fields', ['discount' => null, 'products' => $products])
+        @include('admin.discounts.partials.discount-form-fields', ['discount' => null])
 
         <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="confirmCancel()"><i class="fas fa-times"></i> Cancel</button>
@@ -66,8 +66,6 @@
         </div>
     </form>
 </div>
-
-@include('admin.discounts.partials.discount-form-behavior')
 
 <script>
     const form = document.getElementById('discountForm');

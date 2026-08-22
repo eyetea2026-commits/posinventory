@@ -181,12 +181,20 @@ Route::prefix('admin')->group(function () {
         ->name('admin.discounts.store')->middleware(['auth', 'role:admin']);
     Route::post('discounts/check-promo-code', [App\Http\Controllers\Admin\DiscountController::class, 'checkPromoCode'])
         ->name('admin.discounts.check-promo-code')->middleware(['auth', 'role:admin']);
+    // Must stay before the wildcard discounts/{discount} routes below —
+    // both are static segments that would otherwise be swallowed by it.
+    Route::get('discounts/history', [App\Http\Controllers\Admin\DiscountController::class, 'history'])
+        ->name('admin.discounts.history')->middleware(['auth', 'role:admin']);
     Route::get('discounts/{discount}/edit', [App\Http\Controllers\Admin\DiscountController::class, 'edit'])
         ->name('admin.discounts.edit')->middleware(['auth', 'role:admin']);
     Route::put('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'update'])
         ->name('admin.discounts.update')->middleware(['auth', 'role:admin']);
     Route::delete('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'destroy'])
         ->name('admin.discounts.destroy')->middleware(['auth', 'role:admin']);
+    Route::post('discounts/{discount}/products', [App\Http\Controllers\Admin\DiscountController::class, 'assignProducts'])
+        ->name('admin.discounts.assign-products')->middleware(['auth', 'role:admin']);
+    Route::delete('discounts/{discount}/products/{product}', [App\Http\Controllers\Admin\DiscountController::class, 'detachProduct'])
+        ->name('admin.discounts.detach-product')->middleware(['auth', 'role:admin']);
     Route::get('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'show'])
         ->name('admin.discounts.show')->middleware(['auth', 'role:admin']);
 

@@ -59,7 +59,7 @@
     <form method="POST" action="{{ route('admin.discounts.update', $discount->DiscountID) }}" id="discountForm">
         @csrf
         @method('PUT')
-        @include('admin.discounts.partials.discount-form-fields', ['discount' => $discount, 'products' => $products])
+        @include('admin.discounts.partials.discount-form-fields', ['discount' => $discount])
 
         <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="confirmCancel()"><i class="fas fa-times"></i> Cancel</button>
@@ -68,14 +68,10 @@
     </form>
 </div>
 
-@include('admin.discounts.partials.discount-form-behavior')
-
 <script>
     const form = document.getElementById('discountForm');
     const submitBtn = document.getElementById('submitBtn');
     let formChanged = false;
-
-    window.initDiscountFormPrice(form);
 
     form.querySelectorAll('input, textarea, select').forEach(input => {
         input.addEventListener('change', () => formChanged = true);

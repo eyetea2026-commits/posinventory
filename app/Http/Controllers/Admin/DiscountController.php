@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Billing;
 use App\Models\Discount;
 use App\Models\Product;
 use App\Models\User;
@@ -28,16 +29,16 @@ class DiscountController extends Controller
         });
     }
 
-    // Display promo codes list
+    // Display promo codes list (Tab 1) + the product-apply panel (Tab 2)
     public function index(Request $request)
     {
         $search = $request->get('search');
 
-        $discounts = Discount::with('product')
+        $discounts = Discount::with('products')
             ->when($search, function ($query) use ($search) {
                 $query->where('PromoCode', 'like', "%{$search}%")
                     ->orWhere('Name', 'like', "%{$search}%")
-                    ->orWhereHas('product', function ($q) use ($search) {
+                    ->orWhereHas('products', function ($q) use ($search) {
                         $q->where('ProductName', 'like', "%{$search}%");
                     });
             })
@@ -60,19 +61,63 @@ class DiscountController extends Controller
             ]);
         }
 
+        // Tab 2's product picker — a separate, namespaced search/page so it
+        // never collides with Tab 1's promo list query params.
+        $productSearch = $request->get('product_search');
+        $products = Product::with('category')
+            ->when($productSearch, function ($query) use ($productSearch) {
+                $query->where(function ($inner) use ($productSearch) {
+                    $inner->where('ProductName', 'like', "%{$productSearch}%")
+                        ->orWhere('SKU', 'like', "%{$productSearch}%");
+                });
+            })
+            ->orderBy('ProductName')
+            ->paginate(15, ['*'], 'product_page')
+            ->withQueryString();
+
+        if ($request->boolean('ajax_products')) {
+            return response()->json([
+                'rows' => view('admin.discounts.partials.apply-product-rows', ['products' => $products])->render(),
+                'pagination' => view('admin.discounts.partials.pagination', ['discounts' => $products])->render(),
+            ]);
+        }
+
+        // Tab 2's "Applied Discount/Promo List" — one row per product-promo
+        // assignment (a DiscountProduct pivot row), not per promo.
+        $appliedAssignments = \Illuminate\Support\Facades\DB::table('DiscountProduct')
+            ->join('Discount', 'Discount.DiscountID', '=', 'DiscountProduct.DiscountID')
+            ->join('Product', 'Product.ProductID', '=', 'DiscountProduct.ProductID')
+            ->whereNull('Discount.deleted_at')
+            ->select(
+                'DiscountProduct.id as pivot_id',
+                'Discount.DiscountID', 'Discount.Name', 'Discount.PromoCode', 'Discount.DiscountType',
+                'Discount.DiscountRate', 'Discount.StartDate', 'Discount.EndDate',
+                'Product.ProductID', 'Product.ProductName', 'Product.SKU', 'Product.Price'
+            )
+            ->orderByDesc('DiscountProduct.id')
+            ->paginate(15, ['*'], 'applied_page');
+
+        if ($request->boolean('ajax_applied')) {
+            return response()->json([
+                'rows' => view('admin.discounts.partials.applied-rows', ['appliedAssignments' => $appliedAssignments])->render(),
+                'pagination' => view('admin.discounts.partials.pagination', ['discounts' => $appliedAssignments])->render(),
+            ]);
+        }
+
         return view('admin.discounts.index', [
             'discounts' => $discounts,
             'search' => $search,
-            'products' => Product::orderBy('ProductName')->get(['ProductID', 'ProductName', 'Price']),
+            'products' => $products,
+            'productSearch' => $productSearch,
+            'appliedAssignments' => $appliedAssignments,
+            'allDiscounts' => Discount::whereNotNull('PromoCode')->orderBy('Name')->get(['DiscountID', 'Name', 'PromoCode']),
         ]);
     }
 
     // Show create form
     public function create()
     {
-        return view('admin.discounts.create', [
-            'products' => Product::orderBy('ProductName')->get(['ProductID', 'ProductName', 'Price']),
-        ]);
+        return view('admin.discounts.create');
     }
 
     // Live promo-code uniqueness check (mirrors ProductController::checkName)
@@ -88,14 +133,15 @@ class DiscountController extends Controller
         return response()->json(['promo_code' => $taken, 'promo_code_value' => $request->input('PromoCode', '')]);
     }
 
-    // Store new promo code
+    // Store new promo code — Tab 1 only defines the promo itself, no
+    // product selection; that's decided separately via assignProducts().
     public function store(Request $request)
     {
         $data = $this->validatePromo($request);
 
         $discount = Discount::create([
-            'ProductID' => $data['ProductID'],
             'DiscountRate' => $data['DiscountRate'],
+            'DiscountType' => $data['DiscountType'],
             'Name' => $data['Name'],
             'PromoCode' => $data['PromoCode'],
             'Description' => $data['Description'] ?? null,
@@ -104,7 +150,7 @@ class DiscountController extends Controller
             'CreatedBy' => auth()->id(),
         ]);
 
-        ActivityLog::record('discount.created', "Created promo \"{$discount->PromoCode}\" for product #{$discount->ProductID}");
+        ActivityLog::record('discount.created', "Created promo \"{$discount->PromoCode}\"");
 
         try {
             Notification::send(User::admins(), new DiscountUpdated($discount, 'Created'));
@@ -121,30 +167,27 @@ class DiscountController extends Controller
     // Show edit form
     public function edit(Request $request, Discount $discount)
     {
-        $products = Product::orderBy('ProductName')->get(['ProductID', 'ProductName', 'Price']);
-
         // Edit Promo modal: return just the rendered form fields instead of
         // a full page, so the modal can inject it without navigating.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.discounts.partials.discount-form-fields', [
                     'discount' => $discount,
-                    'products' => $products,
                 ])->render(),
             ]);
         }
 
-        return view('admin.discounts.edit', ['discount' => $discount, 'products' => $products]);
+        return view('admin.discounts.edit', ['discount' => $discount]);
     }
 
-    // Update promo code
+    // Update promo code — same fields as store(), no product selection here.
     public function update(Request $request, Discount $discount)
     {
         $data = $this->validatePromo($request, $discount);
 
         $discount->update([
-            'ProductID' => $data['ProductID'],
             'DiscountRate' => $data['DiscountRate'],
+            'DiscountType' => $data['DiscountType'],
             'Name' => $data['Name'],
             'PromoCode' => $data['PromoCode'],
             'Description' => $data['Description'] ?? null,
@@ -169,7 +212,7 @@ class DiscountController extends Controller
     // Promo Details page
     public function show(Discount $discount)
     {
-        $discount->load(['product.category', 'createdByUser']);
+        $discount->load(['products.category', 'createdByUser']);
 
         return view('admin.discounts.show', ['discount' => $discount]);
     }
@@ -189,6 +232,106 @@ class DiscountController extends Controller
         return redirect()->route('admin.discounts.index')->with('success', 'Promo code deleted successfully.');
     }
 
+    // Assign an existing promo to one or more products (Tab 2). Each
+    // product is checked independently — one already covered by another
+    // promo's overlapping date window is skipped (reported back, not a
+    // hard failure for the whole batch) rather than blocking every other
+    // product in the same request.
+    public function assignProducts(Request $request, Discount $discount)
+    {
+        $data = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['integer', 'exists:Product,ProductID'],
+        ]);
+
+        $startDate = $discount->StartDate?->format('Y-m-d');
+        $endDate = $discount->EndDate?->format('Y-m-d');
+
+        $alreadyAssigned = $discount->products()->pluck('Product.ProductID')->all();
+        $assigned = [];
+        $rejected = [];
+
+        foreach (array_unique($data['product_ids']) as $productId) {
+            $productId = (int) $productId;
+
+            if (in_array($productId, $alreadyAssigned, true)) {
+                continue;
+            }
+
+            if ($this->hasOverlappingActivePromo($productId, $startDate, $endDate, $discount->DiscountID)) {
+                $rejected[] = $productId;
+                continue;
+            }
+
+            $assigned[] = $productId;
+        }
+
+        if (! empty($assigned)) {
+            $discount->products()->syncWithoutDetaching($assigned);
+        }
+
+        ActivityLog::record('discount.products_assigned', "Assigned promo \"{$discount->PromoCode}\" to " . count($assigned) . ' product(s)');
+
+        $message = count($assigned) . ' product(s) assigned.';
+        if (! empty($rejected)) {
+            $message .= ' ' . count($rejected) . ' skipped — already covered by another promo in an overlapping date range.';
+        }
+
+        return response()->json([
+            'success' => true,
+            'assigned' => $assigned,
+            'rejected' => $rejected,
+            'message' => $message,
+        ]);
+    }
+
+    // Remove one product from a promo's assignment (the "Applied list"
+    // row action). Blocked, like destroy(), once the promo has been used
+    // in any past transaction — Billing doesn't track a per-product
+    // breakdown of a multi-product promo's discount, so this is a
+    // conservative "the whole promo was used" guard rather than a
+    // per-product one.
+    public function detachProduct(Discount $discount, Product $product)
+    {
+        if ($discount->billings()->count() > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot remove — this promo has already been used in past transactions.',
+            ], 422);
+        }
+
+        $discount->products()->detach($product->ProductID);
+
+        ActivityLog::record('discount.product_detached', "Removed product #{$product->ProductID} from promo \"{$discount->PromoCode}\"");
+
+        return response()->json(['success' => true]);
+    }
+
+    // History modal data — Expired (past EndDate) and Used (referenced by
+    // a Billing) promos. Neither is ever deleted; this is purely a
+    // read-only audit view over records that already exist.
+    public function history(Request $request)
+    {
+        $today = now()->toDateString();
+
+        $expired = Discount::with('products')
+            ->whereNotNull('PromoCode')
+            ->whereNotNull('EndDate')
+            ->whereDate('EndDate', '<', $today)
+            ->orderByDesc('EndDate')
+            ->paginate(10, ['*'], 'expired_page');
+
+        $used = Billing::with(['discount.products', 'transaction'])
+            ->whereNotNull('DiscountID')
+            ->orderByDesc('BillingDate')
+            ->paginate(10, ['*'], 'used_page');
+
+        return response()->json([
+            'expiredHtml' => view('admin.discounts.partials.history-expired', compact('expired'))->render(),
+            'usedHtml' => view('admin.discounts.partials.history-used', compact('used'))->render(),
+        ]);
+    }
+
     private function validatePromo(Request $request, ?Discount $discount = null): array
     {
         $discountId = $discount?->DiscountID;
@@ -199,9 +342,9 @@ class DiscountController extends Controller
         // case-insensitive, but the test suite runs on SQLite, which isn't).
         $request->merge(['PromoCode' => strtoupper(trim((string) $request->input('PromoCode', '')))]);
 
-        $data = $request->validate([
-            'ProductID' => ['required', 'integer', 'exists:Product,ProductID'],
+        return $request->validate([
             'DiscountRate' => ['required', 'numeric', 'min:1', 'max:100'],
+            'DiscountType' => ['required', Rule::in([Discount::TYPE_PERCENTAGE])],
             'Name' => ['required', 'string', 'max:100'],
             'PromoCode' => [
                 'required', 'string', 'max:30', 'regex:/^[A-Z0-9\-]+$/',
@@ -211,33 +354,23 @@ class DiscountController extends Controller
             'StartDate' => ['required', 'date'],
             'EndDate' => ['required', 'date', 'after_or_equal:StartDate'],
         ], [
-            'ProductID.required' => 'Please select a product.',
             'DiscountRate.min' => 'Discount percentage must be at least 1%.',
             'DiscountRate.max' => 'Discount percentage cannot exceed 100%.',
+            'DiscountType.in' => 'Only Percentage promos are supported right now.',
             'PromoCode.regex' => 'Promo code may only contain letters, numbers, and hyphens.',
             'PromoCode.unique' => 'This promo code is already in use.',
             'EndDate.after_or_equal' => 'End Date cannot be earlier than Start Date.',
         ]);
-
-        // Only one promo may cover a given product for any overlapping date
-        // window — status is no longer a manual admin toggle, so every
-        // stored promo is "live" during its own window and must be checked,
-        // not just ones an admin happened to mark active. A future promo
-        // can still be scheduled while a current one is running as long as
-        // their windows don't collide.
-        if ($this->hasOverlappingActivePromo($data['ProductID'], $data['StartDate'], $data['EndDate'], $discountId)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'ProductID' => 'This product already has another promo covering an overlapping date range.',
-            ]);
-        }
-
-        return $data;
     }
 
-    private function hasOverlappingActivePromo(int $productId, ?string $startDate, ?string $endDate, ?int $excludeId = null): bool
+    // Checked at assign-time (per product being assigned) rather than at
+    // promo-creation time, since a promo no longer has a product until
+    // it's explicitly assigned one. Only one promo may cover a given
+    // product for any overlapping date window.
+    private function hasOverlappingActivePromo(int $productId, ?string $startDate, ?string $endDate, ?int $excludeDiscountId = null): bool
     {
-        return Discount::where('ProductID', $productId)
-            ->when($excludeId, fn ($q) => $q->where('DiscountID', '!=', $excludeId))
+        return Discount::whereHas('products', fn ($q) => $q->where('Product.ProductID', $productId))
+            ->when($excludeDiscountId, fn ($q) => $q->where('DiscountID', '!=', $excludeDiscountId))
             ->where(function ($q) use ($startDate) {
                 $q->whereNull('EndDate')->orWhereDate('EndDate', '>=', $startDate ?? now()->toDateString());
             })

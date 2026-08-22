@@ -71,29 +71,39 @@
 
 <div class="detail-card">
     <div class="promo-header">
-        <div class="product-image-placeholder"><i class="fa-solid fa-image"></i></div>
+        <div class="product-image-placeholder"><i class="fa-solid fa-percent"></i></div>
         <div>
-            <h2>{{ $discount->product?->ProductName ?? 'Product no longer available' }}</h2>
-            <p>{{ $discount->product?->category?->CategoryName ?? 'N/A' }}</p>
+            <h2>{{ $discount->Name ?? 'N/A' }}</h2>
+            <p>{{ $discount->products->count() }} product{{ $discount->products->count() === 1 ? '' : 's' }} assigned</p>
         </div>
         <div style="margin-left:auto;">
             <span class="badge {{ $statusClass }}">{{ $discount->effective_status_label }}</span>
         </div>
     </div>
 
-    <h3 class="section-title">Pricing</h3>
+    <h3 class="section-title">Assigned Products</h3>
+    @if($discount->products->isEmpty())
+        <p class="promo-description">No products have been assigned to this promo yet — use the "Apply Discount/Promo" tab to assign it.</p>
+    @else
+        <div class="detail-grid">
+            @foreach($discount->products as $product)
+                <div class="detail-item">
+                    <label>{{ $product->ProductName }} ({{ $product->category?->CategoryName ?? 'Uncategorized' }})</label>
+                    <span>₱{{ number_format($product->Price, 2) }} &rarr; <span class="discount-highlight">₱{{ number_format($discount->discountedPriceFor($product), 2) }}</span></span>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    <h3 class="section-title">Discount Value</h3>
     <div class="detail-grid">
         <div class="detail-item">
-            <label>Original Price</label>
-            <span>{{ $discount->product ? '₱' . number_format($discount->product->Price, 2) : 'N/A' }}</span>
+            <label>Type</label>
+            <span>{{ $discount->DiscountType === 'fixed' ? 'Fixed Amount' : 'Percentage' }}</span>
         </div>
         <div class="detail-item">
-            <label>Discount Percentage</label>
-            <span>{{ number_format($discount->DiscountRate, 2) }}%</span>
-        </div>
-        <div class="detail-item">
-            <label>Discounted Price</label>
-            <span class="discount-highlight">{{ $discount->product ? '₱' . number_format($discount->discounted_price, 2) : 'N/A' }}</span>
+            <label>Value</label>
+            <span>{{ $discount->DiscountType === 'fixed' ? '₱' . number_format($discount->DiscountRate, 2) : number_format($discount->DiscountRate, 2) . '%' }}</span>
         </div>
     </div>
 

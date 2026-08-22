@@ -422,8 +422,9 @@
     }
 
     let cart = [];
-    // At most one promo applies per checkout, tied to one specific product
-    // already in the cart — { discountId, productId, code, name, rate }.
+    // At most one promo applies per checkout, but it can be tied to several
+    // products — { discountId, productIds: [...], code, name, rate }. Every
+    // cart line whose product id is in productIds gets discounted.
     let appliedPromo = null;
     let selectedPaymentMethod = 'cash';
     let currentTotal = 0;
@@ -542,13 +543,15 @@
         });
     }
 
-    // If the promo'd product was removed from the cart (or its whole line
-    // deleted) since the promo was applied, the promo no longer has
-    // anything to discount — clear it up front so both the per-item badges
-    // and the summary totals built below stay consistent within this same
-    // render pass, rather than only catching it a render later.
+    // If every one of the promo's assigned products has been removed from
+    // the cart since it was applied, the promo no longer has anything to
+    // discount — clear it up front so both the per-item badges and the
+    // summary totals built below stay consistent within this same render
+    // pass, rather than only catching it a render later. Removing just one
+    // of several assigned products still in the cart leaves the promo
+    // applied to whichever ones remain.
     function syncAppliedPromo() {
-        if (appliedPromo && !cart.find((i) => i.id === appliedPromo.productId)) {
+        if (appliedPromo && !cart.some((i) => appliedPromo.productIds.includes(i.id))) {
             appliedPromo = null;
         }
     }
@@ -575,7 +578,7 @@
 
         cart.forEach(item => {
             const itemTotal = item.price * item.qty;
-            const isPromoItem = appliedPromo && appliedPromo.productId === item.id;
+            const isPromoItem = appliedPromo && appliedPromo.productIds.includes(item.id);
             let promoRowHtml;
             if (isPromoItem) {
                 promoRowHtml = `
@@ -661,7 +664,7 @@
 
                     appliedPromo = {
                         discountId: data.discount_id,
-                        productId: data.product_id,
+                        productIds: data.applicable_product_ids,
                         code: data.promo_code,
                         name: data.promo_name,
                         rate: data.discount_rate,
@@ -772,15 +775,15 @@
     function updateTotals() {
         const subtotal = roundMoney(cart.reduce((sum, item) => sum + (item.price * item.qty), 0));
 
-        // A promo only ever discounts its own product's line, not the whole
-        // cart — matches how processSale() computes it server-side.
+        // A promo only ever discounts the lines for its assigned products
+        // that are actually in the cart, never the whole cart — matches how
+        // processSale() computes it server-side.
         let discountAmount = 0;
         if (appliedPromo) {
-            const promoItem = cart.find((i) => i.id === appliedPromo.productId);
-            if (promoItem) {
-                const promoLineSubtotal = promoItem.price * promoItem.qty;
-                discountAmount = roundMoney(promoLineSubtotal * (appliedPromo.rate / 100));
-            }
+            const promoLinesSubtotal = cart
+                .filter((i) => appliedPromo.productIds.includes(i.id))
+                .reduce((sum, i) => sum + (i.price * i.qty), 0);
+            discountAmount = roundMoney(promoLinesSubtotal * (appliedPromo.rate / 100));
         }
 
         const vatAmount = roundMoney((subtotal - discountAmount) * 0.12);

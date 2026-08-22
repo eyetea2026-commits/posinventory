@@ -1,39 +1,25 @@
 {{-- Shared Promo Code field markup. Included by the standalone create/edit
      pages and the Add/Edit Promo modals. Pass an optional $discount to
-     pre-fill for editing (its absence means "Add" mode), and $products
-     (ProductID/ProductName/Price only) for the select + auto-fill JS. --}}
-<div class="form-group">
-    <label for="ProductID">Product <span class="required">*</span></label>
-    <select id="ProductID" name="ProductID" class="form-control" required onchange="window.onDiscountProductChange(this)">
-        <option value="">Select a product&hellip;</option>
-        @foreach($products as $product)
-            <option value="{{ $product->ProductID }}" data-price="{{ $product->Price }}"
-                {{ old('ProductID', $discount->ProductID ?? null) == $product->ProductID ? 'selected' : '' }}>
-                {{ $product->ProductName }}
-            </option>
-        @endforeach
-    </select>
-    <span class="error" id="error-ProductID">@error('ProductID'){{ $message }}@enderror</span>
-</div>
-
+     pre-fill for editing (its absence means "Add" mode). Creating/editing a
+     promo never selects a product here — that's a separate step in the
+     "Apply Discount/Promo" tab, decided after the promo itself exists. --}}
 <div class="form-grid-2">
     <div class="form-group">
-        <label>Original Price</label>
-        <input type="text" id="OriginalPriceDisplay" class="form-control" value="{{ isset($discount) && $discount->product ? '₱' . number_format($discount->product->Price, 2) : '—' }}" disabled>
+        <label for="DiscountRate">Discount Value <span class="required">*</span></label>
+        <input type="number" id="DiscountRate" name="DiscountRate" class="form-control"
+               value="{{ old('DiscountRate', $discount->DiscountRate ?? null) }}" required min="1" max="100" step="0.01"
+               placeholder="e.g., 10">
+        <span class="error" id="error-DiscountRate">@error('DiscountRate'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
-        <label for="DiscountRate">Discount Percentage (%) <span class="required">*</span></label>
-        <input type="number" id="DiscountRate" name="DiscountRate" class="form-control"
-               value="{{ old('DiscountRate', $discount->DiscountRate ?? null) }}" required min="1" max="100" step="0.01"
-               placeholder="e.g., 10" oninput="window.recalcDiscountedPrice(this)">
-        <span class="error" id="error-DiscountRate">@error('DiscountRate'){{ $message }}@enderror</span>
+        <label for="DiscountType">Discount Type <span class="required">*</span></label>
+        <select id="DiscountType" name="DiscountType" class="form-control" required>
+            <option value="percentage" {{ old('DiscountType', $discount->DiscountType ?? 'percentage') == 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
+            <option value="fixed" disabled title="Not available yet">Fixed Amount (coming soon)</option>
+        </select>
+        <span class="error" id="error-DiscountType">@error('DiscountType'){{ $message }}@enderror</span>
     </div>
-</div>
-
-<div class="form-group">
-    <label>Discounted Price</label>
-    <input type="text" id="DiscountedPriceDisplay" class="form-control" value="{{ isset($discount) && $discount->product ? '₱' . number_format($discount->discounted_price, 2) : '—' }}" disabled>
 </div>
 
 <div class="form-grid-2">
@@ -76,4 +62,5 @@
 
 {{-- No manual Status field — a promo's Active / Inactive / Expired state is
      always computed from Start Date / End Date against today
-     (Discount::getEffectiveStatusAttribute()), never admin-set. --}}
+     (Discount::getEffectiveStatusAttribute()), never admin-set. Products are
+     assigned separately, in the "Apply Discount/Promo" tab. --}}

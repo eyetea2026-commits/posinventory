@@ -82,9 +82,10 @@ class CheckoutTest extends TestCase
         // noise before rounding (99.99 * 0.0725 etc.) — this is the scenario
         // the round(...,2) fix at every step of processSale() protects.
         $discount = Discount::create([
-            'ProductID' => $product->ProductID, 'DiscountRate' => 7.25, 'Name' => 'Odd Rate',
+            'DiscountRate' => 7.25, 'Name' => 'Odd Rate',
             'PromoCode' => 'ODDRATE', 'StartDate' => now()->subDay(), 'EndDate' => now()->addMonth(), 'Status' => 'active',
         ]);
+        $discount->products()->attach($product->ProductID);
 
         $subtotal = round(99.99, 2);
         $discountAmount = round($subtotal * (7.25 / 100), 2);
@@ -109,9 +110,10 @@ class CheckoutTest extends TestCase
     {
         $product = $this->makeProduct(1000);
         $discount = Discount::create([
-            'ProductID' => $product->ProductID, 'DiscountRate' => 10, 'Name' => 'Ten Percent',
+            'DiscountRate' => 10, 'Name' => 'Ten Percent',
             'PromoCode' => 'TENOFF', 'StartDate' => now()->subDay(), 'EndDate' => now()->addMonth(), 'Status' => 'active',
         ]);
+        $discount->products()->attach($product->ProductID);
 
         $sale = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],

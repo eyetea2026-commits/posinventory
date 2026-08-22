@@ -41,16 +41,23 @@ class ApplyPromoTest extends TestCase
         Inventory::create(['ProductID' => $this->otherProduct->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
     }
 
-    private function makePromo(array $overrides = []): Discount
+    // Creates a promo and assigns it to the given product(s) via the pivot —
+    // matches how the admin's "Apply Discount/Promo" tab actually attaches a
+    // promo, instead of the old single-ProductID column.
+    private function makePromo(array $overrides = [], array $productIds = null): Discount
     {
-        return Discount::create(array_merge([
-            'ProductID' => $this->product->ProductID,
+        $discount = Discount::create(array_merge([
             'DiscountRate' => 20,
+            'DiscountType' => Discount::TYPE_PERCENTAGE,
             'Name' => 'Summer Sale',
             'PromoCode' => 'SUMMER20',
             'StartDate' => now()->subDay()->format('Y-m-d'),
             'EndDate' => now()->addMonth()->format('Y-m-d'),
         ], $overrides));
+
+        $discount->products()->attach($productIds ?? [$this->product->ProductID]);
+
+        return $discount;
     }
 
     public function test_apply_promo_succeeds_for_a_valid_code_and_matching_product(): void
@@ -63,6 +70,7 @@ class ApplyPromoTest extends TestCase
 
         $response->assertOk();
         $response->assertJson(['success' => true, 'discount_rate' => 20, 'promo_code' => 'SUMMER20']);
+        $this->assertSame([$this->product->ProductID], $response->json('applicable_product_ids'));
     }
 
     public function test_apply_promo_rejects_an_unknown_code(): void
@@ -82,7 +90,7 @@ class ApplyPromoTest extends TestCase
 
     public function test_apply_promo_rejects_a_product_with_no_promo_at_all(): void
     {
-        // otherProduct has zero Discount rows created for it in this test —
+        // otherProduct has zero Discount rows assigned to it in this test —
         // neither active, expired, nor future — matching a product that has
         // simply never had a promo.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
@@ -99,7 +107,7 @@ class ApplyPromoTest extends TestCase
         // otherProduct has its own (different) promo, so this test isolates
         // "wrong code for this product" from "product has no promo at all"
         // (covered separately by test_apply_promo_rejects_a_product_with_no_promo_at_all()).
-        $this->makePromo(['ProductID' => $this->otherProduct->ProductID, 'PromoCode' => 'DVR20']);
+        $this->makePromo(['PromoCode' => 'DVR20'], [$this->otherProduct->ProductID]);
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
             'promo_code' => 'SUMMER20', 'product_id' => $this->otherProduct->ProductID,
@@ -213,5 +221,77 @@ class ApplyPromoTest extends TestCase
         $receiptResponse->assertViewHas('promoProductName', 'Bullet 2MP');
         // 200 discount / 1000 promo'd-line subtotal = 20%, not 200/3000=6.67%.
         $receiptResponse->assertViewHas('discountRate', 20.0);
+    }
+
+    // ---- Multi-product promo behavior (new) ----
+
+    public function test_apply_promo_reports_every_assigned_product_not_just_the_one_clicked(): void
+    {
+        $this->makePromo([], [$this->product->ProductID, $this->otherProduct->ProductID]);
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
+            'promo_code' => 'SUMMER20', 'product_id' => $this->product->ProductID,
+        ]);
+
+        $response->assertOk();
+        $ids = $response->json('applicable_product_ids');
+        sort($ids);
+        $this->assertSame([$this->product->ProductID, $this->otherProduct->ProductID], $ids);
+    }
+
+    public function test_checkout_discounts_both_assigned_products_when_both_are_in_the_cart(): void
+    {
+        $discount = $this->makePromo([], [$this->product->ProductID, $this->otherProduct->ProductID]);
+
+        // Cart: 1x Bullet 2MP (1000) + 1x DVR 8CH (2000), both assigned to
+        // the promo. Subtotal = 3000. Discount on the whole 3000: 600.
+        // VAT = (3000-600)*0.12 = 288. Total = 3000-600+288 = 2688.
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [
+                ['id' => $this->product->ProductID, 'qty' => 1],
+                ['id' => $this->otherProduct->ProductID, 'qty' => 1],
+            ],
+            'payment_method' => 'cash',
+            'payment_amount' => 2688,
+            'discount_id' => $discount->DiscountID,
+        ]);
+
+        $response->assertOk();
+        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $this->assertEquals(3000.0, (float) $billing->Subtotal);
+        $this->assertEquals(600.0, (float) $billing->DiscountAmount);
+        $this->assertEquals(288.0, (float) $billing->VatAmount);
+        $this->assertEquals(2688.0, (float) $billing->BillingAmount);
+    }
+
+    public function test_checkout_discounts_only_the_assigned_product_actually_in_the_cart(): void
+    {
+        $discount = $this->makePromo([], [$this->product->ProductID, $this->otherProduct->ProductID]);
+
+        $thirdProduct = Product::create([
+            'ProductName' => 'NVR 16CH', 'Model' => 'NVR-01', 'SKU' => 'SKU-003',
+            'Price' => 500, 'CategoryID' => $this->product->CategoryID,
+        ]);
+        Inventory::create(['ProductID' => $thirdProduct->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
+
+        // Cart: 1x Bullet 2MP (1000, assigned) + 1x NVR 16CH (500, NOT
+        // assigned). Subtotal = 1500. Discount only on the assigned 1000
+        // line: 200. VAT = (1500-200)*0.12 = 156. Total = 1500-200+156 = 1456.
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [
+                ['id' => $this->product->ProductID, 'qty' => 1],
+                ['id' => $thirdProduct->ProductID, 'qty' => 1],
+            ],
+            'payment_method' => 'cash',
+            'payment_amount' => 1456,
+            'discount_id' => $discount->DiscountID,
+        ]);
+
+        $response->assertOk();
+        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $this->assertEquals(1500.0, (float) $billing->Subtotal);
+        $this->assertEquals(200.0, (float) $billing->DiscountAmount);
+        $this->assertEquals(156.0, (float) $billing->VatAmount);
+        $this->assertEquals(1456.0, (float) $billing->BillingAmount);
     }
 }

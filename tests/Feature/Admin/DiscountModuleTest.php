@@ -34,11 +34,13 @@ class DiscountModuleTest extends TestCase
         ]);
     }
 
+    // Creating/editing a promo (Tab 1) no longer selects a product — that's
+    // a separate step in the "Apply Discount/Promo" tab (Tab 2).
     private function basePromoPayload(array $overrides = []): array
     {
         return array_merge([
-            'ProductID' => $this->product->ProductID,
             'DiscountRate' => 20,
+            'DiscountType' => Discount::TYPE_PERCENTAGE,
             'Name' => 'Summer Sale',
             'PromoCode' => 'SUMMER20',
             'Description' => 'Seasonal promo',
@@ -47,14 +49,14 @@ class DiscountModuleTest extends TestCase
         ], $overrides);
     }
 
-    public function test_store_creates_a_product_specific_promo(): void
+    public function test_store_creates_a_promo_with_no_product_assigned(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload());
 
         $response->assertRedirect(route('admin.discounts.index'));
-        $this->assertDatabaseHas('Discount', [
-            'ProductID' => $this->product->ProductID, 'PromoCode' => 'SUMMER20', 'DiscountRate' => 20,
-        ]);
+        $discount = Discount::where('PromoCode', 'SUMMER20')->firstOrFail();
+        $this->assertSame(20.0, (float) $discount->DiscountRate);
+        $this->assertTrue($discount->products->isEmpty());
     }
 
     public function test_promo_code_is_normalized_to_uppercase(): void
@@ -91,32 +93,179 @@ class DiscountModuleTest extends TestCase
         $response->assertSessionHasErrors('EndDate');
     }
 
-    public function test_prevents_overlapping_active_promotions_for_the_same_product(): void
+    public function test_discount_type_must_be_percentage(): void
     {
-        Discount::create(array_merge($this->basePromoPayload(), [
+        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload(['DiscountType' => 'fixed']));
+
+        $response->assertSessionHasErrors('DiscountType');
+    }
+
+    // ---- Tab 2: assignProducts() ----
+
+    public function test_assign_products_attaches_a_promo_to_multiple_products(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $secondProduct = Product::create([
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
+        ]);
+
+        $response = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $discount), [
+            'product_ids' => [$this->product->ProductID, $secondProduct->ProductID],
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+        $this->assertCount(2, $discount->fresh()->products);
+        $this->assertDatabaseHas('DiscountProduct', ['DiscountID' => $discount->DiscountID, 'ProductID' => $this->product->ProductID]);
+        $this->assertDatabaseHas('DiscountProduct', ['DiscountID' => $discount->DiscountID, 'ProductID' => $secondProduct->ProductID]);
+    }
+
+    public function test_assign_products_never_applies_to_a_product_not_selected(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $unrelatedProduct = Product::create([
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
+        ]);
+
+        $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $discount), [
+            'product_ids' => [$this->product->ProductID],
+        ]);
+
+        $this->assertFalse($discount->fresh()->products->contains('ProductID', $unrelatedProduct->ProductID));
+    }
+
+    // The "overlapping promo" invariant now applies at assign-time (per
+    // product being assigned), not at promo-creation time, since a promo no
+    // longer has a product until it's explicitly assigned one.
+    public function test_assign_products_skips_a_product_already_covered_by_an_overlapping_promo(): void
+    {
+        $first = Discount::create(array_merge($this->basePromoPayload(), [
             'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30',
         ]));
+        $first->products()->attach($this->product->ProductID);
 
-        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
+        $second = Discount::create(array_merge($this->basePromoPayload(), [
             'PromoCode' => 'SECOND', 'StartDate' => '2026-06-15', 'EndDate' => '2026-07-15',
         ]));
 
-        $response->assertSessionHasErrors('ProductID');
-        $this->assertDatabaseMissing('Discount', ['PromoCode' => 'SECOND']);
+        $response = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $second), [
+            'product_ids' => [$this->product->ProductID],
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true, 'assigned' => [], 'rejected' => [$this->product->ProductID]]);
+        $this->assertFalse($second->fresh()->products->contains('ProductID', $this->product->ProductID));
     }
 
-    public function test_allows_a_future_promo_for_the_same_product_when_windows_dont_overlap(): void
+    public function test_assign_products_allows_a_future_promo_for_the_same_product_when_windows_dont_overlap(): void
     {
-        Discount::create(array_merge($this->basePromoPayload(), [
+        $first = Discount::create(array_merge($this->basePromoPayload(), [
             'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30',
         ]));
+        $first->products()->attach($this->product->ProductID);
 
-        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
+        $second = Discount::create(array_merge($this->basePromoPayload(), [
             'PromoCode' => 'SECOND', 'StartDate' => '2026-07-01', 'EndDate' => '2026-07-31',
         ]));
 
-        $response->assertRedirect(route('admin.discounts.index'));
-        $this->assertDatabaseHas('Discount', ['PromoCode' => 'SECOND']);
+        $response = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $second), [
+            'product_ids' => [$this->product->ProductID],
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true, 'assigned' => [$this->product->ProductID]]);
+        $this->assertTrue($second->fresh()->products->contains('ProductID', $this->product->ProductID));
+    }
+
+    public function test_detach_product_removes_a_single_assignment(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $discount->products()->attach($this->product->ProductID);
+
+        $response = $this->actingAs($this->admin)->deleteJson(route('admin.discounts.detach-product', [$discount, $this->product]));
+
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+        $this->assertFalse($discount->fresh()->products->contains('ProductID', $this->product->ProductID));
+    }
+
+    public function test_detach_product_is_blocked_once_the_promo_has_been_used_in_a_transaction(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $discount->products()->attach($this->product->ProductID);
+        $this->createBillingFor($discount);
+
+        $response = $this->actingAs($this->admin)->deleteJson(route('admin.discounts.detach-product', [$discount, $this->product]));
+
+        $response->assertStatus(422);
+        $this->assertTrue($discount->fresh()->products->contains('ProductID', $this->product->ProductID));
+    }
+
+    // ---- History ----
+
+    public function test_history_lists_expired_promos(): void
+    {
+        $expired = Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'EXPIRED', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ]));
+        $expired->products()->attach($this->product->ProductID);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.history'));
+
+        $response->assertOk();
+        $response->assertJsonStructure(['expiredHtml', 'usedHtml']);
+        $this->assertStringContainsString('EXPIRED', $response->json('expiredHtml'));
+    }
+
+    public function test_history_lists_used_promos_from_billings(): void
+    {
+        $discount = Discount::create(array_merge($this->basePromoPayload(), ['PromoCode' => 'USEDPROMO']));
+        $discount->products()->attach($this->product->ProductID);
+        $this->createBillingFor($discount);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.history'));
+
+        $response->assertOk();
+        $this->assertStringContainsString('USEDPROMO', $response->json('usedHtml'));
+    }
+
+    // ---- Unrelated products stay unaffected ----
+
+    public function test_index_renders_the_two_tab_apply_ui_and_embeds_the_product_promo_map(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $discount->products()->attach($this->product->ProductID);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertSee('Create Discount/Promo');
+        $response->assertSee('Applied Discount/Promo List');
+        $response->assertSee('Bullet 2MP');
+    }
+
+    public function test_index_ajax_products_flag_returns_the_apply_tab_product_rows_as_json(): void
+    {
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_products' => 1]));
+
+        $response->assertOk();
+        $response->assertJsonStructure(['rows', 'pagination']);
+        $this->assertStringContainsString('Bullet 2MP', $response->json('rows'));
+    }
+
+    public function test_index_ajax_applied_flag_returns_the_applied_assignments_as_json(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $discount->products()->attach($this->product->ProductID);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_applied' => 1]));
+
+        $response->assertOk();
+        $response->assertJsonStructure(['rows', 'pagination']);
+        $this->assertStringContainsString('Bullet 2MP', $response->json('rows'));
+        $this->assertStringContainsString('SUMMER20', $response->json('rows'));
     }
 
     public function test_check_promo_code_flags_a_case_insensitive_duplicate(): void
@@ -141,12 +290,11 @@ class DiscountModuleTest extends TestCase
         $response->assertJson(['promo_code' => false]);
     }
 
-    public function test_discounted_price_is_computed_from_product_price(): void
+    public function test_discounted_price_for_is_computed_from_product_price(): void
     {
         $discount = Discount::create($this->basePromoPayload(['DiscountRate' => 25]));
-        $discount->load('product');
 
-        $this->assertEquals(750.0, $discount->discounted_price); // 1000 * (1 - 0.25)
+        $this->assertEquals(750.0, $discount->discountedPriceFor($this->product)); // 1000 * (1 - 0.25)
     }
 
     public function test_effective_status_is_expired_once_end_date_passes(): void
@@ -182,18 +330,7 @@ class DiscountModuleTest extends TestCase
     public function test_destroy_is_blocked_once_referenced_by_a_billing_record(): void
     {
         $discount = Discount::create($this->basePromoPayload());
-
-        $cashierRole = Role::create(['role_name' => 'cashier']);
-        $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
-        $staff = Staff::create([
-            'FirstName' => 'Jane', 'MiddleName' => '-', 'LastName' => 'Doe',
-            'ContactNumber' => '0000', 'Email' => 'jane@example.com', 'Age' => 30, 'Gender' => 'F', 'UserID' => $cashier->id,
-        ]);
-        $transaction = SalesTransaction::create(['CustomerName' => 'Walk-in', 'SalesTransactionDate' => now(), 'StaffID' => $staff->StaffID]);
-        Billing::create([
-            'CustomerName' => 'Walk-in', 'VatApplied' => '12%', 'BillingAmount' => 800,
-            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID, 'SalesTransactionID' => $transaction->SalesTransactionID,
-        ]);
+        $this->createBillingFor($discount);
 
         $response = $this->actingAs($this->admin)->delete(route('admin.discounts.destroy', $discount));
 
@@ -210,9 +347,10 @@ class DiscountModuleTest extends TestCase
         $this->assertSoftDeleted('Discount', ['DiscountID' => $discount->DiscountID]);
     }
 
-    public function test_show_page_renders_promo_and_product_details(): void
+    public function test_show_page_renders_promo_and_assigned_product_details(): void
     {
         $discount = Discount::create($this->basePromoPayload());
+        $discount->products()->attach($this->product->ProductID);
 
         $response = $this->actingAs($this->admin)->get(route('admin.discounts.show', $discount));
 
@@ -225,6 +363,7 @@ class DiscountModuleTest extends TestCase
     public function test_show_page_displays_the_correct_discounted_price(): void
     {
         $discount = Discount::create($this->basePromoPayload(['DiscountRate' => 20]));
+        $discount->products()->attach($this->product->ProductID);
 
         $response = $this->actingAs($this->admin)->get(route('admin.discounts.show', $discount));
 
@@ -255,19 +394,14 @@ class DiscountModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index'));
 
         $response->assertOk();
-        $response->assertSee('Promo Codes');
+        $response->assertSee('Apply Discount/Promo');
         $response->assertDontSee('"rows":', false);
     }
 
     public function test_live_search_ajax_returns_filtered_rows_as_json(): void
     {
         Discount::create($this->basePromoPayload(['PromoCode' => 'MATCHME']));
-
-        $otherProduct = Product::create([
-            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
-            'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
-        ]);
-        Discount::create($this->basePromoPayload(['ProductID' => $otherProduct->ProductID, 'PromoCode' => 'NOMATCH']));
+        Discount::create($this->basePromoPayload(['PromoCode' => 'NOMATCH']));
 
         $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['search' => 'MATCHME', 'ajax' => 1]));
 
@@ -277,23 +411,30 @@ class DiscountModuleTest extends TestCase
         $this->assertStringNotContainsString('NOMATCH', $response->json('rows'));
     }
 
-    public function test_currently_active_scope_only_returns_product_tied_non_expired_started_promos(): void
+    // A promo not yet assigned to any product doesn't count as "currently
+    // active" — scopeCurrentlyActive() requires at least one pivot row, so
+    // it never applies to a product until the admin explicitly assigns it.
+    public function test_currently_active_scope_only_returns_promos_assigned_to_a_product_and_non_expired_started(): void
     {
-        // Legacy general-rate row from before the redesign (ProductID null).
-        Discount::create(['DiscountRate' => 10, 'Name' => 'Old General Discount']);
+        Discount::create(['DiscountRate' => 10, 'Name' => 'Unassigned Promo', 'PromoCode' => 'UNASSIGNED', 'DiscountType' => Discount::TYPE_PERCENTAGE]);
 
         $expired = Discount::create(array_merge($this->basePromoPayload(), ['PromoCode' => 'EXPIRED', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31']));
+        $expired->products()->attach($this->product->ProductID);
+
         $notYetStarted = Discount::create(array_merge($this->basePromoPayload(), [
             'PromoCode' => 'FUTURE', 'StartDate' => now()->addDays(10)->format('Y-m-d'), 'EndDate' => now()->addDays(40)->format('Y-m-d'),
         ]));
+        $notYetStarted->products()->attach($this->product->ProductID);
+
         $valid = Discount::create(array_merge($this->basePromoPayload(), ['PromoCode' => 'VALID']));
+        $valid->products()->attach($this->product->ProductID);
 
         $results = Discount::currentlyActive()->pluck('PromoCode');
 
         $this->assertTrue($results->contains('VALID'));
         $this->assertFalse($results->contains('EXPIRED'));
         $this->assertFalse($results->contains('FUTURE'));
-        $this->assertFalse($results->contains(null));
+        $this->assertFalse($results->contains('UNASSIGNED'));
     }
 
     public function test_index_no_longer_shows_activate_deactivate_or_delete_controls(): void
@@ -320,5 +461,22 @@ class DiscountModuleTest extends TestCase
     {
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.discounts.activate'));
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.discounts.deactivate'));
+    }
+
+    private function createBillingFor(Discount $discount): Billing
+    {
+        $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);
+        $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
+        $staff = Staff::create([
+            'FirstName' => 'Jane', 'MiddleName' => '-', 'LastName' => 'Doe',
+            'ContactNumber' => '0000', 'Email' => 'jane-' . uniqid() . '@example.com', 'Age' => 30, 'Gender' => 'F', 'UserID' => $cashier->id,
+        ]);
+        $transaction = SalesTransaction::create(['CustomerName' => 'Walk-in', 'SalesTransactionDate' => now(), 'StaffID' => $staff->StaffID]);
+
+        return Billing::create([
+            'CustomerName' => 'Walk-in', 'VatApplied' => '12%', 'BillingAmount' => 800,
+            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID, 'PromoCode' => $discount->PromoCode,
+            'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
     }
 }

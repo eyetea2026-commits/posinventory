@@ -69,7 +69,7 @@ class CashierAuthController extends Controller
         // or not-yet-started promo should still fall through to the code lookup
         // below and get the more specific "has expired" / "not currently active"
         // message rather than this generic one.
-        if (! Discount::query()->where('ProductID', $data['product_id'])->exists()) {
+        if (! Discount::whereHas('products', fn ($q) => $q->where('Product.ProductID', $data['product_id']))->exists()) {
             return response()->json(['success' => false, 'message' => 'Walang promo sa product na ito.'], 422);
         }
 
@@ -79,7 +79,7 @@ class CashierAuthController extends Controller
             return response()->json(['success' => false, 'message' => 'Invalid promo code.'], 404);
         }
 
-        if ((int) $discount->ProductID !== (int) $data['product_id']) {
+        if (! $discount->products()->where('Product.ProductID', $data['product_id'])->exists()) {
             return response()->json(['success' => false, 'message' => 'No promo is available for this product.'], 422);
         }
 
@@ -94,7 +94,10 @@ class CashierAuthController extends Controller
             'discount_rate' => (float) $discount->DiscountRate,
             'promo_name' => $discount->Name,
             'promo_code' => $discount->PromoCode,
-            'product_id' => $discount->ProductID,
+            // Every product this promo is assigned to — not just the one the
+            // cashier clicked — so the POS screen can discount every matching
+            // cart line, never just the first one.
+            'applicable_product_ids' => $discount->products()->pluck('Product.ProductID')->values(),
         ]);
     }
 
@@ -249,14 +252,22 @@ class CashierAuthController extends Controller
                     if ($discount->effective_status !== Discount::STATUS_ACTIVE) {
                         throw new \RuntimeException('Selected promo is no longer active.');
                     }
-                    if (!array_key_exists($discount->ProductID, $quantitiesByProduct)) {
+                    $promoProductIds = array_intersect(
+                        $discount->products()->pluck('Product.ProductID')->all(),
+                        array_keys($quantitiesByProduct)
+                    );
+                    if (empty($promoProductIds)) {
                         throw new \RuntimeException('Selected promo does not apply to any product in this cart.');
                     }
 
-                    // The discount applies only to its own product's line —
-                    // not the whole cart — so it's computed against just
-                    // that line's subtotal.
-                    $promoProductSubtotal = $products->get($discount->ProductID)->Price * $quantitiesByProduct[$discount->ProductID];
+                    // The discount applies only to its assigned products'
+                    // lines that are actually in this cart — never the whole
+                    // cart, and never a product outside the assigned set —
+                    // so it's computed as the sum of just those lines' subtotals.
+                    $promoProductSubtotal = 0;
+                    foreach ($promoProductIds as $promoProductId) {
+                        $promoProductSubtotal += $products->get($promoProductId)->Price * $quantitiesByProduct[$promoProductId];
+                    }
                     $discountAmount = round($promoProductSubtotal * ((float) $discount->DiscountRate / 100), 2);
                 }
 
@@ -442,10 +453,15 @@ class CashierAuthController extends Controller
             $discountRate = 0;
             if ($hasDiscount) {
                 $promoCode = $billing->PromoCode ?? $billing->discount?->PromoCode;
-                $promoProductId = $billing->discount?->ProductID;
-                $promoLine = collect($items)->firstWhere('id', $promoProductId);
-                $promoProductName = $promoLine['name'] ?? null;
-                $promoProductSubtotal = $promoLine ? $promoLine['price'] * $promoLine['qty'] : 0;
+                // A promo can be assigned to several products — every line on
+                // THIS receipt that's one of them contributed to the frozen
+                // DiscountAmount above, so all of them are named here.
+                $promoProductIds = $billing->discount
+                    ? $billing->discount->products()->pluck('Product.ProductID')->all()
+                    : [];
+                $promoLines = collect($items)->whereIn('id', $promoProductIds);
+                $promoProductName = $promoLines->isNotEmpty() ? $promoLines->pluck('name')->implode(', ') : null;
+                $promoProductSubtotal = $promoLines->sum(fn ($line) => $line['price'] * $line['qty']);
                 $discountRate = $promoProductSubtotal > 0 ? round(($discountAmount / $promoProductSubtotal) * 100, 2) : 0;
             }
         } else {
