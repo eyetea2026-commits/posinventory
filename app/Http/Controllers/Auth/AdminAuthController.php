@@ -38,7 +38,31 @@ class AdminAuthController extends Controller
 
     public function showForgot()
     {
-        return view('auth.admin.forgot');
+        // Auto-fill only when there is exactly one admin account with a
+        // registered email — the system supports multiple admin accounts
+        // (User::admins()/isProtected()), each with an independently
+        // nullable email, so guessing between several would be wrong. The
+        // value shown to the page is masked (maskEmail()); the real address
+        // travels in a hidden field so the admin never has to type it, but
+        // an unauthenticated visitor of this pre-login page never sees it
+        // in full either.
+        $eligibleAdmins = User::admins()->filter(fn ($user) => filled($user->email));
+        $adminEmail = $eligibleAdmins->count() === 1 ? $eligibleAdmins->first()->email : null;
+
+        return view('auth.admin.forgot', [
+            'adminEmail' => $adminEmail,
+            'maskedAdminEmail' => $adminEmail ? $this->maskEmail($adminEmail) : null,
+        ]);
+    }
+
+    // Keeps exactly 3 asterisks regardless of the real local-part length, so
+    // the mask itself never leaks how long the address is.
+    private function maskEmail(string $email): string
+    {
+        [$local, $domain] = array_pad(explode('@', $email, 2), 2, '');
+        $visibleLength = min(2, strlen($local));
+
+        return substr($local, 0, $visibleLength) . '***@' . $domain;
     }
 
     public function sendOtp(Request $request)

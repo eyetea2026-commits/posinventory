@@ -27,11 +27,39 @@
             <form method="POST" action="{{ route('admin.forgot.post') }}">
                 @csrf
 
-                <div class="form-field">
-                    <label for="email">Registered Email</label>
-                    <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus placeholder="Enter your admin email">
-                    @error('email') <span class="field-error">{{ $message }}</span> @enderror
-                </div>
+                @if($adminEmail)
+                    <div class="form-field" id="maskedEmailField">
+                        <label for="email_display">Registered Email</label>
+                        <input id="email_display" type="text" value="{{ $maskedAdminEmail }}" disabled>
+                        <input type="hidden" id="email_hidden" name="email" value="{{ $adminEmail }}">
+                        <a href="#" class="small-link" id="useDifferentEmailLink">Not you? Enter a different email</a>
+                    </div>
+                    <div class="form-field" id="manualEmailField" style="display: none;">
+                        <label for="email_manual">Registered Email</label>
+                        <input id="email_manual" type="email" name="email" value="{{ old('email') }}" disabled placeholder="Enter your admin email">
+                        @error('email') <span class="field-error">{{ $message }}</span> @enderror
+                    </div>
+                    <script>
+                        document.getElementById('useDifferentEmailLink').addEventListener('click', function (e) {
+                            e.preventDefault();
+                            document.getElementById('maskedEmailField').style.display = 'none';
+                            document.getElementById('email_hidden').disabled = true;
+
+                            var manualField = document.getElementById('manualEmailField');
+                            var manualInput = document.getElementById('email_manual');
+                            manualField.style.display = '';
+                            manualInput.disabled = false;
+                            manualInput.required = true;
+                            manualInput.focus();
+                        });
+                    </script>
+                @else
+                    <div class="form-field">
+                        <label for="email">Registered Email</label>
+                        <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus placeholder="Enter your admin email">
+                        @error('email') <span class="field-error">{{ $message }}</span> @enderror
+                    </div>
+                @endif
 
                 <div class="button-grid">
                     <button type="submit" class="button">Send OTP Code</button>
