@@ -173,12 +173,28 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* Apply tab — stacked, compact workflow: Selected Promo (small) →
-       Select Product(s) (compact, scrollable) → Applied List (main focus). */
+    /* Apply tab — Select a Promo (left, cards) → Selected Promo + compact
+       product multi-select (right) → Applied List (main focus, below). */
+    .apply-tab-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .apply-tab-layout { grid-template-columns: 1fr; } }
     .apply-picker-body { padding: 18px; }
 
+    .promo-card-list { display: flex; flex-direction: column; gap: 10px; max-height: 520px; overflow-y: auto; padding: 2px; }
+    .promo-card { display: block; cursor: pointer; }
+    .promo-card input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
+    .promo-card-body {
+        background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(148, 163, 184, 0.15);
+        border-radius: 12px; padding: 12px 14px; transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .promo-card:hover .promo-card-body { border-color: rgba(59, 130, 246, 0.35); }
+    .promo-card.is-selected .promo-card-body { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+    .promo-card-name { font-weight: 700; color: #f8fafc; font-size: 0.92rem; margin-bottom: 2px; }
+    .promo-card-code { color: #94a3b8; font-size: 0.76rem; margin-bottom: 6px; }
+    .promo-card-value { color: #6ee7b7; font-weight: 600; font-size: 0.82rem; }
+    .promo-card-dates { color: #94a3b8; font-size: 0.74rem; margin-top: 2px; }
+
     .apply-promo-detail-card {
-        margin-top: 14px; background: rgba(30, 41, 59, 0.6);
+        background: rgba(30, 41, 59, 0.6);
         border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px; padding: 14px 16px;
     }
     .apply-promo-detail-card h4 { margin: 0 0 4px; font-size: 1.02rem; color: #f8fafc; }
@@ -190,32 +206,47 @@
     }
     .apply-promo-detail-grid .detail-mini span { font-weight: 600; color: #e2e8f0; font-size: 0.88rem; }
 
-    .apply-product-list {
-        max-height: 320px; overflow-y: auto;
-        border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px;
+    /* Compact searchable multi-select ("combobox") — replaces the old
+       full product catalog entirely. */
+    .product-picker { position: relative; margin-top: 16px; }
+    .product-picker .picker-label {
+        display: block; font-size: 0.78rem; color: #94a3b8; text-transform: uppercase;
+        letter-spacing: 0.05em; margin-bottom: 6px;
     }
-    .apply-product-row {
-        display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.08); cursor: pointer; margin: 0;
+    .product-picker-control {
+        display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+        min-height: 44px; padding: 6px 10px; background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 10px; cursor: text;
     }
-    .apply-product-row:last-child { border-bottom: none; }
-    .apply-product-row:hover { background: rgba(59, 130, 246, 0.06); }
-    .apply-product-row.is-checked { background: rgba(16, 185, 129, 0.08); }
-    .apply-product-row.is-disabled { opacity: 0.55; cursor: default; }
-    .apply-product-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
-    .apply-product-row .apply-product-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-    .apply-product-row .apply-product-name {
-        font-weight: 600; color: #f1f5f9; font-size: 0.9rem;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .product-picker-control.is-disabled { opacity: 0.6; cursor: not-allowed; }
+    .product-picker-control:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+    .product-chip {
+        display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, 0.15);
+        color: #bfdbfe; border-radius: 8px; padding: 4px 8px; font-size: 0.82rem; white-space: nowrap;
     }
-    .apply-product-row .apply-product-meta {
-        font-size: 0.78rem; color: #94a3b8;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .product-chip button { background: none; border: none; color: #93c5fd; cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0; }
+    .product-picker-input { flex: 1; min-width: 140px; background: transparent; border: none; color: #f8fafc; font-size: 0.88rem; padding: 6px 2px; }
+    .product-picker-input:focus { outline: none; }
+    .product-picker-dropdown {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+        background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+        max-height: 260px; overflow-y: auto; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45); display: none;
     }
-    .apply-product-row .apply-product-price { font-weight: 600; color: #e2e8f0; font-size: 0.85rem; flex-shrink: 0; }
+    .product-picker-dropdown.open { display: block; }
+    .product-picker-option { padding: 9px 12px; cursor: pointer; font-size: 0.85rem; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); }
+    .product-picker-option:last-child { border-bottom: none; }
+    .product-picker-option:hover { background: rgba(59, 130, 246, 0.12); }
+    .product-picker-option .opt-meta { color: #94a3b8; font-size: 0.76rem; }
+    .product-picker-empty { padding: 12px; color: #94a3b8; font-size: 0.82rem; text-align: center; }
 
     /* Cleaner dot-prefixed status badge, scoped to the Apply tab only. */
     .badge-dot::before { content: '●'; font-size: 0.7em; margin-right: 5px; }
+
+    /* Promo Details ("View Details") modal section headers. */
+    .section-title {
+        color: #cbd5e1; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+        margin: 0 0 10px;
+    }
 
     /* History modal */
     .history-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -291,38 +322,51 @@
 
 {{-- ===================== TAB 2 — APPLY ===================== --}}
 <div id="tab-apply" class="tab-panel">
-    <div class="card">
-        <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Selected Promo</h3></div>
-        <div class="apply-picker-body">
-            <select id="applyPromoSelect" class="form-control" onchange="window.onApplyPromoChange()">
-                <option value="">Choose a promo…</option>
-                @foreach($allDiscounts as $d)
-                    <option value="{{ $d->DiscountID }}">{{ $d->Name }} ({{ $d->PromoCode }})</option>
-                @endforeach
-            </select>
-            <div id="applyPromoDetail">
-                <p class="empty-text" style="margin:14px 0 0; padding:0;">Select a promo to see its details.</p>
+    <div class="apply-tab-layout">
+        <div class="card">
+            <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Select a Promo</h3></div>
+            <div class="apply-picker-body">
+                <div class="promo-card-list" id="promoCardList">
+                    @forelse($allDiscounts as $d)
+                        <label class="promo-card" data-promo-card data-promo-id="{{ $d->DiscountID }}">
+                            <input type="radio" name="applyPromoRadio" value="{{ $d->DiscountID }}" onchange="window.onApplyPromoChange()">
+                            <div class="promo-card-body">
+                                <div class="promo-card-name">{{ $d->Name }}</div>
+                                <div class="promo-card-code"><code>{{ $d->PromoCode }}</code></div>
+                                <div class="promo-card-value">
+                                    {{ $d->DiscountType === 'fixed' ? '₱' . number_format($d->DiscountRate, 2) : number_format($d->DiscountRate, 2) . '%' }} OFF
+                                </div>
+                                <div class="promo-card-dates">{{ $d->StartDate?->format('M d') ?? '—' }} – {{ $d->EndDate?->format('M d, Y') ?? '—' }}</div>
+                            </div>
+                        </label>
+                    @empty
+                        <p class="empty-text" style="margin:0;">No promos yet — create one in the "Create Discount/Promo" tab.</p>
+                    @endforelse
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="card" style="margin-top:20px;">
-        <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Select Product(s)</h3></div>
-        <div class="apply-picker-body">
-            <form method="GET" id="applyProductFilterForm" class="search-box-wrapper" autocomplete="off" onsubmit="return false;" style="max-width:100%; margin-bottom:14px;">
-                <i class="search-icon fas fa-search"></i>
-                <input type="text" id="applyProductSearchInput" class="search-input" placeholder="Search product by name or SKU...">
-            </form>
-            <div class="apply-product-list" id="applyProductsList">
-                @include('admin.discounts.partials.apply-product-rows', ['products' => $products])
-            </div>
-            <div id="applyProductPaginationWrapper">
-                @include('admin.discounts.partials.pagination', ['discounts' => $products])
-            </div>
-            <div style="display:flex; justify-content:flex-end; margin-top:14px;">
-                <button type="button" id="assignSelectedBtn" class="btn btn-primary" disabled onclick="window.assignSelectedProducts()">
-                    <i class="fa-solid fa-check"></i> Apply Discount/Promo
-                </button>
+        <div class="card">
+            <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Selected Promo</h3></div>
+            <div class="apply-picker-body">
+                <div id="applyPromoDetail">
+                    <p class="empty-text" style="margin:0; padding:0;">Select a promo on the left to apply it to products.</p>
+                </div>
+
+                <div class="product-picker" id="productPicker">
+                    <label class="picker-label">Products</label>
+                    <div class="product-picker-control is-disabled" id="productPickerControl">
+                        <span id="productChips"></span>
+                        <input type="text" id="productPickerInput" class="product-picker-input" placeholder="Select a promo first…" autocomplete="off" disabled>
+                    </div>
+                    <div class="product-picker-dropdown" id="productPickerDropdown"></div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+                    <button type="button" id="assignSelectedBtn" class="btn btn-primary" disabled onclick="window.assignSelectedProducts()">
+                        <i class="fa-solid fa-check"></i> Apply Discount/Promo
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -423,6 +467,20 @@
     </div>
 </div>
 
+<!-- Promo Details Modal (Apply tab's "View Details") -->
+<div id="promoDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="promoDetailsModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="promoDetailsModalTitle"><i class="fa-solid fa-tags"></i> Promo Details</h2>
+            <button type="button" class="modal-close" onclick="closePromoDetails()" aria-label="Close">&times;</button>
+        </div>
+        <div id="promoDetailsBody"></div>
+        <div class="modal-actions" style="justify-content:flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="closePromoDetails()">Close</button>
+        </div>
+    </div>
+</div>
+
 @include('admin.partials.ajax-modal-form')
 
 <script>
@@ -508,37 +566,52 @@
 
     // ---- Tab 2: Apply Discount/Promo ----
     (function () {
-        {{-- {id, name} pairs per promo — used to pre-check/disable products
-             already assigned to whichever promo is selected. Not rendered as
-             its own list anymore (the Applied List below already shows this
-             per-product), just used to drive checkbox state. Built in
+        {{-- {id, name, sku, category} objects per promo — the source of
+             truth for "already assigned" (excluded from the picker) and for
+             the View Details modal's Applied Products table. Built in
              DiscountController::index() rather than inline here — see that
              method's comment for why. --}}
         const DISCOUNT_PRODUCT_MAP = @json($discountProductMap);
 
-        {{-- Everything the compact "Selected Promo" detail card needs to
-             render without a second request — also built server-side. --}}
+        {{-- Everything the compact "Selected Promo" detail card and the
+             View Details modal need to render without a second request. --}}
         const DISCOUNT_META = @json($discountMeta);
 
-        const promoSelect = document.getElementById('applyPromoSelect');
+        const promoCardListEl = document.getElementById('promoCardList');
         const promoDetailEl = document.getElementById('applyPromoDetail');
-        const productSearchInput = document.getElementById('applyProductSearchInput');
-        const productsListEl = document.getElementById('applyProductsList');
-        const productsPaginationWrapper = document.getElementById('applyProductPaginationWrapper');
+        const pickerControl = document.getElementById('productPickerControl');
+        const pickerInput = document.getElementById('productPickerInput');
+        const pickerChips = document.getElementById('productChips');
+        const pickerDropdown = document.getElementById('productPickerDropdown');
         const assignBtn = document.getElementById('assignSelectedBtn');
         const appliedTbody = document.getElementById('appliedAssignmentsTbody');
         const appliedPaginationWrapper = document.getElementById('appliedPaginationWrapper');
 
-        let productDebounce = null;
-        let productController = null;
+        let selectedProducts = []; // pending chips: [{id, name, sku, category}]
+        let searchDebounce = null;
+        let searchController = null;
+        let lastResults = [];
 
-        function currentPromoId() { return promoSelect.value; }
+        function currentPromoId() {
+            const checked = promoCardListEl.querySelector('input[name="applyPromoRadio"]:checked');
+            return checked ? checked.value : '';
+        }
+
+        function escapeHtmlLocal(str) {
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function assignedIdsFor(promoId) {
+            return (promoId && DISCOUNT_PRODUCT_MAP[promoId]) ? DISCOUNT_PRODUCT_MAP[promoId].map(function (p) { return String(p.id); }) : [];
+        }
 
         function renderPromoDetail() {
             const id = currentPromoId();
             const meta = id ? DISCOUNT_META[id] : null;
             if (!meta) {
-                promoDetailEl.innerHTML = '<p class="empty-text" style="margin:14px 0 0; padding:0;">Select a promo to see its details.</p>';
+                promoDetailEl.innerHTML = '<p class="empty-text" style="margin:0; padding:0;">Select a promo on the left to apply it to products.</p>';
                 return;
             }
             promoDetailEl.innerHTML = `
@@ -556,98 +629,126 @@
             `;
         }
 
-        function escapeHtmlLocal(str) {
-            return String(str)
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        function renderChips() {
+            pickerChips.innerHTML = selectedProducts.map(function (p) {
+                return '<span class="product-chip">' + escapeHtmlLocal(p.name) +
+                    '<button type="button" data-remove-chip="' + p.id + '" aria-label="Remove">&times;</button></span>';
+            }).join('');
         }
 
-        function applyCheckedState() {
-            const id = currentPromoId();
-            const productIds = (id && DISCOUNT_PRODUCT_MAP[id]) ? DISCOUNT_PRODUCT_MAP[id].map(function (p) { return String(p.id); }) : [];
-            productsListEl.querySelectorAll('[data-product-row]').forEach(function (row) {
-                const checkbox = row.querySelector('.apply-product-checkbox');
-                const isAssigned = productIds.includes(row.dataset.productId);
-                checkbox.checked = isAssigned;
-                checkbox.disabled = isAssigned;
-                row.classList.toggle('is-checked', isAssigned);
-                row.classList.toggle('is-disabled', isAssigned);
-            });
-            updateAssignButtonState();
+        function updateAssignButtonState() {
+            assignBtn.disabled = !(currentPromoId() && selectedProducts.length > 0);
+        }
+
+        function updatePickerEnabledState() {
+            const hasPromo = !!currentPromoId();
+            pickerControl.classList.toggle('is-disabled', !hasPromo);
+            pickerInput.disabled = !hasPromo;
+            pickerInput.placeholder = hasPromo ? 'Select product(s)…' : 'Select a promo first…';
         }
 
         window.onApplyPromoChange = function () {
-            renderPromoDetail();
-            applyCheckedState();
-        };
-
-        window.onApplyProductCheckboxChange = function () {
-            productsListEl.querySelectorAll('[data-product-row]').forEach(function (row) {
-                const checkbox = row.querySelector('.apply-product-checkbox');
-                row.classList.toggle('is-checked', checkbox.checked);
+            promoCardListEl.querySelectorAll('[data-promo-card]').forEach(function (card) {
+                card.classList.toggle('is-selected', card.dataset.promoId === currentPromoId());
             });
+            selectedProducts = [];
+            renderChips();
+            renderPromoDetail();
+            updatePickerEnabledState();
             updateAssignButtonState();
+            closeDropdown();
         };
 
-        function updateAssignButtonState() {
-            const hasPromo = !!currentPromoId();
-            const hasSelection = !!productsListEl.querySelector('.apply-product-checkbox:checked:not(:disabled)');
-            assignBtn.disabled = !(hasPromo && hasSelection);
+        function closeDropdown() {
+            pickerDropdown.classList.remove('open');
+            pickerDropdown.innerHTML = '';
         }
 
-        function buildProductQuery(page) {
-            const params = new URLSearchParams();
-            const search = productSearchInput.value.trim();
-            if (search) params.set('product_search', search);
-            if (page > 1) params.set('product_page', page);
-            params.set('ajax_products', '1');
-            return params.toString();
+        function renderDropdown(products) {
+            const promoId = currentPromoId();
+            const assignedIds = assignedIdsFor(promoId);
+            const selectedIds = selectedProducts.map(function (p) { return String(p.id); });
+            const available = products.filter(function (p) {
+                return !assignedIds.includes(String(p.id)) && !selectedIds.includes(String(p.id));
+            });
+
+            if (!available.length) {
+                pickerDropdown.innerHTML = '<div class="product-picker-empty">No matching products.</div>';
+            } else {
+                pickerDropdown.innerHTML = available.map(function (p) {
+                    return '<div class="product-picker-option" data-option-id="' + p.id + '">' +
+                        escapeHtmlLocal(p.name) +
+                        '<div class="opt-meta">SKU: ' + escapeHtmlLocal(p.sku || '—') + ' &middot; ' + escapeHtmlLocal(p.category || '—') +
+                        ' &middot; ₱' + Number(p.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div></div>';
+                }).join('');
+            }
+            pickerDropdown.classList.add('open');
         }
 
-        async function loadProducts(page = 1) {
-            if (productController) productController.abort();
-            productController = new AbortController();
-            const url = '{{ route('admin.discounts.index') }}?' + buildProductQuery(page);
+        async function searchProducts(query) {
+            if (searchController) searchController.abort();
+            searchController = new AbortController();
+            const url = '{{ route('admin.discounts.index') }}?ajax_products=1' + (query ? '&product_search=' + encodeURIComponent(query) : '');
 
             try {
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                    signal: productController.signal,
+                    signal: searchController.signal,
                 });
                 if (!response.ok) throw new Error('Request failed');
                 const data = await response.json();
-                productsListEl.innerHTML = data.rows || '';
-                productsPaginationWrapper.innerHTML = data.pagination || '';
-                rebindProductPagination();
-                applyCheckedState();
+                lastResults = data.products || [];
+                renderDropdown(lastResults);
             } catch (err) {
                 if (err.name === 'AbortError') return;
-                productsListEl.innerHTML = '<div class="empty-state"><p class="empty-text">Unable to load products.</p></div>';
+                pickerDropdown.innerHTML = '<div class="product-picker-empty">Unable to load products.</div>';
+                pickerDropdown.classList.add('open');
             }
         }
 
-        function rebindProductPagination() {
-            productsPaginationWrapper.querySelectorAll('a.pagination-link').forEach(function (link) {
-                link.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    loadProducts(this.dataset.page || 1);
-                });
-            });
-        }
-
-        productSearchInput.addEventListener('input', function () {
-            clearTimeout(productDebounce);
-            productDebounce = setTimeout(function () { loadProducts(1); }, 300);
+        pickerInput.addEventListener('focus', function () {
+            if (!currentPromoId()) return;
+            searchProducts(pickerInput.value.trim());
         });
 
-        rebindProductPagination();
+        pickerInput.addEventListener('input', function () {
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(function () { searchProducts(pickerInput.value.trim()); }, 250);
+        });
+
+        pickerDropdown.addEventListener('click', function (e) {
+            const option = e.target.closest('[data-option-id]');
+            if (!option) return;
+            const id = option.dataset.optionId;
+            const product = lastResults.find(function (p) { return String(p.id) === String(id); });
+            if (!product) return;
+
+            selectedProducts.push(product);
+            renderChips();
+            updateAssignButtonState();
+            pickerInput.value = '';
+            pickerInput.focus();
+            renderDropdown(lastResults);
+        });
+
+        pickerChips.addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-remove-chip]');
+            if (!btn) return;
+            const id = btn.dataset.removeChip;
+            selectedProducts = selectedProducts.filter(function (p) { return String(p.id) !== String(id); });
+            renderChips();
+            updateAssignButtonState();
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('#productPicker')) closeDropdown();
+        });
 
         window.assignSelectedProducts = function () {
             const discountId = currentPromoId();
-            if (!discountId) return;
-            const productIds = Array.from(productsListEl.querySelectorAll('.apply-product-checkbox:checked:not(:disabled)')).map(function (cb) { return cb.value; });
-            if (!productIds.length) return;
+            if (!discountId || !selectedProducts.length) return;
+            const productIds = selectedProducts.map(function (p) { return p.id; });
 
             window.confirmAction({ title: 'Apply Promo', text: 'Apply this promo to ' + productIds.length + ' product(s)?' }).then(function (result) {
                 if (!result.isConfirmed) return;
@@ -672,16 +773,15 @@
                             return;
                         }
                         if (!DISCOUNT_PRODUCT_MAP[discountId]) DISCOUNT_PRODUCT_MAP[discountId] = [];
-                        const newlyAssigned = data.assigned.map(function (pid) {
-                            const row = productsListEl.querySelector('[data-product-row][data-product-id="' + pid + '"]');
-                            return { id: pid, name: row ? row.dataset.productName : ('Product #' + pid) };
+                        const newlyAssigned = selectedProducts.filter(function (p) {
+                            return data.assigned.map(String).includes(String(p.id));
                         });
                         DISCOUNT_PRODUCT_MAP[discountId] = DISCOUNT_PRODUCT_MAP[discountId].concat(newlyAssigned);
                         toastSuccess(data.message);
-                        // Newly-assigned rows become checked+disabled via
-                        // applyCheckedState(), which is the "clear selection"
-                        // for them — nothing left to uncheck by hand.
-                        applyCheckedState();
+                        // Clear the pending selection — the promo stays selected.
+                        selectedProducts = [];
+                        renderChips();
+                        updateAssignButtonState();
                         reloadAppliedList();
                     })
                     .catch(function () { toastError('Failed to apply promo. Please try again.'); })
@@ -727,40 +827,59 @@
 
         rebindAppliedPagination();
 
-        window.detachAppliedProduct = function (discountId, productId, productName) {
-            window.confirmAction({
-                title: 'Remove Promo',
-                text: 'Remove this discount/promo from ' + productName + '?',
-                icon: 'warning', confirmText: 'Remove', confirmColor: '#ef4444',
-            }).then(function (result) {
-                if (!result.isConfirmed) return;
+        // ---- View Details modal ----
+        window.openPromoDetails = function (discountId) {
+            const meta = DISCOUNT_META[discountId];
+            const products = DISCOUNT_PRODUCT_MAP[discountId] || [];
+            if (!meta) return;
 
-                fetch('{{ url('admin/discounts') }}/' + discountId + '/products/' + productId, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    },
-                })
-                    .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-                    .then(function ({ ok, data }) {
-                        if (!ok || !data.success) {
-                            toastError(data.message || 'Failed to remove promo.');
-                            return;
-                        }
-                        if (DISCOUNT_PRODUCT_MAP[discountId]) {
-                            DISCOUNT_PRODUCT_MAP[discountId] = DISCOUNT_PRODUCT_MAP[discountId].filter(function (p) { return String(p.id) !== String(productId); });
-                        }
-                        toastSuccess('Promo removed from product.');
-                        applyCheckedState();
-                        reloadAppliedList();
-                    })
-                    .catch(function () { toastError('Failed to remove promo. Please try again.'); });
-            });
+            const productsRows = products.length
+                ? products.map(function (p) {
+                    return '<tr><td>' + escapeHtmlLocal(p.name) + '</td><td>' + escapeHtmlLocal(p.sku || '—') + '</td><td>' + escapeHtmlLocal(p.category || '—') + '</td></tr>';
+                }).join('')
+                : '<tr><td colspan="3"><div class="empty-state"><p class="empty-text">No products assigned to this promo.</p></div></td></tr>';
+
+            document.getElementById('promoDetailsModalTitle').innerHTML =
+                '<i class="fa-solid fa-tags"></i> ' + escapeHtmlLocal(meta.name) + ' (' + escapeHtmlLocal(meta.code) + ')';
+
+            document.getElementById('promoDetailsBody').innerHTML = `
+                <h3 class="section-title" style="margin-top:0;">Promo Details</h3>
+                <div class="apply-promo-detail-grid" style="margin-bottom:18px;">
+                    <div class="detail-mini"><label>Discount Type</label><span>${escapeHtmlLocal(meta.typeLabel)}</span></div>
+                    <div class="detail-mini"><label>Discount Value</label><span>${escapeHtmlLocal(meta.valueLabel)}</span></div>
+                    <div class="detail-mini"><label>Start Date</label><span>${escapeHtmlLocal(meta.start)}</span></div>
+                    <div class="detail-mini"><label>Expiration Date</label><span>${escapeHtmlLocal(meta.end)}</span></div>
+                    <div class="detail-mini"><label>Status</label><span class="badge badge-dot ${meta.statusClass}">${escapeHtmlLocal(meta.statusLabel)}</span></div>
+                </div>
+                <h3 class="section-title">Applied Products</h3>
+                <div style="overflow-x:auto;">
+                    <table class="table">
+                        <thead><tr><th>Product Name</th><th>SKU</th><th>Category</th></tr></thead>
+                        <tbody>${productsRows}</tbody>
+                    </table>
+                </div>
+            `;
+
+            const modal = document.getElementById('promoDetailsModal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            void modal.offsetHeight;
+            requestAnimationFrame(function () { modal.classList.add('active'); });
         };
 
-        applyCheckedState();
+        window.closePromoDetails = function () {
+            const modal = document.getElementById('promoDetailsModal');
+            modal.classList.remove('active');
+            setTimeout(function () { modal.style.display = 'none'; }, 250);
+            document.body.style.overflow = '';
+        };
+
+        document.getElementById('promoDetailsModal').addEventListener('mousedown', function (e) {
+            if (e.target === this) window.closePromoDetails();
+        });
+
+        updatePickerEnabledState();
+        updateAssignButtonState();
     })();
 
     // ---- History modal ----

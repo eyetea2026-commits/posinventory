@@ -61,24 +61,31 @@ class DiscountController extends Controller
             ]);
         }
 
-        // Tab 2's product picker — a separate, namespaced search/page so it
-        // never collides with Tab 1's promo list query params.
-        $productSearch = $request->get('product_search');
-        $products = Product::with('category')
-            ->when($productSearch, function ($query) use ($productSearch) {
-                $query->where(function ($inner) use ($productSearch) {
-                    $inner->where('ProductName', 'like', "%{$productSearch}%")
-                        ->orWhere('SKU', 'like', "%{$productSearch}%");
-                });
-            })
-            ->orderBy('ProductName')
-            ->paginate(15, ['*'], 'product_page')
-            ->withQueryString();
-
+        // Tab 2's product picker — a compact searchable multi-select, not a
+        // paginated catalog, so this just returns a capped, unpaginated
+        // JSON list of matches for whatever's currently typed.
         if ($request->boolean('ajax_products')) {
+            $productSearch = $request->get('product_search');
+
+            $products = Product::with('category')
+                ->when($productSearch, function ($query) use ($productSearch) {
+                    $query->where(function ($inner) use ($productSearch) {
+                        $inner->where('ProductName', 'like', "%{$productSearch}%")
+                            ->orWhere('SKU', 'like', "%{$productSearch}%");
+                    });
+                })
+                ->orderBy('ProductName')
+                ->limit(20)
+                ->get();
+
             return response()->json([
-                'rows' => view('admin.discounts.partials.apply-product-rows', ['products' => $products])->render(),
-                'pagination' => view('admin.discounts.partials.pagination', ['discounts' => $products])->render(),
+                'products' => $products->map(fn ($p) => [
+                    'id' => $p->ProductID,
+                    'name' => $p->ProductName,
+                    'sku' => $p->SKU,
+                    'category' => $p->category?->CategoryName,
+                    'price' => (float) $p->Price,
+                ]),
             ]);
         }
 
@@ -110,8 +117,6 @@ class DiscountController extends Controller
         return view('admin.discounts.index', [
             'discounts' => $discounts,
             'search' => $search,
-            'products' => $products,
-            'productSearch' => $productSearch,
             'appliedAssignments' => $appliedAssignments,
             'allDiscounts' => $allDiscounts,
             // Pre-built in PHP (not inline in the Blade view) so the two
@@ -121,8 +126,14 @@ class DiscountController extends Controller
             // argument, which silently mangles anything more elaborate
             // embedded directly in the view.
             'discountProductMap' => $allDiscounts->mapWithKeys(function ($d) {
-                return [$d->DiscountID => $d->products()->get(['Product.ProductID', 'Product.ProductName'])
-                    ->map(fn ($p) => ['id' => $p->ProductID, 'name' => $p->ProductName])];
+                return [$d->DiscountID => $d->products()->with('category')
+                    ->get(['Product.ProductID', 'Product.ProductName', 'Product.SKU', 'Product.CategoryID'])
+                    ->map(fn ($p) => [
+                        'id' => $p->ProductID,
+                        'name' => $p->ProductName,
+                        'sku' => $p->SKU,
+                        'category' => $p->category?->CategoryName,
+                    ])];
             }),
             'discountMeta' => $allDiscounts->mapWithKeys(function ($d) {
                 return [$d->DiscountID => [

@@ -29,8 +29,8 @@
         <td><span class="badge badge-dot {{ $statusClass }}">{{ $statusLabel }}</span></td>
         <td>
             <div class="actions-group">
-                <button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="window.detachAppliedProduct({{ $row->DiscountID }}, {{ $row->ProductID }}, @js($row->ProductName))">
-                    <i class="fa-solid fa-trash"></i>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="window.openPromoDetails({{ $row->DiscountID }})">
+                    <i class="fa-solid fa-eye"></i> View Details
                 </button>
             </div>
         </td>

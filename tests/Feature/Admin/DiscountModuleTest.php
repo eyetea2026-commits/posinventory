@@ -244,22 +244,39 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('Create Discount/Promo');
         $response->assertSee('Applied Discount/Promo List');
         $response->assertSee('Bullet 2MP');
-        // The Apply tab's compact "Selected Promo" + "Select Product(s)"
+        // The Apply tab's promo-card + compact multi-select-dropdown
         // workflow, not the old side-by-side product-catalog layout.
+        $response->assertSee('Select a Promo');
         $response->assertSee('Selected Promo');
-        $response->assertSee('Select Product(s)');
         $response->assertSee('Apply Discount/Promo', false);
         $response->assertDontSee('Assign Selected');
+        $response->assertDontSee('Select Product(s)');
         $response->assertSee('DISCOUNT_META', false);
     }
 
-    public function test_index_ajax_products_flag_returns_the_apply_tab_product_rows_as_json(): void
+    public function test_index_ajax_products_flag_returns_a_capped_json_product_list(): void
     {
         $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_products' => 1]));
 
         $response->assertOk();
-        $response->assertJsonStructure(['rows', 'pagination']);
-        $this->assertStringContainsString('Bullet 2MP', $response->json('rows'));
+        $response->assertJsonStructure(['products' => [['id', 'name', 'sku', 'category', 'price']]]);
+        $names = collect($response->json('products'))->pluck('name');
+        $this->assertTrue($names->contains('Bullet 2MP'));
+    }
+
+    public function test_index_ajax_products_flag_filters_by_search(): void
+    {
+        Product::create([
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
+        ]);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_products' => 1, 'product_search' => 'Bullet']));
+
+        $response->assertOk();
+        $names = collect($response->json('products'))->pluck('name');
+        $this->assertTrue($names->contains('Bullet 2MP'));
+        $this->assertFalse($names->contains('DVR 8CH'));
     }
 
     public function test_index_ajax_applied_flag_returns_the_applied_assignments_as_json(): void
@@ -273,6 +290,21 @@ class DiscountModuleTest extends TestCase
         $response->assertJsonStructure(['rows', 'pagination']);
         $this->assertStringContainsString('Bullet 2MP', $response->json('rows'));
         $this->assertStringContainsString('SUMMER20', $response->json('rows'));
+    }
+
+    public function test_applied_list_shows_view_details_and_not_a_delete_action(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $discount->products()->attach($this->product->ProductID);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_applied' => 1]));
+
+        $response->assertOk();
+        $rows = $response->json('rows');
+        $this->assertStringContainsString('View Details', $rows);
+        $this->assertStringContainsString('openPromoDetails', $rows);
+        $this->assertStringNotContainsString('detachAppliedProduct', $rows);
+        $this->assertStringNotContainsString('fa-trash', $rows);
     }
 
     public function test_check_promo_code_flags_a_case_insensitive_duplicate(): void
