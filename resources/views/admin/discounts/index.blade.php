@@ -192,33 +192,34 @@
     }
     .apply-promo-detail-grid .detail-mini span { font-weight: 600; color: #e2e8f0; font-size: 0.88rem; }
 
-    /* Compact searchable multi-select ("combobox") for applying a promo to
-       several products in one action — replaces any full product catalog. */
-    .product-picker { position: relative; }
-    .product-picker-control {
-        display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-        min-height: 44px; padding: 6px 10px; background: rgba(30, 41, 59, 0.8);
-        border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 10px; cursor: text;
+    /* Apply Discount/Promo popup — wide/tall card, checkbox list for
+       selecting several products in one action. */
+    .modal-content-tall { max-height: 92vh; }
+    .modal-selected-count { margin: 8px 0 4px; font-size: 0.8rem; color: #94a3b8; }
+    .modal-product-list {
+        max-height: 420px; overflow-y: auto;
+        border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px;
     }
-    .product-picker-control:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
-    .product-chip {
-        display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, 0.15);
-        color: #bfdbfe; border-radius: 8px; padding: 4px 8px; font-size: 0.82rem; white-space: nowrap;
+    .modal-product-row {
+        display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08); cursor: pointer; margin: 0;
     }
-    .product-chip button { background: none; border: none; color: #93c5fd; cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0; }
-    .product-picker-input { flex: 1; min-width: 140px; background: transparent; border: none; color: #f8fafc; font-size: 0.88rem; padding: 6px 2px; }
-    .product-picker-input:focus { outline: none; }
-    .product-picker-dropdown {
-        position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
-        background: #0f172a; border: 1px solid #334155; border-radius: 10px;
-        max-height: 260px; overflow-y: auto; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45); display: none;
+    .modal-product-row:last-child { border-bottom: none; }
+    .modal-product-row:hover { background: rgba(59, 130, 246, 0.06); }
+    .modal-product-row.is-checked { background: rgba(16, 185, 129, 0.08); }
+    .modal-product-row.is-disabled { opacity: 0.55; cursor: default; }
+    .modal-product-row input[type="checkbox"] { width: 17px; height: 17px; cursor: pointer; flex-shrink: 0; }
+    .modal-product-row .mp-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .modal-product-row .mp-name {
+        font-weight: 600; color: #f1f5f9; font-size: 0.92rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .product-picker-dropdown.open { display: block; }
-    .product-picker-option { padding: 9px 12px; cursor: pointer; font-size: 0.85rem; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); }
-    .product-picker-option:last-child { border-bottom: none; }
-    .product-picker-option:hover { background: rgba(59, 130, 246, 0.12); }
-    .product-picker-option .opt-meta { color: #94a3b8; font-size: 0.76rem; }
-    .product-picker-empty { padding: 12px; color: #94a3b8; font-size: 0.82rem; text-align: center; }
+    .modal-product-row .mp-meta {
+        font-size: 0.79rem; color: #94a3b8;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .modal-product-row .mp-price { font-weight: 600; color: #e2e8f0; font-size: 0.87rem; flex-shrink: 0; }
+    .product-picker-empty { padding: 14px; color: #94a3b8; font-size: 0.85rem; text-align: center; }
 
     /* Cleaner dot-prefixed status badge, scoped to the Apply tab only. */
     .badge-dot::before { content: '●'; font-size: 0.7em; margin-right: 5px; }
@@ -392,9 +393,9 @@
     </div>
 </div>
 
-<!-- Apply Discount/Promo popup (multi-select product picker) -->
+<!-- Apply Discount/Promo popup (checkbox multi-select product picker) -->
 <div id="applyProductsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="applyProductsModalTitle" aria-hidden="true">
-    <div class="modal-content">
+    <div class="modal-content modal-content-wide modal-content-tall">
         <div class="modal-header">
             <h2 id="applyProductsModalTitle"><i class="fa-solid fa-tags"></i> Apply Discount/Promo</h2>
             <button type="button" class="modal-close" onclick="closeApplyModal()" aria-label="Close">&times;</button>
@@ -406,14 +407,10 @@
         </div>
 
         <div class="form-group">
-            <div class="product-picker" id="productPicker">
-                <label class="picker-label">Products</label>
-                <div class="product-picker-control" id="productPickerControl">
-                    <span id="productChips"></span>
-                    <input type="text" id="productPickerInput" class="product-picker-input" placeholder="Select product(s)…" autocomplete="off">
-                </div>
-                <div class="product-picker-dropdown" id="productPickerDropdown"></div>
-            </div>
+            <label class="picker-label">Products</label>
+            <input type="text" id="productPickerInput" class="form-control" placeholder="Search product by name or SKU…" autocomplete="off">
+            <div id="modalSelectedCount" class="modal-selected-count"></div>
+            <div class="modal-product-list" id="modalProductList"></div>
         </div>
 
         <div class="modal-actions">
@@ -559,13 +556,13 @@
 
         const promoSelect = document.getElementById('applyPromoSelect');
         const pickerInput = document.getElementById('productPickerInput');
-        const pickerChips = document.getElementById('productChips');
-        const pickerDropdown = document.getElementById('productPickerDropdown');
+        const selectedCountEl = document.getElementById('modalSelectedCount');
+        const modalProductList = document.getElementById('modalProductList');
         const assignBtn = document.getElementById('assignSelectedBtn');
         const appliedTbody = document.getElementById('appliedAssignmentsTbody');
         const appliedPaginationWrapper = document.getElementById('appliedPaginationWrapper');
 
-        let selectedProducts = []; // pending chips: [{id, name, sku, category}]
+        let selectedProducts = []; // checked products: [{id, name, sku, category}]
         let searchDebounce = null;
         let searchController = null;
         let lastResults = [];
@@ -582,11 +579,10 @@
             return (promoId && DISCOUNT_PRODUCT_MAP[promoId]) ? DISCOUNT_PRODUCT_MAP[promoId].map(function (p) { return String(p.id); }) : [];
         }
 
-        function renderChips() {
-            pickerChips.innerHTML = selectedProducts.map(function (p) {
-                return '<span class="product-chip">' + escapeHtmlLocal(p.name) +
-                    '<button type="button" data-remove-chip="' + p.id + '" aria-label="Remove">&times;</button></span>';
-            }).join('');
+        function updateSelectedCount() {
+            selectedCountEl.textContent = selectedProducts.length
+                ? selectedProducts.length + ' product' + (selectedProducts.length === 1 ? '' : 's') + ' selected'
+                : '';
         }
 
         function updateAssignButtonState() {
@@ -607,10 +603,9 @@
             document.getElementById('applyModalPromoLine').textContent = meta ? (meta.name + ' (' + meta.code + ')') : '';
 
             selectedProducts = [];
-            renderChips();
+            updateSelectedCount();
             updateAssignButtonState();
             pickerInput.value = '';
-            closeDropdown();
 
             const modal = document.getElementById('applyProductsModal');
             modal.style.display = 'flex';
@@ -618,6 +613,8 @@
             void modal.offsetHeight;
             requestAnimationFrame(function () { modal.classList.add('active'); });
             pickerInput.focus();
+
+            searchProducts('');
         };
 
         window.closeApplyModal = function () {
@@ -625,40 +622,39 @@
             modal.classList.remove('active');
             setTimeout(function () { modal.style.display = 'none'; }, 250);
             document.body.style.overflow = '';
-            closeDropdown();
             promoSelect.value = '';
             selectedProducts = [];
-            renderChips();
+            updateSelectedCount();
         };
 
         document.getElementById('applyProductsModal').addEventListener('mousedown', function (e) {
             if (e.target === this) window.closeApplyModal();
         });
 
-        function closeDropdown() {
-            pickerDropdown.classList.remove('open');
-            pickerDropdown.innerHTML = '';
-        }
-
-        function renderDropdown(products) {
+        function renderProductList(products) {
             const promoId = currentPromoId();
             const assignedIds = assignedIdsFor(promoId);
             const selectedIds = selectedProducts.map(function (p) { return String(p.id); });
-            const available = products.filter(function (p) {
-                return !assignedIds.includes(String(p.id)) && !selectedIds.includes(String(p.id));
-            });
 
-            if (!available.length) {
-                pickerDropdown.innerHTML = '<div class="product-picker-empty">No matching products.</div>';
-            } else {
-                pickerDropdown.innerHTML = available.map(function (p) {
-                    return '<div class="product-picker-option" data-option-id="' + p.id + '">' +
-                        escapeHtmlLocal(p.name) +
-                        '<div class="opt-meta">SKU: ' + escapeHtmlLocal(p.sku || '—') + ' &middot; ' + escapeHtmlLocal(p.category || '—') +
-                        ' &middot; ₱' + Number(p.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div></div>';
-                }).join('');
+            if (!products.length) {
+                modalProductList.innerHTML = '<div class="product-picker-empty">No matching products.</div>';
+                return;
             }
-            pickerDropdown.classList.add('open');
+
+            modalProductList.innerHTML = products.map(function (p) {
+                const isAssigned = assignedIds.includes(String(p.id));
+                const isChecked = selectedIds.includes(String(p.id));
+                return `
+                    <label class="modal-product-row ${isChecked ? 'is-checked' : ''} ${isAssigned ? 'is-disabled' : ''}">
+                        <input type="checkbox" data-product-id="${p.id}" ${isChecked ? 'checked' : ''} ${isAssigned ? 'disabled' : ''}>
+                        <span class="mp-info">
+                            <span class="mp-name">${escapeHtmlLocal(p.name)}</span>
+                            <span class="mp-meta">SKU: ${escapeHtmlLocal(p.sku || '—')} &middot; ${escapeHtmlLocal(p.category || '—')}${isAssigned ? ' &middot; already applied' : ''}</span>
+                        </span>
+                        <span class="mp-price">₱${Number(p.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </label>
+                `;
+            }).join('');
         }
 
         async function searchProducts(query) {
@@ -675,50 +671,37 @@
                 if (!response.ok) throw new Error('Request failed');
                 const data = await response.json();
                 lastResults = data.products || [];
-                renderDropdown(lastResults);
+                renderProductList(lastResults);
             } catch (err) {
                 if (err.name === 'AbortError') return;
-                pickerDropdown.innerHTML = '<div class="product-picker-empty">Unable to load products.</div>';
-                pickerDropdown.classList.add('open');
+                modalProductList.innerHTML = '<div class="product-picker-empty">Unable to load products.</div>';
             }
         }
 
-        pickerInput.addEventListener('focus', function () {
-            if (!currentPromoId()) return;
-            searchProducts(pickerInput.value.trim());
-        });
-
         pickerInput.addEventListener('input', function () {
             clearTimeout(searchDebounce);
-            searchDebounce = setTimeout(function () { searchProducts(pickerInput.value.trim()); }, 250);
+            const query = pickerInput.value.trim();
+            searchDebounce = setTimeout(function () { searchProducts(query); }, 250);
         });
 
-        pickerDropdown.addEventListener('click', function (e) {
-            const option = e.target.closest('[data-option-id]');
-            if (!option) return;
-            const id = option.dataset.optionId;
-            const product = lastResults.find(function (p) { return String(p.id) === String(id); });
-            if (!product) return;
+        modalProductList.addEventListener('change', function (e) {
+            const checkbox = e.target.closest('input[type="checkbox"][data-product-id]');
+            if (!checkbox) return;
+            const id = checkbox.dataset.productId;
+            const row = checkbox.closest('.modal-product-row');
 
-            selectedProducts.push(product);
-            renderChips();
+            if (checkbox.checked) {
+                const product = lastResults.find(function (p) { return String(p.id) === String(id); });
+                if (product && !selectedProducts.some(function (p) { return String(p.id) === String(id); })) {
+                    selectedProducts.push(product);
+                }
+            } else {
+                selectedProducts = selectedProducts.filter(function (p) { return String(p.id) !== String(id); });
+            }
+
+            row.classList.toggle('is-checked', checkbox.checked);
+            updateSelectedCount();
             updateAssignButtonState();
-            pickerInput.value = '';
-            pickerInput.focus();
-            renderDropdown(lastResults);
-        });
-
-        pickerChips.addEventListener('click', function (e) {
-            const btn = e.target.closest('[data-remove-chip]');
-            if (!btn) return;
-            const id = btn.dataset.removeChip;
-            selectedProducts = selectedProducts.filter(function (p) { return String(p.id) !== String(id); });
-            renderChips();
-            updateAssignButtonState();
-        });
-
-        document.addEventListener('click', function (e) {
-            if (!e.target.closest('#productPicker')) closeDropdown();
         });
 
         window.assignSelectedProducts = function () {
