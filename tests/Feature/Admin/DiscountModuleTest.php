@@ -142,12 +142,13 @@ class DiscountModuleTest extends TestCase
     public function test_assign_products_skips_a_product_already_covered_by_an_overlapping_promo(): void
     {
         $first = Discount::create(array_merge($this->basePromoPayload(), [
-            'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30',
+            'PromoCode' => 'FIRST', 'StartDate' => now()->format('Y-m-d'), 'EndDate' => now()->addDays(30)->format('Y-m-d'),
         ]));
         $first->products()->attach($this->product->ProductID);
 
+        // Overlaps FIRST's window (starts on day 15 of FIRST's 30-day run).
         $second = Discount::create(array_merge($this->basePromoPayload(), [
-            'PromoCode' => 'SECOND', 'StartDate' => '2026-06-15', 'EndDate' => '2026-07-15',
+            'PromoCode' => 'SECOND', 'StartDate' => now()->addDays(15)->format('Y-m-d'), 'EndDate' => now()->addDays(75)->format('Y-m-d'),
         ]));
 
         $response = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $second), [
@@ -162,12 +163,13 @@ class DiscountModuleTest extends TestCase
     public function test_assign_products_allows_a_future_promo_for_the_same_product_when_windows_dont_overlap(): void
     {
         $first = Discount::create(array_merge($this->basePromoPayload(), [
-            'PromoCode' => 'FIRST', 'StartDate' => '2026-06-01', 'EndDate' => '2026-06-30',
+            'PromoCode' => 'FIRST', 'StartDate' => now()->format('Y-m-d'), 'EndDate' => now()->addDays(30)->format('Y-m-d'),
         ]));
         $first->products()->attach($this->product->ProductID);
 
+        // Starts the day after FIRST ends — no overlap.
         $second = Discount::create(array_merge($this->basePromoPayload(), [
-            'PromoCode' => 'SECOND', 'StartDate' => '2026-07-01', 'EndDate' => '2026-07-31',
+            'PromoCode' => 'SECOND', 'StartDate' => now()->addDays(31)->format('Y-m-d'), 'EndDate' => now()->addDays(61)->format('Y-m-d'),
         ]));
 
         $response = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $second), [
@@ -542,6 +544,99 @@ class DiscountModuleTest extends TestCase
         $this->assertFalse($results->contains('EXPIRED'));
         $this->assertFalse($results->contains('FUTURE'));
         $this->assertFalse($results->contains('UNASSIGNED'));
+    }
+
+    // ---- Automatic expiration (Promo Discount List / History) ----
+
+    public function test_expired_promo_does_not_appear_in_the_active_promo_discount_list(): void
+    {
+        Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'STILLGOOD', 'StartDate' => now()->subDays(10)->format('Y-m-d'), 'EndDate' => now()->addDays(10)->format('Y-m-d'),
+        ]));
+        Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'ALLGONE', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ]));
+
+        // Checked against the rendered table rows specifically (not the
+        // whole page) — an expired promo's data legitimately still appears
+        // elsewhere in the page as embedded JSON, for its own History/View
+        // Details popup to work.
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax' => 1]));
+
+        $response->assertOk();
+        $rows = $response->json('rows');
+        $this->assertStringContainsString('STILLGOOD', $rows);
+        $this->assertStringNotContainsString('ALLGONE', $rows);
+    }
+
+    // A promo that hasn't started yet is not expired — it must stay visible
+    // in the Promo Discount List (only truly expired ones move to History).
+    public function test_scheduled_promo_still_appears_in_the_active_promo_discount_list(): void
+    {
+        Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'NOTYET', 'StartDate' => now()->addDays(5)->format('Y-m-d'), 'EndDate' => now()->addDays(35)->format('Y-m-d'),
+        ]));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertSee('NOTYET');
+    }
+
+    public function test_expired_promo_is_excluded_from_the_choose_promo_discount_dropdown(): void
+    {
+        Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'ALLGONE', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ]));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertDontSee('ALLGONE</option>', false);
+    }
+
+    // Even if a stale tab has an already-expired promo's id in hand (e.g.
+    // the page was left open past its EndDate), the server must still
+    // refuse to apply it — the dropdown filter alone isn't enough.
+    public function test_assign_products_rejects_an_expired_promo_even_if_directly_requested(): void
+    {
+        $expired = Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'ALLGONE', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ]));
+
+        $response = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $expired), [
+            'product_ids' => [$this->product->ProductID],
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson(['success' => false]);
+        $this->assertFalse($expired->fresh()->products->contains('ProductID', $this->product->ProductID));
+    }
+
+    // The expired promo's full information must still be intact and
+    // reachable via History/View Details — expiring never deletes or
+    // duplicates the record.
+    public function test_expired_promo_is_preserved_intact_in_history_with_no_duplicate_record(): void
+    {
+        $expired = Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'ALLGONE', 'Name' => 'Old Campaign', 'DiscountRate' => 15,
+            'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ]));
+        $expired->products()->attach($this->product->ProductID);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.history'));
+
+        $response->assertOk();
+        $expiredHtml = $response->json('expiredHtml');
+        $this->assertStringContainsString('Old Campaign', $expiredHtml);
+        $this->assertStringContainsString('ALLGONE', $expiredHtml);
+        $this->assertStringContainsString('15.00%', $expiredHtml);
+        $this->assertStringContainsString($this->product->ProductName, $expiredHtml);
+        $this->assertStringContainsString('Expired', $expiredHtml);
+
+        // Exactly one row for this promo — no duplicate was created when it expired.
+        $this->assertSame(1, Discount::where('PromoCode', 'ALLGONE')->count());
+        $this->assertDatabaseHas('Discount', ['DiscountID' => $expired->DiscountID, 'PromoCode' => 'ALLGONE']);
     }
 
     public function test_index_no_longer_shows_activate_deactivate_or_delete_controls(): void

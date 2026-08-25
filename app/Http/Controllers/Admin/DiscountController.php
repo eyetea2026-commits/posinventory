@@ -34,7 +34,12 @@ class DiscountController extends Controller
     {
         $search = $request->get('search');
 
+        // Expired promos never show in this list — they're moved to History
+        // automatically (a live query, not a stored flag: see
+        // Discount::scopeNotExpired() / getEffectiveStatusAttribute()) as
+        // soon as their EndDate passes, with no admin action needed.
         $discounts = Discount::with('products')
+            ->notExpired()
             ->when($search, function ($query) use ($search) {
                 $query->where('PromoCode', 'like', "%{$search}%")
                     ->orWhere('Name', 'like', "%{$search}%")
@@ -149,12 +154,14 @@ class DiscountController extends Controller
     // discountMeta/discountProductMap are built from EVERY Discount row
     // (not just ones with a PromoCode) so the View Details popup works for
     // every row Tab 1's list can show, including a pre-redesign legacy row
-    // that predates PromoCode existing. allDiscounts (the "Choose Promo
-    // Discount" dropdown's source) stays restricted to named, applicable
-    // promos — that's a deliberate, separate business rule.
+    // that predates PromoCode existing — expired ones included, since
+    // History needs to display them too. allDiscounts (the "Choose Promo
+    // Discount" dropdown's source) stays restricted to named, non-expired
+    // promos — an expired promo can never be selected to apply, matching
+    // assignProducts()'s own server-side expiry guard.
     private function applyTabData(): array
     {
-        $allDiscounts = Discount::whereNotNull('PromoCode')->orderBy('Name')
+        $allDiscounts = Discount::whereNotNull('PromoCode')->notExpired()->orderBy('Name')
             ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
 
         $allDiscountsForDetails = Discount::orderByDesc('DiscountID')
@@ -320,6 +327,18 @@ class DiscountController extends Controller
     // product in the same request.
     public function assignProducts(Request $request, Discount $discount)
     {
+        // Belt-and-suspenders: the "Choose Promo Discount" dropdown already
+        // excludes expired promos, but that's a client-side snapshot — a
+        // tab left open past the promo's EndDate, or a direct API call,
+        // must still be rejected here. An expired promo can never be
+        // applied to a product, full stop.
+        if ($discount->effective_status === Discount::STATUS_EXPIRED) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This promo has expired and can no longer be applied to products.',
+            ], 422);
+        }
+
         $data = $request->validate([
             'product_ids' => ['required', 'array', 'min:1'],
             'product_ids.*' => ['integer', 'exists:Product,ProductID'],

@@ -163,4 +163,19 @@ class Discount extends Model
                 $q->whereNull('EndDate')->orWhereDate('EndDate', '>=', $today);
             });
     }
+
+    // Just the "hasn't expired yet" half of scopeCurrentlyActive() — without
+    // the "has at least one product assigned" requirement, so it also keeps
+    // a brand-new promo (created but not yet applied to anything) visible.
+    // Used to hide expired promos from the admin's active Promo Discount
+    // list and "Choose Promo Discount" picker, which scopeCurrentlyActive()
+    // can't be reused for since it would also hide unassigned ones.
+    public function scopeNotExpired($query)
+    {
+        $today = now()->toDateString();
+
+        return $query->where(function ($q) use ($today) {
+            $q->whereNull('EndDate')->orWhereDate('EndDate', '>=', $today);
+        });
+    }
 }
