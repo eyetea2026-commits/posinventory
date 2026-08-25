@@ -244,13 +244,14 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('Create Discount/Promo');
         $response->assertSee('Applied Discount/Promo List');
         $response->assertSee('Bullet 2MP');
-        // The Apply tab's promo-card + compact multi-select-dropdown
-        // workflow, not the old side-by-side product-catalog layout.
-        $response->assertSee('Select a Promo');
-        $response->assertSee('Selected Promo');
+        // Main page: promo cards + Applied List only — no persistent
+        // "Selected Promo" card or product-selection section; those live
+        // inside the Apply Discount/Promo modal instead.
+        $response->assertSee('Select Promo Discount');
         $response->assertSee('Apply Discount/Promo', false);
         $response->assertDontSee('Assign Selected');
         $response->assertDontSee('Select Product(s)');
+        $response->assertDontSee('Selected Promo');
         $response->assertSee('DISCOUNT_META', false);
     }
 

@@ -173,32 +173,23 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* Apply tab — Select a Promo (left, cards) → Selected Promo + compact
-       product multi-select (right) → Applied List (main focus, below). */
-    .apply-tab-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
-    @media (max-width: 900px) { .apply-tab-layout { grid-template-columns: 1fr; } }
+    /* Apply tab — Select Promo Discount (cards, main page) → clicking one
+       opens the Apply modal (product picked there via radio buttons) →
+       Applied Discount/Promo List is the main-page focus. */
     .apply-picker-body { padding: 18px; }
 
-    .promo-card-list { display: flex; flex-direction: column; gap: 10px; max-height: 520px; overflow-y: auto; padding: 2px; }
-    .promo-card { display: block; cursor: pointer; }
-    .promo-card input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
-    .promo-card-body {
-        background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(148, 163, 184, 0.15);
-        border-radius: 12px; padding: 12px 14px; transition: border-color 0.15s ease, background 0.15s ease;
+    .promo-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .promo-card {
+        cursor: pointer; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(148, 163, 184, 0.15);
+        border-radius: 12px; padding: 12px 14px; transition: border-color 0.15s ease, transform 0.15s ease;
     }
-    .promo-card:hover .promo-card-body { border-color: rgba(59, 130, 246, 0.35); }
-    .promo-card.is-selected .promo-card-body { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+    .promo-card:hover { border-color: rgba(59, 130, 246, 0.4); transform: translateY(-2px); }
     .promo-card-name { font-weight: 700; color: #f8fafc; font-size: 0.92rem; margin-bottom: 2px; }
     .promo-card-code { color: #94a3b8; font-size: 0.76rem; margin-bottom: 6px; }
     .promo-card-value { color: #6ee7b7; font-weight: 600; font-size: 0.82rem; }
     .promo-card-dates { color: #94a3b8; font-size: 0.74rem; margin-top: 2px; }
 
-    .apply-promo-detail-card {
-        background: rgba(30, 41, 59, 0.6);
-        border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px; padding: 14px 16px;
-    }
-    .apply-promo-detail-card h4 { margin: 0 0 4px; font-size: 1.02rem; color: #f8fafc; }
-    .apply-promo-detail-card .promo-code-line { margin: 0 0 12px; color: #94a3b8; font-size: 0.82rem; }
+    /* Reused by the View Details modal's Promo Details section. */
     .apply-promo-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
     .apply-promo-detail-grid .detail-mini label {
         display: block; font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;
@@ -206,37 +197,28 @@
     }
     .apply-promo-detail-grid .detail-mini span { font-weight: 600; color: #e2e8f0; font-size: 0.88rem; }
 
-    /* Compact searchable multi-select ("combobox") — replaces the old
-       full product catalog entirely. */
-    .product-picker { position: relative; margin-top: 16px; }
-    .product-picker .picker-label {
-        display: block; font-size: 0.78rem; color: #94a3b8; text-transform: uppercase;
-        letter-spacing: 0.05em; margin-bottom: 6px;
+    /* Apply Discount/Promo modal — compact radio-button product list. */
+    .modal-product-list {
+        max-height: 320px; overflow-y: auto; margin-top: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px;
     }
-    .product-picker-control {
-        display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-        min-height: 44px; padding: 6px 10px; background: rgba(30, 41, 59, 0.8);
-        border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 10px; cursor: text;
+    .modal-product-row {
+        display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08); cursor: pointer; margin: 0;
     }
-    .product-picker-control.is-disabled { opacity: 0.6; cursor: not-allowed; }
-    .product-picker-control:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
-    .product-chip {
-        display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, 0.15);
-        color: #bfdbfe; border-radius: 8px; padding: 4px 8px; font-size: 0.82rem; white-space: nowrap;
+    .modal-product-row:last-child { border-bottom: none; }
+    .modal-product-row:hover { background: rgba(59, 130, 246, 0.06); }
+    .modal-product-row input[type="radio"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+    .modal-product-row .mp-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .modal-product-row .mp-name {
+        font-weight: 600; color: #f1f5f9; font-size: 0.9rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .product-chip button { background: none; border: none; color: #93c5fd; cursor: pointer; font-size: 0.9rem; line-height: 1; padding: 0; }
-    .product-picker-input { flex: 1; min-width: 140px; background: transparent; border: none; color: #f8fafc; font-size: 0.88rem; padding: 6px 2px; }
-    .product-picker-input:focus { outline: none; }
-    .product-picker-dropdown {
-        position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
-        background: #0f172a; border: 1px solid #334155; border-radius: 10px;
-        max-height: 260px; overflow-y: auto; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45); display: none;
+    .modal-product-row .mp-meta {
+        font-size: 0.78rem; color: #94a3b8;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .product-picker-dropdown.open { display: block; }
-    .product-picker-option { padding: 9px 12px; cursor: pointer; font-size: 0.85rem; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); }
-    .product-picker-option:last-child { border-bottom: none; }
-    .product-picker-option:hover { background: rgba(59, 130, 246, 0.12); }
-    .product-picker-option .opt-meta { color: #94a3b8; font-size: 0.76rem; }
+    .modal-product-row .mp-price { font-weight: 600; color: #e2e8f0; font-size: 0.85rem; flex-shrink: 0; }
     .product-picker-empty { padding: 12px; color: #94a3b8; font-size: 0.82rem; text-align: center; }
 
     /* Cleaner dot-prefixed status badge, scoped to the Apply tab only. */
@@ -322,51 +304,22 @@
 
 {{-- ===================== TAB 2 — APPLY ===================== --}}
 <div id="tab-apply" class="tab-panel">
-    <div class="apply-tab-layout">
-        <div class="card">
-            <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Select a Promo</h3></div>
-            <div class="apply-picker-body">
-                <div class="promo-card-list" id="promoCardList">
-                    @forelse($allDiscounts as $d)
-                        <label class="promo-card" data-promo-card data-promo-id="{{ $d->DiscountID }}">
-                            <input type="radio" name="applyPromoRadio" value="{{ $d->DiscountID }}" onchange="window.onApplyPromoChange()">
-                            <div class="promo-card-body">
-                                <div class="promo-card-name">{{ $d->Name }}</div>
-                                <div class="promo-card-code"><code>{{ $d->PromoCode }}</code></div>
-                                <div class="promo-card-value">
-                                    {{ $d->DiscountType === 'fixed' ? '₱' . number_format($d->DiscountRate, 2) : number_format($d->DiscountRate, 2) . '%' }} OFF
-                                </div>
-                                <div class="promo-card-dates">{{ $d->StartDate?->format('M d') ?? '—' }} – {{ $d->EndDate?->format('M d, Y') ?? '—' }}</div>
-                            </div>
-                        </label>
-                    @empty
-                        <p class="empty-text" style="margin:0;">No promos yet — create one in the "Create Discount/Promo" tab.</p>
-                    @endforelse
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Selected Promo</h3></div>
-            <div class="apply-picker-body">
-                <div id="applyPromoDetail">
-                    <p class="empty-text" style="margin:0; padding:0;">Select a promo on the left to apply it to products.</p>
-                </div>
-
-                <div class="product-picker" id="productPicker">
-                    <label class="picker-label">Products</label>
-                    <div class="product-picker-control is-disabled" id="productPickerControl">
-                        <span id="productChips"></span>
-                        <input type="text" id="productPickerInput" class="product-picker-input" placeholder="Select a promo first…" autocomplete="off" disabled>
+    <div class="card">
+        <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Select Promo Discount</h3></div>
+        <div class="apply-picker-body">
+            <div class="promo-card-grid" id="promoCardGrid">
+                @forelse($allDiscounts as $d)
+                    <div class="promo-card" data-promo-id="{{ $d->DiscountID }}" onclick="window.openApplyModal({{ $d->DiscountID }})">
+                        <div class="promo-card-name">{{ $d->Name }}</div>
+                        <div class="promo-card-code"><code>{{ $d->PromoCode }}</code></div>
+                        <div class="promo-card-value">
+                            {{ $d->DiscountType === 'fixed' ? '₱' . number_format($d->DiscountRate, 2) : number_format($d->DiscountRate, 2) . '%' }} OFF
+                        </div>
+                        <div class="promo-card-dates">{{ $d->StartDate?->format('M d') ?? '—' }} – {{ $d->EndDate?->format('M d, Y') ?? '—' }}</div>
                     </div>
-                    <div class="product-picker-dropdown" id="productPickerDropdown"></div>
-                </div>
-
-                <div style="display:flex; justify-content:flex-end; margin-top:16px;">
-                    <button type="button" id="assignSelectedBtn" class="btn btn-primary" disabled onclick="window.assignSelectedProducts()">
-                        <i class="fa-solid fa-check"></i> Apply Discount/Promo
-                    </button>
-                </div>
+                @empty
+                    <p class="empty-text" style="margin:0;">No promos yet — create one in the "Create Discount/Promo" tab.</p>
+                @endforelse
             </div>
         </div>
     </div>
@@ -441,6 +394,34 @@
         <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="editDiscountCancelBtn"><i class="fas fa-times"></i> Cancel</button>
             <button type="button" class="btn btn-primary" id="editDiscountSubmitBtn"><i class="fas fa-save"></i> Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Apply Discount/Promo Modal (product selection) -->
+<div id="applyPromoModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="applyPromoModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="applyPromoModalTitle"><i class="fa-solid fa-tags"></i> Apply Discount/Promo</h2>
+            <button type="button" class="modal-close" onclick="closeApplyModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="form-group">
+            <label>Promo</label>
+            <div id="applyModalPromoLine" style="font-weight:700; color:#f8fafc; padding:6px 0 2px;"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Select Product</label>
+            <input type="text" id="applyModalSearchInput" class="form-control" placeholder="Search product by name or SKU…" autocomplete="off">
+            <div class="modal-product-list" id="applyModalProductList"></div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeApplyModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="applyModalSubmitBtn" disabled onclick="window.submitApplyModal()">
+                <i class="fa-solid fa-check"></i> Apply Discount/Promo
+            </button>
         </div>
     </div>
 </div>
@@ -567,35 +548,18 @@
     // ---- Tab 2: Apply Discount/Promo ----
     (function () {
         {{-- {id, name, sku, category} objects per promo — the source of
-             truth for "already assigned" (excluded from the picker) and for
-             the View Details modal's Applied Products table. Built in
-             DiscountController::index() rather than inline here — see that
-             method's comment for why. --}}
+             truth for "already assigned" (excluded from the Apply modal's
+             radio list) and for the View Details modal's Applied Products
+             table. Built in DiscountController::index() rather than inline
+             here — see that method's comment for why. --}}
         const DISCOUNT_PRODUCT_MAP = @json($discountProductMap);
 
-        {{-- Everything the compact "Selected Promo" detail card and the
-             View Details modal need to render without a second request. --}}
+        {{-- Everything the Apply modal's promo line and the View Details
+             modal need to render without a second request. --}}
         const DISCOUNT_META = @json($discountMeta);
 
-        const promoCardListEl = document.getElementById('promoCardList');
-        const promoDetailEl = document.getElementById('applyPromoDetail');
-        const pickerControl = document.getElementById('productPickerControl');
-        const pickerInput = document.getElementById('productPickerInput');
-        const pickerChips = document.getElementById('productChips');
-        const pickerDropdown = document.getElementById('productPickerDropdown');
-        const assignBtn = document.getElementById('assignSelectedBtn');
         const appliedTbody = document.getElementById('appliedAssignmentsTbody');
         const appliedPaginationWrapper = document.getElementById('appliedPaginationWrapper');
-
-        let selectedProducts = []; // pending chips: [{id, name, sku, category}]
-        let searchDebounce = null;
-        let searchController = null;
-        let lastResults = [];
-
-        function currentPromoId() {
-            const checked = promoCardListEl.querySelector('input[name="applyPromoRadio"]:checked');
-            return checked ? checked.value : '';
-        }
 
         function escapeHtmlLocal(str) {
             return String(str)
@@ -607,189 +571,145 @@
             return (promoId && DISCOUNT_PRODUCT_MAP[promoId]) ? DISCOUNT_PRODUCT_MAP[promoId].map(function (p) { return String(p.id); }) : [];
         }
 
-        function renderPromoDetail() {
-            const id = currentPromoId();
-            const meta = id ? DISCOUNT_META[id] : null;
-            if (!meta) {
-                promoDetailEl.innerHTML = '<p class="empty-text" style="margin:0; padding:0;">Select a promo on the left to apply it to products.</p>';
-                return;
-            }
-            promoDetailEl.innerHTML = `
-                <div class="apply-promo-detail-card">
-                    <h4>${escapeHtmlLocal(meta.name)}</h4>
-                    <p class="promo-code-line"><code>${escapeHtmlLocal(meta.code)}</code></p>
-                    <div class="apply-promo-detail-grid">
-                        <div class="detail-mini"><label>Discount Type</label><span>${escapeHtmlLocal(meta.typeLabel)}</span></div>
-                        <div class="detail-mini"><label>Discount Value</label><span>${escapeHtmlLocal(meta.valueLabel)}</span></div>
-                        <div class="detail-mini"><label>Start Date</label><span>${escapeHtmlLocal(meta.start)}</span></div>
-                        <div class="detail-mini"><label>Expiration Date</label><span>${escapeHtmlLocal(meta.end)}</span></div>
-                        <div class="detail-mini"><label>Status</label><span class="badge badge-dot ${meta.statusClass}">${escapeHtmlLocal(meta.statusLabel)}</span></div>
-                    </div>
-                </div>
-            `;
-        }
+        // ---- Apply Discount/Promo modal (promo card click → this) ----
+        let modalPromoId = null;
+        let modalSelectedProductId = null;
+        let modalLastResults = [];
+        let modalSearchDebounce = null;
+        let modalSearchController = null;
 
-        function renderChips() {
-            pickerChips.innerHTML = selectedProducts.map(function (p) {
-                return '<span class="product-chip">' + escapeHtmlLocal(p.name) +
-                    '<button type="button" data-remove-chip="' + p.id + '" aria-label="Remove">&times;</button></span>';
-            }).join('');
-        }
+        const modalSearchInput = document.getElementById('applyModalSearchInput');
+        const modalProductList = document.getElementById('applyModalProductList');
+        const modalSubmitBtn = document.getElementById('applyModalSubmitBtn');
 
-        function updateAssignButtonState() {
-            assignBtn.disabled = !(currentPromoId() && selectedProducts.length > 0);
-        }
+        window.openApplyModal = function (promoId) {
+            modalPromoId = String(promoId);
+            modalSelectedProductId = null;
+            modalLastResults = [];
 
-        function updatePickerEnabledState() {
-            const hasPromo = !!currentPromoId();
-            pickerControl.classList.toggle('is-disabled', !hasPromo);
-            pickerInput.disabled = !hasPromo;
-            pickerInput.placeholder = hasPromo ? 'Select product(s)…' : 'Select a promo first…';
-        }
+            const meta = DISCOUNT_META[promoId];
+            document.getElementById('applyModalPromoLine').textContent = meta ? (meta.name + ' (' + meta.code + ')') : '';
+            modalSearchInput.value = '';
+            modalSubmitBtn.disabled = true;
+            modalProductList.innerHTML = '';
 
-        window.onApplyPromoChange = function () {
-            promoCardListEl.querySelectorAll('[data-promo-card]').forEach(function (card) {
-                card.classList.toggle('is-selected', card.dataset.promoId === currentPromoId());
-            });
-            selectedProducts = [];
-            renderChips();
-            renderPromoDetail();
-            updatePickerEnabledState();
-            updateAssignButtonState();
-            closeDropdown();
+            const modal = document.getElementById('applyPromoModal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            void modal.offsetHeight;
+            requestAnimationFrame(function () { modal.classList.add('active'); });
+
+            searchModalProducts('');
         };
 
-        function closeDropdown() {
-            pickerDropdown.classList.remove('open');
-            pickerDropdown.innerHTML = '';
-        }
+        window.closeApplyModal = function () {
+            const modal = document.getElementById('applyPromoModal');
+            modal.classList.remove('active');
+            setTimeout(function () { modal.style.display = 'none'; }, 250);
+            document.body.style.overflow = '';
+            modalPromoId = null;
+        };
 
-        function renderDropdown(products) {
-            const promoId = currentPromoId();
-            const assignedIds = assignedIdsFor(promoId);
-            const selectedIds = selectedProducts.map(function (p) { return String(p.id); });
-            const available = products.filter(function (p) {
-                return !assignedIds.includes(String(p.id)) && !selectedIds.includes(String(p.id));
-            });
+        document.getElementById('applyPromoModal').addEventListener('mousedown', function (e) {
+            if (e.target === this) window.closeApplyModal();
+        });
 
-            if (!available.length) {
-                pickerDropdown.innerHTML = '<div class="product-picker-empty">No matching products.</div>';
-            } else {
-                pickerDropdown.innerHTML = available.map(function (p) {
-                    return '<div class="product-picker-option" data-option-id="' + p.id + '">' +
-                        escapeHtmlLocal(p.name) +
-                        '<div class="opt-meta">SKU: ' + escapeHtmlLocal(p.sku || '—') + ' &middot; ' + escapeHtmlLocal(p.category || '—') +
-                        ' &middot; ₱' + Number(p.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div></div>';
-                }).join('');
-            }
-            pickerDropdown.classList.add('open');
-        }
+        modalSearchInput.addEventListener('input', function () {
+            clearTimeout(modalSearchDebounce);
+            const query = this.value.trim();
+            modalSearchDebounce = setTimeout(function () { searchModalProducts(query); }, 250);
+        });
 
-        async function searchProducts(query) {
-            if (searchController) searchController.abort();
-            searchController = new AbortController();
+        async function searchModalProducts(query) {
+            if (modalSearchController) modalSearchController.abort();
+            modalSearchController = new AbortController();
             const url = '{{ route('admin.discounts.index') }}?ajax_products=1' + (query ? '&product_search=' + encodeURIComponent(query) : '');
 
             try {
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                    signal: searchController.signal,
+                    signal: modalSearchController.signal,
                 });
                 if (!response.ok) throw new Error('Request failed');
                 const data = await response.json();
-                lastResults = data.products || [];
-                renderDropdown(lastResults);
+                modalLastResults = data.products || [];
+                renderModalProductList();
             } catch (err) {
                 if (err.name === 'AbortError') return;
-                pickerDropdown.innerHTML = '<div class="product-picker-empty">Unable to load products.</div>';
-                pickerDropdown.classList.add('open');
+                modalProductList.innerHTML = '<div class="product-picker-empty">Unable to load products.</div>';
             }
         }
 
-        pickerInput.addEventListener('focus', function () {
-            if (!currentPromoId()) return;
-            searchProducts(pickerInput.value.trim());
-        });
+        function renderModalProductList() {
+            const assignedIds = assignedIdsFor(modalPromoId);
+            const available = modalLastResults.filter(function (p) { return !assignedIds.includes(String(p.id)); });
 
-        pickerInput.addEventListener('input', function () {
-            clearTimeout(searchDebounce);
-            searchDebounce = setTimeout(function () { searchProducts(pickerInput.value.trim()); }, 250);
-        });
+            if (!available.length) {
+                modalProductList.innerHTML = '<div class="product-picker-empty">No matching products.</div>';
+                return;
+            }
 
-        pickerDropdown.addEventListener('click', function (e) {
-            const option = e.target.closest('[data-option-id]');
-            if (!option) return;
-            const id = option.dataset.optionId;
-            const product = lastResults.find(function (p) { return String(p.id) === String(id); });
-            if (!product) return;
+            modalProductList.innerHTML = available.map(function (p) {
+                const checked = String(p.id) === String(modalSelectedProductId) ? 'checked' : '';
+                return `
+                    <label class="modal-product-row">
+                        <input type="radio" name="applyModalProductRadio" value="${p.id}" ${checked}>
+                        <span class="mp-info">
+                            <span class="mp-name">${escapeHtmlLocal(p.name)}</span>
+                            <span class="mp-meta">SKU: ${escapeHtmlLocal(p.sku || '—')} &middot; ${escapeHtmlLocal(p.category || '—')}</span>
+                        </span>
+                        <span class="mp-price">₱${Number(p.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </label>
+                `;
+            }).join('');
 
-            selectedProducts.push(product);
-            renderChips();
-            updateAssignButtonState();
-            pickerInput.value = '';
-            pickerInput.focus();
-            renderDropdown(lastResults);
-        });
-
-        pickerChips.addEventListener('click', function (e) {
-            const btn = e.target.closest('[data-remove-chip]');
-            if (!btn) return;
-            const id = btn.dataset.removeChip;
-            selectedProducts = selectedProducts.filter(function (p) { return String(p.id) !== String(id); });
-            renderChips();
-            updateAssignButtonState();
-        });
-
-        document.addEventListener('click', function (e) {
-            if (!e.target.closest('#productPicker')) closeDropdown();
-        });
-
-        window.assignSelectedProducts = function () {
-            const discountId = currentPromoId();
-            if (!discountId || !selectedProducts.length) return;
-            const productIds = selectedProducts.map(function (p) { return p.id; });
-
-            window.confirmAction({ title: 'Apply Promo', text: 'Apply this promo to ' + productIds.length + ' product(s)?' }).then(function (result) {
-                if (!result.isConfirmed) return;
-
-                assignBtn.disabled = true;
-                assignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
-
-                fetch('{{ url('admin/discounts') }}/' + discountId + '/products', {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    },
-                    body: JSON.stringify({ product_ids: productIds }),
-                })
-                    .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-                    .then(function ({ ok, data }) {
-                        if (!ok || !data.success) {
-                            toastError(data.message || 'Failed to apply promo.');
-                            return;
-                        }
-                        if (!DISCOUNT_PRODUCT_MAP[discountId]) DISCOUNT_PRODUCT_MAP[discountId] = [];
-                        const newlyAssigned = selectedProducts.filter(function (p) {
-                            return data.assigned.map(String).includes(String(p.id));
-                        });
-                        DISCOUNT_PRODUCT_MAP[discountId] = DISCOUNT_PRODUCT_MAP[discountId].concat(newlyAssigned);
-                        toastSuccess(data.message);
-                        // Clear the pending selection — the promo stays selected.
-                        selectedProducts = [];
-                        renderChips();
-                        updateAssignButtonState();
-                        reloadAppliedList();
-                    })
-                    .catch(function () { toastError('Failed to apply promo. Please try again.'); })
-                    .finally(function () {
-                        assignBtn.innerHTML = '<i class="fa-solid fa-check"></i> Apply Discount/Promo';
-                        updateAssignButtonState();
-                    });
+            modalProductList.querySelectorAll('input[name="applyModalProductRadio"]').forEach(function (radio) {
+                radio.addEventListener('change', function () {
+                    modalSelectedProductId = this.value;
+                    modalSubmitBtn.disabled = false;
+                });
             });
+        }
+
+        window.submitApplyModal = function () {
+            if (!modalPromoId || !modalSelectedProductId) return;
+            const promoId = modalPromoId;
+            const productId = modalSelectedProductId;
+
+            modalSubmitBtn.disabled = true;
+            modalSubmitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
+
+            fetch('{{ url('admin/discounts') }}/' + promoId + '/products', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ product_ids: [productId] }),
+            })
+                .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+                .then(function ({ ok, data }) {
+                    if (!ok || !data.success) {
+                        toastError(data.message || 'Failed to apply promo.');
+                        return;
+                    }
+                    const product = modalLastResults.find(function (p) { return String(p.id) === String(productId); });
+                    if (!DISCOUNT_PRODUCT_MAP[promoId]) DISCOUNT_PRODUCT_MAP[promoId] = [];
+                    if (product && data.assigned.map(String).includes(String(productId))) {
+                        DISCOUNT_PRODUCT_MAP[promoId].push(product);
+                    }
+                    toastSuccess(data.message);
+                    window.closeApplyModal();
+                    reloadAppliedList();
+                })
+                .catch(function () { toastError('Failed to apply promo. Please try again.'); })
+                .finally(function () {
+                    modalSubmitBtn.innerHTML = '<i class="fa-solid fa-check"></i> Apply Discount/Promo';
+                    modalSubmitBtn.disabled = !modalSelectedProductId;
+                });
         };
 
         // ---- Applied Discount/Promo List ----
@@ -839,11 +759,9 @@
                 }).join('')
                 : '<tr><td colspan="3"><div class="empty-state"><p class="empty-text">No products assigned to this promo.</p></div></td></tr>';
 
-            document.getElementById('promoDetailsModalTitle').innerHTML =
-                '<i class="fa-solid fa-tags"></i> ' + escapeHtmlLocal(meta.name) + ' (' + escapeHtmlLocal(meta.code) + ')';
-
             document.getElementById('promoDetailsBody').innerHTML = `
-                <h3 class="section-title" style="margin-top:0;">Promo Details</h3>
+                <h3 style="margin:0 0 14px; font-size:1.1rem; color:#f8fafc;">${escapeHtmlLocal(meta.name)} (${escapeHtmlLocal(meta.code)})</h3>
+                <h3 class="section-title">Promo Details</h3>
                 <div class="apply-promo-detail-grid" style="margin-bottom:18px;">
                     <div class="detail-mini"><label>Discount Type</label><span>${escapeHtmlLocal(meta.typeLabel)}</span></div>
                     <div class="detail-mini"><label>Discount Value</label><span>${escapeHtmlLocal(meta.valueLabel)}</span></div>
@@ -851,7 +769,7 @@
                     <div class="detail-mini"><label>Expiration Date</label><span>${escapeHtmlLocal(meta.end)}</span></div>
                     <div class="detail-mini"><label>Status</label><span class="badge badge-dot ${meta.statusClass}">${escapeHtmlLocal(meta.statusLabel)}</span></div>
                 </div>
-                <h3 class="section-title">Applied Products</h3>
+                <h3 class="section-title">Applied Product${products.length === 1 ? '' : 's'}</h3>
                 <div style="overflow-x:auto;">
                     <table class="table">
                         <thead><tr><th>Product Name</th><th>SKU</th><th>Category</th></tr></thead>
@@ -877,9 +795,6 @@
         document.getElementById('promoDetailsModal').addEventListener('mousedown', function (e) {
             if (e.target === this) window.closePromoDetails();
         });
-
-        updatePickerEnabledState();
-        updateAssignButtonState();
     })();
 
     // ---- History modal ----
