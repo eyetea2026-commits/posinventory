@@ -199,7 +199,6 @@
         min-height: 44px; padding: 6px 10px; background: rgba(30, 41, 59, 0.8);
         border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 10px; cursor: text;
     }
-    .product-picker-control.is-disabled { opacity: 0.6; cursor: not-allowed; }
     .product-picker-control:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
     .product-chip {
         display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, 0.15);
@@ -317,26 +316,6 @@
     </div>
 
     <div class="card" style="margin-top:20px;">
-        <div class="card-header"><h3 style="margin:0; font-size:0.95rem; color:#f8fafc;">Apply to Products</h3></div>
-        <div class="apply-picker-body">
-            <div class="product-picker" id="productPicker">
-                <label class="picker-label">Products</label>
-                <div class="product-picker-control is-disabled" id="productPickerControl">
-                    <span id="productChips"></span>
-                    <input type="text" id="productPickerInput" class="product-picker-input" placeholder="Select a promo first…" autocomplete="off" disabled>
-                </div>
-                <div class="product-picker-dropdown" id="productPickerDropdown"></div>
-            </div>
-
-            <div style="display:flex; justify-content:flex-end; margin-top:16px;">
-                <button type="button" id="assignSelectedBtn" class="btn btn-primary" disabled onclick="window.assignSelectedProducts()">
-                    <i class="fa-solid fa-check"></i> Apply Discount/Promo
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div class="card" style="margin-top:20px;">
         <div class="card-header"><h3 style="margin:0; font-size:1.1rem; color:#f8fafc;">Applied Discount/Promo List</h3></div>
         <div class="card-body">
             <div style="overflow-x:auto;">
@@ -406,6 +385,39 @@
         <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="editDiscountCancelBtn"><i class="fas fa-times"></i> Cancel</button>
             <button type="button" class="btn btn-primary" id="editDiscountSubmitBtn"><i class="fas fa-save"></i> Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Apply Discount/Promo popup (multi-select product picker) -->
+<div id="applyProductsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="applyProductsModalTitle" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="applyProductsModalTitle"><i class="fa-solid fa-tags"></i> Apply Discount/Promo</h2>
+            <button type="button" class="modal-close" onclick="closeApplyModal()" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="form-group">
+            <label>Promo</label>
+            <div id="applyModalPromoLine" style="font-weight:700; color:#f8fafc; padding:6px 0 2px;"></div>
+        </div>
+
+        <div class="form-group">
+            <div class="product-picker" id="productPicker">
+                <label class="picker-label">Products</label>
+                <div class="product-picker-control" id="productPickerControl">
+                    <span id="productChips"></span>
+                    <input type="text" id="productPickerInput" class="product-picker-input" placeholder="Select product(s)…" autocomplete="off">
+                </div>
+                <div class="product-picker-dropdown" id="productPickerDropdown"></div>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeApplyModal()">Cancel</button>
+            <button type="button" id="assignSelectedBtn" class="btn btn-primary" disabled onclick="window.assignSelectedProducts()">
+                <i class="fa-solid fa-check"></i> Apply Discount/Promo
+            </button>
         </div>
     </div>
 </div>
@@ -543,7 +555,6 @@
         const DISCOUNT_META = @json($discountMeta);
 
         const promoSelect = document.getElementById('applyPromoSelect');
-        const pickerControl = document.getElementById('productPickerControl');
         const pickerInput = document.getElementById('productPickerInput');
         const pickerChips = document.getElementById('productChips');
         const pickerDropdown = document.getElementById('productPickerDropdown');
@@ -579,20 +590,47 @@
             assignBtn.disabled = !(currentPromoId() && selectedProducts.length > 0);
         }
 
-        function updatePickerEnabledState() {
-            const hasPromo = !!currentPromoId();
-            pickerControl.classList.toggle('is-disabled', !hasPromo);
-            pickerInput.disabled = !hasPromo;
-            pickerInput.placeholder = hasPromo ? 'Select product(s)…' : 'Select a promo first…';
-        }
-
+        // Choosing a promo from the small "Select a Promo Discount" combo
+        // box opens the Apply Discount/Promo popup — product selection
+        // never sits permanently on the main page.
         window.onApplyPromoChange = function () {
+            if (currentPromoId()) window.openApplyModal();
+        };
+
+        window.openApplyModal = function () {
+            const id = currentPromoId();
+            if (!id) return;
+            const meta = DISCOUNT_META[id];
+            document.getElementById('applyModalPromoLine').textContent = meta ? (meta.name + ' (' + meta.code + ')') : '';
+
             selectedProducts = [];
             renderChips();
-            updatePickerEnabledState();
             updateAssignButtonState();
+            pickerInput.value = '';
             closeDropdown();
+
+            const modal = document.getElementById('applyProductsModal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            void modal.offsetHeight;
+            requestAnimationFrame(function () { modal.classList.add('active'); });
+            pickerInput.focus();
         };
+
+        window.closeApplyModal = function () {
+            const modal = document.getElementById('applyProductsModal');
+            modal.classList.remove('active');
+            setTimeout(function () { modal.style.display = 'none'; }, 250);
+            document.body.style.overflow = '';
+            closeDropdown();
+            promoSelect.value = '';
+            selectedProducts = [];
+            renderChips();
+        };
+
+        document.getElementById('applyProductsModal').addEventListener('mousedown', function (e) {
+            if (e.target === this) window.closeApplyModal();
+        });
 
         function closeDropdown() {
             pickerDropdown.classList.remove('open');
@@ -713,10 +751,7 @@
                         });
                         DISCOUNT_PRODUCT_MAP[discountId] = DISCOUNT_PRODUCT_MAP[discountId].concat(newlyAssigned);
                         toastSuccess(data.message);
-                        // Clear the pending selection — the promo stays selected.
-                        selectedProducts = [];
-                        renderChips();
-                        updateAssignButtonState();
+                        window.closeApplyModal();
                         reloadAppliedList();
                     })
                     .catch(function () { toastError('Failed to apply promo. Please try again.'); })
@@ -811,7 +846,6 @@
             if (e.target === this) window.closePromoDetails();
         });
 
-        updatePickerEnabledState();
         updateAssignButtonState();
     })();
 

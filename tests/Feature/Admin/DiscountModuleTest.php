@@ -244,12 +244,14 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('Create Discount/Promo');
         $response->assertSee('Applied Discount/Promo List');
         $response->assertSee('Bullet 2MP');
-        // Main page: a small "Select a Promo Discount" combo box, an inline
-        // multi-select "Products" combobox, and the Applied List — no
-        // large promo-card grid and no product-selection modal.
+        // Main page: only the small "Select a Promo Discount" combo box and
+        // the Applied List — product selection lives entirely inside the
+        // Apply Discount/Promo popup, triggered by choosing a promo.
         $response->assertSee('Select a Promo Discount');
         $response->assertSee('Choose Promo Discount');
-        $response->assertSee('Apply Discount/Promo', false);
+        $response->assertSee('applyProductsModal', false);
+        $response->assertSee('applyModalPromoLine', false);
+        $response->assertDontSee('Apply to Products');
         $response->assertDontSee('Select Promo Discount', false);
         $response->assertDontSee('Assign Selected');
         $response->assertDontSee('Select Product(s)');
