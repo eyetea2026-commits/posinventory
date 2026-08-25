@@ -299,6 +299,65 @@ class DiscountModuleTest extends TestCase
         $this->assertStringContainsString('SUMMER20', $response->json('rows'));
     }
 
+    // Once a promo's assignment has expired, it must disappear from the
+    // Applied Discount/Promo List entirely (not just show an "Expired"
+    // badge while staying listed) and surface only through History →
+    // Expired instead — using the same Discount/DiscountProduct rows, no
+    // duplicate record created anywhere.
+    public function test_expired_applied_assignment_moves_from_the_applied_list_to_history(): void
+    {
+        $active = Discount::create($this->basePromoPayload(['PromoCode' => 'STILLGOOD']));
+        $active->products()->attach($this->product->ProductID);
+
+        $expired = Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'ALLGONE', 'Name' => 'Old Campaign', 'DiscountRate' => 15,
+            'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ]));
+        $expired->products()->attach($this->product->ProductID);
+
+        $appliedResponse = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_applied' => 1]));
+        $appliedResponse->assertOk();
+        $appliedRows = $appliedResponse->json('rows');
+        $this->assertStringContainsString('STILLGOOD', $appliedRows);
+        $this->assertStringNotContainsString('ALLGONE', $appliedRows);
+
+        $historyResponse = $this->actingAs($this->admin)->getJson(route('admin.discounts.history'));
+        $historyResponse->assertOk();
+        $expiredHtml = $historyResponse->json('expiredHtml');
+        $this->assertStringContainsString('Old Campaign', $expiredHtml);
+        $this->assertStringContainsString('ALLGONE', $expiredHtml);
+        $this->assertStringContainsString('15.00%', $expiredHtml);
+        $this->assertStringContainsString($this->product->ProductName, $expiredHtml);
+        $this->assertStringContainsString('Expired', $expiredHtml);
+
+        // No duplicate rows anywhere — same underlying pivot/promo records.
+        $this->assertSame(1, Discount::where('PromoCode', 'ALLGONE')->count());
+        $this->assertSame(1, \Illuminate\Support\Facades\DB::table('DiscountProduct')
+            ->where('DiscountID', $expired->DiscountID)->where('ProductID', $this->product->ProductID)->count());
+    }
+
+    // The expired promo's own assignment must not be re-applicable, even
+    // to a different product, once it has expired.
+    public function test_expired_promo_cannot_be_applied_to_another_product_either(): void
+    {
+        $expired = Discount::create(array_merge($this->basePromoPayload(), [
+            'PromoCode' => 'ALLGONE', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ]));
+
+        $otherProduct = Product::create([
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
+        ]);
+
+        $response = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $expired), [
+            'product_ids' => [$otherProduct->ProductID],
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson(['success' => false, 'message' => 'This promo has already expired and can no longer be applied.']);
+        $this->assertFalse($expired->fresh()->products->contains('ProductID', $otherProduct->ProductID));
+    }
+
     public function test_applied_list_shows_view_details_and_not_a_delete_action(): void
     {
         $discount = Discount::create($this->basePromoPayload());

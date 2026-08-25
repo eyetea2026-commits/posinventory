@@ -107,11 +107,20 @@ class DiscountController extends Controller
         }
 
         // Tab 2's "Applied Discount/Promo List" — one row per product-promo
-        // assignment (a DiscountProduct pivot row), not per promo.
+        // assignment (a DiscountProduct pivot row), not per promo. Once the
+        // promo's EndDate passes, its assignment rows stop showing here at
+        // all — they're not deleted, just no longer part of this "currently
+        // active" view; they keep showing under History → Expired instead
+        // (same underlying Discount/DiscountProduct rows, no duplication).
+        $today = now()->toDateString();
+
         $appliedAssignments = \Illuminate\Support\Facades\DB::table('DiscountProduct')
             ->join('Discount', 'Discount.DiscountID', '=', 'DiscountProduct.DiscountID')
             ->join('Product', 'Product.ProductID', '=', 'DiscountProduct.ProductID')
             ->whereNull('Discount.deleted_at')
+            ->where(function ($q) use ($today) {
+                $q->whereNull('Discount.EndDate')->orWhereDate('Discount.EndDate', '>=', $today);
+            })
             ->select(
                 'DiscountProduct.id as pivot_id',
                 'Discount.DiscountID', 'Discount.Name', 'Discount.PromoCode', 'Discount.DiscountType',
@@ -335,7 +344,7 @@ class DiscountController extends Controller
         if ($discount->effective_status === Discount::STATUS_EXPIRED) {
             return response()->json([
                 'success' => false,
-                'message' => 'This promo has expired and can no longer be applied to products.',
+                'message' => 'This promo has already expired and can no longer be applied.',
             ], 422);
         }
 
