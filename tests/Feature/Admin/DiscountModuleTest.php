@@ -244,14 +244,16 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('Create Discount/Promo');
         $response->assertSee('Applied Discount/Promo List');
         $response->assertSee('Bullet 2MP');
-        // Main page: promo cards + Applied List only — no persistent
-        // "Selected Promo" card or product-selection section; those live
-        // inside the Apply Discount/Promo modal instead.
-        $response->assertSee('Select Promo Discount');
+        // Main page: a small "Select a Promo Discount" combo box, an inline
+        // multi-select "Products" combobox, and the Applied List — no
+        // large promo-card grid and no product-selection modal.
+        $response->assertSee('Select a Promo Discount');
+        $response->assertSee('Choose Promo Discount');
         $response->assertSee('Apply Discount/Promo', false);
+        $response->assertDontSee('Select Promo Discount', false);
         $response->assertDontSee('Assign Selected');
         $response->assertDontSee('Select Product(s)');
-        $response->assertDontSee('Selected Promo');
+        $response->assertDontSee('applyPromoModal', false);
         $response->assertSee('DISCOUNT_META', false);
     }
 
