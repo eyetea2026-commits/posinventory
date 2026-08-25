@@ -104,13 +104,46 @@ class DiscountController extends Controller
             ]);
         }
 
+        $allDiscounts = Discount::whereNotNull('PromoCode')->orderBy('Name')
+            ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
+
         return view('admin.discounts.index', [
             'discounts' => $discounts,
             'search' => $search,
             'products' => $products,
             'productSearch' => $productSearch,
             'appliedAssignments' => $appliedAssignments,
-            'allDiscounts' => Discount::whereNotNull('PromoCode')->orderBy('Name')->get(['DiscountID', 'Name', 'PromoCode']),
+            'allDiscounts' => $allDiscounts,
+            // Pre-built in PHP (not inline in the Blade view) so the two
+            // @json() calls there stay simple single-variable expressions —
+            // Blade's @json directive splits its argument on every
+            // top-level comma to find an optional second (encoding-options)
+            // argument, which silently mangles anything more elaborate
+            // embedded directly in the view.
+            'discountProductMap' => $allDiscounts->mapWithKeys(function ($d) {
+                return [$d->DiscountID => $d->products()->get(['Product.ProductID', 'Product.ProductName'])
+                    ->map(fn ($p) => ['id' => $p->ProductID, 'name' => $p->ProductName])];
+            }),
+            'discountMeta' => $allDiscounts->mapWithKeys(function ($d) {
+                return [$d->DiscountID => [
+                    'name' => $d->Name,
+                    'code' => $d->PromoCode,
+                    'typeLabel' => $d->DiscountType === Discount::TYPE_FIXED ? 'Fixed Amount' : 'Percentage',
+                    'valueLabel' => $d->DiscountType === Discount::TYPE_FIXED
+                        ? '₱' . number_format($d->DiscountRate, 2)
+                        : number_format($d->DiscountRate, 2) . '%',
+                    'start' => $d->StartDate?->format('M d, Y') ?? '—',
+                    'end' => $d->EndDate?->format('M d, Y') ?? '—',
+                    // "Scheduled" here (Apply tab display only) rather than
+                    // the "Inactive" label Discount::STATUS_LABELS uses
+                    // elsewhere — a promo that hasn't started yet reads more
+                    // clearly as scheduled than inactive in this context.
+                    'statusLabel' => $d->effective_status === Discount::STATUS_EXPIRED ? 'Expired'
+                        : ($d->effective_status === Discount::STATUS_INACTIVE ? 'Scheduled' : 'Active'),
+                    'statusClass' => $d->effective_status === Discount::STATUS_EXPIRED ? 'badge-secondary'
+                        : ($d->effective_status === Discount::STATUS_INACTIVE ? 'badge-warning' : 'badge-success'),
+                ]];
+            }),
         ]);
     }
 

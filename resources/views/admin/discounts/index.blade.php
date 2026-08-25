@@ -173,20 +173,49 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* Apply tab layout */
-    .apply-layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
-    @media (max-width: 900px) { .apply-layout { grid-template-columns: 1fr; } }
+    /* Apply tab — stacked, compact workflow: Selected Promo (small) →
+       Select Product(s) (compact, scrollable) → Applied List (main focus). */
     .apply-picker-body { padding: 18px; }
-    .apply-assigned-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-    .apply-assigned-chip {
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.12);
-        border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; color: #cbd5e1;
+
+    .apply-promo-detail-card {
+        margin-top: 14px; background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px; padding: 14px 16px;
     }
-    .apply-assigned-chip .remove-chip { background: none; border: none; color: #fca5a5; cursor: pointer; font-size: 0.9rem; }
-    .apply-product-table th:first-child, .apply-product-table td:first-child { width: 40px; white-space: normal; }
-    .apply-product-table input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
-    tr[data-product-row].is-checked { background: rgba(16, 185, 129, 0.06); }
+    .apply-promo-detail-card h4 { margin: 0 0 4px; font-size: 1.02rem; color: #f8fafc; }
+    .apply-promo-detail-card .promo-code-line { margin: 0 0 12px; color: #94a3b8; font-size: 0.82rem; }
+    .apply-promo-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .apply-promo-detail-grid .detail-mini label {
+        display: block; font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;
+        letter-spacing: 0.05em; margin-bottom: 3px;
+    }
+    .apply-promo-detail-grid .detail-mini span { font-weight: 600; color: #e2e8f0; font-size: 0.88rem; }
+
+    .apply-product-list {
+        max-height: 320px; overflow-y: auto;
+        border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px;
+    }
+    .apply-product-row {
+        display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08); cursor: pointer; margin: 0;
+    }
+    .apply-product-row:last-child { border-bottom: none; }
+    .apply-product-row:hover { background: rgba(59, 130, 246, 0.06); }
+    .apply-product-row.is-checked { background: rgba(16, 185, 129, 0.08); }
+    .apply-product-row.is-disabled { opacity: 0.55; cursor: default; }
+    .apply-product-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+    .apply-product-row .apply-product-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .apply-product-row .apply-product-name {
+        font-weight: 600; color: #f1f5f9; font-size: 0.9rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .apply-product-row .apply-product-meta {
+        font-size: 0.78rem; color: #94a3b8;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .apply-product-row .apply-product-price { font-weight: 600; color: #e2e8f0; font-size: 0.85rem; flex-shrink: 0; }
+
+    /* Cleaner dot-prefixed status badge, scoped to the Apply tab only. */
+    .badge-dot::before { content: '●'; font-size: 0.7em; margin-right: 5px; }
 
     /* History modal */
     .history-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -262,58 +291,44 @@
 
 {{-- ===================== TAB 2 — APPLY ===================== --}}
 <div id="tab-apply" class="tab-panel">
-    <div class="apply-layout">
-        <div class="card">
-            <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Select a Promo</h3></div>
-            <div class="apply-picker-body">
-                <select id="applyPromoSelect" class="form-control" onchange="window.onApplyPromoChange()">
-                    <option value="">Choose a promo…</option>
-                    @foreach($allDiscounts as $d)
-                        <option value="{{ $d->DiscountID }}">{{ $d->Name }} ({{ $d->PromoCode }})</option>
-                    @endforeach
-                </select>
-                <div id="applyPromoAssignedList" class="apply-assigned-list">
-                    <p class="empty-text" style="margin:0; padding:0;">Select a promo to see its currently assigned products.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <form method="GET" id="applyProductFilterForm" class="search-box-wrapper" autocomplete="off" onsubmit="return false;">
-                    <i class="search-icon fas fa-search"></i>
-                    <input type="text" id="applyProductSearchInput" class="search-input" placeholder="Search products by name or SKU...">
-                </form>
-                <button type="button" id="assignSelectedBtn" class="btn btn-primary" disabled onclick="window.assignSelectedProducts()">
-                    <i class="fa-solid fa-check"></i> Assign Selected
-                </button>
-            </div>
-            <div class="card-body">
-                <div style="overflow-x:auto;">
-                    <table class="table apply-product-table">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>Product Name</th>
-                                <th>SKU</th>
-                                <th>Category</th>
-                                <th>Price</th>
-                            </tr>
-                        </thead>
-                        <tbody id="applyProductsTbody">
-                            @include('admin.discounts.partials.apply-product-rows', ['products' => $products])
-                        </tbody>
-                    </table>
-                </div>
-                <div id="applyProductPaginationWrapper">
-                    @include('admin.discounts.partials.pagination', ['discounts' => $products])
-                </div>
+    <div class="card">
+        <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Selected Promo</h3></div>
+        <div class="apply-picker-body">
+            <select id="applyPromoSelect" class="form-control" onchange="window.onApplyPromoChange()">
+                <option value="">Choose a promo…</option>
+                @foreach($allDiscounts as $d)
+                    <option value="{{ $d->DiscountID }}">{{ $d->Name }} ({{ $d->PromoCode }})</option>
+                @endforeach
+            </select>
+            <div id="applyPromoDetail">
+                <p class="empty-text" style="margin:14px 0 0; padding:0;">Select a promo to see its details.</p>
             </div>
         </div>
     </div>
 
     <div class="card" style="margin-top:20px;">
-        <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Applied Discount/Promo List</h3></div>
+        <div class="card-header"><h3 style="margin:0; font-size:1rem; color:#f8fafc;">Select Product(s)</h3></div>
+        <div class="apply-picker-body">
+            <form method="GET" id="applyProductFilterForm" class="search-box-wrapper" autocomplete="off" onsubmit="return false;" style="max-width:100%; margin-bottom:14px;">
+                <i class="search-icon fas fa-search"></i>
+                <input type="text" id="applyProductSearchInput" class="search-input" placeholder="Search product by name or SKU...">
+            </form>
+            <div class="apply-product-list" id="applyProductsList">
+                @include('admin.discounts.partials.apply-product-rows', ['products' => $products])
+            </div>
+            <div id="applyProductPaginationWrapper">
+                @include('admin.discounts.partials.pagination', ['discounts' => $products])
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+                <button type="button" id="assignSelectedBtn" class="btn btn-primary" disabled onclick="window.assignSelectedProducts()">
+                    <i class="fa-solid fa-check"></i> Apply Discount/Promo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+        <div class="card-header"><h3 style="margin:0; font-size:1.1rem; color:#f8fafc;">Applied Discount/Promo List</h3></div>
         <div class="card-body">
             <div style="overflow-x:auto;">
                 <table class="table">
@@ -493,19 +508,22 @@
 
     // ---- Tab 2: Apply Discount/Promo ----
     (function () {
-        {{-- {id, name} pairs (not just ids) so the assigned-products list can
-             show real names even for products outside the current page/search
-             of the picker table on the right. --}}
-        const DISCOUNT_PRODUCT_MAP = @json($allDiscounts->mapWithKeys(function ($d) {
-            return [$d->DiscountID => $d->products()->get(['Product.ProductID', 'Product.ProductName'])->map(function ($p) {
-                return ['id' => $p->ProductID, 'name' => $p->ProductName];
-            })];
-        }));
+        {{-- {id, name} pairs per promo — used to pre-check/disable products
+             already assigned to whichever promo is selected. Not rendered as
+             its own list anymore (the Applied List below already shows this
+             per-product), just used to drive checkbox state. Built in
+             DiscountController::index() rather than inline here — see that
+             method's comment for why. --}}
+        const DISCOUNT_PRODUCT_MAP = @json($discountProductMap);
+
+        {{-- Everything the compact "Selected Promo" detail card needs to
+             render without a second request — also built server-side. --}}
+        const DISCOUNT_META = @json($discountMeta);
 
         const promoSelect = document.getElementById('applyPromoSelect');
-        const assignedListEl = document.getElementById('applyPromoAssignedList');
+        const promoDetailEl = document.getElementById('applyPromoDetail');
         const productSearchInput = document.getElementById('applyProductSearchInput');
-        const productsTbody = document.getElementById('applyProductsTbody');
+        const productsListEl = document.getElementById('applyProductsList');
         const productsPaginationWrapper = document.getElementById('applyProductPaginationWrapper');
         const assignBtn = document.getElementById('assignSelectedBtn');
         const appliedTbody = document.getElementById('appliedAssignmentsTbody');
@@ -516,42 +534,55 @@
 
         function currentPromoId() { return promoSelect.value; }
 
-        function renderAssignedList() {
+        function renderPromoDetail() {
             const id = currentPromoId();
-            if (!id) {
-                assignedListEl.innerHTML = '<p class="empty-text" style="margin:0; padding:0;">Select a promo to see its currently assigned products.</p>';
+            const meta = id ? DISCOUNT_META[id] : null;
+            if (!meta) {
+                promoDetailEl.innerHTML = '<p class="empty-text" style="margin:14px 0 0; padding:0;">Select a promo to see its details.</p>';
                 return;
             }
-            const assigned = DISCOUNT_PRODUCT_MAP[id] || [];
-            if (!assigned.length) {
-                assignedListEl.innerHTML = '<p class="empty-text" style="margin:0; padding:0;">No products assigned to this promo yet.</p>';
-                return;
-            }
-            assignedListEl.innerHTML = assigned.map(function (p) {
-                return '<div class="apply-assigned-chip"><span>' + p.name + '</span></div>';
-            }).join('');
+            promoDetailEl.innerHTML = `
+                <div class="apply-promo-detail-card">
+                    <h4>${escapeHtmlLocal(meta.name)}</h4>
+                    <p class="promo-code-line"><code>${escapeHtmlLocal(meta.code)}</code></p>
+                    <div class="apply-promo-detail-grid">
+                        <div class="detail-mini"><label>Discount Type</label><span>${escapeHtmlLocal(meta.typeLabel)}</span></div>
+                        <div class="detail-mini"><label>Discount Value</label><span>${escapeHtmlLocal(meta.valueLabel)}</span></div>
+                        <div class="detail-mini"><label>Start Date</label><span>${escapeHtmlLocal(meta.start)}</span></div>
+                        <div class="detail-mini"><label>Expiration Date</label><span>${escapeHtmlLocal(meta.end)}</span></div>
+                        <div class="detail-mini"><label>Status</label><span class="badge badge-dot ${meta.statusClass}">${escapeHtmlLocal(meta.statusLabel)}</span></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function escapeHtmlLocal(str) {
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         function applyCheckedState() {
             const id = currentPromoId();
             const productIds = (id && DISCOUNT_PRODUCT_MAP[id]) ? DISCOUNT_PRODUCT_MAP[id].map(function (p) { return String(p.id); }) : [];
-            productsTbody.querySelectorAll('tr[data-product-row]').forEach(function (row) {
+            productsListEl.querySelectorAll('[data-product-row]').forEach(function (row) {
                 const checkbox = row.querySelector('.apply-product-checkbox');
                 const isAssigned = productIds.includes(row.dataset.productId);
                 checkbox.checked = isAssigned;
                 checkbox.disabled = isAssigned;
                 row.classList.toggle('is-checked', isAssigned);
+                row.classList.toggle('is-disabled', isAssigned);
             });
             updateAssignButtonState();
         }
 
         window.onApplyPromoChange = function () {
-            renderAssignedList();
+            renderPromoDetail();
             applyCheckedState();
         };
 
         window.onApplyProductCheckboxChange = function () {
-            document.querySelectorAll('tr[data-product-row]').forEach(function (row) {
+            productsListEl.querySelectorAll('[data-product-row]').forEach(function (row) {
                 const checkbox = row.querySelector('.apply-product-checkbox');
                 row.classList.toggle('is-checked', checkbox.checked);
             });
@@ -560,7 +591,7 @@
 
         function updateAssignButtonState() {
             const hasPromo = !!currentPromoId();
-            const hasSelection = !!productsTbody.querySelector('.apply-product-checkbox:checked:not(:disabled)');
+            const hasSelection = !!productsListEl.querySelector('.apply-product-checkbox:checked:not(:disabled)');
             assignBtn.disabled = !(hasPromo && hasSelection);
         }
 
@@ -586,14 +617,13 @@
                 });
                 if (!response.ok) throw new Error('Request failed');
                 const data = await response.json();
-                productsTbody.innerHTML = data.rows || '';
+                productsListEl.innerHTML = data.rows || '';
                 productsPaginationWrapper.innerHTML = data.pagination || '';
                 rebindProductPagination();
                 applyCheckedState();
-                renderAssignedList();
             } catch (err) {
                 if (err.name === 'AbortError') return;
-                productsTbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p class="empty-text">Unable to load products.</p></div></td></tr>';
+                productsListEl.innerHTML = '<div class="empty-state"><p class="empty-text">Unable to load products.</p></div>';
             }
         }
 
@@ -616,14 +646,14 @@
         window.assignSelectedProducts = function () {
             const discountId = currentPromoId();
             if (!discountId) return;
-            const productIds = Array.from(productsTbody.querySelectorAll('.apply-product-checkbox:checked:not(:disabled)')).map(function (cb) { return cb.value; });
+            const productIds = Array.from(productsListEl.querySelectorAll('.apply-product-checkbox:checked:not(:disabled)')).map(function (cb) { return cb.value; });
             if (!productIds.length) return;
 
-            window.confirmAction({ title: 'Assign Promo', text: 'Assign the selected promo to ' + productIds.length + ' product(s)?' }).then(function (result) {
+            window.confirmAction({ title: 'Apply Promo', text: 'Apply this promo to ' + productIds.length + ' product(s)?' }).then(function (result) {
                 if (!result.isConfirmed) return;
 
                 assignBtn.disabled = true;
-                assignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Assigning...';
+                assignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
 
                 fetch('{{ url('admin/discounts') }}/' + discountId + '/products', {
                     method: 'POST',
@@ -638,23 +668,25 @@
                     .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
                     .then(function ({ ok, data }) {
                         if (!ok || !data.success) {
-                            toastError(data.message || 'Failed to assign promo.');
+                            toastError(data.message || 'Failed to apply promo.');
                             return;
                         }
                         if (!DISCOUNT_PRODUCT_MAP[discountId]) DISCOUNT_PRODUCT_MAP[discountId] = [];
                         const newlyAssigned = data.assigned.map(function (pid) {
-                            const row = productsTbody.querySelector('tr[data-product-row][data-product-id="' + pid + '"]');
+                            const row = productsListEl.querySelector('[data-product-row][data-product-id="' + pid + '"]');
                             return { id: pid, name: row ? row.dataset.productName : ('Product #' + pid) };
                         });
                         DISCOUNT_PRODUCT_MAP[discountId] = DISCOUNT_PRODUCT_MAP[discountId].concat(newlyAssigned);
                         toastSuccess(data.message);
+                        // Newly-assigned rows become checked+disabled via
+                        // applyCheckedState(), which is the "clear selection"
+                        // for them — nothing left to uncheck by hand.
                         applyCheckedState();
-                        renderAssignedList();
                         reloadAppliedList();
                     })
-                    .catch(function () { toastError('Failed to assign promo. Please try again.'); })
+                    .catch(function () { toastError('Failed to apply promo. Please try again.'); })
                     .finally(function () {
-                        assignBtn.innerHTML = '<i class="fa-solid fa-check"></i> Assign Selected';
+                        assignBtn.innerHTML = '<i class="fa-solid fa-check"></i> Apply Discount/Promo';
                         updateAssignButtonState();
                     });
             });
@@ -695,8 +727,12 @@
 
         rebindAppliedPagination();
 
-        window.detachAppliedProduct = function (discountId, productId) {
-            window.confirmAction({ title: 'Remove Promo', text: 'Remove this promo from this product?' }).then(function (result) {
+        window.detachAppliedProduct = function (discountId, productId, productName) {
+            window.confirmAction({
+                title: 'Remove Promo',
+                text: 'Remove this discount/promo from ' + productName + '?',
+                icon: 'warning', confirmText: 'Remove', confirmColor: '#ef4444',
+            }).then(function (result) {
                 if (!result.isConfirmed) return;
 
                 fetch('{{ url('admin/discounts') }}/' + discountId + '/products/' + productId, {
@@ -718,7 +754,6 @@
                         }
                         toastSuccess('Promo removed from product.');
                         applyCheckedState();
-                        renderAssignedList();
                         reloadAppliedList();
                     })
                     .catch(function () { toastError('Failed to remove promo. Please try again.'); });

@@ -244,6 +244,13 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('Create Discount/Promo');
         $response->assertSee('Applied Discount/Promo List');
         $response->assertSee('Bullet 2MP');
+        // The Apply tab's compact "Selected Promo" + "Select Product(s)"
+        // workflow, not the old side-by-side product-catalog layout.
+        $response->assertSee('Selected Promo');
+        $response->assertSee('Select Product(s)');
+        $response->assertSee('Apply Discount/Promo', false);
+        $response->assertDontSee('Assign Selected');
+        $response->assertSee('DISCOUNT_META', false);
     }
 
     public function test_index_ajax_products_flag_returns_the_apply_tab_product_rows_as_json(): void

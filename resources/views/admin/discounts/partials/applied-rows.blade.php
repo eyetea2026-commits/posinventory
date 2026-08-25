@@ -9,7 +9,11 @@
         if ($endDate && $endDate->lt($today)) {
             $statusLabel = 'Expired'; $statusClass = 'badge-secondary';
         } elseif ($startDate && $startDate->gt($today)) {
-            $statusLabel = 'Inactive'; $statusClass = 'badge-warning';
+            // Displayed as "Scheduled" here (Apply tab only) rather than the
+            // "Inactive" label Discount::STATUS_LABELS uses elsewhere in the
+            // app — a promo that hasn't started yet reads more clearly as
+            // scheduled than inactive in this context.
+            $statusLabel = 'Scheduled'; $statusClass = 'badge-warning';
         } else {
             $statusLabel = 'Active'; $statusClass = 'badge-success';
         }
@@ -22,10 +26,10 @@
         <td class="rate-cell">{{ $row->DiscountType === 'fixed' ? '₱' . number_format($row->DiscountRate, 2) : number_format($row->DiscountRate, 2) . '%' }}</td>
         <td>{{ $startDate?->format('M d, Y') ?? '—' }}</td>
         <td>{{ $endDate?->format('M d, Y') ?? '—' }}</td>
-        <td><span class="badge {{ $statusClass }}">{{ $statusLabel }}</span></td>
+        <td><span class="badge badge-dot {{ $statusClass }}">{{ $statusLabel }}</span></td>
         <td>
             <div class="actions-group">
-                <button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="window.detachAppliedProduct({{ $row->DiscountID }}, {{ $row->ProductID }})">
+                <button type="button" class="btn btn-sm btn-danger" title="Remove" onclick="window.detachAppliedProduct({{ $row->DiscountID }}, {{ $row->ProductID }}, @js($row->ProductName))">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
