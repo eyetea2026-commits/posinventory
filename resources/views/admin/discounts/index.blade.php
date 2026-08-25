@@ -173,10 +173,11 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* Apply tab — a small "Select a Promo Discount" combo box card →
-       a compact searchable multi-select ("Products") for applying that
-       promo to several products at once → Applied Discount/Promo List
-       is the main-page focus, below both. */
+    /* Apply tab — a small "Select a Promo Discount" combo box card sits
+       beside the (much wider) Applied Discount/Promo List; picking a
+       promo opens the Apply Discount/Promo popup for product selection. */
+    .apply-tab-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: stretch; }
+    @media (max-width: 900px) { .apply-tab-layout { grid-template-columns: 1fr; } }
     .apply-picker-body { padding: 16px 18px; }
     .picker-label {
         display: block; font-size: 0.78rem; color: #94a3b8; text-transform: uppercase;
@@ -302,44 +303,46 @@
 
 {{-- ===================== TAB 2 — APPLY ===================== --}}
 <div id="tab-apply" class="tab-panel">
-    <div class="card" style="max-width:420px;">
-        <div class="card-header"><h3 style="margin:0; font-size:0.95rem; color:#f8fafc;">Select a Promo Discount</h3></div>
-        <div class="apply-picker-body">
-            <label class="picker-label">Choose Promo Discount</label>
-            <select id="applyPromoSelect" class="form-control" onchange="window.onApplyPromoChange()">
-                <option value="">Choose a promo…</option>
-                @foreach($allDiscounts as $d)
-                    <option value="{{ $d->DiscountID }}">{{ $d->Name }} ({{ $d->PromoCode }})</option>
-                @endforeach
-            </select>
-        </div>
-    </div>
-
-    <div class="card" style="margin-top:20px;">
-        <div class="card-header"><h3 style="margin:0; font-size:1.1rem; color:#f8fafc;">Applied Discount/Promo List</h3></div>
-        <div class="card-body">
-            <div style="overflow-x:auto;">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Product Name</th>
-                            <th>Product SKU</th>
-                            <th>Applied Discount/Promo</th>
-                            <th>Discount Type</th>
-                            <th>Discount Value</th>
-                            <th>Start Date</th>
-                            <th>Expiration Date</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="appliedAssignmentsTbody">
-                        @include('admin.discounts.partials.applied-rows', ['appliedAssignments' => $appliedAssignments])
-                    </tbody>
-                </table>
+    <div class="apply-tab-layout">
+        <div class="card">
+            <div class="card-header"><h3 style="margin:0; font-size:0.95rem; color:#f8fafc;">Select a Promo Discount</h3></div>
+            <div class="apply-picker-body">
+                <label class="picker-label">Choose Promo Discount</label>
+                <select id="applyPromoSelect" class="form-control" onchange="window.onApplyPromoChange()">
+                    <option value="">Choose a promo…</option>
+                    @foreach($allDiscounts as $d)
+                        <option value="{{ $d->DiscountID }}">{{ $d->Name }} ({{ $d->PromoCode }})</option>
+                    @endforeach
+                </select>
             </div>
-            <div id="appliedPaginationWrapper">
-                @include('admin.discounts.partials.pagination', ['discounts' => $appliedAssignments])
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h3 style="margin:0; font-size:1.1rem; color:#f8fafc;">Applied Discount/Promo List</h3></div>
+            <div class="card-body">
+                <div style="overflow-x:auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Product SKU</th>
+                                <th>Applied Discount/Promo</th>
+                                <th>Discount Type</th>
+                                <th>Discount Value</th>
+                                <th>Start Date</th>
+                                <th>Expiration Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="appliedAssignmentsTbody">
+                            @include('admin.discounts.partials.applied-rows', ['appliedAssignments' => $appliedAssignments])
+                        </tbody>
+                    </table>
+                </div>
+                <div id="appliedPaginationWrapper">
+                    @include('admin.discounts.partials.pagination', ['discounts' => $appliedAssignments])
+                </div>
             </div>
         </div>
     </div>
