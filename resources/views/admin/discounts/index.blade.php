@@ -515,6 +515,7 @@
                 tbody.innerHTML = data.rows || '';
                 paginationWrapper.innerHTML = data.pagination || '';
                 rebindPagination();
+                if (window.updateApplyTabData) window.updateApplyTabData(data);
             } catch (err) {
                 if (err.name === 'AbortError') return;
                 tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="empty-title">Unable to load promo codes</p><p class="empty-text">Please try again.</p></div></td></tr>`;
@@ -547,12 +548,15 @@
              truth for "already assigned" (excluded from the picker) and for
              the View Details modal's Applied Products table. Built in
              DiscountController::index() rather than inline here — see that
-             method's comment for why. --}}
-        const DISCOUNT_PRODUCT_MAP = @json($discountProductMap);
+             method's comment for why. `let`, not `const`: refreshed in
+             place by updateApplyTabData() whenever Tab 1's Add/Edit popup
+             creates or edits a promo, so nothing here goes stale without a
+             page reload. --}}
+        let DISCOUNT_PRODUCT_MAP = @json($discountProductMap);
 
         {{-- Everything the View Details modal needs to render without a
              second request. --}}
-        const DISCOUNT_META = @json($discountMeta);
+        let DISCOUNT_META = @json($discountMeta);
 
         const promoSelect = document.getElementById('applyPromoSelect');
         const pickerInput = document.getElementById('productPickerInput');
@@ -578,6 +582,26 @@
         function assignedIdsFor(promoId) {
             return (promoId && DISCOUNT_PRODUCT_MAP[promoId]) ? DISCOUNT_PRODUCT_MAP[promoId].map(function (p) { return String(p.id); }) : [];
         }
+
+        // Called after Tab 1's promo table refreshes (including right after
+        // the Add/Edit popup saves) so a brand-new promo appears in the
+        // "Choose Promo Discount" dropdown, and an edited one's name/code/
+        // dates/status update everywhere they're shown — without a full
+        // page reload.
+        window.updateApplyTabData = function (data) {
+            if (!data || !data.allDiscounts) return;
+
+            DISCOUNT_META = data.discountMeta || {};
+            DISCOUNT_PRODUCT_MAP = data.discountProductMap || {};
+
+            const previouslySelected = promoSelect.value;
+            const stillExists = data.allDiscounts.some(function (d) { return String(d.id) === String(previouslySelected); });
+
+            promoSelect.innerHTML = '<option value="">Choose a promo…</option>' + data.allDiscounts.map(function (d) {
+                return '<option value="' + d.id + '">' + escapeHtmlLocal(d.name) + ' (' + escapeHtmlLocal(d.code) + ')</option>';
+            }).join('');
+            promoSelect.value = stillExists ? previouslySelected : '';
+        };
 
         function updateSelectedCount() {
             selectedCountEl.textContent = selectedProducts.length
@@ -895,6 +919,15 @@
         });
     }
 
+    // Escape closes whichever of these three read-mostly popups is open —
+    // matches the Add/Edit Promo modals' existing Escape-to-close behavior.
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (document.getElementById('applyProductsModal').classList.contains('active')) { window.closeApplyModal(); return; }
+        if (document.getElementById('historyModal').classList.contains('active')) { closeHistoryModal(); return; }
+        if (document.getElementById('promoDetailsModal').classList.contains('active')) { window.closePromoDetails(); return; }
+    });
+
     // ---- Add Promo modal ----
     const ADD_DISCOUNT_FIELD_IDS = ['DiscountRate', 'DiscountType', 'Name', 'PromoCode', 'Description', 'StartDate', 'EndDate'];
     let addDiscountLastFocused = null;
@@ -1020,7 +1053,6 @@
                     window.refreshDiscountsTable();
                     closeAddDiscountModal();
                     toastSuccess(message);
-                    window.location.reload();
                 },
                 onOtherError: function (message) {
                     showAddDiscountGeneralError(message);

@@ -28,7 +28,11 @@
         </td>
         <td>
             <div class="actions-group">
-                <a href="{{ route('admin.discounts.show', $discount->DiscountID) }}" class="btn btn-sm btn-secondary" title="View">
+                {{-- Opens the same View Details popup as the Applied
+                     Discount/Promo List, instead of navigating to the
+                     standalone details page — kept as an href fallback for
+                     non-JS clients, same pattern as the Edit button below. --}}
+                <a href="{{ route('admin.discounts.show', $discount->DiscountID) }}" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.openPromoDetails({{ $discount->DiscountID }})" title="View Details">
                     <i class="fa-solid fa-eye"></i>
                 </a>
                 <a href="{{ route('admin.discounts.edit', $discount->DiscountID) }}" class="btn btn-sm btn-primary" onclick="openEditDiscountModal(event, {{ $discount->DiscountID }})" title="Edit">

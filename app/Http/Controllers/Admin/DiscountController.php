@@ -55,9 +55,21 @@ class DiscountController extends Controller
         // shared submit helper expects (see the identical Category/Damage
         // module fix).
         if ($request->boolean('ajax')) {
+            $applyTabData = $this->applyTabData();
+
             return response()->json([
                 'rows' => view('admin.discounts.partials.rows', ['discounts' => $discounts])->render(),
                 'pagination' => view('admin.discounts.partials.pagination', ['discounts' => $discounts])->render(),
+                // So a promo just created/edited via this same page's Add/Edit
+                // modal shows up (or updates) in the Apply tab's "Choose Promo
+                // Discount" dropdown and View Details data without a full page
+                // reload — see refreshDiscountsTable()/updateApplyTabData() in
+                // the view.
+                'allDiscounts' => $applyTabData['allDiscounts']->map(fn ($d) => [
+                    'id' => $d->DiscountID, 'name' => $d->Name, 'code' => $d->PromoCode,
+                ])->values(),
+                'discountMeta' => $applyTabData['discountMeta'],
+                'discountProductMap' => $applyTabData['discountProductMap'],
             ]);
         }
 
@@ -111,21 +123,46 @@ class DiscountController extends Controller
             ]);
         }
 
-        $allDiscounts = Discount::whereNotNull('PromoCode')->orderBy('Name')
-            ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
+        $applyTabData = $this->applyTabData();
 
         return view('admin.discounts.index', [
             'discounts' => $discounts,
             'search' => $search,
             'appliedAssignments' => $appliedAssignments,
-            'allDiscounts' => $allDiscounts,
+            'allDiscounts' => $applyTabData['allDiscounts'],
             // Pre-built in PHP (not inline in the Blade view) so the two
             // @json() calls there stay simple single-variable expressions —
             // Blade's @json directive splits its argument on every
             // top-level comma to find an optional second (encoding-options)
             // argument, which silently mangles anything more elaborate
             // embedded directly in the view.
-            'discountProductMap' => $allDiscounts->mapWithKeys(function ($d) {
+            'discountProductMap' => $applyTabData['discountProductMap'],
+            'discountMeta' => $applyTabData['discountMeta'],
+        ]);
+    }
+
+    // Shared by the initial page render and the Tab 1 live-search/pagination
+    // AJAX response (so a promo created or edited via the Add/Edit popup
+    // shows up correctly in the Apply tab's dropdown and View Details data
+    // without requiring a full page reload).
+    //
+    // discountMeta/discountProductMap are built from EVERY Discount row
+    // (not just ones with a PromoCode) so the View Details popup works for
+    // every row Tab 1's list can show, including a pre-redesign legacy row
+    // that predates PromoCode existing. allDiscounts (the "Choose Promo
+    // Discount" dropdown's source) stays restricted to named, applicable
+    // promos — that's a deliberate, separate business rule.
+    private function applyTabData(): array
+    {
+        $allDiscounts = Discount::whereNotNull('PromoCode')->orderBy('Name')
+            ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
+
+        $allDiscountsForDetails = Discount::orderByDesc('DiscountID')
+            ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
+
+        return [
+            'allDiscounts' => $allDiscounts,
+            'discountProductMap' => $allDiscountsForDetails->mapWithKeys(function ($d) {
                 return [$d->DiscountID => $d->products()->with('category')
                     ->get(['Product.ProductID', 'Product.ProductName', 'Product.SKU', 'Product.CategoryID'])
                     ->map(fn ($p) => [
@@ -135,10 +172,10 @@ class DiscountController extends Controller
                         'category' => $p->category?->CategoryName,
                     ])];
             }),
-            'discountMeta' => $allDiscounts->mapWithKeys(function ($d) {
+            'discountMeta' => $allDiscountsForDetails->mapWithKeys(function ($d) {
                 return [$d->DiscountID => [
                     'name' => $d->Name,
-                    'code' => $d->PromoCode,
+                    'code' => $d->PromoCode ?? '—',
                     'typeLabel' => $d->DiscountType === Discount::TYPE_FIXED ? 'Fixed Amount' : 'Percentage',
                     'valueLabel' => $d->DiscountType === Discount::TYPE_FIXED
                         ? '₱' . number_format($d->DiscountRate, 2)
@@ -155,7 +192,7 @@ class DiscountController extends Controller
                         : ($d->effective_status === Discount::STATUS_INACTIVE ? 'badge-warning' : 'badge-success'),
                 ]];
             }),
-        ]);
+        ];
     }
 
     // Show create form

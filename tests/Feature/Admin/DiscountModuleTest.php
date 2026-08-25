@@ -455,6 +455,69 @@ class DiscountModuleTest extends TestCase
         $this->assertStringNotContainsString('NOMATCH', $response->json('rows'));
     }
 
+    // Regression guard: the Tab 1 live-search/refresh response must also
+    // carry fresh promo data, so the Apply tab's "Choose Promo Discount"
+    // dropdown and View Details data stay in sync after a promo is created
+    // or edited via the Add/Edit popup — without requiring a page reload.
+    public function test_live_search_ajax_also_returns_fresh_apply_tab_data(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax' => 1]));
+
+        $response->assertOk();
+        $response->assertJsonStructure(['rows', 'pagination', 'allDiscounts', 'discountMeta', 'discountProductMap']);
+        $names = collect($response->json('allDiscounts'))->pluck('name');
+        $this->assertTrue($names->contains('Summer Sale'));
+        $this->assertArrayHasKey((string) $discount->DiscountID, $response->json('discountMeta'));
+    }
+
+    // Regression guard: View Details must work even for a legacy promo that
+    // predates PromoCode (discountMeta/discountProductMap must cover every
+    // Discount row, not just ones with a code) — the Apply tab's own
+    // "Choose Promo Discount" dropdown is correctly still code-only.
+    public function test_apply_tab_data_covers_legacy_discounts_without_a_promo_code(): void
+    {
+        $legacy = Discount::create(['DiscountRate' => 10, 'Name' => 'Old General Discount', 'DiscountType' => Discount::TYPE_PERCENTAGE]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $this->assertMatchesRegularExpression('/let DISCOUNT_META = ({.*?});/', $response->getContent());
+        preg_match('/let DISCOUNT_META = ({.*?});/', $response->getContent(), $matches);
+        $discountMeta = json_decode($matches[1], true);
+
+        // Present in discountMeta (View Details data)...
+        $this->assertArrayHasKey((string) $legacy->DiscountID, $discountMeta);
+        $this->assertSame('Old General Discount', $discountMeta[(string) $legacy->DiscountID]['name']);
+        // ...but never selectable from the "Choose Promo Discount" dropdown.
+        $response->assertDontSee('Old General Discount</option>', false);
+    }
+
+    // Regression guard: Tab 1's "View" action must open the same View
+    // Details popup as the Applied List, not navigate to a separate page.
+    public function test_promo_list_view_action_opens_the_details_popup_not_a_separate_page(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertSee('window.openPromoDetails(' . $discount->DiscountID . ')', false);
+        $response->assertSee('event.preventDefault(); window.openPromoDetails', false);
+    }
+
+    // Regression guard: a successful Create must not force a full page
+    // reload — Tab 1's table and the Apply tab's promo data both refresh
+    // via AJAX instead (see refreshDiscountsTable()/updateApplyTabData()).
+    public function test_add_promo_success_handler_does_not_reload_the_page(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertDontSee('window.location.reload();', false);
+    }
+
     // A promo not yet assigned to any product doesn't count as "currently
     // active" — scopeCurrentlyActive() requires at least one pivot row, so
     // it never applies to a product until the admin explicitly assigns it.
