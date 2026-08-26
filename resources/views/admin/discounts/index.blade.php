@@ -461,12 +461,32 @@
 @include('admin.partials.ajax-modal-form')
 
 <script>
-    // Auto-show session messages
+    // Auto-show session messages — rendered as a literal Swal.fire({title:
+    // 'Success'|'Error', text: '...'}) call, not the toastSuccess()/
+    // toastError() helpers, because submitAjaxForm() (ajax-modal-form.blade.php)
+    // scrapes the redirected page's HTML for exactly this literal pattern to
+    // tell a successful save from a failed one — same convention as
+    // Category/Damage/Product. Using the helpers here (which pass the
+    // message through as a JS variable, not a literal string) made every
+    // save on this page silently fall through to submitAjaxForm's generic
+    // "Unable to save" message regardless of whether it actually succeeded.
     @if(session('success'))
-        toastSuccess('{{ session('success') }}');
+        Swal.fire({
+            title: 'Success',
+            text: '{{ session('success') }}',
+            icon: 'success',
+            confirmButtonColor: '#10b981',
+            timer: 2500,
+            timerProgressBar: true
+        });
     @endif
     @if(session('error'))
-        toastError('{{ session('error') }}');
+        Swal.fire({
+            title: 'Error',
+            text: '{{ session('error') }}',
+            icon: 'error',
+            confirmButtonColor: '#ef4444'
+        });
     @endif
 
     // ---- Tabs ----

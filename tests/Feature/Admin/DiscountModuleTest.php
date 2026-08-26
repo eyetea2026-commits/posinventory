@@ -564,6 +564,19 @@ class DiscountModuleTest extends TestCase
         $response->assertOk();
         $response->assertSee('Auto-show session messages', false);
         $response->assertSee('Promo code created successfully.');
+
+        // window.submitAjaxForm() (ajax-modal-form.blade.php) doesn't just
+        // check the message is present somewhere on the page — it scrapes
+        // for this exact literal Swal.fire({title:'Success', text:'...'})
+        // shape to tell a successful save from a failed one. A page that
+        // renders the same message through a different helper (e.g.
+        // toastSuccess()) still passes assertSee() above but silently
+        // reports every save as failed in the browser — this regex is what
+        // actually caught that regression.
+        $this->assertMatchesRegularExpression(
+            "/title:\s*'Success',\s*text:\s*'Promo code created successfully\.'/",
+            $response->getContent()
+        );
     }
 
     public function test_xhr_headers_alone_without_ajax_flag_still_return_the_full_page(): void
