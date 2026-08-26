@@ -367,8 +367,29 @@ class DiscountModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonStructure(['rows', 'pagination']);
-        $this->assertStringContainsString('Bullet 2MP', $response->json('rows'));
+        // One row per promo, not per assigned product — the product itself
+        // (e.g. "Bullet 2MP") only appears in that promo's View Details
+        // popup, not in this list.
         $this->assertStringContainsString('SUMMER20', $response->json('rows'));
+    }
+
+    public function test_applied_list_shows_one_row_per_promo_with_a_product_count(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+        $otherProduct = Product::create([
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
+        ]);
+        $discount->products()->attach([$this->product->ProductID, $otherProduct->ProductID]);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_applied' => 1]));
+
+        $response->assertOk();
+        $rows = $response->json('rows');
+        $this->assertStringNotContainsString('Bullet 2MP', $rows);
+        $this->assertStringNotContainsString('DVR 8CH', $rows);
+        $this->assertSame(1, substr_count($rows, 'SUMMER20'));
+        $this->assertStringContainsString('<td>2</td>', $rows);
     }
 
     // Once a promo's assignment has expired, it must disappear from the

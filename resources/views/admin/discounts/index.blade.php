@@ -325,9 +325,8 @@
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Product Name</th>
-                                <th>Product SKU</th>
-                                <th>Applied Discount/Promo</th>
+                                <th>Discount/Promo Name</th>
+                                <th>Number of Products</th>
                                 <th>Discount Type</th>
                                 <th>Discount Value</th>
                                 <th>Start Date</th>

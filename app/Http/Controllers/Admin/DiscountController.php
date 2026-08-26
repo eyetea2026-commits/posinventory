@@ -106,28 +106,22 @@ class DiscountController extends Controller
             ]);
         }
 
-        // Tab 2's "Applied Discount/Promo List" — one row per product-promo
-        // assignment (a DiscountProduct pivot row), not per promo. Once the
-        // promo's EndDate passes, its assignment rows stop showing here at
-        // all — they're not deleted, just no longer part of this "currently
-        // active" view; they keep showing under History → Expired instead
-        // (same underlying Discount/DiscountProduct rows, no duplication).
+        // Tab 2's "Applied Discount/Promo List" — one row per promo that has
+        // at least one product assigned, not one row per product-promo
+        // assignment. The assigned products themselves are only shown in
+        // that promo's View Details popup. Once the promo's EndDate passes,
+        // it stops showing here at all — it's not deleted, just no longer
+        // part of this "currently active" view; it keeps showing under
+        // History → Expired instead (same underlying Discount/
+        // DiscountProduct rows, no duplication).
         $today = now()->toDateString();
 
-        $appliedAssignments = \Illuminate\Support\Facades\DB::table('DiscountProduct')
-            ->join('Discount', 'Discount.DiscountID', '=', 'DiscountProduct.DiscountID')
-            ->join('Product', 'Product.ProductID', '=', 'DiscountProduct.ProductID')
-            ->whereNull('Discount.deleted_at')
+        $appliedAssignments = Discount::whereHas('products')
             ->where(function ($q) use ($today) {
-                $q->whereNull('Discount.EndDate')->orWhereDate('Discount.EndDate', '>=', $today);
+                $q->whereNull('EndDate')->orWhereDate('EndDate', '>=', $today);
             })
-            ->select(
-                'DiscountProduct.id as pivot_id',
-                'Discount.DiscountID', 'Discount.Name', 'Discount.PromoCode', 'Discount.DiscountType',
-                'Discount.DiscountRate', 'Discount.StartDate', 'Discount.EndDate',
-                'Product.ProductID', 'Product.ProductName', 'Product.SKU', 'Product.Price'
-            )
-            ->orderByDesc('DiscountProduct.id')
+            ->withCount('products')
+            ->orderByDesc('DiscountID')
             ->paginate(15, ['*'], 'applied_page');
 
         if ($request->boolean('ajax_applied')) {
