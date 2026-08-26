@@ -121,6 +121,53 @@ class DiscountModuleTest extends TestCase
         $this->assertDatabaseHas('DiscountProduct', ['DiscountID' => $discount->DiscountID, 'ProductID' => $secondProduct->ProductID]);
     }
 
+    // Regression guard: the overlap check must be one batched query
+    // (whereIn) for the whole selection, not one query per selected
+    // product — assigning 5 products must cost the same number of queries
+    // as assigning 1, not scale with the selection size. Compared directly
+    // rather than against a fixed ceiling, since the exact count also
+    // includes unrelated framework/middleware queries (auth, session, ...)
+    // that have nothing to do with this endpoint's own logic.
+    public function test_assign_products_overlap_check_does_not_scale_per_product(): void
+    {
+        $makeProducts = fn (int $count, string $prefix) => collect(range(1, $count))->map(fn ($i) => Product::create([
+            'ProductName' => "{$prefix} {$i}", 'Model' => "MODEL-{$prefix}{$i}", 'SKU' => "SKU-{$prefix}{$i}",
+            'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
+        ]));
+
+        $discountOne = Discount::create($this->basePromoPayload(['PromoCode' => 'ONEPRODUCT']));
+        $oneProduct = $makeProducts(1, 'One');
+        $discountFive = Discount::create($this->basePromoPayload(['PromoCode' => 'FIVEPRODUCTS']));
+        $fiveProducts = $makeProducts(5, 'Five');
+
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        $responseOne = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $discountOne), [
+            'product_ids' => $oneProduct->pluck('ProductID')->all(),
+        ]);
+        $queryCountForOne = count(\Illuminate\Support\Facades\DB::getQueryLog());
+        \Illuminate\Support\Facades\DB::flushQueryLog();
+
+        $responseFive = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $discountFive), [
+            'product_ids' => $fiveProducts->pluck('ProductID')->all(),
+        ]);
+        $queryCountForFive = count(\Illuminate\Support\Facades\DB::getQueryLog());
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+
+        $responseOne->assertOk();
+        $responseFive->assertOk();
+        $this->assertCount(1, $discountOne->fresh()->products);
+        $this->assertCount(5, $discountFive->fresh()->products);
+        // A small, non-proportional difference is fine (e.g. session-state
+        // caching between the two sequential requests in this test); a real
+        // per-product regression would show roughly +4 queries for the 4
+        // extra products, not +1 or +2.
+        $this->assertLessThanOrEqual(
+            $queryCountForOne + 2,
+            $queryCountForFive,
+            "Assigning 5 products used {$queryCountForFive} queries vs {$queryCountForOne} for 1 — the overlap check is scaling per product again."
+        );
+    }
+
     public function test_assign_products_never_applies_to_a_product_not_selected(): void
     {
         $discount = Discount::create($this->basePromoPayload());

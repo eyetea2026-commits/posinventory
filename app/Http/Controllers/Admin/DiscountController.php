@@ -173,20 +173,24 @@ class DiscountController extends Controller
         $allDiscounts = Discount::whereNotNull('PromoCode')->notExpired()->orderBy('Name')
             ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
 
-        $allDiscountsForDetails = Discount::orderByDesc('DiscountID')
+        // Was $d->products()->with('category')->get() inside the
+        // mapWithKeys() below — a fresh pair of queries per discount (N+1).
+        // Eager-loading products.category here instead makes this whole
+        // method a constant 3 queries total (discounts, products, product
+        // categories) no matter how many discounts exist.
+        $allDiscountsForDetails = Discount::with('products.category')
+            ->orderByDesc('DiscountID')
             ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
 
         return [
             'allDiscounts' => $allDiscounts,
             'discountProductMap' => $allDiscountsForDetails->mapWithKeys(function ($d) {
-                return [$d->DiscountID => $d->products()->with('category')
-                    ->get(['Product.ProductID', 'Product.ProductName', 'Product.SKU', 'Product.CategoryID'])
-                    ->map(fn ($p) => [
-                        'id' => $p->ProductID,
-                        'name' => $p->ProductName,
-                        'sku' => $p->SKU,
-                        'category' => $p->category?->CategoryName,
-                    ])];
+                return [$d->DiscountID => $d->products->map(fn ($p) => [
+                    'id' => $p->ProductID,
+                    'name' => $p->ProductName,
+                    'sku' => $p->SKU,
+                    'category' => $p->category?->CategoryName,
+                ])];
             }),
             'discountMeta' => $allDiscountsForDetails->mapWithKeys(function ($d) {
                 return [$d->DiscountID => [
@@ -359,38 +363,73 @@ class DiscountController extends Controller
             ], 422);
         }
 
+        // Just shape/type validation here — deliberately not
+        // 'exists:Product,ProductID' on 'product_ids.*': Laravel's exists
+        // rule validates each array item as its own field, which runs one
+        // presence-check query PER selected product instead of batching
+        // them. Existence for the whole selection is checked below in one
+        // whereIn() query instead.
         $data = $request->validate([
             'product_ids' => ['required', 'array', 'min:1'],
-            'product_ids.*' => ['integer', 'exists:Product,ProductID'],
+            'product_ids.*' => ['integer'],
         ]);
+
+        $requestedIds = array_values(array_unique(array_map('intval', $data['product_ids'])));
+        $validIds = Product::whereIn('ProductID', $requestedIds)->pluck('ProductID')->map(fn ($id) => (int) $id)->all();
+
+        if (count($validIds) !== count($requestedIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'One or more selected products could not be found.',
+            ], 422);
+        }
 
         $startDate = $discount->StartDate?->format('Y-m-d');
         $endDate = $discount->EndDate?->format('Y-m-d');
 
+        // One query for "already assigned", one query for "covered by an
+        // overlapping promo" — checked for the whole batch of selected
+        // products at once (whereIn), not per product in a loop. Selecting
+        // 10 products used to mean 10+ separate overlap queries; now it's
+        // always exactly 2 regardless of how many are selected.
         $alreadyAssigned = $discount->products()->pluck('Product.ProductID')->all();
-        $assigned = [];
-        $rejected = [];
+        $candidateIds = array_values(array_diff($requestedIds, $alreadyAssigned));
 
-        foreach (array_unique($data['product_ids']) as $productId) {
-            $productId = (int) $productId;
-
-            if (in_array($productId, $alreadyAssigned, true)) {
-                continue;
-            }
-
-            if ($this->hasOverlappingActivePromo($productId, $startDate, $endDate, $discount->DiscountID)) {
-                $rejected[] = $productId;
-                continue;
-            }
-
-            $assigned[] = $productId;
-        }
+        $overlapping = $this->productIdsWithOverlappingActivePromo($candidateIds, $startDate, $endDate, $discount->DiscountID);
+        $assigned = array_values(array_diff($candidateIds, $overlapping));
+        $rejected = array_values($overlapping);
 
         if (! empty($assigned)) {
-            $discount->products()->syncWithoutDetaching($assigned);
+            // A single multi-row insert instead of
+            // $discount->products()->syncWithoutDetaching($assigned) —
+            // that helper re-queries current pivot rows (redundant, we
+            // already have $alreadyAssigned above) and then inserts one row
+            // at a time. $assigned is already guaranteed not-yet-attached,
+            // so a plain bulk insert is enough; insertOrIgnore only as a
+            // safety net against a concurrent request assigning the same
+            // pair in the moment between our check and this write.
+            $now = now();
+            \Illuminate\Support\Facades\DB::table('DiscountProduct')->insertOrIgnore(
+                collect($assigned)->map(fn ($productId) => [
+                    'DiscountID' => $discount->DiscountID,
+                    'ProductID' => $productId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all()
+            );
         }
 
-        ActivityLog::record('discount.products_assigned', "Assigned promo \"{$discount->PromoCode}\" to " . count($assigned) . ' product(s)');
+        // Guarded like store()'s activity log: the sync above has already
+        // committed, so a logging hiccup must never be reported back as a
+        // failed apply when the products were actually assigned.
+        try {
+            ActivityLog::record('discount.products_assigned', "Assigned promo \"{$discount->PromoCode}\" to " . count($assigned) . ' product(s)');
+        } catch (Throwable $e) {
+            Log::error('Failed to record discount.products_assigned activity log', [
+                'discount_id' => $discount->DiscountID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         $message = count($assigned) . ' product(s) assigned.';
         if (! empty($rejected)) {
@@ -486,17 +525,30 @@ class DiscountController extends Controller
     // Checked at assign-time (per product being assigned) rather than at
     // promo-creation time, since a promo no longer has a product until
     // it's explicitly assigned one. Only one promo may cover a given
-    // product for any overlapping date window.
-    private function hasOverlappingActivePromo(int $productId, ?string $startDate, ?string $endDate, ?int $excludeDiscountId = null): bool
+    // product for any overlapping date window. Batched over every
+    // candidate product ID in a single query (whereIn), not called once
+    // per product — returns just the subset that's already covered.
+    private function productIdsWithOverlappingActivePromo(array $productIds, ?string $startDate, ?string $endDate, ?int $excludeDiscountId = null): array
     {
-        return Discount::whereHas('products', fn ($q) => $q->where('Product.ProductID', $productId))
-            ->when($excludeDiscountId, fn ($q) => $q->where('DiscountID', '!=', $excludeDiscountId))
+        if (empty($productIds)) {
+            return [];
+        }
+
+        return \Illuminate\Support\Facades\DB::table('DiscountProduct')
+            ->join('Discount', 'Discount.DiscountID', '=', 'DiscountProduct.DiscountID')
+            ->whereIn('DiscountProduct.ProductID', $productIds)
+            ->whereNull('Discount.deleted_at')
+            ->when($excludeDiscountId, fn ($q) => $q->where('Discount.DiscountID', '!=', $excludeDiscountId))
             ->where(function ($q) use ($startDate) {
-                $q->whereNull('EndDate')->orWhereDate('EndDate', '>=', $startDate ?? now()->toDateString());
+                $q->whereNull('Discount.EndDate')->orWhereDate('Discount.EndDate', '>=', $startDate ?? now()->toDateString());
             })
             ->where(function ($q) use ($endDate) {
-                $q->whereNull('StartDate')->orWhereDate('StartDate', '<=', $endDate ?? '9999-12-31');
+                $q->whereNull('Discount.StartDate')->orWhereDate('Discount.StartDate', '<=', $endDate ?? '9999-12-31');
             })
-            ->exists();
+            ->pluck('DiscountProduct.ProductID')
+            ->unique()
+            ->values()
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 }
