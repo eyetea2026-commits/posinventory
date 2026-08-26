@@ -47,7 +47,28 @@ class CashierAuthController extends Controller
         $products = Product::with('inventory')->get()->filter(function($product) {
             return $product->inventory && $product->inventory->Quantity > 0;
         });
-        return view('cashier.pos', compact('products'));
+
+        // Which products currently have an "Apply Promo" option, and what
+        // it actually is — so the POS can show/hide the button per product
+        // and apply the promo directly instead of asking the cashier to
+        // already know and type its code. Only one promo can ever be
+        // active for a given product at once (DiscountController blocks
+        // assigning a second one with an overlapping date range to the
+        // same product), so this is a straight ProductID => promo map,
+        // never a list.
+        $productPromoMap = [];
+        Discount::currentlyActive()->with('products')->get()->each(function ($discount) use (&$productPromoMap) {
+            foreach ($discount->products as $product) {
+                $productPromoMap[$product->ProductID] = [
+                    'discount_id' => $discount->DiscountID,
+                    'code' => $discount->PromoCode,
+                    'name' => $discount->Name,
+                    'rate' => (float) $discount->DiscountRate,
+                ];
+            }
+        });
+
+        return view('cashier.pos', compact('products', 'productPromoMap'));
     }
 
     // "Apply Promo" — validates a promo code against one specific product

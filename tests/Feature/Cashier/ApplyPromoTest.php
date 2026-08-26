@@ -294,4 +294,43 @@ class ApplyPromoTest extends TestCase
         $this->assertEquals(156.0, (float) $billing->VatAmount);
         $this->assertEquals(1456.0, (float) $billing->BillingAmount);
     }
+
+    // The POS page's "Apply Promo" button only ever renders for a product
+    // PRODUCT_PROMO_MAP actually names (see pos.blade.php's renderCart()) —
+    // this locks in that CashierAuthController::pos() builds that map
+    // correctly: present for a product with a currently-active promo,
+    // absent for one with none, an expired one, or a not-yet-started one.
+    public function test_pos_page_only_embeds_the_promo_map_entry_for_eligible_products(): void
+    {
+        $this->makePromo();
+
+        $expired = Product::create([
+            'ProductName' => 'Expired Promo Cam', 'Model' => 'CAM-EXP', 'SKU' => 'SKU-EXP',
+            'Price' => 800, 'CategoryID' => $this->product->CategoryID,
+        ]);
+        Inventory::create(['ProductID' => $expired->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
+        $this->makePromo([
+            'PromoCode' => 'OLDONE', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
+        ], [$expired->ProductID]);
+
+        $scheduled = Product::create([
+            'ProductName' => 'Future Promo Cam', 'Model' => 'CAM-FUT', 'SKU' => 'SKU-FUT',
+            'Price' => 900, 'CategoryID' => $this->product->CategoryID,
+        ]);
+        Inventory::create(['ProductID' => $scheduled->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
+        $this->makePromo([
+            'PromoCode' => 'NOTYET', 'StartDate' => now()->addMonth()->format('Y-m-d'), 'EndDate' => now()->addMonths(2)->format('Y-m-d'),
+        ], [$scheduled->ProductID]);
+
+        $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
+
+        $response->assertOk();
+        $response->assertSee('"' . $this->product->ProductID . '":{"discount_id"', false);
+        $response->assertSee('SUMMER20', false);
+        $response->assertDontSee('OLDONE', false);
+        $response->assertDontSee('NOTYET', false);
+        $response->assertDontSee('"' . $this->otherProduct->ProductID . '":{"discount_id"', false);
+        $response->assertDontSee('"' . $expired->ProductID . '":{"discount_id"', false);
+        $response->assertDontSee('"' . $scheduled->ProductID . '":{"discount_id"', false);
+    }
 }

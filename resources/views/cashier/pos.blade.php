@@ -421,6 +421,15 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    // ProductID => { discount_id, code, name, rate } for every product that
+    // currently has an active, applicable promo — built server-side
+    // (CashierAuthController::pos()) so the cart only ever shows "Apply
+    // Promo" where one genuinely exists, instead of unconditionally on
+    // every item and letting the cashier discover eligibility by guessing
+    // a code. JSON-encodes object keys as strings, so items are looked up
+    // by String(item.id) below.
+    const PRODUCT_PROMO_MAP = @json($productPromoMap);
+
     let cart = [];
     // At most one promo applies per checkout, but it can be tied to several
     // products — { discountId, productIds: [...], code, name, rate }. Every
@@ -589,7 +598,7 @@
                         </span>
                     </div>
                 `;
-            } else if (!appliedPromo) {
+            } else if (!appliedPromo && PRODUCT_PROMO_MAP[item.id]) {
                 promoRowHtml = `
                     <div class="cart-item-promo-row">
                         <button type="button" class="apply-promo-btn" onclick="applyPromoToItem(${item.id})">
@@ -598,6 +607,9 @@
                     </div>
                 `;
             } else {
+                // No active promo assigned to this product (or one is
+                // already applied elsewhere in the cart) — nothing to show,
+                // not even a disabled button.
                 promoRowHtml = '';
             }
 
@@ -628,23 +640,24 @@
         updateTotals();
     }
 
+    // The button only ever renders when PRODUCT_PROMO_MAP already names the
+    // one promo this product is eligible for (see renderCart()), so this
+    // confirms and applies that specific promo directly — no blind code
+    // entry. The server call still re-validates everything (active,
+    // not expired, product actually assigned) from the DiscountID/code
+    // alone before trusting anything back from it.
     function applyPromoToItem(productId) {
         const item = cart.find((i) => i.id === productId);
-        if (!item) return;
+        const promo = PRODUCT_PROMO_MAP[productId];
+        if (!item || !promo) return;
 
-        Swal.fire({
-            title: 'Apply Promo Code',
-            input: 'text',
-            inputLabel: `For "${item.name}"`,
-            inputPlaceholder: 'Enter promo code',
-            showCancelButton: true,
-            confirmButtonText: 'Apply',
-            confirmButtonColor: '#10b981',
-            cancelButtonColor: '#64748b',
-            customClass: { popup: 'swal-compact' },
-            inputValidator: (value) => (!value ? 'Please enter a promo code.' : undefined),
+        window.confirmAction({
+            title: 'Apply Promo',
+            text: `Apply "${promo.name}" (${promo.code}, -${promo.rate}%) to "${item.name}"?`,
+            confirmText: 'Apply',
+            confirmColor: '#10b981',
         }).then((result) => {
-            if (!result.isConfirmed || !result.value) return;
+            if (!result.isConfirmed) return;
 
             fetch('{{ route('cashier.pos.apply-promo') }}', {
                 method: 'POST',
@@ -653,12 +666,12 @@
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({ promo_code: result.value, product_id: productId }),
+                body: JSON.stringify({ promo_code: promo.code, product_id: productId }),
             })
                 .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
                 .then(({ ok, data }) => {
                     if (!ok || !data.success) {
-                        toastError(data.message || 'Unable to apply this promo code.', 'Invalid Promo');
+                        toastError(data.message || 'Unable to apply this promo.', 'Invalid Promo');
                         return;
                     }
 
