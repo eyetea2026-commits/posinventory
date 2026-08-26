@@ -149,6 +149,10 @@
         transition: transform 0.25s ease, opacity 0.25s ease;
     }
     .modal-content.modal-content-wide { max-width: 780px; }
+    /* History's Expired/Used tables carry more columns than the other
+       "wide" modals, so it gets its own larger size instead of bumping the
+       shared .modal-content-wide (which would also widen the Apply popup). */
+    #historyModal .modal-content { max-width: 1040px; max-height: 92vh; }
     .modal-overlay.active .modal-content { transform: scale(1) translateY(0); opacity: 1; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #334155; }
     .modal-header h2 { margin: 0; font-size: 1.05rem; color: #f8fafc; }
