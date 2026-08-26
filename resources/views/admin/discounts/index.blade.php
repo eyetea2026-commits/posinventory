@@ -692,7 +692,7 @@
                         <input type="checkbox" data-product-id="${p.id}" ${isChecked ? 'checked' : ''} ${isAssigned ? 'disabled' : ''}>
                         <span class="mp-info">
                             <span class="mp-name">${escapeHtmlLocal(p.name)}</span>
-                            <span class="mp-meta">SKU: ${escapeHtmlLocal(p.sku || '—')} &middot; ${escapeHtmlLocal(p.category || '—')}${isAssigned ? ' &middot; already applied' : ''}</span>
+                            <span class="mp-meta">${escapeHtmlLocal(p.category || '—')}${isAssigned ? ' &middot; already applied' : ''}</span>
                         </span>
                         <span class="mp-price">₱${Number(p.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </label>
@@ -851,9 +851,9 @@
 
             const productsRows = products.length
                 ? products.map(function (p) {
-                    return '<tr><td>' + escapeHtmlLocal(p.name) + '</td><td>' + escapeHtmlLocal(p.sku || '—') + '</td><td>' + escapeHtmlLocal(p.category || '—') + '</td></tr>';
+                    return '<tr><td>' + escapeHtmlLocal(p.name) + '</td><td>' + escapeHtmlLocal(p.category || '—') + '</td></tr>';
                 }).join('')
-                : '<tr><td colspan="3"><div class="empty-state"><p class="empty-text">No products assigned to this promo.</p></div></td></tr>';
+                : '<tr><td colspan="2"><div class="empty-state"><p class="empty-text">No products assigned to this promo.</p></div></td></tr>';
 
             document.getElementById('promoDetailsBody').innerHTML = `
                 <h3 style="margin:0 0 14px; font-size:1.1rem; color:#f8fafc;">${escapeHtmlLocal(meta.name)} (${escapeHtmlLocal(meta.code)})</h3>
@@ -868,7 +868,7 @@
                 <h3 class="section-title">Applied Product${products.length === 1 ? '' : 's'}</h3>
                 <div style="overflow-x:auto;">
                     <table class="table">
-                        <thead><tr><th>Product Name</th><th>SKU</th><th>Category</th></tr></thead>
+                        <thead><tr><th>Product Name</th><th>Category</th></tr></thead>
                         <tbody>${productsRows}</tbody>
                     </table>
                 </div>
