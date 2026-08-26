@@ -247,7 +247,18 @@ class DiscountController extends Controller
             'CreatedBy' => auth()->id(),
         ]);
 
-        ActivityLog::record('discount.created', "Created promo \"{$discount->PromoCode}\"");
+        // Guarded like the notification below it: the discount is already
+        // committed to the database at this point, so a logging failure
+        // here must never turn into a 500 that tells the admin their promo
+        // wasn't saved when it actually was.
+        try {
+            ActivityLog::record('discount.created', "Created promo \"{$discount->PromoCode}\"");
+        } catch (Throwable $e) {
+            Log::error('Failed to record discount.created activity log', [
+                'discount_id' => $discount->DiscountID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         try {
             Notification::send(User::admins(), new DiscountUpdated($discount, 'Created'));

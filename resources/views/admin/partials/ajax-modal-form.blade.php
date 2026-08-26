@@ -10,7 +10,16 @@
      there as a literal `Swal.fire({title:'Success'|'Error', text:'...'})`
      call (every admin index page ends with this same "auto-show session
      messages" block) — we read whichever one actually fired instead of
-     guessing from the HTTP status alone. --}}
+     guessing from the HTTP status alone.
+
+     A handful of statuses never reach that HTML-scrape stage at all — a
+     stale CSRF token (419, e.g. a modal left open across a session
+     timeout), a logged-out session (401/403), or an actual server error
+     (5xx) all redirect to a page with no such Swal call, which used to
+     fall through to one indistinguishable "Something went wrong" message
+     no matter which of these actually happened. Handled explicitly here
+     instead, so the message actually says what went wrong — without
+     leaking exception detail into the production UI. --}}
 <script>
 window.submitAjaxForm = function (form, url, callbacks) {
     callbacks = callbacks || {};
@@ -30,6 +39,21 @@ window.submitAjaxForm = function (form, url, callbacks) {
             return;
         }
 
+        if (response.status === 419) {
+            if (callbacks.onOtherError) callbacks.onOtherError('Your session has expired. Please refresh the page and try again.');
+            return;
+        }
+
+        if (response.status === 401 || response.status === 403) {
+            if (callbacks.onOtherError) callbacks.onOtherError('You have been logged out. Please log in again.');
+            return;
+        }
+
+        if (response.status >= 500) {
+            if (callbacks.onOtherError) callbacks.onOtherError('A server error occurred while saving. Please try again, and contact support if the problem continues.');
+            return;
+        }
+
         const html = await response.text();
         const marker = 'Auto-show session messages';
         const idx = html.indexOf(marker);
@@ -42,7 +66,7 @@ window.submitAjaxForm = function (form, url, callbacks) {
         } else if (errorMatch) {
             if (callbacks.onOtherError) callbacks.onOtherError(errorMatch[1]);
         } else {
-            if (callbacks.onOtherError) callbacks.onOtherError('Something went wrong. Please try again.');
+            if (callbacks.onOtherError) callbacks.onOtherError('Unable to save. The page may be out of date — please refresh and try again.');
         }
     }).catch(function () {
         if (callbacks.onOtherError) callbacks.onOtherError('A network error occurred. Please try again.');
