@@ -264,14 +264,24 @@ class DiscountController extends Controller
             ]);
         }
 
-        try {
-            Notification::send(User::admins(), new DiscountUpdated($discount, 'Created'));
-        } catch (Throwable $e) {
-            Log::error('Failed to dispatch DiscountUpdated notification', [
-                'discount_id' => $discount->DiscountID,
-                'exception' => $e->getMessage(),
-            ]);
-        }
+        // Deferred to run after the response is sent: this notification's
+        // 'mail' channel is a live SMTP send (Gmail on production) and this
+        // app has no persistent queue worker to hand it off to (see
+        // DiscountUpdated's class comment), so without this the admin's
+        // browser sat waiting on an SMTP round trip before "Saved" could
+        // even show up. afterResponse() keeps it synchronous-in-process
+        // (no queue table, nothing to get stuck unprocessed) while no
+        // longer blocking the save itself.
+        dispatch(function () use ($discount) {
+            try {
+                Notification::send(User::admins(), new DiscountUpdated($discount, 'Created'));
+            } catch (Throwable $e) {
+                Log::error('Failed to dispatch DiscountUpdated notification', [
+                    'discount_id' => $discount->DiscountID,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
 
         return redirect()->route('admin.discounts.index')->with('success', 'Promo code created successfully.');
     }
@@ -309,14 +319,18 @@ class DiscountController extends Controller
 
         ActivityLog::record('discount.updated', "Updated promo \"{$discount->PromoCode}\"");
 
-        try {
-            Notification::send(User::admins(), new DiscountUpdated($discount, 'Updated'));
-        } catch (Throwable $e) {
-            Log::error('Failed to dispatch DiscountUpdated notification', [
-                'discount_id' => $discount->DiscountID,
-                'exception' => $e->getMessage(),
-            ]);
-        }
+        // Same reasoning as store(): defer the live SMTP send so it doesn't
+        // block the save response.
+        dispatch(function () use ($discount) {
+            try {
+                Notification::send(User::admins(), new DiscountUpdated($discount, 'Updated'));
+            } catch (Throwable $e) {
+                Log::error('Failed to dispatch DiscountUpdated notification', [
+                    'discount_id' => $discount->DiscountID,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
 
         return redirect()->route('admin.discounts.index')->with('success', 'Promo code updated successfully.');
     }

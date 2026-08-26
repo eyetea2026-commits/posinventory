@@ -168,6 +168,31 @@ class DiscountModuleTest extends TestCase
         );
     }
 
+    public function test_store_promo_still_notifies_admins_and_succeeds(): void
+    {
+        // The admin notification is dispatched via afterResponse() (see
+        // store()'s comment) instead of sent inline, so the save doesn't
+        // wait on a live SMTP round trip. Laravel's test kernel runs
+        // terminating callbacks synchronously (no real fastcgi_finish_request
+        // to defer against), so this can only confirm the notification still
+        // ends up sent and the save still succeeds — not the response timing
+        // itself, which only manifests under real PHP-FPM.
+        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload());
+
+        $response->assertRedirect(route('admin.discounts.index'));
+        $this->assertSame(1, \Illuminate\Support\Facades\DB::table('notifications')->count());
+    }
+
+    public function test_update_promo_still_notifies_admins_and_succeeds(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+
+        $response = $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload(['PromoCode' => 'UPDATEDCODE']));
+
+        $response->assertRedirect(route('admin.discounts.index'));
+        $this->assertSame(1, \Illuminate\Support\Facades\DB::table('notifications')->count());
+    }
+
     public function test_assign_products_never_applies_to_a_product_not_selected(): void
     {
         $discount = Discount::create($this->basePromoPayload());
