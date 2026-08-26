@@ -333,4 +333,23 @@ class ApplyPromoTest extends TestCase
         $response->assertDontSee('"' . $expired->ProductID . '":{"discount_id"', false);
         $response->assertDontSee('"' . $scheduled->ProductID . '":{"discount_id"', false);
     }
+
+    // The POS page polls this endpoint (refreshPromoMap() in pos.blade.php)
+    // to pick up a promo created/assigned/expired in the admin's Discount
+    // Module without needing a page reload — same underlying query as the
+    // initial page load, exposed as JSON.
+    public function test_promo_map_endpoint_reflects_a_promo_created_after_the_page_loaded(): void
+    {
+        $response = $this->actingAs($this->cashier)->getJson(route('cashier.pos.promo-map'));
+        $response->assertOk();
+        $this->assertArrayNotHasKey((string) $this->product->ProductID, $response->json('products'));
+
+        $this->makePromo();
+
+        $response = $this->actingAs($this->cashier)->getJson(route('cashier.pos.promo-map'));
+        $response->assertOk();
+        $entry = $response->json('products.' . $this->product->ProductID);
+        $this->assertNotNull($entry);
+        $this->assertSame('SUMMER20', $entry['code']);
+    }
 }

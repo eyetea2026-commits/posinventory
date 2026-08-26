@@ -428,7 +428,7 @@
     // every item and letting the cashier discover eligibility by guessing
     // a code. JSON-encodes object keys as strings, so items are looked up
     // by String(item.id) below.
-    const PRODUCT_PROMO_MAP = @json($productPromoMap);
+    let PRODUCT_PROMO_MAP = @json($productPromoMap);
 
     let cart = [];
     // At most one promo applies per checkout, but it can be tied to several
@@ -693,6 +693,42 @@
         appliedPromo = null;
         renderCart();
     }
+
+    // Keeps an already-open POS tab in sync with the Discount Module
+    // without a page reload: a promo created/assigned there should show up
+    // here, and one that expires or gets unassigned should disappear. If
+    // the cart's already-applied promo turns out to be one of the ones
+    // that just fell out of the fresh map, it's cleared here too — better
+    // caught now, with an explanation, than left to fail silently at
+    // checkout (processSale() would reject it anyway, but with no context
+    // for why the total suddenly changed).
+    function refreshPromoMap() {
+        fetch('{{ route('cashier.pos.promo-map') }}', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+                if (!data) return;
+                PRODUCT_PROMO_MAP = data.products || {};
+
+                if (appliedPromo) {
+                    const stillValid = appliedPromo.productIds.some((id) => {
+                        const promo = PRODUCT_PROMO_MAP[id];
+                        return promo && promo.discount_id === appliedPromo.discountId;
+                    });
+                    if (!stillValid) {
+                        const removedCode = appliedPromo.code;
+                        appliedPromo = null;
+                        toastWarning(`Promo "${removedCode}" is no longer available and was removed from the cart.`);
+                    }
+                }
+
+                renderCart();
+            })
+            .catch(() => { /* Next poll retries; no need to surface a transient network error. */ });
+    }
+
+    setInterval(refreshPromoMap, 45000);
 
     // Holding down a qty +/- button repeats it instead of requiring one tap
     // per unit. Delegated on the (stable) cart container rather than bound

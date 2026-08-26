@@ -48,14 +48,26 @@ class CashierAuthController extends Controller
             return $product->inventory && $product->inventory->Quantity > 0;
         });
 
-        // Which products currently have an "Apply Promo" option, and what
-        // it actually is — so the POS can show/hide the button per product
-        // and apply the promo directly instead of asking the cashier to
-        // already know and type its code. Only one promo can ever be
-        // active for a given product at once (DiscountController blocks
-        // assigning a second one with an overlapping date range to the
-        // same product), so this is a straight ProductID => promo map,
-        // never a list.
+        return view('cashier.pos', [
+            'products' => $products,
+            'productPromoMap' => $this->buildProductPromoMap(),
+        ]);
+    }
+
+    // Which products currently have an "Apply Promo" option, and what it
+    // actually is — the Discount Module's own Discount/DiscountProduct
+    // tables are the only source for this (no separate cashier-side promo
+    // data anywhere), read fresh on every call so a promo created, edited,
+    // assigned, or expired in the admin's Discount Module is reflected here
+    // immediately with no cashier-side duplication to keep in sync. Only
+    // one promo can ever be active for a given product at once
+    // (DiscountController blocks assigning a second one with an
+    // overlapping date range to the same product), so this is a straight
+    // ProductID => promo map, never a list. Shared by pos() (initial page
+    // load) and promoMap() (the periodic poll that keeps an already-open
+    // POS tab in sync without requiring a reload).
+    private function buildProductPromoMap(): array
+    {
         $productPromoMap = [];
         Discount::currentlyActive()->with('products')->get()->each(function ($discount) use (&$productPromoMap) {
             foreach ($discount->products as $product) {
@@ -68,7 +80,15 @@ class CashierAuthController extends Controller
             }
         });
 
-        return view('cashier.pos', compact('products', 'productPromoMap'));
+        return $productPromoMap;
+    }
+
+    // Polled periodically from an already-open POS tab so a promo created,
+    // edited, reassigned, or expired in the admin's Discount Module shows
+    // up (or disappears) for the cashier without a page reload.
+    public function promoMap()
+    {
+        return response()->json(['products' => $this->buildProductPromoMap()]);
     }
 
     // "Apply Promo" — validates a promo code against one specific product
