@@ -759,16 +759,33 @@
                 assignBtn.disabled = true;
                 assignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
 
-                fetch('{{ url('admin/discounts') }}/' + discountId + '/products', {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    },
-                    body: JSON.stringify({ product_ids: productIds }),
-                })
+                // Building the request is wrapped separately from sending
+                // it: a synchronous error here (e.g. a bad selector) used to
+                // throw before fetch() ever ran, leaving the button stuck on
+                // "Applying..." forever with no request ever reaching the
+                // server and no error shown — this is what actually happened
+                // when the CSRF header used to be read from a <meta> tag
+                // that doesn't exist on this page.
+                let request;
+                try {
+                    request = fetch('{{ url('admin/discounts') }}/' + discountId + '/products', {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        },
+                        body: JSON.stringify({ product_ids: productIds }),
+                    });
+                } catch (err) {
+                    toastError('Failed to apply promo. Please try again.');
+                    assignBtn.innerHTML = '<i class="fa-solid fa-check"></i> Apply Discount/Promo';
+                    updateAssignButtonState();
+                    return;
+                }
+
+                request
                     .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
                     .then(function ({ ok, data }) {
                         if (!ok || !data.success) {
