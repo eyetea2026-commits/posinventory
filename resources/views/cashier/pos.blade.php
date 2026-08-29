@@ -80,20 +80,14 @@
     .remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; font-size: 1rem; margin-left: 8px; }
 
     .cart-item-promo-row { flex-basis: 100%; margin-top: 8px; }
-    .apply-promo-btn {
-        background: none; border: 1px dashed #4a5568; color: #93c5fd; cursor: pointer;
-        padding: 4px 10px; font-size: 0.72rem; border-radius: 6px; transition: all 0.2s;
-    }
-    .apply-promo-btn:hover { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+    .promo-original-price { text-decoration: line-through; color: #64748b; margin-right: 6px; }
+    .promo-discounted-price { color: #6ee7b7; font-weight: 600; }
     .promo-applied-chip {
         display: inline-flex; align-items: center; gap: 6px;
         background: rgba(16, 185, 129, 0.15); color: #6ee7b7;
         padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
     }
-    .promo-applied-chip button {
-        background: none; border: none; color: #6ee7b7; cursor: pointer; padding: 0; font-size: 0.85rem; line-height: 1;
-    }
-    .applied-promo-badge { font-size: 0.7rem; color: #6ee7b7; font-weight: 400; }
+    .promo-applied-desc { display: block; margin-top: 3px; font-size: 0.7rem; color: #94a3b8; font-weight: 400; }
     .remove-btn:hover { color: #dc2626; }
 
     .cart-summary { background: #2d3748; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; flex-shrink: 0; }
@@ -225,7 +219,7 @@
 
         <div class="cart-summary">
             <div class="summary-row">
-                <span>Subtotal</span>
+                <span>Salable Sales</span>
                 <span id="subtotal">₱0.00</span>
             </div>
             <div class="summary-row">
@@ -233,7 +227,7 @@
                 <span id="vat">₱0.00</span>
             </div>
             <div class="summary-row" id="discount-summary-row" style="display:none;">
-                <span>Discount <span id="applied-promo-badge" class="applied-promo-badge"></span></span>
+                <span>Discount</span>
                 <span id="discount">-₱0.00</span>
             </div>
             <div class="summary-row total">
@@ -421,20 +415,37 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    // ProductID => { discount_id, code, name, rate } for every product that
-    // currently has an active, applicable promo — built server-side
-    // (CashierAuthController::pos()) so the cart only ever shows "Apply
-    // Promo" where one genuinely exists, instead of unconditionally on
-    // every item and letting the cashier discover eligibility by guessing
-    // a code. JSON-encodes object keys as strings, so items are looked up
-    // by String(item.id) below.
+    // ProductID => { discount_id, code, name, description, type, rate } for
+    // every product that currently has an active promo — built server-side
+    // (CashierAuthController::buildProductPromoMap()), the same
+    // Discount/DiscountProduct data the admin's Discount Module manages, no
+    // separate cashier-side promo data anywhere. Apply Promo is fully
+    // automatic: a cart line for a product this map names is discounted
+    // immediately, with no button and nothing for the cashier to click.
+    // JSON-encodes object keys as strings, so items are looked up by
+    // String(item.id) below.
     let PRODUCT_PROMO_MAP = @json($productPromoMap);
 
+    function getPromoFor(item) {
+        return PRODUCT_PROMO_MAP[item.id] || null;
+    }
+
+    // Mirrors Discount::discountedPriceFor() exactly (percentage: price *
+    // (1 - rate/100); fixed: price - rate, floored at 0) so the price shown
+    // here can never drift from what the admin's Discount Module or the
+    // backend checkout computes for the same promo.
+    function discountedUnitPrice(price, promo) {
+        if (!promo) return price;
+        return promo.type === 'fixed'
+            ? Math.max(0, roundMoney(price - promo.rate))
+            : roundMoney(price * (1 - (promo.rate / 100)));
+    }
+
+    function promoValueLabel(promo) {
+        return promo.type === 'fixed' ? `${window.formatPeso(promo.rate)} OFF` : `${promo.rate}% OFF`;
+    }
+
     let cart = [];
-    // At most one promo applies per checkout, but it can be tied to several
-    // products — { discountId, productIds: [...], code, name, rate }. Every
-    // cart line whose product id is in productIds gets discounted.
-    let appliedPromo = null;
     let selectedPaymentMethod = 'cash';
     let currentTotal = 0;
     // Cheque/Bank Transfer require the cashier to explicitly confirm their
@@ -546,27 +557,12 @@
         }).then(function (result) {
             if (!result.isConfirmed) return;
             cart = [];
-            appliedPromo = null;
             renderCart();
             document.getElementById('customer-name').value = '';
         });
     }
 
-    // If every one of the promo's assigned products has been removed from
-    // the cart since it was applied, the promo no longer has anything to
-    // discount — clear it up front so both the per-item badges and the
-    // summary totals built below stay consistent within this same render
-    // pass, rather than only catching it a render later. Removing just one
-    // of several assigned products still in the cart leaves the promo
-    // applied to whichever ones remain.
-    function syncAppliedPromo() {
-        if (appliedPromo && !cart.some((i) => appliedPromo.productIds.includes(i.id))) {
-            appliedPromo = null;
-        }
-    }
-
     function renderCart() {
-        syncAppliedPromo();
         const container = document.getElementById('cart-items');
 
         if (cart.length === 0) {
@@ -586,38 +582,44 @@
         container.innerHTML = '';
 
         cart.forEach(item => {
-            const itemTotal = item.price * item.qty;
-            const isPromoItem = appliedPromo && appliedPromo.productIds.includes(item.id);
-            let promoRowHtml;
-            if (isPromoItem) {
+            // Apply Promo is fully automatic — no button, nothing for the
+            // cashier to click. A product PRODUCT_PROMO_MAP names is
+            // discounted the instant it's in the cart; one it doesn't name
+            // just sells at its normal price. The backend independently
+            // recomputes this same thing from the database at checkout, so
+            // this is a live preview, never the thing actually trusted.
+            const promo = getPromoFor(item);
+            let priceLineHtml;
+            let promoRowHtml = '';
+            let lineTotal;
+
+            if (promo) {
+                const discountedUnit = discountedUnitPrice(item.price, promo);
+                lineTotal = discountedUnit * item.qty;
+                priceLineHtml = `
+                    <p>
+                        <span class="promo-original-price">${window.formatPeso(item.price)}</span>
+                        <span class="promo-discounted-price">${window.formatPeso(discountedUnit)}</span> each
+                    </p>
+                `;
                 promoRowHtml = `
                     <div class="cart-item-promo-row">
                         <span class="promo-applied-chip">
-                            <i class="fas fa-tag"></i> ${escapeHtml(appliedPromo.code)} (-${appliedPromo.rate}%)
-                            <button type="button" onclick="removePromo()" title="Remove promo">&times;</button>
+                            <i class="fas fa-tag"></i> ${escapeHtml(promo.name)} &middot; ${escapeHtml(promoValueLabel(promo))}
                         </span>
-                    </div>
-                `;
-            } else if (!appliedPromo && PRODUCT_PROMO_MAP[item.id]) {
-                promoRowHtml = `
-                    <div class="cart-item-promo-row">
-                        <button type="button" class="apply-promo-btn" onclick="applyPromoToItem(${item.id})">
-                            <i class="fas fa-tag"></i> Apply Promo
-                        </button>
+                        ${promo.description ? `<span class="promo-applied-desc">${escapeHtml(promo.description)}</span>` : ''}
                     </div>
                 `;
             } else {
-                // No active promo assigned to this product (or one is
-                // already applied elsewhere in the cart) — nothing to show,
-                // not even a disabled button.
-                promoRowHtml = '';
+                lineTotal = item.price * item.qty;
+                priceLineHtml = `<p>${window.formatPeso(item.price)} each</p>`;
             }
 
             container.innerHTML += `
                 <div class="cart-item" style="flex-wrap: wrap;">
                     <div class="cart-item-info">
                         <h4>${escapeHtml(item.name)}</h4>
-                        <p>${window.formatPeso(item.price)} each</p>
+                        ${priceLineHtml}
                     </div>
                     <div class="cart-item-qty">
                         <button class="qty-btn" data-item-id="${item.id}" data-step="-1" ${item.qty <= 1 ? 'disabled' : ''}>-</button>
@@ -627,7 +629,7 @@
                         <button class="qty-btn" data-item-id="${item.id}" data-step="1" ${item.qty >= item.stock ? 'disabled' : ''}>+</button>
                     </div>
                     <div class="cart-item-price">
-                        <div class="item-total">${window.formatPeso(itemTotal)}</div>
+                        <div class="item-total">${window.formatPeso(roundMoney(lineTotal))}</div>
                         <button class="remove-btn" onclick="removeFromCart(${item.id})" title="Remove">
                             <i class="fas fa-trash"></i>
                         </button>
@@ -640,68 +642,12 @@
         updateTotals();
     }
 
-    // The button only ever renders when PRODUCT_PROMO_MAP already names the
-    // one promo this product is eligible for (see renderCart()), so this
-    // confirms and applies that specific promo directly — no blind code
-    // entry. The server call still re-validates everything (active,
-    // not expired, product actually assigned) from the DiscountID/code
-    // alone before trusting anything back from it.
-    function applyPromoToItem(productId) {
-        const item = cart.find((i) => i.id === productId);
-        const promo = PRODUCT_PROMO_MAP[productId];
-        if (!item || !promo) return;
-
-        window.confirmAction({
-            title: 'Apply Promo',
-            text: `Apply "${promo.name}" (${promo.code}, -${promo.rate}%) to "${item.name}"?`,
-            confirmText: 'Apply',
-            confirmColor: '#10b981',
-        }).then((result) => {
-            if (!result.isConfirmed) return;
-
-            fetch('{{ route('cashier.pos.apply-promo') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({ promo_code: promo.code, product_id: productId }),
-            })
-                .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
-                .then(({ ok, data }) => {
-                    if (!ok || !data.success) {
-                        toastError(data.message || 'Unable to apply this promo.', 'Invalid Promo');
-                        return;
-                    }
-
-                    appliedPromo = {
-                        discountId: data.discount_id,
-                        productIds: data.applicable_product_ids,
-                        code: data.promo_code,
-                        name: data.promo_name,
-                        rate: data.discount_rate,
-                    };
-                    renderCart();
-                    toastSuccess(`Promo "${data.promo_code}" applied to ${item.name}.`);
-                })
-                .catch(() => toastError('Error applying promo code. Please try again.'));
-        });
-    }
-
-    function removePromo() {
-        appliedPromo = null;
-        renderCart();
-    }
-
     // Keeps an already-open POS tab in sync with the Discount Module
     // without a page reload: a promo created/assigned there should show up
-    // here, and one that expires or gets unassigned should disappear. If
-    // the cart's already-applied promo turns out to be one of the ones
-    // that just fell out of the fresh map, it's cleared here too — better
-    // caught now, with an explanation, than left to fail silently at
-    // checkout (processSale() would reject it anyway, but with no context
-    // for why the total suddenly changed).
+    // here, and one that expires or gets unassigned should disappear —
+    // renderCart() re-derives every item's discount from PRODUCT_PROMO_MAP
+    // on every call, so refreshing this map and re-rendering is all that's
+    // needed to pick up the change.
     function refreshPromoMap() {
         fetch('{{ route('cashier.pos.promo-map') }}', {
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
@@ -710,19 +656,6 @@
             .then((data) => {
                 if (!data) return;
                 PRODUCT_PROMO_MAP = data.products || {};
-
-                if (appliedPromo) {
-                    const stillValid = appliedPromo.productIds.some((id) => {
-                        const promo = PRODUCT_PROMO_MAP[id];
-                        return promo && promo.discount_id === appliedPromo.discountId;
-                    });
-                    if (!stillValid) {
-                        const removedCode = appliedPromo.code;
-                        appliedPromo = null;
-                        toastWarning(`Promo "${removedCode}" is no longer available and was removed from the cart.`);
-                    }
-                }
-
                 renderCart();
             })
             .catch(() => { /* Next poll retries; no need to surface a transient network error. */ });
@@ -822,18 +755,20 @@
     }
 
     function updateTotals() {
+        // Salable Sales = the sum of every line's normal (pre-discount)
+        // price, exactly as "Subtotal" was computed before — only the label
+        // changed, not the math, matching processSale()'s own $subtotal.
         const subtotal = roundMoney(cart.reduce((sum, item) => sum + (item.price * item.qty), 0));
 
-        // A promo only ever discounts the lines for its assigned products
-        // that are actually in the cart, never the whole cart — matches how
-        // processSale() computes it server-side.
-        let discountAmount = 0;
-        if (appliedPromo) {
-            const promoLinesSubtotal = cart
-                .filter((i) => appliedPromo.productIds.includes(i.id))
-                .reduce((sum, i) => sum + (i.price * i.qty), 0);
-            discountAmount = roundMoney(promoLinesSubtotal * (appliedPromo.rate / 100));
-        }
+        // Each item's own discount is looked up independently from
+        // PRODUCT_PROMO_MAP (never a single shared "applied promo") and
+        // summed — matches processSale() computing every line's discount
+        // the same way from the database at checkout time.
+        const discountAmount = roundMoney(cart.reduce((sum, item) => {
+            const promo = getPromoFor(item);
+            if (!promo) return sum;
+            return sum + ((item.price - discountedUnitPrice(item.price, promo)) * item.qty);
+        }, 0));
 
         const vatAmount = roundMoney((subtotal - discountAmount) * 0.12);
         currentTotal = roundMoney(subtotal - discountAmount + vatAmount);
@@ -841,8 +776,7 @@
         document.getElementById('subtotal').textContent = window.formatPeso(subtotal);
         document.getElementById('vat').textContent = window.formatPeso(vatAmount);
         document.getElementById('discount').textContent = '-' + window.formatPeso(discountAmount);
-        document.getElementById('discount-summary-row').style.display = appliedPromo ? 'flex' : 'none';
-        document.getElementById('applied-promo-badge').textContent = appliedPromo ? `(${appliedPromo.code})` : '';
+        document.getElementById('discount-summary-row').style.display = discountAmount > 0 ? 'flex' : 'none';
         document.getElementById('total').textContent = window.formatPeso(currentTotal);
 
         calculateChange();
@@ -1024,7 +958,6 @@
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
             items: cart,
-            discount_id: appliedPromo ? appliedPromo.discountId : null,
             payment_method: selectedPaymentMethod,
             payment_amount: window.parseMoney(document.getElementById('payment-amount').value),
             reference_number: null,

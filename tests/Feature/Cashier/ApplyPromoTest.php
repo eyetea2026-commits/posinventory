@@ -155,7 +155,6 @@ class ApplyPromoTest extends TestCase
             ],
             'payment_method' => 'cash',
             'payment_amount' => 3136,
-            'discount_id' => $discount->DiscountID,
         ]);
 
         $response->assertOk();
@@ -169,34 +168,50 @@ class ApplyPromoTest extends TestCase
         $this->assertSame('SUMMER20', $billing->PromoCode);
     }
 
-    public function test_checkout_rejects_a_promo_whose_product_is_not_in_the_cart(): void
+    // Apply Promo is fully automatic now — processSale() independently
+    // determines each cart line's own active promo straight from the
+    // database, there's no client-sent discount_id to reject. A promo not
+    // assigned to a cart's product simply doesn't discount anything; the
+    // sale still succeeds at full price rather than failing.
+    public function test_checkout_does_not_discount_a_product_the_promo_is_not_assigned_to(): void
     {
-        $discount = $this->makePromo();
+        $this->makePromo();
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $this->otherProduct->ProductID, 'qty' => 1]],
             'payment_method' => 'cash',
             'payment_amount' => 2240,
-            'discount_id' => $discount->DiscountID,
         ]);
 
-        $response->assertStatus(400);
-        $response->assertJsonFragment(['message' => 'Selected promo does not apply to any product in this cart.']);
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $billing = Billing::latest('BillingID')->firstOrFail();
+        $this->assertNull($billing->DiscountID);
+        $this->assertEquals(0.0, (float) $billing->DiscountAmount);
+        $this->assertEquals(2240.0, (float) $billing->BillingAmount);
     }
 
-    public function test_checkout_rejects_an_expired_promo_even_if_the_id_is_still_valid(): void
+    // Even though the DiscountProduct assignment row still exists, an
+    // expired promo must never be auto-applied — checked fresh against
+    // today's date at checkout time, not trusted from anything sent by the
+    // client (there's nothing to trust here in the first place: no
+    // discount_id is sent at all anymore).
+    public function test_checkout_does_not_discount_a_product_whose_promo_has_expired(): void
     {
-        $discount = $this->makePromo(['StartDate' => '2020-01-01', 'EndDate' => '2020-01-31']);
+        $this->makePromo(['StartDate' => '2020-01-01', 'EndDate' => '2020-01-31']);
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $this->product->ProductID, 'qty' => 1]],
             'payment_method' => 'cash',
             'payment_amount' => 1120,
-            'discount_id' => $discount->DiscountID,
         ]);
 
-        $response->assertStatus(400);
-        $response->assertJsonFragment(['message' => 'Selected promo is no longer active.']);
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $billing = Billing::latest('BillingID')->firstOrFail();
+        $this->assertNull($billing->DiscountID);
+        $this->assertEquals(0.0, (float) $billing->DiscountAmount);
+        $this->assertEquals(1120.0, (float) $billing->BillingAmount);
     }
 
     public function test_receipt_shows_promo_code_and_correct_line_based_discount_rate(): void
@@ -210,7 +225,6 @@ class ApplyPromoTest extends TestCase
             ],
             'payment_method' => 'cash',
             'payment_amount' => 3136,
-            'discount_id' => $discount->DiscountID,
         ]);
         $sale->assertOk();
 
@@ -253,7 +267,6 @@ class ApplyPromoTest extends TestCase
             ],
             'payment_method' => 'cash',
             'payment_amount' => 2688,
-            'discount_id' => $discount->DiscountID,
         ]);
 
         $response->assertOk();
@@ -284,7 +297,6 @@ class ApplyPromoTest extends TestCase
             ],
             'payment_method' => 'cash',
             'payment_amount' => 1456,
-            'discount_id' => $discount->DiscountID,
         ]);
 
         $response->assertOk();
@@ -293,6 +305,65 @@ class ApplyPromoTest extends TestCase
         $this->assertEquals(200.0, (float) $billing->DiscountAmount);
         $this->assertEquals(156.0, (float) $billing->VatAmount);
         $this->assertEquals(1456.0, (float) $billing->BillingAmount);
+    }
+
+    // Apply Promo is fully automatic now, computed straight from
+    // Discount::discountedPriceFor() for whichever type the promo actually
+    // is — this locks in the 'fixed' branch at checkout (the existing
+    // coverage above is all 'percentage').
+    public function test_checkout_computes_a_fixed_amount_discount_correctly(): void
+    {
+        $discount = $this->makePromo([
+            'PromoCode' => 'FIXED150', 'DiscountType' => Discount::TYPE_FIXED, 'DiscountRate' => 150,
+        ]);
+
+        // Bullet 2MP: 1000 - 150 fixed = 850. Subtotal (pre-discount) = 1000.
+        // Discount = 150. VAT = (1000-150)*0.12 = 102. Total = 1000-150+102 = 952.
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $this->product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => 952,
+        ]);
+
+        $response->assertOk();
+        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $this->assertEquals(1000.0, (float) $billing->Subtotal);
+        $this->assertEquals(150.0, (float) $billing->DiscountAmount);
+        $this->assertEquals(102.0, (float) $billing->VatAmount);
+        $this->assertEquals(952.0, (float) $billing->BillingAmount);
+        $this->assertSame('FIXED150', $billing->PromoCode);
+    }
+
+    // Two different products can each carry their own, entirely independent
+    // active promo at once (nothing stops that — the "no overlap" rule only
+    // blocks two promos targeting the SAME product). Billing only has room
+    // for one DiscountID/PromoCode, predating per-product assignment, so
+    // this can't attribute the receipt's promo-code line to a single promo
+    // — but the total discount charged must still be exactly correct.
+    public function test_checkout_sums_two_different_promos_but_cannot_attribute_a_single_discount_id(): void
+    {
+        $this->makePromo(['PromoCode' => 'PROMOA', 'DiscountRate' => 10], [$this->product->ProductID]);
+        $this->makePromo(['PromoCode' => 'PROMOB', 'DiscountRate' => 20], [$this->otherProduct->ProductID]);
+
+        // Bullet 2MP: 1000 * 10% = 100 off. DVR 8CH: 2000 * 20% = 400 off.
+        // Subtotal = 3000. Discount = 500. VAT = (3000-500)*0.12 = 300.
+        // Total = 3000-500+300 = 2800.
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [
+                ['id' => $this->product->ProductID, 'qty' => 1],
+                ['id' => $this->otherProduct->ProductID, 'qty' => 1],
+            ],
+            'payment_method' => 'cash',
+            'payment_amount' => 2800,
+        ]);
+
+        $response->assertOk();
+        $billing = Billing::latest('BillingID')->firstOrFail();
+        $this->assertEquals(3000.0, (float) $billing->Subtotal);
+        $this->assertEquals(500.0, (float) $billing->DiscountAmount);
+        $this->assertEquals(300.0, (float) $billing->VatAmount);
+        $this->assertEquals(2800.0, (float) $billing->BillingAmount);
+        $this->assertNull($billing->DiscountID);
     }
 
     // The POS page's "Apply Promo" button only ever renders for a product

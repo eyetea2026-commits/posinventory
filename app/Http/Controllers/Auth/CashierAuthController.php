@@ -75,6 +75,8 @@ class CashierAuthController extends Controller
                     'discount_id' => $discount->DiscountID,
                     'code' => $discount->PromoCode,
                     'name' => $discount->Name,
+                    'description' => $discount->Description,
+                    'type' => $discount->DiscountType,
                     'rate' => (float) $discount->DiscountRate,
                 ];
             }
@@ -183,7 +185,6 @@ class CashierAuthController extends Controller
             'items.*.id' => 'required|integer|exists:Product,ProductID',
             'items.*.qty' => 'required|integer|min:1',
             'payment_method' => 'required|in:cash,gcash,bank,cheque',
-            'discount_id' => 'nullable|integer|exists:Discount,DiscountID',
             'reference_number' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:50'],
             'bank_name' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:100'],
             'account_name' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:100'],
@@ -205,7 +206,6 @@ class CashierAuthController extends Controller
         // that case has to be handled explicitly or SalesTransaction's NOT NULL
         // CustomerName column rejects the insert.
         $customerName = trim((string) $request->input('customer_name')) ?: 'Walk-in Customer';
-        $discountId = $data['discount_id'] ?? null;
         $paymentMethod = $data['payment_method'];
         $paymentAmount = round(floatval($request->input('payment_amount', 0)), 2);
         $referenceNumber = $data['reference_number'] ?? null;
@@ -239,7 +239,7 @@ class CashierAuthController extends Controller
 
         try {
             $result = DB::transaction(function () use (
-                $items, $quantitiesByProduct, $customerName, $discountId, $paymentMethod, $paymentAmount,
+                $items, $quantitiesByProduct, $customerName, $paymentMethod, $paymentAmount,
                 $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user
             ) {
                 // Prevent recording the same cheque/reference twice for the
@@ -276,41 +276,51 @@ class CashierAuthController extends Controller
                     $subtotal += $products->get($item['id'])->Price * $item['qty'];
                 }
 
-                // Promo codes are admin-managed, product-specific policies —
-                // never a rate the cashier can type. Re-validated from
-                // scratch here exactly like Apply Promo does client-side,
-                // since the id alone is all the client ever sent: it must
-                // still exist, still be active/within its date window, and
-                // still apply to a product actually in this cart. No
-                // selection at all means no discount applies, not an error.
-                $discount = null;
+                // Apply Promo is fully automatic now — there's no client
+                // selection to trust at all, not even an id. For every
+                // product actually in this cart, independently look up
+                // whatever promo is currently active for it (same
+                // Discount/DiscountProduct data and currentlyActive() scope
+                // the admin's Discount Module and the POS page's live promo
+                // map both use) and discount that line by exactly that
+                // promo's own type/rate, reusing discountedPriceFor() so the
+                // math can never drift from what's shown anywhere else.
                 $discountAmount = 0.0;
-                if ($discountId) {
-                    $discount = Discount::find($discountId);
-                    if (!$discount) {
-                        throw new \RuntimeException('Selected promo is no longer available.');
-                    }
-                    if ($discount->effective_status !== Discount::STATUS_ACTIVE) {
-                        throw new \RuntimeException('Selected promo is no longer active.');
-                    }
-                    $promoProductIds = array_intersect(
-                        $discount->products()->pluck('Product.ProductID')->all(),
-                        array_keys($quantitiesByProduct)
-                    );
-                    if (empty($promoProductIds)) {
-                        throw new \RuntimeException('Selected promo does not apply to any product in this cart.');
-                    }
+                $usedDiscountIds = [];
+                $activePromoByProduct = [];
+                Discount::currentlyActive()
+                    ->whereHas('products', fn ($q) => $q->whereIn('Product.ProductID', array_keys($quantitiesByProduct)))
+                    ->with(['products' => fn ($q) => $q->whereIn('Product.ProductID', array_keys($quantitiesByProduct))])
+                    ->get()
+                    ->each(function ($promo) use (&$activePromoByProduct) {
+                        foreach ($promo->products as $promoProduct) {
+                            $activePromoByProduct[$promoProduct->ProductID] = $promo;
+                        }
+                    });
 
-                    // The discount applies only to its assigned products'
-                    // lines that are actually in this cart — never the whole
-                    // cart, and never a product outside the assigned set —
-                    // so it's computed as the sum of just those lines' subtotals.
-                    $promoProductSubtotal = 0;
-                    foreach ($promoProductIds as $promoProductId) {
-                        $promoProductSubtotal += $products->get($promoProductId)->Price * $quantitiesByProduct[$promoProductId];
+                foreach ($quantitiesByProduct as $productId => $qty) {
+                    $promo = $activePromoByProduct[$productId] ?? null;
+                    if (! $promo) {
+                        continue;
                     }
-                    $discountAmount = round($promoProductSubtotal * ((float) $discount->DiscountRate / 100), 2);
+                    $product = $products->get($productId);
+                    $discountAmount += ((float) $product->Price - $promo->discountedPriceFor($product)) * $qty;
+                    $usedDiscountIds[$promo->DiscountID] = true;
                 }
+                $discountAmount = round($discountAmount, 2);
+
+                // Billing only has room for one DiscountID/PromoCode (it
+                // predates per-product promo assignment) — when every
+                // discounted line in this sale came from the same promo,
+                // which is the normal case, it's recorded exactly as
+                // before. The rare case of two DIFFERENT promos each
+                // discounting a different product in the same cart still
+                // charges the correct total (DiscountAmount above already
+                // sums every line correctly regardless), it just can't
+                // attribute the receipt's promo-code line to a single promo,
+                // so that display is skipped rather than shown wrong.
+                $distinctDiscountIds = array_keys($usedDiscountIds);
+                $discount = count($distinctDiscountIds) === 1 ? Discount::find($distinctDiscountIds[0]) : null;
 
                 // Round every money value to the cent immediately after
                 // computing it — carrying raw floating-point results into
