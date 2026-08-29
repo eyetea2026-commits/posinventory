@@ -215,6 +215,11 @@
                 },
                 onSuccess: function (html, message) {
                     window.closeReorderModal();
+                    // Shows the success message, then — once it's actually
+                    // been seen, whether it auto-closed via the timer or the
+                    // admin dismissed it early — navigates to the Purchase
+                    // Order module, where the order just saved is already
+                    // in the database and will render on that page's load.
                     Swal.fire({
                         title: 'Success',
                         text: message,
@@ -222,6 +227,8 @@
                         confirmButtonColor: '#10b981',
                         timer: 2000,
                         showConfirmButton: false
+                    }).then(function () {
+                        window.location.href = '{{ route('admin.purchase-orders.index') }}';
                     });
                 },
                 onOtherError: function (message) {
