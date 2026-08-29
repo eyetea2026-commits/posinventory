@@ -9,8 +9,6 @@ class PurchaseOrder extends Model
 {
     use HasFactory;
 
-    public $timestamps = false;
-
     protected $table = 'PurchaseOrder';
     protected $primaryKey = 'PurchaseOrderID';
 

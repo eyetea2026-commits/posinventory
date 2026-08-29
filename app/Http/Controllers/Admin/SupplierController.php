@@ -132,7 +132,7 @@ class SupplierController extends Controller
         $purchaseOrders = $supplier->purchaseOrders()
             ->with(['items', 'stockReceivings'])
             ->when($search, fn ($q) => $q->where('PONumber', 'like', "%{$search}%"))
-            ->orderByDesc('PurchaseDate')
+            ->orderByDesc('created_at')
             ->paginate(10)
             ->withQueryString();
 

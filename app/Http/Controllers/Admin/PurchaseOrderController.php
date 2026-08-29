@@ -57,7 +57,11 @@ class PurchaseOrderController extends Controller
                     $product->where('CategoryID', $categoryId);
                 });
             })
-            ->orderByDesc('PurchaseDate')
+            // PurchaseDate is a plain date the admin can freely edit as the
+            // order's business date, so two orders placed the same day (or
+            // deliberately backdated) can't be told apart by it — sorted by
+            // the actual row creation timestamp instead, newest first.
+            ->orderByDesc('created_at')
             ->paginate(15)
             ->withQueryString();
 

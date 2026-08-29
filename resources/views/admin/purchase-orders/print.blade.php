@@ -83,12 +83,12 @@
         <tbody>
             @php $grandTotal = 0; @endphp
             @foreach($purchaseOrder->items as $item)
-                @php $lineTotal = $item->Quantity * $item->CostPriceAtOrder; $grandTotal += $lineTotal; @endphp
+                @php $grandTotal += $item->line_total; @endphp
                 <tr>
                     <td>{{ $item->product?->ProductName ?? 'N/A' }}</td>
                     <td class="num">{{ $item->Quantity }}</td>
                     <td class="num">₱{{ number_format($item->CostPriceAtOrder, 2) }}</td>
-                    <td class="num">₱{{ number_format($lineTotal, 2) }}</td>
+                    <td class="num">₱{{ number_format($item->line_total, 2) }}</td>
                 </tr>
             @endforeach
         </tbody>
@@ -110,12 +110,6 @@
             <div class="signature-line">
                 {{ $purchaseOrder->createdByUser?->full_name ?? 'N/A' }}
                 <br><small>Prepared By</small>
-            </div>
-        </div>
-        <div class="signature-block">
-            <div class="signature-line">
-                &nbsp;
-                <br><small>Checked By</small>
             </div>
         </div>
         <div class="signature-block">

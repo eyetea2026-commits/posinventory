@@ -52,6 +52,47 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertTrue(Schema::hasColumn('PurchaseOrder', 'PONumber'));
     }
 
+    // Line Total is the financial value of what was ORDERED on this line,
+    // not what has arrived so far — Received/Remaining already have their
+    // own columns for tracking fulfillment. Using ReceivedQuantity here
+    // made every line read ₱0.00 until receiving started.
+    public function test_purchase_order_item_line_total_is_ordered_quantity_times_cost_not_received(): void
+    {
+        $po = PurchaseOrder::create([
+            'PONumber' => 'PO-TEST-LT', 'PurchaseDate' => now()->format('Y-m-d'),
+            'Status' => PurchaseOrder::STATUS_PENDING, 'SupplierID' => $this->supplier->SupplierID,
+        ]);
+        $item = PurchaseOrderItem::create([
+            'PurchaseOrderID' => $po->PurchaseOrderID, 'ProductID' => $this->product->ProductID,
+            'Quantity' => 20, 'CostPriceAtOrder' => 815, 'ReceivedQuantity' => 0,
+        ]);
+
+        $this->assertEquals(16300.0, $item->line_total);
+
+        // Receiving some of it doesn't change the line's own ordered value.
+        $item->update(['ReceivedQuantity' => 5]);
+        $this->assertEquals(16300.0, $item->fresh()->line_total);
+    }
+
+    // PurchaseDate is a plain date the admin can edit freely, and the table
+    // never tracked creation timestamps before — two POs placed the same
+    // day (or deliberately backdated) couldn't be told apart, so "newest
+    // first" wasn't reliable. Sorted by the real creation timestamp now.
+    public function test_index_sorts_by_actual_creation_time_not_just_purchase_date(): void
+    {
+        $older = $this->makeOrder(['PONumber' => 'PO-OLDER', 'PurchaseDate' => now()->format('Y-m-d')]);
+        $older->forceFill(['created_at' => now()->subHours(3)])->save();
+
+        $newer = $this->makeOrder(['PONumber' => 'PO-NEWER', 'PurchaseDate' => now()->format('Y-m-d')]);
+        $newer->forceFill(['created_at' => now()->subHour()])->save();
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'));
+
+        $response->assertOk();
+        $body = $response->getContent();
+        $this->assertLessThan(strpos($body, 'PO-OLDER'), strpos($body, 'PO-NEWER'));
+    }
+
     public function test_index_has_no_filter_button_but_search_and_category_filter_still_work(): void
     {
         $otherCategory = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
@@ -173,14 +214,17 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertSee('Prepared By');
         $response->assertSee('Approved By');
         $response->assertSee($this->admin->full_name);
-        // 10 ordered x 600 cost = 6,000.00 grand total (ordered-based, not
-        // the received-based total the dompdf export/show page use).
+        // 10 ordered x 600 cost = 6,000.00 grand total — ordered-based,
+        // same as the Line Total column everywhere else in the PO module.
         $response->assertSee('6,000.00');
         $response->assertSee('Purchase Order Information');
         $response->assertSee('Supplier Information');
         $response->assertSee('Order Summary');
         $response->assertSee('Remarks');
-        $response->assertSee('Checked By');
+        // "Checked By" was a signature line nothing in this system ever
+        // fills in (no "checked by" concept exists anywhere else in the PO
+        // lifecycle) — removed from the print layout.
+        $response->assertDontSee('Checked By');
     }
 
     public function test_print_preview_shows_pending_approval_when_not_yet_approved(): void

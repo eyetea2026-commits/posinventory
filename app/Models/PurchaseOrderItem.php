@@ -37,8 +37,13 @@ class PurchaseOrderItem extends Model
         return max(0, $this->Quantity - $this->ReceivedQuantity);
     }
 
+    // The financial value of this PO line — what was ORDERED at the price
+    // agreed for this order, not what has arrived so far. Using
+    // ReceivedQuantity here made every line show ₱0.00 until receiving
+    // started, which isn't what a Line Total is for; Received/Remaining
+    // already have their own columns for tracking fulfillment progress.
     public function getLineTotalAttribute(): float
     {
-        return $this->ReceivedQuantity * $this->CostPriceAtOrder;
+        return $this->Quantity * $this->CostPriceAtOrder;
     }
 }
