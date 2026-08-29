@@ -200,6 +200,12 @@
        selecting several products in one action. */
     .modal-content-tall { max-height: 92vh; }
     .modal-selected-count { margin: 8px 0 4px; font-size: 0.8rem; color: #94a3b8; }
+    .modal-select-all-row {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-top: 10px; border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 10px;
+    }
+    .modal-select-all-label { flex: 1; padding: 9px 14px; border-bottom: none; }
+    .modal-select-all-row .modal-selected-count { margin: 0 14px; flex-shrink: 0; }
     .modal-product-list {
         max-height: 420px; overflow-y: auto;
         border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px;
@@ -412,7 +418,13 @@
         <div class="form-group">
             <label class="picker-label">Products</label>
             <input type="text" id="productPickerInput" class="form-control" placeholder="Search product by name or SKU…" autocomplete="off">
-            <div id="modalSelectedCount" class="modal-selected-count"></div>
+            <div class="modal-select-all-row">
+                <label class="modal-product-row modal-select-all-label">
+                    <input type="checkbox" id="modalSelectAll">
+                    <span class="mp-info"><span class="mp-name">Select All</span></span>
+                </label>
+                <div id="modalSelectedCount" class="modal-selected-count"></div>
+            </div>
             <div class="modal-product-list" id="modalProductList"></div>
         </div>
 
@@ -585,6 +597,7 @@
         const pickerInput = document.getElementById('productPickerInput');
         const selectedCountEl = document.getElementById('modalSelectedCount');
         const modalProductList = document.getElementById('modalProductList');
+        const selectAllCheckbox = document.getElementById('modalSelectAll');
         const assignBtn = document.getElementById('assignSelectedBtn');
         const appliedTbody = document.getElementById('appliedAssignmentsTbody');
         const appliedPaginationWrapper = document.getElementById('appliedPaginationWrapper');
@@ -685,6 +698,7 @@
 
             if (!products.length) {
                 modalProductList.innerHTML = '<div class="product-picker-empty">No matching products.</div>';
+                updateSelectAllState([]);
                 return;
             }
 
@@ -702,7 +716,53 @@
                     </label>
                 `;
             }).join('');
+
+            updateSelectAllState(products);
         }
+
+        // "Select All" only ever acts on the products currently displayed
+        // (lastResults — the same capped/searched list rendered above), not
+        // the whole catalog, and only the ones actually selectable (an
+        // already-assigned product's checkbox is disabled, so Select All
+        // leaves it alone). Its own checked state is fully derived from
+        // selectedProducts, never tracked independently, so it can never
+        // drift out of sync with the individual checkboxes.
+        function selectableProducts(products) {
+            const assignedIds = assignedIdsFor(currentPromoId());
+            return products.filter(function (p) { return !assignedIds.includes(String(p.id)); });
+        }
+
+        function updateSelectAllState(products) {
+            const selectable = selectableProducts(products);
+            if (!selectable.length) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.disabled = true;
+                return;
+            }
+            selectAllCheckbox.disabled = false;
+            selectAllCheckbox.checked = selectable.every(function (p) {
+                return selectedProducts.some(function (sp) { return String(sp.id) === String(p.id); });
+            });
+        }
+
+        selectAllCheckbox.addEventListener('change', function () {
+            const selectable = selectableProducts(lastResults);
+
+            if (selectAllCheckbox.checked) {
+                selectable.forEach(function (p) {
+                    if (!selectedProducts.some(function (sp) { return String(sp.id) === String(p.id); })) {
+                        selectedProducts.push(p);
+                    }
+                });
+            } else {
+                const visibleIds = selectable.map(function (p) { return String(p.id); });
+                selectedProducts = selectedProducts.filter(function (sp) { return !visibleIds.includes(String(sp.id)); });
+            }
+
+            renderProductList(lastResults);
+            updateSelectedCount();
+            updateAssignButtonState();
+        });
 
         async function searchProducts(query) {
             if (searchController) searchController.abort();
@@ -747,6 +807,7 @@
             }
 
             row.classList.toggle('is-checked', checkbox.checked);
+            updateSelectAllState(lastResults);
             updateSelectedCount();
             updateAssignButtonState();
         });
