@@ -146,7 +146,7 @@ class SupplierHistoryTest extends TestCase
             'PurchaseDate' => now()->format('Y-m-d'),
             'Status' => 'draft',
             'products' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 5],
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600],
             ],
         ]);
 

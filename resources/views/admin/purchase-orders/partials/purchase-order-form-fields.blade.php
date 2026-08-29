@@ -103,8 +103,12 @@
                 <input type="number" name="products[][quantity]" min="1" class="form-input" required>
             </div>
             <div class="form-group">
-                <label class="form-label">Cost Price</label>
-                <input type="number" name="products[][cost_price]" min="0" step="0.01" class="form-input order-item-cost">
+                <label class="form-label">Previous Price</label>
+                <div class="form-input order-item-previous-cost" style="background: var(--bg-hover, rgba(30, 41, 59, 0.6)); display:flex; align-items:center;">N/A</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Current Price <span style="color: var(--danger);">*</span></label>
+                <input type="number" name="products[][cost_price]" min="0.01" step="0.01" class="form-input order-item-cost" required>
             </div>
             <button type="button" onclick="removeOrderItem(this)" class="btn btn-danger btn-icon" title="Remove item">
                 <i class="fas fa-trash"></i>
@@ -153,14 +157,24 @@
         if (categoryFilter) categoryFilter.value = '';
     }
 
-    // Pre-fills Cost Price from the product's current CostPrice when a
-    // product is picked — still fully editable by the admin afterward.
+    // Shows the product's currently stored cost as the read-only "Previous
+    // Price" (never editable — that's the whole point of it existing
+    // alongside Current Price) and pre-fills Current Price from it, still
+    // fully editable by the admin afterward. A null/0 stored cost means
+    // nothing is on record yet, shown as "N/A" rather than a fake ₱0.00.
     function onOrderItemProductChange(select) {
         const option = select.options[select.selectedIndex];
         const row = select.closest('.order-item-row');
         const costInput = row?.querySelector('.order-item-cost');
-        if (costInput && option && option.dataset.cost) {
-            costInput.value = parseFloat(option.dataset.cost).toFixed(2);
+        const previousCostEl = row?.querySelector('.order-item-previous-cost');
+        const cost = option ? parseFloat(option.dataset.cost) : NaN;
+        const hasPreviousCost = !isNaN(cost) && cost > 0;
+
+        if (previousCostEl) {
+            previousCostEl.textContent = hasPreviousCost ? '₱' + cost.toFixed(2) : 'N/A';
+        }
+        if (costInput && hasPreviousCost) {
+            costInput.value = cost.toFixed(2);
         }
     }
 

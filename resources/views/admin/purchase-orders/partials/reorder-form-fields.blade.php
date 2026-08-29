@@ -68,12 +68,33 @@
             <span>{{ $threshold }}</span>
         </div>
         <div class="reorder-detail-item">
-            <label>Cost Price</label>
-            <span>{{ number_format($resolvedSupplier?->CostPrice ?? $product->CostPrice, 2) }}</span>
-        </div>
-        <div class="reorder-detail-item">
             <label>Suggested Reorder Quantity</label>
             <span>{{ $suggestedQuantity }}</span>
+        </div>
+    </div>
+</div>
+
+@php
+    // Null/0 both mean "nothing on record yet" — CostPrice is nullable
+    // with a default of 0, so either is the genuine "no previous price"
+    // case, not a real ₱0.00 price.
+    $previousCostPrice = $resolvedSupplier?->CostPrice ?? $product->CostPrice;
+    $hasPreviousCostPrice = $previousCostPrice !== null && (float) $previousCostPrice > 0;
+@endphp
+<div class="reorder-section">
+    <h3><i class="fas fa-tag"></i> Cost Price</h3>
+    <div class="form-grid">
+        <div class="form-group">
+            <label class="form-label">Previous Price</label>
+            <div class="reorder-detail-item" style="margin:0;">
+                <span>{{ $hasPreviousCostPrice ? '₱' . number_format($previousCostPrice, 2) : 'N/A' }}</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="CostPrice">Current Price <span style="color: var(--danger);">*</span></label>
+            <input type="number" id="CostPrice" name="CostPrice" class="form-input" min="0.01" step="0.01"
+                   value="{{ old('CostPrice', $hasPreviousCostPrice ? number_format($previousCostPrice, 2, '.', '') : '') }}" required>
+            <span class="form-error" id="error-CostPrice">@error('CostPrice'){{ $message }}@enderror</span>
         </div>
     </div>
 </div>

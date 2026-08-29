@@ -132,6 +132,7 @@ class AutomaticReorderTest extends TestCase
         $response = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store-from-reorder', $this->product), [
             'SupplierID' => $this->supplier->SupplierID,
             'OrderQuantity' => 35,
+            'CostPrice' => 550,
             'Remarks' => 'Restocking low inventory',
         ]);
 
@@ -177,6 +178,7 @@ class AutomaticReorderTest extends TestCase
         $response = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store-from-reorder', $this->product), [
             'SupplierID' => $this->supplier->SupplierID,
             'OrderQuantity' => 35,
+            'CostPrice' => 600,
         ]);
 
         $response->assertRedirect(route('admin.purchase-orders.index'));

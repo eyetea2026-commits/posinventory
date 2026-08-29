@@ -176,7 +176,11 @@ class PurchaseOrderController extends Controller
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_id' => ['required', 'integer', 'exists:Product,ProductID'],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
-            'products.*.cost_price' => ['nullable', 'numeric', 'min:0'],
+            'products.*.cost_price' => ['required', 'numeric', 'min:0.01'],
+        ], [
+            'products.*.cost_price.required' => 'Current Price is required for every product.',
+            'products.*.cost_price.numeric' => 'Current Price must be a valid number.',
+            'products.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
         ]);
 
         $purchaseOrder = DB::transaction(function () use ($data) {
@@ -202,14 +206,14 @@ class PurchaseOrderController extends Controller
                     continue;
                 }
 
-                $product = Product::find($item['product_id']);
-                $costPrice = $item['cost_price'] ?? $product?->CostPrice ?? 0;
-
+                // Current Price is required and validated above (> ₱0.00) —
+                // always the admin's own entered value now, never silently
+                // re-derived from the product's stored cost.
                 PurchaseOrderItem::create([
                     'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                     'ProductID' => $item['product_id'],
                     'Quantity' => $item['quantity'],
-                    'CostPriceAtOrder' => $costPrice,
+                    'CostPriceAtOrder' => $item['cost_price'],
                 ]);
             }
 
@@ -235,10 +239,15 @@ class PurchaseOrderController extends Controller
 
         $data = $request->validate([
             'OrderQuantity' => ['required', 'integer', 'min:1'],
+            'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'Remarks' => ['nullable', 'string', 'max:1000'],
             'SupplierID' => $knownSupplierIds
                 ? ['required', 'integer', Rule::in($knownSupplierIds)]
                 : ['required', 'integer', 'exists:Supplier,SupplierID'],
+        ], [
+            'CostPrice.required' => 'Current Price is required.',
+            'CostPrice.numeric' => 'Current Price must be a valid number.',
+            'CostPrice.min' => 'Current Price must be greater than ₱0.00.',
         ]);
 
         $purchaseOrder = DB::transaction(function () use ($data, $product) {
@@ -268,11 +277,15 @@ class PurchaseOrderController extends Controller
                 'PONumber' => 'PO-' . now()->format('Y') . '-' . str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
             ]);
 
+            // The admin's entered Current Price — never re-derived from the
+            // product/supplier's own stored cost, which is shown here only
+            // as the read-only "Previous Price" for reference. Existing POs
+            // are untouched; this only sets THIS item's own frozen cost.
             PurchaseOrderItem::create([
                 'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                 'ProductID' => $product->ProductID,
                 'Quantity' => $data['OrderQuantity'],
-                'CostPriceAtOrder' => $productSupplier->CostPrice ?? $product->CostPrice,
+                'CostPriceAtOrder' => $data['CostPrice'],
             ]);
 
             return $purchaseOrder;

@@ -128,13 +128,17 @@ class PurchaseOrderModuleTest extends TestCase
 
     public function test_store_creates_purchase_order_with_generated_po_number_and_cost_snapshot(): void
     {
+        // Current Price (650) is deliberately different from the product's
+        // own stored CostPrice (600, from setUp) — the saved
+        // CostPriceAtOrder must exactly match what was entered here, never
+        // silently fall back to the product's own cost.
         $response = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
             'SupplierID' => $this->supplier->SupplierID,
             'PurchaseDate' => now()->format('Y-m-d'),
             'ExpectedDeliveryDate' => now()->addDays(7)->format('Y-m-d'),
             'Status' => 'pending',
             'products' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 5],
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 650],
             ],
         ]);
 
@@ -143,9 +147,96 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertNotNull($po->PONumber);
         $this->assertStringStartsWith('PO-' . now()->format('Y') . '-', $po->PONumber);
         $this->assertDatabaseHas('PurchaseOrderItem', [
-            'ProductID' => $this->product->ProductID, 'Quantity' => 5, 'CostPriceAtOrder' => 600,
+            'ProductID' => $this->product->ProductID, 'Quantity' => 5, 'CostPriceAtOrder' => 650,
         ]);
         $this->assertTrue(ActivityLog::where('Action', 'purchase_order.created')->exists());
+    }
+
+    // Current Price: required, numeric, > ₱0.00 — covers every rejection
+    // case called out explicitly (missing, zero, negative, non-numeric).
+    public function test_store_rejects_missing_zero_negative_and_non_numeric_current_price(): void
+    {
+        $basePayload = [
+            'SupplierID' => $this->supplier->SupplierID,
+            'PurchaseDate' => now()->format('Y-m-d'),
+            'Status' => 'pending',
+        ];
+
+        $missing = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
+            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5]],
+        ]);
+        $missing->assertSessionHasErrors('products.0.cost_price');
+
+        $zero = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
+            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 0]],
+        ]);
+        $zero->assertSessionHasErrors('products.0.cost_price');
+
+        $negative = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
+            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => -100]],
+        ]);
+        $negative->assertSessionHasErrors('products.0.cost_price');
+
+        $nonNumeric = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
+            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 'abc']],
+        ]);
+        $nonNumeric->assertSessionHasErrors('products.0.cost_price');
+
+        $this->assertSame(0, PurchaseOrder::count());
+    }
+
+    public function test_store_accepts_a_valid_decimal_current_price(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
+            'SupplierID' => $this->supplier->SupplierID,
+            'PurchaseDate' => now()->format('Y-m-d'),
+            'Status' => 'pending',
+            'products' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 815.75],
+            ],
+        ]);
+
+        $response->assertRedirect(route('admin.purchase-orders.index'));
+        $this->assertDatabaseHas('PurchaseOrderItem', [
+            'ProductID' => $this->product->ProductID, 'CostPriceAtOrder' => 815.75,
+        ]);
+    }
+
+    // The reorder quick-create flow: Previous Price is read-only display
+    // only (never a submittable field, so there's nothing to "make
+    // read-only" server-side — it simply isn't part of the request), and
+    // Current Price is what actually gets saved as CostPriceAtOrder,
+    // independent of the product's own stored CostPrice.
+    public function test_store_from_reorder_saves_the_entered_current_price_not_the_products_stored_cost(): void
+    {
+        $response = $this->actingAs($this->admin)->post(
+            route('admin.purchase-orders.store-from-reorder', $this->product),
+            ['OrderQuantity' => 20, 'CostPrice' => 850, 'SupplierID' => $this->supplier->SupplierID]
+        );
+
+        $response->assertRedirect(route('admin.purchase-orders.index'));
+        $this->assertDatabaseHas('PurchaseOrderItem', [
+            'ProductID' => $this->product->ProductID, 'Quantity' => 20, 'CostPriceAtOrder' => 850,
+        ]);
+        // The product's own stored cost (600, from setUp) is untouched.
+        $this->assertEquals(600, $this->product->fresh()->CostPrice);
+    }
+
+    public function test_store_from_reorder_rejects_a_missing_or_zero_current_price(): void
+    {
+        $missing = $this->actingAs($this->admin)->post(
+            route('admin.purchase-orders.store-from-reorder', $this->product),
+            ['OrderQuantity' => 20, 'SupplierID' => $this->supplier->SupplierID]
+        );
+        $missing->assertSessionHasErrors('CostPrice');
+
+        $zero = $this->actingAs($this->admin)->post(
+            route('admin.purchase-orders.store-from-reorder', $this->product),
+            ['OrderQuantity' => 20, 'CostPrice' => 0, 'SupplierID' => $this->supplier->SupplierID]
+        );
+        $zero->assertSessionHasErrors('CostPrice');
+
+        $this->assertSame(0, PurchaseOrder::count());
     }
 
     public function test_approved_purchase_orders_cannot_be_created_directly(): void
