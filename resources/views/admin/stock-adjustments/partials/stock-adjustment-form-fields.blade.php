@@ -17,6 +17,7 @@
     <div class="form-group">
         <label class="form-label" for="QuantityAdjust">Quantity Adjusted <span style="color: var(--danger);">*</span></label>
         <input type="number" id="QuantityAdjust" name="QuantityAdjust" class="form-input" value="{{ old('QuantityAdjust') }}" required placeholder="e.g., 5 or -5">
+        <small style="display:block; color: var(--danger); margin-top: 4px;">(Use -5 to subtract quantity, or 5 to add quantity.)</small>
         <span class="form-error" id="error-QuantityAdjust">@error('QuantityAdjust'){{ $message }}@enderror</span>
     </div>
 
