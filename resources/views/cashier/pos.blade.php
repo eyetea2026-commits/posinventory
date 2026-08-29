@@ -38,6 +38,15 @@
     .product-card .stock.low { color: #f59e0b; }
     .product-card .stock.out { color: #ef4444; }
     .product-card .price { color: #60a5fa; font-size: 1rem; font-weight: bold; }
+    .card-original-price { text-decoration: line-through; color: #64748b; font-size: 0.8rem; font-weight: normal; margin-right: 5px; }
+    .card-discounted-price { color: #6ee7b7; }
+    .card-promo-chip {
+        display: inline-flex; align-items: center; gap: 4px; margin-top: 5px;
+        background: rgba(16, 185, 129, 0.15); color: #6ee7b7;
+        padding: 3px 8px; border-radius: 6px; font-size: 0.68rem; font-weight: 600;
+        white-space: normal;
+    }
+    .card-promo-desc { display: block; margin-top: 2px; font-size: 0.65rem; color: #94a3b8; font-weight: 400; white-space: normal; }
 
     .cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .cart-header h2 { margin: 0; font-size: 1.2rem; }
@@ -180,12 +189,12 @@
                     $stockClass = $stock <= 0 ? 'out-of-stock' : ($stock <= 10 ? 'low' : '');
                     $stockText = $stock <= 0 ? 'Out of Stock' : ($stock <= 10 ? 'Low Stock: ' . $stock : 'Stock: ' . $stock);
                 @endphp
-                <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}"
+                <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}" data-product-id="{{ $product->ProductID }}" data-price="{{ $product->Price }}"
                      onclick="{{ $stock > 0 ? 'addToCart(' . $product->ProductID . ', ' . json_encode($product->ProductName) . ', ' . $product->Price . ', ' . $stock . ')' : '' }}">
                     <h3>{{ $product->ProductName }}</h3>
                     <p>{{ $product->Model }}</p>
                     <p class="stock {{ $stockClass }}">{{ $stockText }}</p>
-                    <div class="price">₱{{ number_format($product->Price, 2) }}</div>
+                    <div class="price-block"></div>
                 </div>
             @empty
                 <div class="empty-cart" style="grid-column: 1/-1;">
@@ -445,6 +454,37 @@
         return promo.type === 'fixed' ? `${window.formatPeso(promo.rate)} OFF` : `${promo.rate}% OFF`;
     }
 
+    // The product catalog cards (left side of the POS Panel) show the same
+    // strikethrough-original / discounted-price / promo-name-and-value
+    // treatment as an already-added cart line — so a promo is visible
+    // before a cashier ever adds the product, not only after. Re-run on
+    // every refreshPromoMap() poll (not just once at page load) so a promo
+    // created/expired in the admin Discount Module while this tab is open
+    // updates the cards too.
+    function renderProductCardPricing() {
+        document.querySelectorAll('.product-card[data-product-id]').forEach(function (card) {
+            const productId = card.dataset.productId;
+            const price = parseFloat(card.dataset.price);
+            const promo = PRODUCT_PROMO_MAP[productId];
+            const block = card.querySelector('.price-block');
+            if (!block) return;
+
+            if (promo) {
+                const discounted = discountedUnitPrice(price, promo);
+                block.innerHTML = `
+                    <div class="price">
+                        <span class="card-original-price">${window.formatPeso(price)}</span>
+                        <span class="card-discounted-price">${window.formatPeso(discounted)}</span>
+                    </div>
+                    <span class="card-promo-chip"><i class="fas fa-tag"></i> ${escapeHtml(promo.name)} &middot; ${escapeHtml(promoValueLabel(promo))}</span>
+                    ${promo.description ? `<span class="card-promo-desc">${escapeHtml(promo.description)}</span>` : ''}
+                `;
+            } else {
+                block.innerHTML = `<div class="price">${window.formatPeso(price)}</div>`;
+            }
+        });
+    }
+
     let cart = [];
     let selectedPaymentMethod = 'cash';
     let currentTotal = 0;
@@ -657,10 +697,12 @@
                 if (!data) return;
                 PRODUCT_PROMO_MAP = data.products || {};
                 renderCart();
+                renderProductCardPricing();
             })
             .catch(() => { /* Next poll retries; no need to surface a transient network error. */ });
     }
 
+    renderProductCardPricing();
     setInterval(refreshPromoMap, 45000);
 
     // Holding down a qty +/- button repeats it instead of requiring one tap

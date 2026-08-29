@@ -405,6 +405,22 @@ class ApplyPromoTest extends TestCase
         $response->assertDontSee('"' . $scheduled->ProductID . '":{"discount_id"', false);
     }
 
+    // The catalog cards on the left side of the POS Panel show the promo
+    // strikethrough/name/value directly (not only after adding to the
+    // cart) — renderProductCardPricing() in pos.blade.php does this by
+    // reading each card's data-product-id/data-price against
+    // PRODUCT_PROMO_MAP, so both attributes must actually be present on
+    // every card for it to work at all.
+    public function test_pos_page_product_cards_carry_the_id_and_price_the_promo_display_needs(): void
+    {
+        $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
+
+        $response->assertOk();
+        $response->assertSee('data-product-id="' . $this->product->ProductID . '"', false);
+        $response->assertSee('data-price="1000"', false);
+        $response->assertSee('class="price-block"', false);
+    }
+
     // The POS page polls this endpoint (refreshPromoMap() in pos.blade.php)
     // to pick up a promo created/assigned/expired in the admin's Discount
     // Module without needing a page reload — same underlying query as the
