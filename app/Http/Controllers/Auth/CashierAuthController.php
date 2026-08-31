@@ -328,9 +328,16 @@ class CashierAuthController extends Controller
                 // payment for exactly the (rounded) total shown on screen,
                 // due to residual binary-fraction error a step or two back
                 // in this same formula.
+                // Product prices are VAT-inclusive (BIR-compliant SRP — the
+                // sticker/listed price is what the customer actually pays),
+                // so VAT is extracted from the post-discount amount for the
+                // receipt/report breakdown, never added on top of it. Total
+                // is defined as the post-discount amount itself so rounding
+                // can't drift it a centavo off (computing VAT-exclusive +
+                // VAT independently and summing them could).
                 $subtotal = round($subtotal, 2);
-                $vatAmount = round(($subtotal - $discountAmount) * 0.12, 2);
-                $total = round($subtotal - $discountAmount + $vatAmount, 2);
+                $total = round($subtotal - $discountAmount, 2);
+                $vatAmount = round($total * 12 / 112, 2);
 
                 // Sufficiency applies to every payment method, not just cash
                 // — GCash/bank/cheque are just as capable of being recorded

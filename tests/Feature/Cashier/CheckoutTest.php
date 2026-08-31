@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\SalesTransaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class CheckoutTest extends TestCase
@@ -40,6 +41,56 @@ class CheckoutTest extends TestCase
         return $product;
     }
 
+    // ---- Product prices are VAT-inclusive (BIR-compliant SRP): VAT is
+    // extracted from the price for the receipt/report breakdown, never
+    // added on top of it. Total always equals the (post-discount) price
+    // exactly as listed. ----
+
+    #[DataProvider('vatInclusivePriceProvider')]
+    public function test_checkout_extracts_vat_from_the_inclusive_price_instead_of_adding_it(float $price, float $expectedVat): void
+    {
+        $product = $this->makeProduct($price);
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => $price,
+        ]);
+
+        $response->assertOk();
+        $billing = Billing::latest('BillingID')->firstOrFail();
+        $this->assertEquals($price, (float) $billing->Subtotal);
+        $this->assertEquals($expectedVat, (float) $billing->VatAmount);
+        $this->assertEquals($price, (float) $billing->BillingAmount);
+    }
+
+    public static function vatInclusivePriceProvider(): array
+    {
+        return [
+            'P1500' => [1500.00, 160.71],
+            'P1000' => [1000.00, 107.14],
+            'P2500' => [2500.00, 267.86],
+        ];
+    }
+
+    public function test_checkout_extracts_vat_correctly_across_multiple_quantity(): void
+    {
+        $product = $this->makeProduct(1500);
+
+        // 3 x 1500 = 4500 — must stay 4500, never 4500 + 12% = 5040.
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 3]],
+            'payment_method' => 'cash',
+            'payment_amount' => 4500,
+        ]);
+
+        $response->assertOk();
+        $billing = Billing::latest('BillingID')->firstOrFail();
+        $this->assertEquals(4500.0, (float) $billing->Subtotal);
+        $this->assertEquals(482.14, (float) $billing->VatAmount);
+        $this->assertEquals(4500.0, (float) $billing->BillingAmount);
+    }
+
     // ---- Payment sufficiency applies to every method, not just cash ----
 
     public function test_gcash_payment_below_total_is_rejected(): void
@@ -61,11 +112,11 @@ class CheckoutTest extends TestCase
     {
         $product = $this->makeProduct(1000);
 
-        // 1000 subtotal, no discount, 12% VAT -> total 1120
+        // 1000 subtotal, no discount, price is VAT-inclusive -> total 1000
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
             'payment_method' => 'gcash',
-            'payment_amount' => 1120,
+            'payment_amount' => 1000,
         ]);
 
         $response->assertOk();
@@ -89,8 +140,7 @@ class CheckoutTest extends TestCase
 
         $subtotal = round(99.99, 2);
         $discountAmount = round($subtotal * (7.25 / 100), 2);
-        $vatAmount = round(($subtotal - $discountAmount) * 0.12, 2);
-        $total = round($subtotal - $discountAmount + $vatAmount, 2);
+        $total = round($subtotal - $discountAmount, 2);
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
@@ -118,7 +168,7 @@ class CheckoutTest extends TestCase
         $sale = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
             'payment_method' => 'cash',
-            'payment_amount' => 1008.00, // (1000 - 100) * 1.12 = 1008
+            'payment_amount' => 900.00, // 1000 - 100 discount, price is VAT-inclusive
             'discount_id' => $discount->DiscountID,
         ]);
         $sale->assertOk();
@@ -127,7 +177,7 @@ class CheckoutTest extends TestCase
         $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1000.00, (float) $billing->Subtotal);
         $this->assertEquals(100.00, (float) $billing->DiscountAmount);
-        $this->assertEquals(108.00, (float) $billing->VatAmount);
+        $this->assertEquals(96.43, (float) $billing->VatAmount); // 900 * 12/112
 
         // Now edit the discount's rate — a live-recompute receipt would
         // silently show a different amount than what was actually charged.
@@ -136,7 +186,7 @@ class CheckoutTest extends TestCase
         $receiptResponse = $this->actingAs($this->cashier)->get(route('cashier.receipt', $receiptNumber));
         $receiptResponse->assertOk();
         $receiptResponse->assertViewHas('discountAmount', 100.00);
-        $receiptResponse->assertViewHas('total', 1008.00);
+        $receiptResponse->assertViewHas('total', 900.00);
     }
 
     public function test_receipt_falls_back_to_live_recompute_for_rows_predating_the_breakdown_columns(): void

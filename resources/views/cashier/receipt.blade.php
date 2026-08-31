@@ -88,7 +88,7 @@
                 </div>
             @endif
             <div class="total-row">
-                <span>VAT (12%):</span>
+                <span>VAT (12% included):</span>
                 <span>₱{{ number_format($vatAmount, 2) }}</span>
             </div>
             <div class="total-row grand-total">

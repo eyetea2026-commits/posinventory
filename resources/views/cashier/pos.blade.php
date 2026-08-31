@@ -232,7 +232,7 @@
                 <span id="subtotal">₱0.00</span>
             </div>
             <div class="summary-row">
-                <span>VAT (12%)</span>
+                <span>VAT (12% included)</span>
                 <span id="vat">₱0.00</span>
             </div>
             <div class="summary-row" id="discount-summary-row" style="display:none;">
@@ -812,8 +812,13 @@
             return sum + ((item.price - discountedUnitPrice(item.price, promo)) * item.qty);
         }, 0));
 
-        const vatAmount = roundMoney((subtotal - discountAmount) * 0.12);
-        currentTotal = roundMoney(subtotal - discountAmount + vatAmount);
+        // Prices are VAT-inclusive — VAT is extracted from the
+        // post-discount amount for display, never added on top of it.
+        // Matches processSale()'s own formula exactly, including computing
+        // Total first and VAT from it (not the other way around), so
+        // rounding can't leave the two a centavo apart.
+        currentTotal = roundMoney(subtotal - discountAmount);
+        const vatAmount = roundMoney(currentTotal * 12 / 112);
 
         document.getElementById('subtotal').textContent = window.formatPeso(subtotal);
         document.getElementById('vat').textContent = window.formatPeso(vatAmount);
