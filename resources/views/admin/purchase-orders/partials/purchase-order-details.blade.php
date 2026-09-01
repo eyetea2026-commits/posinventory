@@ -56,7 +56,7 @@
                 <th>Received</th>
                 <th>Remaining</th>
                 <th>Cost Price</th>
-                <th>Line Total</th>
+                <th>Total Amount</th>
             </tr>
         </thead>
         <tbody>
