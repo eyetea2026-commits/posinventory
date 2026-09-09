@@ -27,10 +27,16 @@
 
         .meta-row { display: flex; justify-content: space-between; margin: 2px 0; }
 
-        .items-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 4px; }
-        .item-row { margin-bottom: 6px; }
-        .item-name { word-break: break-word; }
-        .item-line2 { display: flex; justify-content: space-between; color: #333; }
+        /* Real <table> (not flex rows) so Description/Quantity/Amount stay
+           in fixed, vertically-aligned columns no matter how a long
+           product name wraps — each cell holds exactly one kind of value,
+           never combined with other text or labels inside a cell. */
+        .items-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .items-table th, .items-table td { padding: 3px 2px; vertical-align: top; }
+        .items-table thead th { font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 4px; }
+        .items-table .col-desc { text-align: left; width: 52%; word-break: break-word; }
+        .items-table .col-qty { text-align: right; width: 18%; white-space: nowrap; }
+        .items-table .col-amt { text-align: right; width: 30%; white-space: nowrap; }
 
         .total-row { display: flex; justify-content: space-between; margin: 2px 0; }
         .grand-total { font-weight: bold; font-size: 14px; }
@@ -94,23 +100,30 @@
 
         <hr class="rule">
 
-        {{-- Item table: product name on its own line (so a long name wraps
-             instead of overlapping the amount column), quantity/unit price/
-             line amount on the line below it — same structure the
-             reference receipt uses per line item. --}}
-        <div class="items-header">
-            <span>Description</span>
-            <span>Amount</span>
-        </div>
-        @foreach($items as $item)
-            <div class="item-row">
-                <div class="item-name">{{ $item['name'] }}</div>
-                <div class="item-line2">
-                    <span>{{ $item['qty'] }} x ₱{{ number_format($item['price'], 2) }}</span>
-                    <span>₱{{ number_format($item['price'] * $item['qty'], 2) }}</span>
-                </div>
-            </div>
-        @endforeach
+        {{-- Description | Quantity | Amount — each cell holds exactly one
+             value (product name only, a bare integer, a bare line-total
+             number), never combined with other text, so a long product
+             name wrapping to a second line can't push Quantity/Amount out
+             of column alignment (a real <table> keeps every row's cells
+             lined up regardless of how tall the Description cell gets). --}}
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th class="col-desc">Description</th>
+                    <th class="col-qty">Quantity</th>
+                    <th class="col-amt">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($items as $item)
+                    <tr>
+                        <td class="col-desc">{{ $item['name'] }}</td>
+                        <td class="col-qty">{{ $item['qty'] }}</td>
+                        <td class="col-amt">{{ number_format($item['price'] * $item['qty'], 2) }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
 
         <hr class="rule">
 

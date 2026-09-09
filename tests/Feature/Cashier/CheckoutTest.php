@@ -91,6 +91,38 @@ class CheckoutTest extends TestCase
         $this->assertEquals(4500.0, (float) $billing->BillingAmount);
     }
 
+    // ---- Receipt item table: Description | Quantity | Amount, each cell
+    // holding exactly one value — Amount is the line TOTAL (price * qty),
+    // never the unit price, and never text-combined with qty ("2 x ..."). ----
+
+    public function test_receipt_item_table_shows_description_quantity_and_line_total_amount(): void
+    {
+        $product = $this->makeProduct(2500);
+
+        $sale = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 2]],
+            'payment_method' => 'cash',
+            'payment_amount' => 5000,
+        ]);
+        $sale->assertOk();
+
+        $receiptResponse = $this->actingAs($this->cashier)->get(route('cashier.receipt', $sale->json('receipt_number')));
+
+        $receiptResponse->assertOk();
+        $receiptResponse->assertViewHas('items', function ($items) use ($product) {
+            return $items[0]['id'] === $product->ProductID
+                && $items[0]['qty'] === 2
+                && (float) $items[0]['price'] === 2500.0;
+        });
+
+        // Price 2500 x qty 2 = 5,000.00 line total — not the 2,500.00 unit
+        // price, and not run together with the quantity as "2 x 2,500.00".
+        $receiptResponse->assertSee('<td class="col-qty">2</td>', false);
+        $receiptResponse->assertSee('<td class="col-amt">5,000.00</td>', false);
+        $receiptResponse->assertDontSee('2 x', false);
+        $receiptResponse->assertDontSee('<td class="col-amt">2,500.00</td>', false);
+    }
+
     // ---- Payment sufficiency applies to every method, not just cash ----
 
     public function test_gcash_payment_below_total_is_rejected(): void
