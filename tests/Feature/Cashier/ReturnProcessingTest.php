@@ -178,6 +178,53 @@ class ReturnProcessingTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'return.refund_processed')->exists());
     }
 
+    // A promo-discounted item must be refunded for what was actually paid,
+    // not its full undiscounted price — otherwise the refund overpays the
+    // customer by exactly the amount the original discount was worth.
+    public function test_process_refund_prorates_by_the_original_sale_discount(): void
+    {
+        $transaction = SalesTransaction::create([
+            'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
+        ]);
+        // 2 units @ 1000, with a 400 total discount (200/unit) — customer
+        // actually paid 800/unit.
+        SalesItem::create([
+            'Quantity' => 2, 'UnitPrice' => 1000, 'DiscountAmount' => 400,
+            'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+        $discount = Discount::firstOrCreate(['DiscountRate' => 20]);
+        $billing = Billing::create([
+            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1600,
+            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID,
+            'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+        Payment::create([
+            'PaymentAmount' => 1600, 'PaymentMethod' => 'cash',
+            'ReceiptNumber' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+            'BillingID' => $billing->BillingID,
+        ]);
+
+        $return = SalesReturn::create([
+            'SalesTransactionID' => $transaction->SalesTransactionID, 'ProductID' => $this->product->ProductID,
+            'Quantity' => 1, 'Reason' => 'Other', 'ReturnType' => 'refund',
+            'ReturnDate' => now()->format('Y-m-d'), 'Status' => 'approved', 'StaffID' => $this->staff->StaffID,
+        ]);
+        SalesReturnItem::create([
+            'SalesReturnID' => $return->SalesReturnID, 'ProductID' => $this->product->ProductID,
+            'Quantity' => 1, 'UnitPrice' => 1000, 'Reason' => 'Other',
+        ]);
+
+        $response = $this->actingAs($this->cashierUser)->postJson(
+            route('cashier.refunds.process', $return),
+            ['refund_method' => 'cash']
+        );
+
+        $response->assertJson(['success' => true]);
+        $return->refresh();
+        // 1 unit returned x (1000 - 200 discount/unit) = 800, not 1000.
+        $this->assertEquals(800, $return->RefundAmount);
+    }
+
     public function test_process_refund_does_not_restore_inventory_for_unsalable_reasons(): void
     {
         foreach (['Factory Defect', 'Damaged Product'] as $reason) {

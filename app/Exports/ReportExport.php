@@ -126,7 +126,12 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 (float) $row->UnitPrice,
                 $row->Discount,
                 $row->VatAmount,
-                (float) $row->ItemTotal,
+                // The invoice's actual net total (post-discount), not the
+                // per-line gross ItemTotal — same first-row-only convention
+                // as Discount/VatAmount above, so "Total" here always
+                // agrees with them instead of ignoring the discount shown
+                // two columns over.
+                $row->BillingAmount,
             ],
         };
     }
@@ -158,10 +163,9 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     // be a live =SUM() formula over, instead of the static number
     // ReportSummaryBuilder already computed — kept in sync by hand since
     // both read from the same headings()/map() column order above. Sales'
-    // "Total" column holds each line's gross amount (ItemTotal), which is
-    // exactly "Subtotal (Gross Sales)" — not "Net Sales" (BillingAmount,
-    // a different, non-exported value) — so only the columns that
-    // genuinely match a visible grid column get a formula; "Net Sales"
+    // "Total" column holds each invoice's actual net total (BillingAmount,
+    // first row only), which is exactly "Net Sales" — "Subtotal (Gross
+    // Sales)" (ItemTotal) has no visible grid column of its own, so it
     // keeps the static PHP-computed value instead of a mismatched SUM().
     private function summaryFormulaColumns(): array
     {
@@ -169,7 +173,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
             'inventory' => ['Total Inventory Value' => 9],
             'orders' => ['Total Amount' => 7],
             'supplier' => ['Total Amount' => 7],
-            default => ['Subtotal (Gross Sales)' => 10, 'Discount' => 8, 'VAT' => 9],
+            default => ['Net Sales' => 10, 'Discount' => 8, 'VAT' => 9],
         };
     }
 

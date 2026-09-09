@@ -303,7 +303,7 @@ class CashierReturnController extends Controller
                 'Reason' => $line['reasonLabel'],
             ]);
 
-            $refundAmount += $line['salesItem']->UnitPrice * $line['quantity'];
+            $refundAmount += round($line['salesItem']->refundable_unit_price * $line['quantity'], 2);
             $productNames[] = "{$line['quantity']} x \"{$line['salesItem']->product?->ProductName}\"";
         }
 
@@ -382,7 +382,7 @@ class CashierReturnController extends Controller
                     // (they were already diverted into the Damage module when the
                     // admin approved this return; see SalesReturnController::approve()).
                     // Every other reason also restores the unit to stock.
-                    $refundAmount += $salesItem ? ($salesItem->UnitPrice * $item->Quantity) : 0;
+                    $refundAmount += $salesItem ? round($salesItem->refundable_unit_price * $item->Quantity, 2) : 0;
 
                     if ($item->is_unsalable) {
                         continue;
@@ -590,13 +590,24 @@ class CashierReturnController extends Controller
             return response()->json(['success' => false, 'message' => 'Refund not found.'], 404);
         }
 
-        $items = $refund->items->map(function (SalesReturnItem $item) {
+        $items = $refund->items->map(function (SalesReturnItem $item) use ($refund) {
+            // The refundable amount for this line — what was actually paid,
+            // not the full undiscounted UnitPrice*Quantity — comes from the
+            // ORIGINAL sale's SalesItem (which carries the discount that
+            // applied at sale time), not SalesReturnItem's own line_total.
+            $originalSalesItem = SalesItem::where('SalesTransactionID', $refund->SalesTransactionID)
+                ->where('ProductID', $item->ProductID)
+                ->first();
+            $refundableLineTotal = $originalSalesItem
+                ? round($originalSalesItem->refundable_unit_price * $item->Quantity, 2)
+                : $item->line_total;
+
             return [
                 'product_name' => $item->product?->ProductName ?? 'Unknown',
                 'quantity' => $item->Quantity,
                 'reason' => $item->Reason,
                 'unit_price' => $item->UnitPrice,
-                'line_total' => $item->line_total,
+                'line_total' => $refundableLineTotal,
             ];
         });
 

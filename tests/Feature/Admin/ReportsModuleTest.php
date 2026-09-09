@@ -444,6 +444,25 @@ class ReportsModuleTest extends TestCase
         $this->assertNull($rows->last()->Discount);
     }
 
+    // The printed/exported Sales report's "Total" column must show the
+    // invoice's actual net total (post-discount), not the pre-discount
+    // gross line amount — otherwise it never agrees with the Discount/VAT
+    // columns shown right next to it (a ₱3,000 sale with ₱200 discount
+    // must show Total ₱2,800, not ₱3,000).
+    public function test_sales_report_total_column_reflects_the_discount_not_the_gross_line_amount(): void
+    {
+        $billing = $this->makeBilling(2800, '2026-06-20');
+        $billing->update(['Subtotal' => 3000, 'DiscountAmount' => 200, 'VatAmount' => 300]);
+        SalesItem::create(['Quantity' => 1, 'UnitPrice' => 3000, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']));
+
+        $response->assertOk();
+        $response->assertSee('₱2,800.00');
+        // The old (wrong) behavior showed the gross line amount here.
+        $response->assertDontSee('<td class="col-money col-total">₱3,000.00</td>', false);
+    }
+
     // ---- Report redesign: item-level Purchase (orders) explosion ----
 
     public function test_purchase_report_export_explodes_to_one_row_per_ordered_line(): void

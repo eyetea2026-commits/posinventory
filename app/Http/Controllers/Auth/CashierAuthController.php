@@ -288,6 +288,11 @@ class CashierAuthController extends Controller
                 $discountAmount = 0.0;
                 $usedDiscountIds = [];
                 $activePromoByProduct = [];
+                // Per unit, not per line — multiplied by whatever quantity
+                // ends up on each SalesItem row below, so a return/refund
+                // can later prorate by exactly the quantity being returned
+                // rather than assuming a whole line is returned at once.
+                $discountPerUnitByProduct = [];
                 Discount::currentlyActive()
                     ->whereHas('products', fn ($q) => $q->whereIn('Product.ProductID', array_keys($quantitiesByProduct)))
                     ->with(['products' => fn ($q) => $q->whereIn('Product.ProductID', array_keys($quantitiesByProduct))])
@@ -304,7 +309,9 @@ class CashierAuthController extends Controller
                         continue;
                     }
                     $product = $products->get($productId);
-                    $discountAmount += ((float) $product->Price - $promo->discountedPriceFor($product)) * $qty;
+                    $perUnitDiscount = (float) $product->Price - $promo->discountedPriceFor($product);
+                    $discountAmount += $perUnitDiscount * $qty;
+                    $discountPerUnitByProduct[$productId] = $perUnitDiscount;
                     $usedDiscountIds[$promo->DiscountID] = true;
                 }
                 $discountAmount = round($discountAmount, 2);
@@ -405,9 +412,15 @@ class CashierAuthController extends Controller
 
                 // Create sales items, priced from the DB, not the request
                 foreach ($items as $item) {
+                    $perUnitDiscount = $discountPerUnitByProduct[$item['id']] ?? 0;
                     SalesItem::create([
                         'Quantity' => $item['qty'],
                         'UnitPrice' => $products->get($item['id'])->Price,
+                        // This line's own share of the sale's discount — lets
+                        // a later return/refund pay out exactly what the
+                        // customer paid for the returned quantity instead of
+                        // the full undiscounted price.
+                        'DiscountAmount' => round($perUnitDiscount * $item['qty'], 2),
                         'ProductID' => $item['id'],
                         'SalesTransactionID' => $transaction->SalesTransactionID,
                     ]);

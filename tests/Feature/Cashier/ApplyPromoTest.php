@@ -338,6 +338,37 @@ class ApplyPromoTest extends TestCase
         $this->assertSame('FIXED150', $billing->PromoCode);
     }
 
+    // SalesItem.DiscountAmount is what a later return/refund prorates by —
+    // it must be THIS line's own share of the discount (per unit * qty on
+    // that line), not the transaction's whole DiscountAmount.
+    public function test_checkout_records_the_per_line_discount_amount_on_the_sales_item(): void
+    {
+        $this->makePromo();
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [
+                ['id' => $this->product->ProductID, 'qty' => 2],
+                ['id' => $this->otherProduct->ProductID, 'qty' => 1],
+            ],
+            'payment_method' => 'cash',
+            'payment_amount' => 3600,
+        ]);
+
+        $response->assertOk();
+        $transactionId = $response->json('receipt_number');
+        $transactionId = (int) str_replace('RCT-', '', $transactionId);
+
+        // Bullet 2MP: 1000 * 20% = 200/unit discount, x2 qty = 400 total.
+        $promodItem = \App\Models\SalesItem::where('SalesTransactionID', $transactionId)
+            ->where('ProductID', $this->product->ProductID)->firstOrFail();
+        $this->assertEquals(400.0, (float) $promodItem->DiscountAmount);
+
+        // DVR 8CH: not assigned to the promo — no discount at all.
+        $unpromodItem = \App\Models\SalesItem::where('SalesTransactionID', $transactionId)
+            ->where('ProductID', $this->otherProduct->ProductID)->firstOrFail();
+        $this->assertEquals(0.0, (float) $unpromodItem->DiscountAmount);
+    }
+
     // Two different products can each carry their own, entirely independent
     // active promo at once (nothing stops that — the "no overlap" rule only
     // blocks two promos targeting the SAME product). Billing only has room

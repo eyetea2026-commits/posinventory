@@ -157,7 +157,7 @@
                     <td class="col-money">₱{{ number_format($row->UnitPrice, 2) }}</td>
                     <td class="col-money">{{ $row->Discount !== null ? '₱' . number_format($row->Discount, 2) : '—' }}</td>
                     <td class="col-money">{{ $row->VatAmount !== null ? '₱' . number_format($row->VatAmount, 2) : '—' }}</td>
-                    <td class="col-money col-total">₱{{ number_format($row->ItemTotal, 2) }}</td>
+                    <td class="col-money col-total">{{ $row->BillingAmount !== null ? '₱' . number_format($row->BillingAmount, 2) : '—' }}</td>
                 </tr>
             @empty
                 <tr><td colspan="10" class="no-records"><strong>NO RECORDS FOUND</strong>No sales records match the selected report criteria.</td></tr>

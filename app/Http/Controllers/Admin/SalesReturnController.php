@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\DamagedProduct;
 use App\Models\PurchaseOrderItem;
+use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Notifications\ReturnRequestApproved;
@@ -110,7 +111,18 @@ class SalesReturnController extends Controller
         $transaction = $salesReturn->transaction;
         $receiptNumber = $transaction ? 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) : null;
 
-        $items = $salesReturn->items->map(function (SalesReturnItem $item) {
+        $items = $salesReturn->items->map(function (SalesReturnItem $item) use ($salesReturn) {
+            // What this line is actually refundable for — pulled from the
+            // ORIGINAL sale's SalesItem (which carries the discount that
+            // applied at sale time), not SalesReturnItem's own line_total
+            // (always the full undiscounted UnitPrice*Quantity).
+            $originalSalesItem = SalesItem::where('SalesTransactionID', $salesReturn->SalesTransactionID)
+                ->where('ProductID', $item->ProductID)
+                ->first();
+            $refundableLineTotal = $originalSalesItem
+                ? round($originalSalesItem->refundable_unit_price * $item->Quantity, 2)
+                : $item->line_total;
+
             return [
                 'ProductName' => $item->product?->ProductName,
                 'Barcode' => $item->product?->Barcode,
@@ -119,7 +131,7 @@ class SalesReturnController extends Controller
                 'UnitPrice' => $item->UnitPrice,
                 'Quantity' => $item->Quantity,
                 'Reason' => $item->Reason,
-                'LineTotal' => $item->line_total,
+                'LineTotal' => $refundableLineTotal,
             ];
         });
 
