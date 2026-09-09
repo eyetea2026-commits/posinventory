@@ -147,8 +147,8 @@ class ApplyPromoTest extends TestCase
 
         // Cart: 1x Bullet 2MP (promo'd, 1000) + 1x DVR 8CH (not promo'd, 2000).
         // Subtotal = 3000. Discount only on the 1000 line: 1000*0.20 = 200.
-        // Prices are VAT-inclusive: Total = 3000-200 = 2800. VAT (extracted,
-        // not added) = 2800 * 12/112 = 300.
+        // Total = 3000-200 = 2800 (VAT is not added on top of this).
+        // VAT = 2800 * 0.12 = 336.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -164,7 +164,7 @@ class ApplyPromoTest extends TestCase
         $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(3000.0, (float) $billing->Subtotal);
         $this->assertEquals(200.0, (float) $billing->DiscountAmount);
-        $this->assertEquals(300.0, (float) $billing->VatAmount);
+        $this->assertEquals(336.0, (float) $billing->VatAmount);
         $this->assertEquals(2800.0, (float) $billing->BillingAmount);
         $this->assertSame('SUMMER20', $billing->PromoCode);
     }
@@ -260,8 +260,7 @@ class ApplyPromoTest extends TestCase
 
         // Cart: 1x Bullet 2MP (1000) + 1x DVR 8CH (2000), both assigned to
         // the promo. Subtotal = 3000. Discount on the whole 3000: 600.
-        // Prices are VAT-inclusive: Total = 3000-600 = 2400.
-        // VAT (extracted) = 2400 * 12/112 = 257.14.
+        // Total = 3000-600 = 2400. VAT = 2400 * 0.12 = 288.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -275,7 +274,7 @@ class ApplyPromoTest extends TestCase
         $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(3000.0, (float) $billing->Subtotal);
         $this->assertEquals(600.0, (float) $billing->DiscountAmount);
-        $this->assertEquals(257.14, (float) $billing->VatAmount);
+        $this->assertEquals(288.0, (float) $billing->VatAmount);
         $this->assertEquals(2400.0, (float) $billing->BillingAmount);
     }
 
@@ -291,8 +290,7 @@ class ApplyPromoTest extends TestCase
 
         // Cart: 1x Bullet 2MP (1000, assigned) + 1x NVR 16CH (500, NOT
         // assigned). Subtotal = 1500. Discount only on the assigned 1000
-        // line: 200. Prices are VAT-inclusive: Total = 1500-200 = 1300.
-        // VAT (extracted) = 1300 * 12/112 = 139.29.
+        // line: 200. Total = 1500-200 = 1300. VAT = 1300 * 0.12 = 156.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -306,7 +304,7 @@ class ApplyPromoTest extends TestCase
         $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1500.0, (float) $billing->Subtotal);
         $this->assertEquals(200.0, (float) $billing->DiscountAmount);
-        $this->assertEquals(139.29, (float) $billing->VatAmount);
+        $this->assertEquals(156.0, (float) $billing->VatAmount);
         $this->assertEquals(1300.0, (float) $billing->BillingAmount);
     }
 
@@ -321,8 +319,7 @@ class ApplyPromoTest extends TestCase
         ]);
 
         // Bullet 2MP: 1000 - 150 fixed = 850. Subtotal (pre-discount) = 1000.
-        // Discount = 150. Prices are VAT-inclusive: Total = 1000-150 = 850.
-        // VAT (extracted) = 850 * 12/112 = 91.07.
+        // Discount = 150. Total = 1000-150 = 850. VAT = 850 * 0.12 = 102.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $this->product->ProductID, 'qty' => 1]],
             'payment_method' => 'cash',
@@ -333,7 +330,7 @@ class ApplyPromoTest extends TestCase
         $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1000.0, (float) $billing->Subtotal);
         $this->assertEquals(150.0, (float) $billing->DiscountAmount);
-        $this->assertEquals(91.07, (float) $billing->VatAmount);
+        $this->assertEquals(102.0, (float) $billing->VatAmount);
         $this->assertEquals(850.0, (float) $billing->BillingAmount);
         $this->assertSame('FIXED150', $billing->PromoCode);
     }
@@ -381,8 +378,8 @@ class ApplyPromoTest extends TestCase
         $this->makePromo(['PromoCode' => 'PROMOB', 'DiscountRate' => 20], [$this->otherProduct->ProductID]);
 
         // Bullet 2MP: 1000 * 10% = 100 off. DVR 8CH: 2000 * 20% = 400 off.
-        // Subtotal = 3000. Discount = 500. Prices are VAT-inclusive:
-        // Total = 3000-500 = 2500. VAT (extracted) = 2500 * 12/112 = 267.86.
+        // Subtotal = 3000. Discount = 500. Total = 3000-500 = 2500.
+        // VAT = 2500 * 0.12 = 300.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -396,7 +393,7 @@ class ApplyPromoTest extends TestCase
         $billing = Billing::latest('BillingID')->firstOrFail();
         $this->assertEquals(3000.0, (float) $billing->Subtotal);
         $this->assertEquals(500.0, (float) $billing->DiscountAmount);
-        $this->assertEquals(267.86, (float) $billing->VatAmount);
+        $this->assertEquals(300.0, (float) $billing->VatAmount);
         $this->assertEquals(2500.0, (float) $billing->BillingAmount);
         $this->assertNull($billing->DiscountID);
     }

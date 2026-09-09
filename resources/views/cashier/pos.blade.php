@@ -812,13 +812,12 @@
             return sum + ((item.price - discountedUnitPrice(item.price, promo)) * item.qty);
         }, 0));
 
-        // Prices are VAT-inclusive — VAT is extracted from the
-        // post-discount amount for display, never added on top of it.
-        // Matches processSale()'s own formula exactly, including computing
-        // Total first and VAT from it (not the other way around), so
-        // rounding can't leave the two a centavo apart.
+        // VAT is 12% of the post-discount Total (not added on top of it —
+        // Total itself is untouched below). Matches processSale()'s own
+        // formula exactly so the live preview never disagrees with the
+        // receipt.
         currentTotal = roundMoney(subtotal - discountAmount);
-        const vatAmount = roundMoney(currentTotal * 12 / 112);
+        const vatAmount = roundMoney(currentTotal * 0.12);
 
         document.getElementById('subtotal').textContent = window.formatPeso(subtotal);
         document.getElementById('vat').textContent = window.formatPeso(vatAmount);

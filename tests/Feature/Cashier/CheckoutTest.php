@@ -41,13 +41,12 @@ class CheckoutTest extends TestCase
         return $product;
     }
 
-    // ---- Product prices are VAT-inclusive (BIR-compliant SRP): VAT is
-    // extracted from the price for the receipt/report breakdown, never
-    // added on top of it. Total always equals the (post-discount) price
-    // exactly as listed. ----
+    // ---- VAT is 12% of the post-discount Total, computed for the receipt/
+    // report breakdown only — it is NOT added on top of Total, which always
+    // equals the (post-discount) price exactly as listed. ----
 
-    #[DataProvider('vatInclusivePriceProvider')]
-    public function test_checkout_extracts_vat_from_the_inclusive_price_instead_of_adding_it(float $price, float $expectedVat): void
+    #[DataProvider('vatOnTotalProvider')]
+    public function test_checkout_computes_vat_as_a_percent_of_total_without_inflating_total(float $price, float $expectedVat): void
     {
         $product = $this->makeProduct($price);
 
@@ -64,20 +63,21 @@ class CheckoutTest extends TestCase
         $this->assertEquals($price, (float) $billing->BillingAmount);
     }
 
-    public static function vatInclusivePriceProvider(): array
+    public static function vatOnTotalProvider(): array
     {
         return [
-            'P1500' => [1500.00, 160.71],
-            'P1000' => [1000.00, 107.14],
-            'P2500' => [2500.00, 267.86],
+            'P1500' => [1500.00, 180.00],
+            'P1000' => [1000.00, 120.00],
+            'P2500' => [2500.00, 300.00],
         ];
     }
 
-    public function test_checkout_extracts_vat_correctly_across_multiple_quantity(): void
+    public function test_checkout_computes_vat_correctly_across_multiple_quantity(): void
     {
         $product = $this->makeProduct(1500);
 
-        // 3 x 1500 = 4500 — must stay 4500, never 4500 + 12% = 5040.
+        // 3 x 1500 = 4500 — Total must stay 4500; VAT (540) is a breakdown
+        // of it for the receipt, never added on top to make Total 5040.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 3]],
             'payment_method' => 'cash',
@@ -87,7 +87,7 @@ class CheckoutTest extends TestCase
         $response->assertOk();
         $billing = Billing::latest('BillingID')->firstOrFail();
         $this->assertEquals(4500.0, (float) $billing->Subtotal);
-        $this->assertEquals(482.14, (float) $billing->VatAmount);
+        $this->assertEquals(540.0, (float) $billing->VatAmount);
         $this->assertEquals(4500.0, (float) $billing->BillingAmount);
     }
 
@@ -200,7 +200,7 @@ class CheckoutTest extends TestCase
         $sale = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
             'payment_method' => 'cash',
-            'payment_amount' => 900.00, // 1000 - 100 discount, price is VAT-inclusive
+            'payment_amount' => 900.00, // 1000 - 100 discount, Total is unaffected by VAT
             'discount_id' => $discount->DiscountID,
         ]);
         $sale->assertOk();
@@ -209,7 +209,7 @@ class CheckoutTest extends TestCase
         $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1000.00, (float) $billing->Subtotal);
         $this->assertEquals(100.00, (float) $billing->DiscountAmount);
-        $this->assertEquals(96.43, (float) $billing->VatAmount); // 900 * 12/112
+        $this->assertEquals(108.00, (float) $billing->VatAmount); // 900 * 0.12
 
         // Now edit the discount's rate — a live-recompute receipt would
         // silently show a different amount than what was actually charged.
