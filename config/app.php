@@ -123,4 +123,18 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Business Address
+    |--------------------------------------------------------------------------
+    |
+    | Printed on the cashier receipt below the store name/tagline. No
+    | address existed anywhere in the system before this — set
+    | BUSINESS_ADDRESS in .env to the real address; the receipt simply
+    | omits the line until it's set, rather than showing a placeholder.
+    |
+    */
+
+    'business_address' => env('BUSINESS_ADDRESS'),
+
 ];

@@ -231,7 +231,12 @@
                 <span>Salable Sales</span>
                 <span id="subtotal">₱0.00</span>
             </div>
-            <div class="summary-row">
+            {{-- Hidden, not removed from the DOM: updateTotals() still writes
+                 the computed VAT amount into #vat every render — deleting the
+                 element would throw when that line runs and stop the rest of
+                 the totals (discount/total) from updating. The VAT
+                 calculation itself is unaffected either way. --}}
+            <div class="summary-row" style="display:none;">
                 <span>VAT (12% included)</span>
                 <span id="vat">₱0.00</span>
             </div>

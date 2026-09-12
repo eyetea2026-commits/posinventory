@@ -45,6 +45,7 @@
             <div class="actions-group">
                 <a
                     href="{{ route('admin.inventory.show', $product) }}"
+                    onclick="event.preventDefault(); window.openInventoryDetailsModal({{ $product->ProductID }})"
                     class="action-btn view"
                     data-bs-toggle="tooltip"
                     data-bs-placement="top"

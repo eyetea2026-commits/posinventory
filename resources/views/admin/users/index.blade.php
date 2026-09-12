@@ -525,8 +525,8 @@
                         </td>
                         <td>
                             @if($user->isProtected())
-                                <span class="protected-badge">
-                                    <i class="fas fa-shield-alt"></i> Protected
+                                <span class="protected-badge" title="Protected account — this status is informational only">
+                                    <i class="fas fa-lock"></i> Locked
                                 </span>
                             @else
                                 <label class="toggle-switch">
@@ -1284,8 +1284,15 @@
                 form.dataset.excludeId = String(userId);
                 editUserFormHelper = window.initUserAddForm('editUserForm', {
                     submitBtn: document.getElementById('editUserSubmitBtn'),
-                    confirmTitle: 'Confirm Update',
+                    confirmTitle: function () {
+                        var newPasswordInput = form.querySelector('input[name="password"]');
+                        return newPasswordInput && newPasswordInput.value ? 'Do you want to change the password?' : 'Confirm Update';
+                    },
                     confirmHtml: function (fullName) {
+                        var newPasswordInput = form.querySelector('input[name="password"]');
+                        if (newPasswordInput && newPasswordInput.value) {
+                            return 'This will change the password for <strong>' + fullName + '</strong>.';
+                        }
                         return 'Are you sure you want to save the changes to <strong>' + fullName + '</strong>?';
                     },
                     confirmButtonText: 'Yes, Save Changes',

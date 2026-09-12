@@ -338,6 +338,46 @@ class SecurityFixesTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $this->admin->id]);
     }
 
+    // The last active admin's Status column shows a purely visual "Locked"
+    // indicator (renamed from "Protected") — a lock icon, never a clickable
+    // toggle/button, since this account can't be deactivated anyway.
+    public function test_protected_admin_status_shows_as_a_non_clickable_locked_badge(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.users.index'));
+
+        $response->assertOk();
+        $response->assertSee('protected-badge', false);
+        $response->assertSee('fa-lock', false);
+        $response->assertSee('Locked');
+        // "Protected Administrator" still appears elsewhere on this page (an
+        // unrelated detail-view JS notice, intentionally left as-is) — the
+        // real check is that the Status column's own badge specifically no
+        // longer uses that wording, which the fa-lock/protected-badge/
+        // "Locked" assertions above already confirm.
+    }
+
+    // Edit User's password section: the real password is never fetched or
+    // shown — a masked placeholder plus a "Reset Password" button, with the
+    // actual New/Confirm Password inputs hidden until that button is
+    // clicked (see the inline toggle script in
+    // user-form-fields.blade.php).
+    public function test_edit_user_form_shows_masked_password_with_reset_button_not_the_real_value(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->get(route('admin.users.edit', $this->admin));
+
+        $response->assertOk();
+        $html = $response->json('html');
+
+        $this->assertStringContainsString('Current Password', $html);
+        $this->assertStringContainsString('************', $html);
+        $this->assertStringContainsString('Reset Password', $html);
+        $this->assertStringContainsString('id="newPasswordGroup" style="display:none;"', $html);
+        $this->assertStringContainsString('id="confirmPasswordGroup" style="display:none;"', $html);
+        $this->assertStringNotContainsString($this->admin->password, $html);
+    }
+
     public function test_second_admin_account_can_be_deactivated_normally(): void
     {
         $secondAdmin = User::factory()->create([

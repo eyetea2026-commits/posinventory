@@ -1040,9 +1040,6 @@
             <button type="button" class="btn btn-secondary" id="viewProductCloseBtn">
                 <i class="fas fa-times"></i> Close
             </button>
-            <button type="button" class="btn btn-secondary" id="viewProductSuppliersBtn">
-                <i class="fas fa-truck"></i> Manage Suppliers
-            </button>
             <button type="button" class="btn btn-primary" id="viewProductEditBtn">
                 <i class="fas fa-edit"></i> Update Details
             </button>
@@ -1283,7 +1280,6 @@
         viewProductLastFocused = document.activeElement;
         body.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
         document.getElementById('viewProductEditBtn').dataset.productId = productId;
-        document.getElementById('viewProductSuppliersBtn').dataset.productId = productId;
 
         modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
@@ -1321,10 +1317,6 @@
         closeViewProductModal();
         setTimeout(function () { openEditProductModal(null, id); }, 260);
     });
-    document.getElementById('viewProductSuppliersBtn').addEventListener('click', function () {
-        window.location.href = '/admin/products/' + this.dataset.productId + '/edit';
-    });
-
     // ---- Edit Product modal ----
     let editProductLastFocused = null;
     let editProductFormHelper = null;

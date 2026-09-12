@@ -87,7 +87,7 @@ class InventoryController extends Controller
         ]);
     }
 
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
         $product->load(['category', 'brand', 'inventory']);
 
@@ -107,12 +107,25 @@ class InventoryController extends Controller
             default => 'normal',
         };
 
-        return view('admin.inventory.show', [
+        $viewData = [
             'product' => $product,
             'velocity' => $velocity,
             'velocityLabel' => $velocityLabel,
             'stock' => $stock,
-        ]);
+        ];
+
+        // The Inventory list's "View Details" opens this same content in a
+        // modal over AJAX instead of navigating away — direct navigation to
+        // this URL (a bookmark, a typed address) still gets the full
+        // standalone page.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.inventory.partials.inventory-details', $viewData)->render(),
+                'productName' => $product->ProductName,
+            ]);
+        }
+
+        return view('admin.inventory.show', $viewData);
     }
 
     /**

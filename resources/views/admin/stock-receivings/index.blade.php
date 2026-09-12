@@ -7,7 +7,7 @@
 @section('header')
     <div class="header-title">
         <h1>Stock Receiving</h1>
-        <p>Restock products when new supplies are received - REQ037 to REQ040</p>
+        <p>Restock products when new supplies are received</p>
     </div>
 @endsection
 

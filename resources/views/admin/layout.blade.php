@@ -210,7 +210,7 @@
             <x-icon name="menu" class="h-6 w-6" />
             <span class="sr-only">Open sidebar</span>
         </button>
-        <span class="text-sm font-semibold text-white">POS Inventory System</span>
+        <span class="text-sm font-semibold text-white">CCTV Express Tacurong</span>
     </div>
 
     {{-- Overlay behind the drawer on mobile/tablet --}}

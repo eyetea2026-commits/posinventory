@@ -340,6 +340,8 @@ class CashierAuthController extends Controller
                 // stays exactly Subtotal minus Discount regardless of this
                 // line. Total is computed first, before VAT, so rounding
                 // can't drift the two apart.
+
+                //FORMULA COMPUTATIONS
                 $subtotal = round($subtotal, 2);
                 $total = round($subtotal - $discountAmount, 2);
                 $vatAmount = round($total * 0.12, 2);

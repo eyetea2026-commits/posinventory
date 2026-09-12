@@ -921,14 +921,16 @@
                 : '<tr><td colspan="2"><div class="empty-state"><p class="empty-text">No products assigned to this promo.</p></div></td></tr>';
 
             document.getElementById('promoDetailsBody').innerHTML = `
-                <h3 style="margin:0 0 14px; font-size:1.1rem; color:#f8fafc;">${escapeHtmlLocal(meta.name)} (${escapeHtmlLocal(meta.code)})</h3>
+                <h3 style="margin:0 0 14px; font-size:1.1rem; color:#f8fafc; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <span>${escapeHtmlLocal(meta.name)} (${escapeHtmlLocal(meta.code)})</span>
+                    <span class="badge badge-dot ${meta.statusClass}">${escapeHtmlLocal(meta.statusLabel)}</span>
+                </h3>
                 <h3 class="section-title">Promo Details</h3>
                 <div class="apply-promo-detail-grid" style="margin-bottom:18px;">
                     <div class="detail-mini"><label>Discount Type</label><span>${escapeHtmlLocal(meta.typeLabel)}</span></div>
                     <div class="detail-mini"><label>Discount Value</label><span>${escapeHtmlLocal(meta.valueLabel)}</span></div>
                     <div class="detail-mini"><label>Start Date</label><span>${escapeHtmlLocal(meta.start)}</span></div>
                     <div class="detail-mini"><label>Expiration Date</label><span>${escapeHtmlLocal(meta.end)}</span></div>
-                    <div class="detail-mini"><label>Status</label><span class="badge badge-dot ${meta.statusClass}">${escapeHtmlLocal(meta.statusLabel)}</span></div>
                 </div>
                 <h3 class="section-title">Applied Product${products.length === 1 ? '' : 's'}</h3>
                 <div style="overflow-x:auto;">

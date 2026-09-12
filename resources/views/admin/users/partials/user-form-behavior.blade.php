@@ -123,7 +123,9 @@ window.initUserAddForm = function (formId, options) {
             return;
         }
 
-        var confirmTitle = options.confirmTitle || 'Add User Confirmation';
+        var confirmTitle = typeof options.confirmTitle === 'function'
+            ? options.confirmTitle()
+            : (options.confirmTitle || 'Add User Confirmation');
         var confirmHtml = options.confirmHtml
             ? options.confirmHtml(fullName)
             : 'Are you sure you want to add <strong>' + fullName + '</strong> as a new user?<br><br>This account will be created and can be used to log in immediately.';

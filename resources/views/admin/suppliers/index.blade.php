@@ -7,7 +7,7 @@
 @section('header')
     <div class="header-title">
         <h1>Supplier Profile Management</h1>
-        <p>Manage supplier profiles - REQ079 to REQ083</p>
+        <p>Manage supplier profiles</p>
     </div>
 @endsection
 

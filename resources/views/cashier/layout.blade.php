@@ -318,6 +318,10 @@
             right: 0;
             margin-top: 10px;
             width: 320px;
+            /* Shrinks to fit a narrow/resized viewport instead of
+               overflowing past the screen edge and clipping its own
+               content or the "Mark all read" / "View all" controls. */
+            max-width: calc(100vw - 24px);
             max-height: 400px;
             overflow-y: auto;
             background: #1a1d2d;

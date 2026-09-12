@@ -73,6 +73,9 @@
         <div class="center">
             <p class="store-name">CCTV Express</p>
             <p class="store-line">Your Trusted Security Partner</p>
+            @if(config('app.business_address'))
+                <p class="store-line">{{ config('app.business_address') }}</p>
+            @endif
         </div>
 
         <hr class="rule">
@@ -94,7 +97,11 @@
         @if($customerName)
             <div class="meta-row">
                 <span>Customer:</span>
-                <span>{{ $customerName }}</span>
+                {{-- Display only — the stored value is still "Walk-in
+                     Customer" (unchanged everywhere else: transaction
+                     history, reports, database). Only this receipt line
+                     shows "N/A" for it. --}}
+                <span>{{ $customerName === 'Walk-in Customer' ? 'N/A' : $customerName }}</span>
             </div>
         @endif
 
@@ -215,7 +222,7 @@
         @endif
         @if($paymentAmount > 0)
             <div class="total-row">
-                <span>Cash Tendered:</span>
+                <span>Amount Received:</span>
                 <span>₱{{ number_format($paymentAmount, 2) }}</span>
             </div>
             <div class="total-row">

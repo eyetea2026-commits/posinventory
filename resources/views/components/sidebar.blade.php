@@ -18,7 +18,7 @@
             <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo" class="h-full w-full object-contain">
         </div>
         <div class="min-w-0 leading-tight">
-            <p class="truncate text-sm font-semibold text-white">POS Inventory System</p>
+            <p class="truncate text-sm font-semibold text-white">CCTV Express Tacurong</p>
         </div>
         <button
             type="button"

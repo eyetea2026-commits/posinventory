@@ -105,10 +105,6 @@
         <div class="number" id="processed-refunds">0</div>
         <div class="label">Refunded/Completed</div>
     </div>
-    <div class="stat-card awaiting">
-        <div class="number" id="awaiting-action">0</div>
-        <div class="label">Awaiting Your Action</div>
-    </div>
 </div>
 
 <div class="content-header">
@@ -391,7 +387,6 @@ function loadRefundStats() {
             document.getElementById('approved-refunds').textContent = data.approved_refunds;
             document.getElementById('declined-refunds').textContent = data.declined_refunds;
             document.getElementById('processed-refunds').textContent = data.processed_refunds;
-            document.getElementById('awaiting-action').textContent = data.awaiting_action;
         })
         .catch(err => console.error('Error loading stats:', err));
 }

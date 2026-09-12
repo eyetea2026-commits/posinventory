@@ -750,4 +750,5 @@
 </script>
 
 @include('admin.inventory.partials.reorder-modal')
+@include('admin.inventory.partials.inventory-details-modal')
 @endsection

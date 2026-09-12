@@ -23,6 +23,7 @@
     @else
         <div class="form-group full-width">
             <label class="form-label" for="ProductID">Product <span class="required">*</span></label>
+            <input type="text" id="ProductSearch" class="form-input" placeholder="Search product by name…" autocomplete="off" style="margin-bottom:8px;">
             <select id="ProductID" name="ProductID" class="form-select" required>
                 <option value="">Select Product</option>
                 @foreach($products as $product)
@@ -33,6 +34,22 @@
             </select>
             <span class="form-error" id="error-ProductID">@error('ProductID'){{ $message }}@enderror</span>
         </div>
+
+        <script>
+            (function () {
+                var searchInput = document.getElementById('ProductSearch');
+                var select = document.getElementById('ProductID');
+                if (!searchInput || !select) return;
+
+                searchInput.addEventListener('input', function () {
+                    var query = searchInput.value.trim().toLowerCase();
+                    Array.from(select.options).forEach(function (option) {
+                        if (!option.value) return; // always keep the "Select Product" placeholder
+                        option.hidden = query !== '' && option.textContent.toLowerCase().indexOf(query) === -1;
+                    });
+                });
+            })();
+        </script>
 
         <div class="form-group full-width">
             <label class="form-label" for="SupplierID">Supplier <span class="required">*</span></label>
