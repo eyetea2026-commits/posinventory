@@ -123,6 +123,43 @@ class CheckoutTest extends TestCase
         $receiptResponse->assertDontSee('<td class="col-amt">2,500.00</td>', false);
     }
 
+    // The receipt only prints a business address line when one is actually
+    // configured (config('app.business_address'), env BUSINESS_ADDRESS) —
+    // never a fabricated placeholder when it's unset.
+    public function test_receipt_shows_the_configured_business_address_when_set(): void
+    {
+        config(['app.business_address' => 'MMQG+3X City of Tacurong, Sultan Kudarat']);
+        $product = $this->makeProduct(1000);
+
+        $sale = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => 1000,
+        ]);
+        $sale->assertOk();
+
+        $receiptResponse = $this->actingAs($this->cashier)->get(route('cashier.receipt', $sale->json('receipt_number')));
+        $receiptResponse->assertOk();
+        $receiptResponse->assertSee('MMQG+3X City of Tacurong, Sultan Kudarat');
+    }
+
+    public function test_receipt_omits_the_address_line_when_not_configured(): void
+    {
+        config(['app.business_address' => null]);
+        $product = $this->makeProduct(1000);
+
+        $sale = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => 1000,
+        ]);
+        $sale->assertOk();
+
+        $receiptResponse = $this->actingAs($this->cashier)->get(route('cashier.receipt', $sale->json('receipt_number')));
+        $receiptResponse->assertOk();
+        $receiptResponse->assertDontSee('MMQG+3X');
+    }
+
     // ---- Payment sufficiency applies to every method, not just cash ----
 
     public function test_gcash_payment_below_total_is_rejected(): void
