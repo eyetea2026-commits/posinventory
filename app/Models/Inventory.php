@@ -18,7 +18,13 @@ class Inventory extends Model
         'Quantity',
         'Status',
         'ReorderThreshold',
+        'AutoReorderTriggered',
+        'LastRestockPurchaseOrderId',
         'ProductID',
+    ];
+
+    protected $casts = [
+        'AutoReorderTriggered' => 'boolean',
     ];
 
     public function product()

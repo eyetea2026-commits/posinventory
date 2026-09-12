@@ -207,4 +207,123 @@ class AutomaticReorderTest extends TestCase
 
         $response->assertSessionHasErrors('SupplierID');
     }
+
+    // --- Automatic Draft PO on Low Stock (no manual click needed) ---------
+
+    public function test_visiting_inventory_auto_drafts_exactly_one_po_for_a_low_stock_product(): void
+    {
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
+
+        $this->assertDatabaseCount('PurchaseOrder', 0);
+
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'))->assertOk();
+
+        $this->assertDatabaseCount('PurchaseOrder', 1);
+        $this->assertDatabaseHas('PurchaseOrder', [
+            'SupplierID' => $this->supplier->SupplierID,
+            'Status' => PurchaseOrder::STATUS_DRAFT,
+        ]);
+        // (20 - 5) + 20 = 35, same formula the manual reorder form suggests.
+        $this->assertDatabaseHas('PurchaseOrderItem', [
+            'ProductID' => $this->product->ProductID, 'Quantity' => 35, 'CostPriceAtOrder' => 550,
+        ]);
+        $this->assertTrue(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
+    }
+
+    public function test_repeated_inventory_checks_never_create_a_duplicate_draft_po(): void
+    {
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
+
+        // Simulates refresh, reopening Inventory, and logout/login: the
+        // stock stays at the same Low Stock level across repeated checks.
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+
+        $this->assertDatabaseCount('PurchaseOrder', 1);
+    }
+
+    public function test_auto_drafted_po_appears_in_the_existing_po_module_and_is_never_auto_approved(): void
+    {
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
+
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'));
+        $response->assertOk();
+        $response->assertSee('DVR Camera');
+
+        // Admin leaves it untouched — further checks don't touch its status.
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+
+        $this->assertDatabaseHas('PurchaseOrder', ['Status' => PurchaseOrder::STATUS_DRAFT]);
+    }
+
+    public function test_restocking_resets_the_cycle_so_a_later_drop_drafts_exactly_one_new_po(): void
+    {
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
+
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->assertDatabaseCount('PurchaseOrder', 1);
+        $this->assertTrue(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
+
+        // Restocked above the threshold — the cycle resets.
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 100]);
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->assertFalse(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
+        $this->assertDatabaseCount('PurchaseOrder', 1);
+
+        // Drops low again — exactly one new draft PO, not zero, not two.
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 5]);
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->assertDatabaseCount('PurchaseOrder', 2);
+    }
+
+    public function test_an_existing_manual_draft_po_is_recognized_and_no_automatic_duplicate_is_created(): void
+    {
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
+
+        // Admin already manually created a PO for this product before the
+        // automatic check ever ran.
+        $manualPo = PurchaseOrder::create([
+            'PONumber' => 'PO-2026-000001',
+            'PurchaseDate' => now()->toDateString(),
+            'Status' => PurchaseOrder::STATUS_PENDING,
+            'SupplierID' => $this->supplier->SupplierID,
+            'CreatedBy' => $this->admin->id,
+        ]);
+        \App\Models\PurchaseOrderItem::create([
+            'PurchaseOrderID' => $manualPo->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 35, 'CostPriceAtOrder' => 550,
+        ]);
+
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+
+        $this->assertDatabaseCount('PurchaseOrder', 1);
+        $this->assertTrue(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
+    }
+
+    public function test_no_resolvable_supplier_does_not_auto_draft_and_keeps_retrying(): void
+    {
+        // The default setUp product has no known supplier at all.
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->assertDatabaseCount('PurchaseOrder', 0);
+        $this->assertFalse(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
+
+        // Once a supplier is assigned, the very next check succeeds.
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+        $this->assertDatabaseCount('PurchaseOrder', 1);
+    }
+
+    public function test_in_stock_products_never_get_an_automatic_draft_po(): void
+    {
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 100]);
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
+
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'));
+
+        $this->assertDatabaseCount('PurchaseOrder', 0);
+    }
 }
