@@ -29,9 +29,24 @@ class CashierAuthController extends Controller
 
     public function logout(Request $request)
     {
+        // Re-fetched fresh rather than trusting the guard's already-resolved
+        // instance, which may have been hydrated earlier in the request
+        // lifecycle (or session) before current_session_id's latest value.
+        $user = Auth::user()?->fresh();
+        $sessionId = $request->session()->getId();
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        // Releases this account's one-active-session slot so another
+        // device can log in immediately, without waiting for the old
+        // session row to age out.
+        if ($user && $user->current_session_id === $sessionId) {
+            $user->current_session_id = null;
+            $user->save();
+        }
+
         return redirect('/');
     }
 

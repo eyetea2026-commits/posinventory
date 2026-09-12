@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 
 // The single sign-in entry point for the whole system — one username/password
@@ -63,6 +64,43 @@ class AuthController extends Controller
             }
 
             RateLimiter::clear($throttleKey);
+
+            // One active session per account: force-persist this brand-new
+            // session row now (rather than waiting for Laravel's normal
+            // end-of-request save) so that a near-simultaneous login attempt
+            // on another device sees a real, fresh row here instead of none
+            // — closing the race window between "session registered" and
+            // "session actually written to the sessions table".
+            $request->session()->save();
+            $newSessionId = $request->session()->getId();
+
+            // Locks the user row for the duration of the check-and-set so
+            // two logins racing for the same account can't both read "no
+            // active session" before either has written one — only one
+            // request can hold this lock at a time, so only one wins.
+            $sessionDenied = DB::transaction(function () use ($user, $newSessionId) {
+                $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+
+                if ($lockedUser->current_session_id
+                    && $lockedUser->current_session_id !== $newSessionId
+                    && $lockedUser->hasActiveSession()) {
+                    return true;
+                }
+
+                $lockedUser->current_session_id = $newSessionId;
+                $lockedUser->save();
+
+                return false;
+            });
+
+            if ($sessionDenied) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+                ActivityLog::record('auth.login_denied_active_session', "Login denied for \"{$user->name}\" — account already has an active session, attempt from {$request->ip()}");
+
+                return back()->withErrors(['username' => 'This account is already logged in on another device or browser.']);
+            }
 
             if ($user->isAdmin()) {
                 ActivityLog::record('auth.login', "\"{$user->name}\" logged in (Admin) from {$request->ip()}", $user->id);

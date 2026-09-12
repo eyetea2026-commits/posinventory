@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use App\Models\Role;
 
 class User extends Authenticatable
@@ -88,6 +89,27 @@ class User extends Authenticatable
             })
             ->where('is_active', true)
             ->count() <= 1;
+    }
+
+    // Whether `current_session_id` (if any) still points at a session row
+    // that hasn't aged past the app's own session lifetime -- the single
+    // source of truth the login flow checks to enforce one active session
+    // per account. Deliberately NOT in $fillable: only ever set via direct
+    // attribute assignment from the auth flow itself, never from
+    // mass-assigned request input.
+    public function hasActiveSession(): bool
+    {
+        if (! $this->current_session_id) {
+            return false;
+        }
+
+        $session = DB::table('sessions')->where('id', $this->current_session_id)->first();
+
+        if (! $session) {
+            return false;
+        }
+
+        return $session->last_activity >= (now()->timestamp - config('session.lifetime') * 60);
     }
 
     public function getFullNameAttribute(): string
