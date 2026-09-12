@@ -92,49 +92,19 @@
     </div>
 
     @if(isset($user))
-        {{-- Edit mode: the actual password is never retrieved or shown — this
-             is a masked placeholder, not the real value. "Reset Password"
-             swaps it out for the New/Confirm Password inputs below, which
-             stay empty and hidden until the admin actually chooses to change
-             it (leaving them untouched keeps the password as-is, per
-             UserController::update()'s existing nullable-password handling —
-             unchanged by this). --}}
-        <div class="form-group full-width" id="currentPasswordGroup">
+        {{-- The actual password is never retrieved or shown — this is a
+             masked placeholder, not the real value. "Reset Password" opens
+             a separate small popup (reset-password-modal.blade.php) with
+             its own New/Confirm Password fields and Save action; this form
+             itself no longer carries any password field, so a normal
+             Update User save can never touch the password at all. --}}
+        <div class="form-group full-width">
             <label class="form-label">Current Password</label>
             <div style="display:flex; gap:10px; align-items:center;">
                 <input type="text" class="form-input" value="************" readonly disabled style="flex:1; letter-spacing:2px; max-width:220px;">
-                <button type="button" class="btn btn-secondary" id="resetPasswordToggleBtn">Reset Password</button>
+                <button type="button" class="btn btn-secondary" onclick="window.openResetPasswordModal({{ $user->id }})">Reset Password</button>
             </div>
         </div>
-
-        <div class="form-group" id="newPasswordGroup" style="display:none;">
-            <label class="form-label">New Password</label>
-            <input type="password" name="password" class="form-input">
-            <span class="form-error" id="error-password">@error('password'){{ $message }}@enderror</span>
-        </div>
-
-        <div class="form-group" id="confirmPasswordGroup" style="display:none;">
-            <label class="form-label">Confirm Password</label>
-            <input type="password" name="password_confirmation" class="form-input">
-        </div>
-
-        <script>
-            (function () {
-                var toggleBtn = document.getElementById('resetPasswordToggleBtn');
-                var currentGroup = document.getElementById('currentPasswordGroup');
-                var newGroup = document.getElementById('newPasswordGroup');
-                var confirmGroup = document.getElementById('confirmPasswordGroup');
-                if (!toggleBtn) return;
-
-                toggleBtn.addEventListener('click', function () {
-                    currentGroup.style.display = 'none';
-                    newGroup.style.display = '';
-                    confirmGroup.style.display = '';
-                    var newPasswordInput = newGroup.querySelector('input[name="password"]');
-                    if (newPasswordInput) newPasswordInput.focus();
-                });
-            })();
-        </script>
     @else
         <div class="form-group">
             <label class="form-label">Password <span class="required">*</span></label>

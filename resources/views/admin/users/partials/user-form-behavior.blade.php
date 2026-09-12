@@ -98,10 +98,15 @@ window.initUserAddForm = function (formId, options) {
             return;
         }
 
-        var password = form.querySelector('input[name="password"]').value;
-        var passwordConfirm = form.querySelector('input[name="password_confirmation"]').value;
+        // The Edit User form no longer carries password fields at all —
+        // password changes go through the separate Reset Password popup —
+        // so these only exist on the Add User form.
+        var passwordInput = form.querySelector('input[name="password"]');
+        var passwordConfirmInput = form.querySelector('input[name="password_confirmation"]');
+        var password = passwordInput ? passwordInput.value : null;
+        var passwordConfirm = passwordConfirmInput ? passwordConfirmInput.value : null;
 
-        if (password !== passwordConfirm) {
+        if (passwordInput && password !== passwordConfirm) {
             Swal.fire({
                 title: 'Error',
                 text: 'Password and Confirm Password must match.',

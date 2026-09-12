@@ -21,32 +21,50 @@
             <span class="form-error" id="error-purchase_order_item_id">@error('purchase_order_item_id'){{ $message }}@enderror</span>
         </div>
     @else
+        @php
+            // For re-showing the typed product name if the form re-renders
+            // after a validation error (old('ProductID') is still the ID).
+            $oldProduct = old('ProductID') ? $products->firstWhere('ProductID', (int) old('ProductID')) : null;
+        @endphp
         <div class="form-group full-width">
-            <label class="form-label" for="ProductID">Product <span class="required">*</span></label>
-            <input type="text" id="ProductSearch" class="form-input" placeholder="Search product by name…" autocomplete="off" style="margin-bottom:8px;">
-            <select id="ProductID" name="ProductID" class="form-select" required>
-                <option value="">Select Product</option>
+            <label class="form-label" for="ProductSearch">Product <span class="required">*</span></label>
+            {{-- A single searchable field, not a plain <select>: typing
+                 filters the browser's own native datalist suggestions
+                 immediately, no separate search box alongside it. The
+                 datalist only carries display names (HTML datalists can't
+                 carry a separate id), so the matching ProductID is looked
+                 up client-side and kept in the hidden input actually
+                 submitted. --}}
+            <input type="text" id="ProductSearch" class="form-input" list="productOptions" autocomplete="off"
+                   placeholder="Type to search product…" required
+                   value="{{ old('_ProductSearch', $oldProduct ? $oldProduct->ProductName . ' - ' . $oldProduct->Model : '') }}">
+            <datalist id="productOptions">
                 @foreach($products as $product)
-                    <option value="{{ $product->ProductID }}" {{ old('ProductID') == $product->ProductID ? 'selected' : '' }}>
-                        {{ $product->ProductName }} - {{ $product->Model }}
-                    </option>
+                    <option data-product-id="{{ $product->ProductID }}" value="{{ $product->ProductName }} - {{ $product->Model }}"></option>
                 @endforeach
-            </select>
+            </datalist>
+            <input type="hidden" id="ProductID" name="ProductID" value="{{ old('ProductID', $oldProduct->ProductID ?? '') }}">
             <span class="form-error" id="error-ProductID">@error('ProductID'){{ $message }}@enderror</span>
         </div>
 
         <script>
             (function () {
                 var searchInput = document.getElementById('ProductSearch');
-                var select = document.getElementById('ProductID');
-                if (!searchInput || !select) return;
+                var hiddenId = document.getElementById('ProductID');
+                var datalist = document.getElementById('productOptions');
+                if (!searchInput || !hiddenId || !datalist) return;
 
                 searchInput.addEventListener('input', function () {
-                    var query = searchInput.value.trim().toLowerCase();
-                    Array.from(select.options).forEach(function (option) {
-                        if (!option.value) return; // always keep the "Select Product" placeholder
-                        option.hidden = query !== '' && option.textContent.toLowerCase().indexOf(query) === -1;
-                    });
+                    var typed = searchInput.value;
+                    var options = datalist.querySelectorAll('option');
+                    var matched = null;
+                    for (var i = 0; i < options.length; i++) {
+                        if (options[i].value === typed) { matched = options[i]; break; }
+                    }
+                    // Cleared, not left stale, when the typed text no longer
+                    // matches an actual product exactly — prevents
+                    // submitting whatever the last valid selection was.
+                    hiddenId.value = matched ? matched.dataset.productId : '';
                 });
             })();
         </script>

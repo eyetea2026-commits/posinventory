@@ -136,4 +136,6 @@
         });
     @endif
 </script>
+
+@include('admin.users.partials.reset-password-modal')
 @endsection

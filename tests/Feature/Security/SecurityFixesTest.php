@@ -361,6 +361,12 @@ class SecurityFixesTest extends TestCase
     // actual New/Confirm Password inputs hidden until that button is
     // clicked (see the inline toggle script in
     // user-form-fields.blade.php).
+    // The Edit User form shows a masked placeholder and a "Reset Password"
+    // button that opens a separate popup (reset-password-modal.blade.php) —
+    // this form itself carries no password field at all anymore, since a
+    // <script> tag embedded in HTML injected via .innerHTML (how the Edit
+    // User modal loads this partial) never executes, which is why the
+    // earlier inline-toggle version silently didn't work.
     public function test_edit_user_form_shows_masked_password_with_reset_button_not_the_real_value(): void
     {
         $response = $this->actingAs($this->admin)
@@ -373,9 +379,49 @@ class SecurityFixesTest extends TestCase
         $this->assertStringContainsString('Current Password', $html);
         $this->assertStringContainsString('************', $html);
         $this->assertStringContainsString('Reset Password', $html);
-        $this->assertStringContainsString('id="newPasswordGroup" style="display:none;"', $html);
-        $this->assertStringContainsString('id="confirmPasswordGroup" style="display:none;"', $html);
+        $this->assertStringContainsString('openResetPasswordModal(' . $this->admin->id . ')', $html);
+        $this->assertStringNotContainsString('name="password"', $html);
         $this->assertStringNotContainsString($this->admin->password, $html);
+    }
+
+    // The Reset Password popup itself posts to its own dedicated endpoint,
+    // independent of the general profile Update User form.
+    public function test_reset_password_endpoint_updates_the_password_and_keeps_it_hashed(): void
+    {
+        $oldHash = $this->admin->password;
+
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->patchJson(route('admin.users.reset-password', $this->admin), [
+                'password' => 'NewSecure!Pass123',
+                'password_confirmation' => 'NewSecure!Pass123',
+            ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+
+        $this->admin->refresh();
+        $this->assertNotSame($oldHash, $this->admin->password);
+        // Hash::check is exactly what the login flow itself uses to verify
+        // a password — this is the authoritative proof the new password
+        // actually works for logging in, not just that some hash changed.
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewSecure!Pass123', $this->admin->password));
+    }
+
+    public function test_reset_password_endpoint_rejects_a_mismatched_confirmation(): void
+    {
+        $oldHash = $this->admin->password;
+
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->patchJson(route('admin.users.reset-password', $this->admin), [
+                'password' => 'NewSecure!Pass123',
+                'password_confirmation' => 'DoesNotMatch',
+            ]);
+
+        $response->assertStatus(422);
+        $this->admin->refresh();
+        $this->assertSame($oldHash, $this->admin->password);
     }
 
     public function test_second_admin_account_can_be_deactivated_normally(): void

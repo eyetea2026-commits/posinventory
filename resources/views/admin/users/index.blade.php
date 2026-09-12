@@ -657,6 +657,7 @@
 </div>
 
 @include('admin.users.partials.user-form-behavior')
+@include('admin.users.partials.reset-password-modal')
 
 <script>
     // Search functionality
@@ -1284,15 +1285,8 @@
                 form.dataset.excludeId = String(userId);
                 editUserFormHelper = window.initUserAddForm('editUserForm', {
                     submitBtn: document.getElementById('editUserSubmitBtn'),
-                    confirmTitle: function () {
-                        var newPasswordInput = form.querySelector('input[name="password"]');
-                        return newPasswordInput && newPasswordInput.value ? 'Do you want to change the password?' : 'Confirm Update';
-                    },
+                    confirmTitle: 'Confirm Update',
                     confirmHtml: function (fullName) {
-                        var newPasswordInput = form.querySelector('input[name="password"]');
-                        if (newPasswordInput && newPasswordInput.value) {
-                            return 'This will change the password for <strong>' + fullName + '</strong>.';
-                        }
                         return 'Are you sure you want to save the changes to <strong>' + fullName + '</strong>?';
                     },
                     confirmButtonText: 'Yes, Save Changes',

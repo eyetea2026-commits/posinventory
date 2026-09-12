@@ -273,6 +273,35 @@ class UserController extends Controller
         return redirect()->route('admin.users.index')->with('status', 'User account updated successfully.');
     }
 
+    // Dedicated Reset Password popup — deliberately separate from update()
+    // above so it can be a small, self-contained form (just the two
+    // password fields) instead of having to carry every other profile
+    // field along just to change a password. Same hashing/validation the
+    // rest of the app already uses (Password::defaults(), Hash::make()) —
+    // no separate password system.
+    public function resetPassword(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $user->password = Hash::make($data['password']);
+        $user->save();
+
+        ActivityLog::record('user.password_reset', "Reset password for \"{$user->name}\"");
+
+        try {
+            Notification::send(User::admins(), new UserAccountUpdated($user));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch UserAccountUpdated notification', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Password reset successfully.']);
+    }
+
     public function deactivate(User $user)
     {
         if ($user->isProtected()) {

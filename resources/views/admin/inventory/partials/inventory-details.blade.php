@@ -166,11 +166,4 @@
         </span>
     </div>
 
-    @if($stock['label'] !== 'In Stock')
-        <div class="detail-actions" style="display:flex; gap:12px; margin-top:24px; justify-content:flex-end;">
-            <button type="button" onclick="openReorderModal({{ $product->ProductID }})" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-                <i class="fas fa-cart-plus"></i> Create Purchase Order
-            </button>
-        </div>
-    @endif
 </div>

@@ -512,4 +512,19 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertRedirect(route('admin.stock-receivings.index'));
         $this->assertSame(8, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
     }
+
+    // Product selection for ad-hoc receiving is one searchable field
+    // (native datalist on a text input), not a plain <select> with a
+    // separate search box beside it.
+    public function test_stock_receiving_product_selection_is_a_single_searchable_field(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'));
+
+        $response->assertOk();
+        $response->assertSee('list="productOptions"', false);
+        $response->assertSee('id="productOptions"', false);
+        $response->assertSee('data-product-id="' . $this->product->ProductID . '"', false);
+        $response->assertDontSee('id="ProductSearch" class="form-input" placeholder="Search product by name', false);
+        $response->assertDontSee('<select id="ProductID"', false);
+    }
 }

@@ -72,6 +72,23 @@ class InventoryModuleUiTest extends TestCase
         $this->assertStringContainsString('SKU-001', $response->json('html'));
     }
 
+    // The "Create Purchase Order" button used to show inside View Details
+    // for a low-stock product — removed on request; the row-level reorder
+    // trigger elsewhere on the Inventory list (AutomaticReorderTest) is a
+    // separate, untouched entry point.
+    public function test_view_details_no_longer_offers_create_purchase_order_even_when_low_stock(): void
+    {
+        Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 1, 'ReorderThreshold' => 5]);
+
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->get(route('admin.inventory.show', $this->product));
+
+        $response->assertOk();
+        $this->assertStringNotContainsString('Create Purchase Order', $response->json('html'));
+        $this->assertStringNotContainsString('openReorderModal', $response->json('html'));
+    }
+
     public function test_show_direct_navigation_still_returns_the_full_page(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.inventory.show', $this->product));

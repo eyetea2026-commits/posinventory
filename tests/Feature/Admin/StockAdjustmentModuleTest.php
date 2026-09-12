@@ -131,4 +131,33 @@ class StockAdjustmentModuleTest extends TestCase
 
         $this->assertDatabaseCount('DamagedProduct', 0);
     }
+
+    // Product selection is one searchable field (native datalist on a text
+    // input), not a plain <select> with a separate search box beside it.
+    public function test_product_selection_is_a_single_searchable_field_not_a_separate_search_box(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index'));
+
+        $response->assertOk();
+        $response->assertSee('list="productOptions"', false);
+        $response->assertSee('id="productOptions"', false);
+        $response->assertSee('data-product-id="' . $this->product->ProductID . '"', false);
+        $response->assertSee($this->product->ProductName);
+        // No separate visible search input alongside the dropdown/select.
+        $response->assertDontSee('id="ProductSearch" class="form-input" placeholder="Search product by name', false);
+        $response->assertDontSee('<select id="ProductID"', false);
+    }
+
+    // The hidden ProductID actually submitted still creates a real
+    // StockAdjustment row — this is a presentation-only change.
+    public function test_stock_adjustment_still_saves_correctly_with_the_new_product_field(): void
+    {
+        $response = $this->actingAs($this->admin)->post(
+            route('admin.stock-adjustments.store'),
+            $this->basePayload(['QuantityAdjust' => 3, 'Reason' => StockAdjustment::REASON_COUNT_ERROR])
+        );
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('StockAdjustment', ['ProductID' => $this->product->ProductID, 'QuantityAdjust' => 3]);
+    }
 }

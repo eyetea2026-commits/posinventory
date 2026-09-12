@@ -22,7 +22,7 @@
                 </form>
             </div>
             <!-- REQ080: Create supplier profile -->
-            <a href="{{ route('admin.suppliers.create') }}" class="btn btn-primary">
+            <a href="{{ route('admin.suppliers.create') }}" onclick="event.preventDefault(); window.openAddSupplierModal();" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Add Supplier
             </a>
         </div>
@@ -116,6 +116,31 @@
 
     @include('admin.partials.modal-styles')
 
+    <!-- Add Supplier Modal -->
+    <div id="addSupplierModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addSupplierModalTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="addSupplierModalTitle"><i class="fas fa-truck"></i> Add Supplier</h2>
+                <button type="button" class="modal-close" onclick="closeAddSupplierModal()" aria-label="Close">&times;</button>
+            </div>
+
+            <div id="addSupplierGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
+
+            <form id="addSupplierForm">
+                <div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>
+            </form>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="addSupplierCancelBtn">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="addSupplierSubmitBtn">
+                    <i class="fas fa-save"></i> Save Supplier
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Supplier Modal -->
     <div id="editSupplierModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editSupplierModalTitle" aria-hidden="true">
         <div class="modal-content">
@@ -145,6 +170,193 @@
     @include('admin.suppliers.partials.history-modal')
 
     <script>
+        // ---- Add Supplier modal — opens the same shared field markup
+        // (supplier-form-fields.blade.php) already used by Edit Supplier,
+        // rendered directly in this page rather than fetched, since a blank
+        // Add form needs no data to load. Submits to the existing store()
+        // route/validation/save exactly as the standalone Add Supplier page
+        // already did — only the presentation moved from a page to a popup. ----
+        const ADD_SUPPLIER_FIELD_IDS = ['SupplierName', 'ContactPerson', 'ContactNumber', 'Email', 'Address'];
+        let addSupplierLastFocused = null;
+
+        function addSupplierIsSubmitting() {
+            const btn = document.getElementById('addSupplierSubmitBtn');
+            return btn ? btn.disabled : false;
+        }
+
+        function clearAddSupplierFieldErrors() {
+            const form = document.getElementById('addSupplierForm');
+            ADD_SUPPLIER_FIELD_IDS.forEach(function (field) {
+                const span = document.getElementById('error-' + field);
+                if (span) span.textContent = '';
+                const input = form.querySelector('[name="' + field + '"]');
+                if (input) input.classList.remove('error');
+            });
+        }
+
+        function showAddSupplierFieldErrors(errors) {
+            const form = document.getElementById('addSupplierForm');
+            clearAddSupplierFieldErrors();
+            let firstInvalid = null;
+            Object.keys(errors).forEach(function (field) {
+                const span = document.getElementById('error-' + field);
+                if (span) span.textContent = errors[field][0];
+                const input = form.querySelector('[name="' + field + '"]');
+                if (input) {
+                    input.classList.add('error');
+                    if (!firstInvalid) firstInvalid = input;
+                }
+            });
+            if (firstInvalid) firstInvalid.focus();
+        }
+
+        function showAddSupplierGeneralError(message) {
+            const banner = document.getElementById('addSupplierGeneralError');
+            banner.textContent = message;
+            banner.style.display = 'flex';
+        }
+
+        function hideAddSupplierGeneralError() {
+            const banner = document.getElementById('addSupplierGeneralError');
+            banner.style.display = 'none';
+            banner.textContent = '';
+        }
+
+        function resetAddSupplierSubmitButton() {
+            const btn = document.getElementById('addSupplierSubmitBtn');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Save Supplier';
+        }
+
+        function handleAddSupplierModalKeydown(e) {
+            const modal = document.getElementById('addSupplierModal');
+            if (!modal.classList.contains('active')) return;
+
+            if (e.key === 'Escape') {
+                if (!addSupplierIsSubmitting()) closeAddSupplierModal();
+                return;
+            }
+
+            if (e.key === 'Tab') {
+                const focusable = modal.querySelectorAll('input, select, textarea, button, [href]');
+                if (!focusable.length) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        }
+
+        window.openAddSupplierModal = function () {
+            const modal = document.getElementById('addSupplierModal');
+            const form = document.getElementById('addSupplierForm');
+
+            addSupplierLastFocused = document.activeElement || addSupplierLastFocused;
+            // Fetched fresh (not rendered statically in the page) so its
+            // SupplierName/Email fields only exist in the DOM while this
+            // modal is actually open — same as Edit Supplier — avoiding a
+            // duplicate-id clash between the two forms' shared field ids
+            // that the live duplicate-check listener relies on.
+            form.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
+            hideAddSupplierGeneralError();
+            resetAddSupplierSubmitButton();
+
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            void modal.offsetHeight;
+            requestAnimationFrame(function () { modal.classList.add('active'); });
+            document.addEventListener('keydown', handleAddSupplierModalKeydown);
+
+            fetch('{{ route('admin.suppliers.create') }}', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    form.innerHTML = data.html;
+                    const firstField = form.querySelector('input, textarea, select');
+                    if (firstField) firstField.focus();
+                })
+                .catch(function () {
+                    form.innerHTML = '<p class="form-error">Failed to load the Add Supplier form. Please try again.</p>';
+                });
+        };
+
+        window.closeAddSupplierModal = function () {
+            const modal = document.getElementById('addSupplierModal');
+            modal.classList.remove('active');
+            document.removeEventListener('keydown', handleAddSupplierModalKeydown);
+            setTimeout(function () { modal.style.display = 'none'; }, 250);
+            document.body.style.overflow = '';
+            if (addSupplierLastFocused && typeof addSupplierLastFocused.focus === 'function') {
+                addSupplierLastFocused.focus();
+            }
+        };
+
+        document.getElementById('addSupplierModal').addEventListener('mousedown', function (e) {
+            if (e.target === this && !addSupplierIsSubmitting()) {
+                closeAddSupplierModal();
+            }
+        });
+
+        document.getElementById('addSupplierCancelBtn').addEventListener('click', function () {
+            closeAddSupplierModal();
+        });
+
+        document.getElementById('addSupplierSubmitBtn').addEventListener('click', function () {
+            const form = document.getElementById('addSupplierForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            Swal.fire({
+                title: 'Confirm Save',
+                text: 'Add this new supplier?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes',
+                cancelButtonText: 'No',
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#64748b'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+
+                const submitBtn = document.getElementById('addSupplierSubmitBtn');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                clearAddSupplierFieldErrors();
+                hideAddSupplierGeneralError();
+
+                window.submitAjaxForm(form, '{{ route('admin.suppliers.store') }}', {
+                    onFieldErrors: function (errors) {
+                        showAddSupplierFieldErrors(errors);
+                        resetAddSupplierSubmitButton();
+                    },
+                    onSuccess: function (html, message) {
+                        refreshSuppliersTable(html);
+                        closeAddSupplierModal();
+                        Swal.fire({
+                            title: 'Success',
+                            text: message,
+                            icon: 'success',
+                            confirmButtonColor: '#10b981',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    },
+                    onOtherError: function (message) {
+                        showAddSupplierGeneralError(message);
+                        resetAddSupplierSubmitButton();
+                    }
+                });
+            });
+        });
+
         const EDIT_SUPPLIER_FIELD_IDS = ['SupplierName', 'ContactPerson', 'ContactNumber', 'Email', 'Address'];
         let editSupplierLastFocused = null;
         let currentEditSupplierId = null;

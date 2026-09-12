@@ -120,6 +120,9 @@ Route::prefix('admin')->group(function () {
     Route::put('users/{user}', [App\Http\Controllers\Admin\UserController::class, 'update'])
         ->name('admin.users.update')
         ->middleware(['auth', 'role:admin']);
+    Route::patch('users/{user}/reset-password', [App\Http\Controllers\Admin\UserController::class, 'resetPassword'])
+        ->name('admin.users.reset-password')
+        ->middleware(['auth', 'role:admin']);
     Route::post('users/{user}/deactivate', [App\Http\Controllers\Admin\UserController::class, 'deactivate'])
         ->name('admin.users.deactivate')
         ->middleware(['auth', 'role:admin']);

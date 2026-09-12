@@ -47,8 +47,19 @@ class SupplierController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        // Add Supplier modal: return just the rendered form fields (the
+        // same shared partial edit() already uses, with no $supplier)
+        // instead of a full page, so the modal can inject it without
+        // navigating. Direct navigation to this URL still gets the full
+        // standalone page.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'html' => view('admin.suppliers.partials.supplier-form-fields')->render(),
+            ]);
+        }
+
         return view('admin.suppliers.create');
     }
 
