@@ -338,8 +338,8 @@
             margin: 0;
             min-height: 100%;
             font-family: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
-            background: #eef1f4;
-            color: #1f2937;
+            background: linear-gradient(180deg, #020617 0%, #090f1e 100%);
+            color: #e2e8f0;
         }
         .sr-only {
             position: absolute;
@@ -364,47 +364,47 @@
             gap: 40px;
             width: min(100%, 1080px);
             padding: 40px;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.08);
             border-radius: 28px;
-            box-shadow: 0 24px 60px rgba(20, 22, 30, 0.08);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
         }
         .lv2-heading h1 {
             margin: 0 0 2px;
             font-size: 1.5rem;
             font-weight: 700;
-            color: #16181d;
+            color: #f8fafc;
         }
         .lv2-heading p {
             margin: 0 0 18px;
             font-size: 0.88rem;
-            color: #6b7280;
+            color: #94a3b8;
         }
         .lv2-card {
-            background: #ffffff;
+            background: #1a1d2d;
             border-radius: 18px;
             padding: 26px;
-            box-shadow: 0 14px 34px rgba(20, 22, 30, 0.1);
-            border: 1px solid #eef0f2;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(148, 163, 184, 0.1);
             max-width: 360px;
         }
         .lv2-card h2 {
             margin: 0 0 16px;
             font-size: 1.3rem;
             font-weight: 700;
-            color: #16181d;
+            color: #f8fafc;
         }
         .lv2-field {
             position: relative;
             display: flex;
             align-items: center;
-            background: #f2f3f5;
+            background: #2d3748;
             border-radius: 14px;
             padding: 0 16px;
             margin-bottom: 14px;
         }
         .lv2-field i:first-child {
-            color: #9aa0a8;
+            color: #94a3b8;
             font-size: 0.95rem;
             margin-right: 12px;
         }
@@ -415,26 +415,26 @@
             outline: none;
             padding: 14px 0;
             font-size: 0.95rem;
-            color: #1f2937;
+            color: #e2e8f0;
         }
         .lv2-field input::placeholder {
-            color: #9aa0a8;
+            color: #94a3b8;
         }
         .lv2-field.lv2-field--focus,
         .lv2-field:focus-within {
-            box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.14);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
         }
         .toggle-password {
             cursor: pointer;
-            color: #9aa0a8;
+            color: #94a3b8;
             padding-left: 10px;
             display: flex;
             align-items: center;
         }
-        .toggle-password:hover { color: #6b7280; }
+        .toggle-password:hover { color: #e2e8f0; }
         .lv2-field-error {
             display: block;
-            color: #b91c1c;
+            color: #ef4444;
             font-size: 0.82rem;
             margin: -8px 0 14px 4px;
         }
@@ -454,12 +454,12 @@
             display: none;
         }
         .role-badge--admin {
-            background: rgba(16, 185, 129, 0.12);
-            color: #0f9d6e;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
         }
         .role-badge--cashier {
-            background: rgba(37, 99, 235, 0.12);
-            color: #2563eb;
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
         }
         .lv2-remember {
             display: flex;
@@ -467,7 +467,7 @@
             justify-content: space-between;
             margin: 2px 0 18px;
             font-size: 0.86rem;
-            color: #374151;
+            color: #94a3b8;
         }
         .lv2-switch {
             position: relative;
@@ -486,7 +486,7 @@
         .lv2-slider {
             position: absolute;
             inset: 0;
-            background: #d5d8dc;
+            background: #4a5568;
             border-radius: 9999px;
             transition: background-color 0.2s ease;
         }
@@ -503,7 +503,7 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.25);
         }
         .lv2-switch input:checked + .lv2-slider {
-            background: #b91c1c;
+            background: #3b82f6;
         }
         .lv2-switch input:checked + .lv2-slider::before {
             transform: translateX(16px);
@@ -513,15 +513,15 @@
             border: none;
             border-radius: 14px;
             padding: 12px 0;
-            background: #a91f23;
+            background: #3b82f6;
             color: #ffffff;
             font-size: 1rem;
             font-weight: 700;
             cursor: pointer;
-            box-shadow: 0 12px 26px rgba(169, 31, 35, 0.32);
+            box-shadow: 0 12px 26px rgba(59, 130, 246, 0.35);
             transition: transform 0.15s ease, background-color 0.15s ease;
         }
-        .lv2-submit:hover { background: #931a1d; transform: translateY(-1px); }
+        .lv2-submit:hover { background: #2563eb; transform: translateY(-1px); }
         .lv2-submit:active { transform: translateY(0); }
         .lv2-footer {
             margin-top: 16px;
@@ -529,7 +529,7 @@
             font-size: 0.88rem;
         }
         .lv2-forgot-link {
-            color: #a91f23;
+            color: #60a5fa;
             text-decoration: none;
             font-weight: 600;
         }
@@ -539,7 +539,7 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            color: #6b7280;
+            color: #94a3b8;
             font-size: 0.82rem;
         }
         .lv2-forgot-link[hidden],
@@ -554,11 +554,11 @@
         }
         .lv2-alert--success {
             background: rgba(16, 185, 129, 0.1);
-            color: #0f9d6e;
+            color: #10b981;
         }
         .lv2-alert--error {
-            background: rgba(185, 28, 28, 0.08);
-            color: #b91c1c;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
         }
         .lv2-right {
             position: relative;
@@ -700,15 +700,15 @@
             opacity: 0;
             transform: translateY(-6px) scale(0.97);
             transition: opacity 0.25s ease, transform 0.25s ease;
-            background: #ffffff;
-            border: 1px solid #eef0f2;
-            box-shadow: 0 14px 34px rgba(20, 22, 30, 0.12);
+            background: #1a1d2d;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
             border-radius: 14px;
             padding: 12px 16px;
             font-size: 0.85rem;
             font-weight: 600;
             line-height: 1.35;
-            color: #16181d;
+            color: #e2e8f0;
             text-align: left;
         }
         .lv2-speech-box.lv2-visible {
@@ -721,7 +721,7 @@
             width: 2px;
             height: 0.9em;
             margin-left: 2px;
-            background: #a91f23;
+            background: #60a5fa;
             vertical-align: -0.15em;
             animation: lv2-caret-blink 0.8s step-end infinite;
         }
