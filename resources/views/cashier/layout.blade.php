@@ -176,7 +176,7 @@
         <button class="menu-toggle" onclick="toggleSidebar()">
             <i class="fas fa-bars"></i>
         </button>
-        <span class="mobile-brand">CCTV Express</span>
+        <span class="mobile-brand">CCTV Express Solution Tacurong</span>
         @include('cashier.partials.notification-bell')
     </div>
 
@@ -186,7 +186,7 @@
         <aside class="pos-sidebar">
             <div class="pos-sidebar-brand">
                 <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo" class="pos-sidebar-logo">
-                <h2>CCTV Express</h2>
+                <h2>CCTV Express Solution Tacurong</h2>
                 <p>Cashier Portal</p>
             </div>
 
