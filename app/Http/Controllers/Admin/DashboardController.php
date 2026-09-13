@@ -162,6 +162,14 @@ class DashboardController extends Controller
             ->when($txnSort === 'date_asc', fn ($q) => $q->orderBy('SalesTransaction.SalesTransactionDate'))
             ->when(! in_array($txnSort, ['amount_desc', 'amount_asc', 'date_asc']), fn ($q) => $q->orderByDesc('SalesTransaction.SalesTransactionDate'))
             ->paginate(10, ['*'], 'txn_page')
+            // Pinned to the real dashboard page rather than the ambient
+            // current-request path: this same query also runs inside
+            // liveInventory()'s JSON polling endpoint, and without this the
+            // generated pagination links would point at that JSON-only URL
+            // once the 10-second poll re-renders this partial, so the next
+            // click on a page number landed on a raw JSON response instead
+            // of the dashboard.
+            ->withPath(route('admin.dashboard'))
             ->withQueryString();
     }
 

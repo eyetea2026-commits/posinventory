@@ -294,6 +294,47 @@ class DashboardChartsTest extends TestCase
         $this->assertEquals(6.0, $response->json('leastSelling.0.quantity'));
     }
 
+    // Regression: the recent-transactions partial renders identically from
+    // two different routes (the dashboard page and this JSON polling
+    // endpoint). Its pagination/sort links must always point at the real
+    // dashboard page, never at this JSON-only endpoint's own URL --
+    // otherwise, once the 10s poll re-renders this partial into the DOM,
+    // clicking a page number lands the admin on a raw JSON response instead
+    // of the dashboard.
+    public function test_live_inventory_recent_transactions_pagination_links_point_at_the_dashboard_not_itself(): void
+    {
+        $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 100);
+        for ($i = 0; $i < 15; $i++) {
+            $this->recordSale($product, 1, 500);
+        }
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'));
+
+        $response->assertOk();
+        $html = $response->json('recentTransactionsHtml');
+
+        $this->assertStringContainsString('pagination-link', $html);
+        $this->assertStringContainsString(route('admin.dashboard') . '?', $html);
+        $this->assertStringNotContainsString(route('admin.dashboard.live-inventory'), $html);
+    }
+
+    public function test_live_inventory_recent_transactions_sort_links_point_at_the_dashboard_not_itself(): void
+    {
+        $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 20);
+        $this->recordSale($product, 1, 500);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'));
+
+        $response->assertOk();
+        $html = $response->json('recentTransactionsHtml');
+
+        // Default sort is date_desc, so the Amount header's toggle link
+        // targets amount_desc.
+        $this->assertStringContainsString('txn_sort=amount_desc', $html);
+        $this->assertStringContainsString(route('admin.dashboard') . '?', $html);
+        $this->assertStringNotContainsString(route('admin.dashboard.live-inventory'), $html);
+    }
+
     public function test_dashboard_view_carries_stable_ids_for_the_live_poll_to_target(): void
     {
         $this->actingAs($this->admin);

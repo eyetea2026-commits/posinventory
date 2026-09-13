@@ -5,14 +5,17 @@
                 <th>Receipt No.</th>
                 <th>Cashier</th>
                 <th>
-                    <a href="{{ request()->fullUrlWithQuery(['txn_sort' => $txnSort === 'amount_desc' ? 'amount_asc' : 'amount_desc', 'txn_page' => 1]) }}">
+                    {{-- route(), not request()->fullUrlWithQuery(): this partial also
+                         renders inside the live-inventory JSON polling endpoint, whose
+                         own URL must never leak into a link the admin actually clicks. --}}
+                    <a href="{{ route('admin.dashboard', array_merge(request()->query(), ['txn_sort' => $txnSort === 'amount_desc' ? 'amount_asc' : 'amount_desc', 'txn_page' => 1])) }}">
                         Amount <i class="fas fa-sort"></i>
                     </a>
                 </th>
                 <th>Payment Method</th>
                 <th>Status</th>
                 <th>
-                    <a href="{{ request()->fullUrlWithQuery(['txn_sort' => $txnSort === 'date_asc' ? 'date_desc' : 'date_asc', 'txn_page' => 1]) }}">
+                    <a href="{{ route('admin.dashboard', array_merge(request()->query(), ['txn_sort' => $txnSort === 'date_asc' ? 'date_desc' : 'date_asc', 'txn_page' => 1])) }}">
                         Date &amp; Time <i class="fas fa-sort"></i>
                     </a>
                 </th>
