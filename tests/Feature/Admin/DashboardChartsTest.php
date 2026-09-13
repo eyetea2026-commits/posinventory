@@ -345,4 +345,19 @@ class DashboardChartsTest extends TestCase
         $this->assertStringContainsString('id="statTransactionsToday"', $html);
         $this->assertStringContainsString('id="recentTransactionsContainer"', $html);
     }
+
+    // Regression: pagination/sort/search on this widget must never do a real
+    // navigation (which always scrolls back to the top of the dashboard) --
+    // they're intercepted client-side and fetched via the JSON endpoint.
+    public function test_dashboard_view_wires_up_ajax_handling_for_recent_transactions(): void
+    {
+        $this->actingAs($this->admin);
+        $html = view('admin.dashboard', $this->baseViewData())->render();
+
+        $this->assertStringContainsString('id="recentTxnSearchForm"', $html);
+        $this->assertStringContainsString('id="recentTxnSearchInput"', $html);
+        $this->assertStringContainsString('function bindRecentTransactionsLinks', $html);
+        $this->assertStringContainsString('function fetchRecentTransactions', $html);
+        $this->assertStringContainsString("e.preventDefault();\n                    const url = new URL(this.getAttribute('href')", $html);
+    }
 }

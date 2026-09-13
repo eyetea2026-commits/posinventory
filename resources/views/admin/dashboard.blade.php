@@ -851,9 +851,9 @@
             <div class="toolbar">
                 <div class="search-box">
                     <i class="search-icon fas fa-search"></i>
-                    <form method="GET" action="{{ route('admin.dashboard') }}" class="w-full">
+                    <form method="GET" action="{{ route('admin.dashboard') }}" class="w-full" id="recentTxnSearchForm">
                         <input type="hidden" name="txn_sort" value="{{ $txnSort }}">
-                        <input type="text" name="txn_search" value="{{ $txnSearch }}" class="search-input" placeholder="Search receipt #, customer, or cashier...">
+                        <input type="text" name="txn_search" id="recentTxnSearchInput" value="{{ $txnSearch }}" class="search-input" placeholder="Search receipt #, customer, or cashier...">
                     </form>
                 </div>
             </div>
@@ -1433,6 +1433,11 @@
                     const recentTxnContainer = document.getElementById('recentTransactionsContainer');
                     if (recentTxnContainer && typeof data.recentTransactionsHtml !== 'undefined') {
                         recentTxnContainer.innerHTML = data.recentTransactionsHtml;
+                        // The 10s poll just replaced these links with fresh
+                        // DOM nodes — re-attach the click handlers below or
+                        // the next click on them would fall through to a
+                        // real (page-jumping) navigation again.
+                        bindRecentTransactionsLinks();
                     }
 
                     if (typeof data.topSelling !== 'undefined' && typeof data.leastSelling !== 'undefined') {
@@ -1450,6 +1455,77 @@
                 });
         }
         setInterval(refreshInventoryWidgets, 10000);
+
+        // Recent Transactions: pagination, column-sort, and search all stay
+        // on this same page instead of doing a real navigation (which always
+        // scrolls back to the top of the dashboard) — they fetch the same
+        // JSON endpoint the 10s poll already uses and swap in just this
+        // widget's markup.
+        function fetchRecentTransactions(params) {
+            const container = document.getElementById('recentTransactionsContainer');
+            if (!container) return;
+
+            const queryString = params.toString();
+            window.history.replaceState({}, '', '{{ route('admin.dashboard') }}' + (queryString ? '?' + queryString : ''));
+
+            fetch('{{ route('admin.dashboard.live-inventory') }}' + (queryString ? '?' + queryString : ''), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (typeof data.recentTransactionsHtml !== 'undefined') {
+                        container.innerHTML = data.recentTransactionsHtml;
+                        bindRecentTransactionsLinks();
+                    }
+                })
+                .catch(() => {
+                    // Non-fatal — the table just stays as it was.
+                });
+        }
+
+        function bindRecentTransactionsLinks() {
+            const container = document.getElementById('recentTransactionsContainer');
+            if (!container) return;
+
+            container.querySelectorAll('a[href]').forEach((link) => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const url = new URL(this.getAttribute('href'), window.location.origin);
+                    fetchRecentTransactions(url.searchParams);
+                });
+            });
+        }
+
+        function initRecentTransactionsSearch() {
+            const form = document.getElementById('recentTxnSearchForm');
+            const searchInput = document.getElementById('recentTxnSearchInput');
+            if (!form || !searchInput) return;
+
+            let debounceTimer = null;
+            function triggerSearch() {
+                // Reads the current address bar's query string (kept in
+                // sync by fetchRecentTransactions) so an active sort order
+                // survives a search instead of silently resetting.
+                const params = new URLSearchParams(window.location.search);
+                if (searchInput.value.trim()) {
+                    params.set('txn_search', searchInput.value.trim());
+                } else {
+                    params.delete('txn_search');
+                }
+                params.set('txn_page', 1);
+                fetchRecentTransactions(params);
+            }
+
+            // Live/instant: no need for Enter or a Search button.
+            form.addEventListener('submit', function (e) { e.preventDefault(); });
+            searchInput.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(triggerSearch, 300);
+            });
+        }
+
+        bindRecentTransactionsLinks();
+        initRecentTransactionsSearch();
     })();
     </script>
 @endpush
