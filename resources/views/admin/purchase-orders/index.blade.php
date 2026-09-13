@@ -7,7 +7,7 @@
 @section('header')
     <div class="header-title">
         <h1>Purchase Orders</h1>
-        <p>Manage purchase orders - REQ052 to REQ060</p>
+        <p>Manage purchase orders</p>
     </div>
 @endsection
 

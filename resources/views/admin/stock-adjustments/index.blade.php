@@ -7,7 +7,7 @@
 @section('header')
     <div class="header-title">
         <h1>Stock Adjustments</h1>
-        <p>Adjust product quantities - REQ041 to REQ043</p>
+        <p>Adjust product quantities</p>
     </div>
 @endsection
 
