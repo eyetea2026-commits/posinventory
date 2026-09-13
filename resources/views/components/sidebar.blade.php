@@ -13,12 +13,13 @@
     class="sidebar fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col bg-[#0F172A] font-['Public_Sans',_Inter,_sans-serif] transition-transform duration-200 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-auto"
 >
     {{-- Brand / system name --}}
-    <div class="flex h-[70px] shrink-0 items-center gap-3 border-b border-white/5 px-4">
-        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white p-1">
+    <div class="flex shrink-0 items-center gap-3 border-b border-white/5 px-4 py-4">
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white p-1.5">
             <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo" class="h-full w-full object-contain">
         </div>
         <div class="min-w-0 leading-tight">
-            <p class="truncate text-sm font-semibold text-white">CCTV Express Solution Tacurong</p>
+            <p class="text-base font-bold leading-tight text-white">CCTV Express</p>
+            <p class="mt-0.5 text-xs font-medium leading-tight text-gray-400">Solution Tacurong</p>
         </div>
         <button
             type="button"

@@ -53,8 +53,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            height: 70px;
-            padding: 0 16px;
+            padding: 16px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             flex-shrink: 0;
         }
@@ -62,17 +61,18 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 36px;
-            height: 36px;
+            width: 48px;
+            height: 48px;
             border-radius: 8px;
             background: #fff;
-            padding: 4px;
+            padding: 6px;
             flex-shrink: 0;
         }
         .pos-sidebar-logo { display: block; width: 100%; height: 100%; object-fit: contain; }
-        .pos-sidebar-brand-text { min-width: 0; line-height: 1.25; }
-        .pos-sidebar-brand-text h2 { color: #fff; margin: 0; font-size: 0.875rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .pos-sidebar-brand-text p { color: #6b7280; margin: 2px 0 0; font-size: 0.7rem; }
+        .pos-sidebar-brand-text { min-width: 0; }
+        .pos-brand-name { color: #fff; margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.2; }
+        .pos-brand-sub { color: #9ca3af; margin: 2px 0 0; font-size: 0.75rem; font-weight: 500; line-height: 1.2; }
+        .pos-brand-role { color: #6b7280; margin: 2px 0 0; font-size: 0.7rem; line-height: 1.2; }
 
         .pos-sidebar nav {
             display: flex;
@@ -252,8 +252,9 @@
                     <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo" class="pos-sidebar-logo">
                 </div>
                 <div class="pos-sidebar-brand-text">
-                    <h2>CCTV Express Solution Tacurong</h2>
-                    <p>Cashier Portal</p>
+                    <h2 class="pos-brand-name">CCTV Express</h2>
+                    <p class="pos-brand-sub">Solution Tacurong</p>
+                    <p class="pos-brand-role">Cashier Portal</p>
                 </div>
             </div>
 
