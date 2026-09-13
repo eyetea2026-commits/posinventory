@@ -119,8 +119,8 @@
 
 <div class="card">
     <div class="card-header">
-        <form method="GET" action="{{ route('cashier.refunds') }}" class="search-form">
-            <input type="text" name="search" placeholder="Search returns..." value="{{ $search ?? '' }}">
+        <form method="GET" action="{{ route('cashier.refunds') }}" class="search-form" id="refundsSearchForm">
+            <input type="text" name="search" id="refundsSearchInput" placeholder="Search returns..." value="{{ $search ?? '' }}" autocomplete="off">
             <select name="status" onchange="this.form.submit()">
                 <option value="">All Statuses</option>
                 <option value="pending" {{ ($status ?? '') === 'pending' ? 'selected' : '' }}>Pending</option>
@@ -133,7 +133,6 @@
                 <option value="refund" {{ ($returnType ?? '') === 'refund' ? 'selected' : '' }}>Refund</option>
                 <option value="replacement" {{ ($returnType ?? '') === 'replacement' ? 'selected' : '' }}>Replacement</option>
             </select>
-            <button type="submit"><i class="fas fa-search"></i> Search</button>
         </form>
     </div>
 
@@ -151,9 +150,9 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="refundsTbody">
             @forelse($refunds as $refund)
-                <tr>
+                <tr data-refund-row>
                     <td>#{{ str_pad($refund->SalesReturnID, 6, '0', STR_PAD_LEFT) }}</td>
                     <td>{{ \Carbon\Carbon::parse($refund->ReturnDate)->format('M d, Y') }}</td>
                     <td>#{{ str_pad($refund->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
@@ -208,7 +207,6 @@
 
         <div class="search-tabs">
             <div class="search-tab active" data-mode="receipt" onclick="setSearchMode('receipt')">Receipt #</div>
-            <div class="search-tab" data-mode="invoice" onclick="setSearchMode('invoice')">Invoice #</div>
             <div class="search-tab" data-mode="customer" onclick="setSearchMode('customer')">Customer Name</div>
             <div class="search-tab" data-mode="barcode" onclick="setSearchMode('barcode')">Barcode</div>
         </div>
@@ -376,7 +374,30 @@ function escapeHtml(value) {
 
 document.addEventListener('DOMContentLoaded', function() {
     loadRefundStats();
+    initRefundsLiveSearch();
 });
+
+// Instant/live search: filters the already-rendered rows (status/type
+// filters still submit normally via their own onchange) as the Cashier
+// types — no Search button, no server round-trip needed since every row
+// on the page already carries its own visible text to match against.
+function initRefundsLiveSearch() {
+    const form = document.getElementById('refundsSearchForm');
+    const searchInput = document.getElementById('refundsSearchInput');
+    if (!form || !searchInput) return;
+
+    function applyLiveFilter() {
+        const query = searchInput.value.trim().toLowerCase();
+        document.querySelectorAll('#refundsTbody tr[data-refund-row]').forEach(function (row) {
+            row.style.display = (!query || row.innerText.toLowerCase().includes(query)) ? '' : 'none';
+        });
+    }
+
+    // Enter key shouldn't reload the page — filtering already happens live.
+    form.addEventListener('submit', function (e) { e.preventDefault(); });
+    searchInput.addEventListener('input', applyLiveFilter);
+    applyLiveFilter();
+}
 
 function loadRefundStats() {
     fetch('{{ route("cashier.stats") }}')
@@ -405,8 +426,8 @@ function closeCreateRefundModal() {
     document.getElementById('create-refund-modal').classList.remove('active');
 }
 
-const searchLabels = { receipt: 'Receipt Number', invoice: 'Invoice Number', customer: 'Customer Name', barcode: 'Product Barcode' };
-const searchPlaceholders = { receipt: 'e.g. RCT-000001', invoice: 'e.g. INV-000001', customer: 'e.g. Juan Dela Cruz', barcode: 'Scan or type barcode' };
+const searchLabels = { receipt: 'Receipt Number', customer: 'Customer Name', barcode: 'Product Barcode' };
+const searchPlaceholders = { receipt: 'e.g. RCT-000001', customer: 'e.g. Juan Dela Cruz', barcode: 'Scan or type barcode' };
 
 function setSearchMode(mode) {
     searchMode = mode;
@@ -466,7 +487,6 @@ function populateTransactionDetails(transaction) {
     document.getElementById('transaction-info').innerHTML = `
         <strong>Customer:</strong> ${escapeHtml(transaction.CustomerName || 'N/A')}<br>
         <strong>Receipt Number:</strong> ${escapeHtml(transaction.ReceiptNumber)}<br>
-        <strong>Invoice Number:</strong> ${escapeHtml(transaction.InvoiceNumber)}<br>
         <strong>Transaction Date:</strong> ${escapeHtml(transaction.TransactionDate)}<br>
         <strong>Payment Method:</strong> ${escapeHtml(transaction.PaymentMethod || 'N/A')}<br>
         <strong>Original Cashier:</strong> ${escapeHtml(transaction.OriginalCashier || 'N/A')}<br>

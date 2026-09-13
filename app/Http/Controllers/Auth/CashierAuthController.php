@@ -168,10 +168,12 @@ class CashierAuthController extends Controller
         $dateFrom = $request->get('date_from');
         $dateTo = $request->get('date_to');
 
+        // Unconditional (not ->when($staff, ...)): a cashier with no Staff
+        // record yet (never processed a sale) must see zero transactions,
+        // not the whole table -- StaffID 0 never matches a real row. Mirrors
+        // the same pattern already used by CashierReturnController::index().
         $transactions = SalesTransaction::with(['staff', 'billing', 'items.product'])
-            ->when($staff, function($query) use ($staff) {
-                return $query->where('StaffID', $staff->StaffID);
-            })
+            ->where('StaffID', $staff->StaffID ?? 0)
             ->when($search, function($query) use ($search) {
                 return $query->where('CustomerName', 'like', "%{$search}%");
             })
@@ -184,6 +186,16 @@ class CashierAuthController extends Controller
             ->orderBy('SalesTransactionID', 'desc')
             ->paginate(15)
             ->withQueryString();
+
+        // Live search on this page fetches this same route over AJAX and
+        // swaps in just the rows + pagination — same pattern as the Admin
+        // Inventory list's live search/poll.
+        if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'rows' => view('cashier.partials.transactions-rows', ['transactions' => $transactions])->render(),
+                'pagination' => view('cashier.partials.transactions-pagination', ['transactions' => $transactions])->render(),
+            ]);
+        }
 
         return view('cashier.transactions', compact('transactions', 'search', 'dateFrom', 'dateTo'));
     }

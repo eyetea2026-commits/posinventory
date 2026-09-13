@@ -48,10 +48,10 @@
 
 <div class="card">
     <div class="toolbar">
-        <form method="GET" action="{{ route('cashier.transactions') }}" class="search-form">
-            <input type="text" name="search" placeholder="Search by customer..." value="{{ $search ?? '' }}">
-            <input type="date" name="date_from" value="{{ $dateFrom ?? '' }}" onchange="this.form.submit()">
-            <input type="date" name="date_to" value="{{ $dateTo ?? '' }}" onchange="this.form.submit()">
+        <form method="GET" action="{{ route('cashier.transactions') }}" class="search-form" id="transactionsSearchForm">
+            <input type="text" name="search" id="transactionsSearchInput" placeholder="Search by customer..." value="{{ $search ?? '' }}" autocomplete="off">
+            <input type="date" name="date_from" id="transactionsDateFrom" value="{{ $dateFrom ?? '' }}">
+            <input type="date" name="date_to" id="transactionsDateTo" value="{{ $dateTo ?? '' }}">
         </form>
     </div>
 
@@ -66,51 +66,69 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody>
-            @forelse($transactions as $transaction)
-                <tr>
-                    <td><span class="receipt-number">RCT-{{ str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</span></td>
-                    <td>{{ \Carbon\Carbon::parse($transaction->SalesTransactionDate)->format('M d, Y h:i A') }}</td>
-                    <td>{{ $transaction->CustomerName ?? 'Walk-in Customer' }}</td>
-                    <td>{{ $transaction->items->sum('Quantity') ?? 0 }} items</td>
-                    <td class="amount">₱{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
-                    <td>
-                        <a href="{{ route('cashier.transactions') }}?print={{ $transaction->SalesTransactionID }}" class="btn btn-primary btn-sm" target="_blank">
-                            <i class="fas fa-print"></i> Print
-                        </a>
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="6">
-                        <div class="empty-state">
-                            <i class="fas fa-receipt"></i>
-                            <p>No transactions found</p>
-                        </div>
-                    </td>
-                </tr>
-            @endforelse
+        <tbody id="transactionsTbody">
+            @include('cashier.partials.transactions-rows')
         </tbody>
     </table>
 
-    @if($transactions->hasPages())
-        <div class="pagination">
-            @if($transactions->onFirstPage())
-                <span><i class="fas fa-chevron-left"></i></span>
-            @else
-                <a href="{{ $transactions->previousPageUrl() }}"><i class="fas fa-chevron-left"></i></a>
-            @endif
-
-            @foreach($transactions->getUrlRange(1, min(5, $transactions->lastPage())) as $page => $url)
-                <a href="{{ $url }}" class="{{ $page == $transactions->currentPage() ? 'active' : '' }}">{{ $page }}</a>
-            @endforeach
-
-            @if($transactions->hasMorePages())
-                <a href="{{ $transactions->nextPageUrl() }}"><i class="fas fa-chevron-right"></i></a>
-            @else
-                <span><i class="fas fa-chevron-right"></i></span>
-            @endif
-        </div>
-    @endif
+    <div id="transactionsPagination">
+        @include('cashier.partials.transactions-pagination')
+    </div>
 </div>
+
+<script>
+    (function () {
+        const searchInput = document.getElementById('transactionsSearchInput');
+        const dateFromInput = document.getElementById('transactionsDateFrom');
+        const dateToInput = document.getElementById('transactionsDateTo');
+        const tbody = document.getElementById('transactionsTbody');
+        const paginationWrapper = document.getElementById('transactionsPagination');
+        const form = document.getElementById('transactionsSearchForm');
+
+        let debounceTimer = null;
+        let currentController = null;
+
+        function buildQuery() {
+            const params = new URLSearchParams();
+            if (searchInput.value.trim()) params.set('search', searchInput.value.trim());
+            if (dateFromInput.value) params.set('date_from', dateFromInput.value);
+            if (dateToInput.value) params.set('date_to', dateToInput.value);
+            return params.toString();
+        }
+
+        async function applyFilters() {
+            const query = buildQuery();
+            const url = `{{ route('cashier.transactions') }}${query ? '?' + query : ''}`;
+            window.history.replaceState({}, '', url);
+
+            if (currentController) currentController.abort();
+            currentController = new AbortController();
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    signal: currentController.signal,
+                });
+                if (!response.ok) throw new Error('Request failed');
+                const data = await response.json();
+                tbody.innerHTML = data.rows;
+                paginationWrapper.innerHTML = data.pagination;
+            } catch (err) {
+                if (err.name === 'AbortError') return;
+            }
+        }
+
+        // Live/instant: every keystroke re-filters, no Search button needed.
+        searchInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(applyFilters, 300);
+        });
+
+        dateFromInput.addEventListener('change', applyFilters);
+        dateToInput.addEventListener('change', applyFilters);
+
+        // Search is already live — Enter shouldn't trigger a full page reload.
+        form.addEventListener('submit', function (e) { e.preventDefault(); });
+    })();
+</script>
 @endsection
