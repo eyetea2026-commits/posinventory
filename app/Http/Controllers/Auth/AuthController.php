@@ -136,16 +136,30 @@ class AuthController extends Controller
     // in-app prompt fire exactly once: flash data only survives the single
     // request immediately after this redirect, so a plain refresh of
     // /admin/dashboard afterward never sees it again.
+    // Wrapped end-to-end: this is a security *notification*, not part of
+    // authentication itself, so nothing in here — a missing/locked table,
+    // a mail failure — may ever turn a successful login into a 500. Any
+    // failure is logged and simply means the admin doesn't get this
+    // particular alert for this login.
     private function recordLoginSecurityEvent(Request $request, User $user, string $sessionId): void
     {
-        $event = LoginSecurityEvent::create([
-            'UserID' => $user->id,
-            'IPAddress' => $request->ip(),
-            'UserAgent' => $request->userAgent(),
-            'DeviceSummary' => LoginSecurityEvent::summarizeUserAgent($request->userAgent()),
-            'SessionID' => $sessionId,
-            'LoginAt' => now(),
-        ]);
+        try {
+            $event = LoginSecurityEvent::create([
+                'UserID' => $user->id,
+                'IPAddress' => $request->ip(),
+                'UserAgent' => $request->userAgent(),
+                'DeviceSummary' => LoginSecurityEvent::summarizeUserAgent($request->userAgent()),
+                'SessionID' => $sessionId,
+                'LoginAt' => now(),
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Failed to record LoginSecurityEvent', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return;
+        }
 
         // Always notify -- the database (in-app) channel doesn't need an
         // email; AdminLoginSecurityAlert::via() itself skips the mail
