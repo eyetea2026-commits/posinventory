@@ -47,6 +47,13 @@ body { background: linear-gradient(180deg, #020617 0%, #090f1e 100%); }
 .card-title { margin: 0; font-size: 1.3rem; font-weight: 600; color: var(--text-primary); }
 .card-subtitle { margin: 4px 0 0; font-size: 0.9rem; color: var(--text-muted); }
 
+/* The Report filter card and the first results card (Sales, Inventory
+   Items, etc.) sit directly beneath it with no gap -- only that first
+   card's own .mt-4 is zeroed, so a report type with more than one
+   results card (e.g. Inventory Items + Recent Stock Adjustments) keeps
+   its normal spacing between those. */
+#reportBodyContainer > .card:first-child { margin-top: 0; }
+
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
 .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; align-items: flex-start; gap: 16px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
 .stat-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3); }
