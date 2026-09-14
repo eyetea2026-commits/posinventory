@@ -203,6 +203,17 @@ body { background: linear-gradient(180deg, #020617 0%, #090f1e 100%); }
 /* ============================================
    REPORTS SPECIFIC STYLES
    ============================================ */
+
+/* The Report Type / Date Range filter card only -- slimmer than the
+   default .card so it doesn't dominate the page above the results
+   table. Scoped to this one card so every other .card in the app
+   (including the results cards right below it) is unaffected. */
+.report-filter-card { padding: 14px 20px; }
+.report-filter-card .card-header { margin-bottom: 10px; padding-bottom: 0; border-bottom: none; }
+.report-filter-card .form-group { margin-bottom: 10px; }
+.report-filter-card .form-label { margin-bottom: 6px; }
+.report-filter-card .form-input,
+.report-filter-card .form-select { padding: 10px 14px; }
 .report-filters {
     display: flex;
     gap: 16px;

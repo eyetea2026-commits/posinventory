@@ -18,13 +18,9 @@
     </div>
 
     <!-- Report Type / Date Range -->
-    <div class="card mt-4">
+    <div class="card mt-4 report-filter-card">
         <div class="card-header">
-            <div>
-                <h2 class="card-title">Report</h2>
-                <p class="card-subtitle">Choose a type and (optionally) a date range — the list updates as you change either</p>
-            </div>
-            <div style="display:flex; gap:10px; align-items:center;">
+            <div style="display:flex; gap:10px; align-items:center; margin-left:auto;">
                 <div class="dropdown" style="position:relative;">
                     <button type="button" id="downloadMenuBtn" class="btn btn-secondary" title="Download">
                         <i class="fas fa-download"></i> Download
