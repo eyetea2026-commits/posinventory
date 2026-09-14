@@ -326,6 +326,21 @@ Route::prefix('admin')->group(function () {
         ->name('admin.reports.print')->middleware(['auth', 'role:admin']);
 });
 
+// Admin login security review — deliberately OUTSIDE the auth-protected
+// admin group above: the "Was this you?" email must be actionable from a
+// phone that isn't logged in. Each route accepts either a valid signed URL
+// (LoginSecurityController::authorizeAccess()) or an authenticated admin
+// session, so the in-app prompt's fetch calls reuse the exact same routes.
+// throttle limits brute-force guessing of a login-event ID.
+Route::prefix('admin/security')->middleware('throttle:30,1')->group(function () {
+    Route::get('login-events/{loginSecurityEvent}/review', [App\Http\Controllers\Admin\LoginSecurityController::class, 'review'])
+        ->name('admin.security.review');
+    Route::post('login-events/{loginSecurityEvent}/confirm', [App\Http\Controllers\Admin\LoginSecurityController::class, 'confirm'])
+        ->name('admin.security.confirm');
+    Route::post('login-events/{loginSecurityEvent}/deny', [App\Http\Controllers\Admin\LoginSecurityController::class, 'deny'])
+        ->name('admin.security.deny');
+});
+
 // Cashier routes
 Route::prefix('cashier')->group(function () {
     Route::post('logout', [CashierAuthController::class, 'logout'])->name('cashier.logout');

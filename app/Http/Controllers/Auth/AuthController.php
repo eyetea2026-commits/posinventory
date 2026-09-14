@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\LoginSecurityEvent;
 use App\Models\User;
+use App\Notifications\AdminLoginSecurityAlert;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Throwable;
 
 // The single sign-in entry point for the whole system — one username/password
 // form with no upfront "are you an Admin or a Cashier?" choice. The account's
@@ -104,6 +108,7 @@ class AuthController extends Controller
 
             if ($user->isAdmin()) {
                 ActivityLog::record('auth.login', "\"{$user->name}\" logged in (Admin) from {$request->ip()}", $user->id);
+                $this->recordLoginSecurityEvent($request, $user, $newSessionId);
                 return redirect()->intended('/admin/dashboard');
             }
 
@@ -121,6 +126,40 @@ class AuthController extends Controller
         ActivityLog::record('auth.login_failed', "Failed login attempt for username \"{$credentials['username']}\" from {$request->ip()}");
 
         return back()->withErrors(['username' => 'The provided credentials do not match our records.']);
+    }
+
+    // "Was this you?" security check — Admin accounts only (Cashier is
+    // untouched). Records a per-login row (structured, updatable status —
+    // see LoginSecurityEvent) alongside the ActivityLog entry already
+    // written above, then notifies the admin so they can confirm or flag it.
+    // Flashing the event id (not a new session key) is what makes the
+    // in-app prompt fire exactly once: flash data only survives the single
+    // request immediately after this redirect, so a plain refresh of
+    // /admin/dashboard afterward never sees it again.
+    private function recordLoginSecurityEvent(Request $request, User $user, string $sessionId): void
+    {
+        $event = LoginSecurityEvent::create([
+            'UserID' => $user->id,
+            'IPAddress' => $request->ip(),
+            'UserAgent' => $request->userAgent(),
+            'DeviceSummary' => LoginSecurityEvent::summarizeUserAgent($request->userAgent()),
+            'SessionID' => $sessionId,
+            'LoginAt' => now(),
+        ]);
+
+        // Always notify -- the database (in-app) channel doesn't need an
+        // email; AdminLoginSecurityAlert::via() itself skips the mail
+        // channel when the admin has none registered.
+        try {
+            $user->notify(new AdminLoginSecurityAlert($event));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch AdminLoginSecurityAlert notification', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
+        session()->flash('security_alert_event_id', $event->LoginSecurityEventID);
     }
 
     // Purely a UI hint (the "Administrator"/"Cashier" badge on the login

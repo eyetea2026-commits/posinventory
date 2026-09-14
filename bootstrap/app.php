@@ -20,6 +20,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // unauthenticated guest lands there regardless of which area they
         // were trying to reach.
         $middleware->redirectGuestsTo(fn () => route('welcome'));
+
+        // The "Was this you?" security email's Yes/No buttons must work for
+        // a signed-out visitor (no CSRF token available at all), so these
+        // two POST actions are protected by a Laravel signed URL instead —
+        // the signature itself is the anti-forgery guarantee, the same
+        // pattern used industry-wide for unsubscribe/one-click action links.
+        // The in-app prompt (an authenticated admin) still sends a real
+        // CSRF token on every request; it just isn't required here.
+        $middleware->validateCsrfTokens(except: [
+            'admin/security/login-events/*/confirm',
+            'admin/security/login-events/*/deny',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // A stale form (a tab left open past SESSION_LIFETIME, or the
