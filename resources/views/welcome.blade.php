@@ -420,6 +420,21 @@
         .lv2-field input::placeholder {
             color: #94a3b8;
         }
+        /* Chrome/Edge paint autofilled fields with their own pale
+           background (visible as the light box around a saved
+           username/password), ignoring the input's own dark background --
+           this is the standard override: an inset box-shadow the size of
+           the field, plus -webkit-text-fill-color since autofill also
+           ignores a plain color declaration on the text itself. */
+        .lv2-field input:-webkit-autofill,
+        .lv2-field input:-webkit-autofill:hover,
+        .lv2-field input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #e2e8f0;
+            -webkit-box-shadow: 0 0 0 1000px #2d3748 inset;
+            box-shadow: 0 0 0 1000px #2d3748 inset;
+            caret-color: #e2e8f0;
+            transition: background-color 9999s ease-in-out 0s;
+        }
         .lv2-field.lv2-field--focus,
         .lv2-field:focus-within {
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
