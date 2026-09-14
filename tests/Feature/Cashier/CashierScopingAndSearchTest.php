@@ -130,6 +130,22 @@ class CashierScopingAndSearchTest extends TestCase
         $response->assertDontSee('>Search</button>', false);
     }
 
+    // Regression: the Print action used to link back to the transactions
+    // list itself (with an unused ?print= param the controller never read),
+    // opening a duplicate copy of the list in a new tab instead of the
+    // actual printable receipt.
+    public function test_print_action_links_to_the_actual_receipt_not_a_duplicate_of_the_list(): void
+    {
+        $transaction = $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
+        $receiptNumber = 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));
+
+        $response->assertOk();
+        $response->assertSee(route('cashier.receipt', $receiptNumber), false);
+        $response->assertDontSee(route('cashier.transactions') . '?print=', false);
+    }
+
     // --- Refund Requests: no blue button, live filter, no Invoice # -----
 
     public function test_refunds_page_has_no_search_button_and_wires_up_live_filter(): void
