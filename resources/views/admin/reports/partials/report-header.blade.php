@@ -21,7 +21,10 @@
     <p>Your Trusted Security Partner</p>
 </div>
 
-<h2 class="report-title">{{ $type }} Report</h2>
+{{-- Every existing type keeps its exact original raw (lowercase) heading
+     here -- only the two underscored keys get a real label, since a raw
+     "stock_adjustment Report" would otherwise show a literal underscore. --}}
+<h2 class="report-title">{{ in_array($type, ['stock_adjustment', 'stock_receiving'], true) ? \App\Http\Controllers\Admin\ReportController::typeLabel($type) : $type }} Report</h2>
 
 <div class="report-meta">
     <p><strong>Report Period:</strong>

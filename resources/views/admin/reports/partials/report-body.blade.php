@@ -34,15 +34,15 @@
             </table>
         </div>
     </div>
-
+@elseif($reportType === 'stock_adjustment')
     <div class="card mt-4">
         <div class="card-header">
             <div>
-                <h2 class="card-title">Recent Stock Adjustments</h2>
+                <h2 class="card-title">Stock Adjustments</h2>
                 <p class="card-subtitle">Increases, decreases, and their reasons — including damages, losses, theft, and count corrections</p>
             </div>
         </div>
-        <div class="table-container" style="max-height: 360px; overflow-y: auto;">
+        <div class="table-container" style="max-height: 480px; overflow-y: auto;">
             <table class="table">
                 <thead>
                     <tr><th>ID</th><th>Date</th><th>Product</th><th>Adjustment</th><th>Reason</th></tr>
@@ -58,6 +58,36 @@
                         </tr>
                     @empty
                         <tr><td colspan="5" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+@elseif($reportType === 'stock_receiving')
+    <div class="card mt-4">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">Stock Receiving</h2>
+                <p class="card-subtitle">Stock received into inventory within the selected date range</p>
+            </div>
+        </div>
+        <div class="table-container" style="max-height: 480px; overflow-y: auto;">
+            <table class="table">
+                <thead>
+                    <tr><th>ID</th><th>Date Received</th><th>Product</th><th>Supplier</th><th>Quantity</th><th>Receipt Number</th></tr>
+                </thead>
+                <tbody>
+                    @forelse($stockReceivingRows as $row)
+                        <tr>
+                            <td>{{ $row->ReceivingID }}</td>
+                            <td>{{ $row->DateReceived }}</td>
+                            <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
+                            <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
+                            <td>{{ number_format($row->Quantity) }}</td>
+                            <td>{{ $row->ReceiptNumber ?? 'N/A' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>

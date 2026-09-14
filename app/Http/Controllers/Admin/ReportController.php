@@ -507,6 +507,20 @@ class ReportController extends Controller
         return in_array($type, ['sales', 'inventory'], true);
     }
 
+    // Every other type is one plain word ucfirst() handles fine on its
+    // own — only the underscored keys need an actual label instead of a
+    // literal "Stock_adjustment"/"stock_adjustment". Shared by the
+    // Print Preview/PDF titles and the Excel export's title block so none
+    // of them can drift from each other.
+    public static function typeLabel(string $type): string
+    {
+        return match ($type) {
+            'stock_adjustment' => 'Stock Adjustment',
+            'stock_receiving' => 'Stock Receiving',
+            default => ucfirst($type),
+        };
+    }
+
     public function export(Request $request)
     {
         $type = $request->get('type', 'sales');
@@ -633,7 +647,8 @@ class ReportController extends Controller
             'pendingReturns' => $pendingReturns,
             'salesRows' => $reportType === 'sales' ? $this->salesBillingRows($dateFrom, $dateTo) : collect(),
             'inventoryRows' => $reportType === 'inventory' ? $this->inventoryRows($dateFrom, $dateTo) : collect(),
-            'stockAdjustmentRows' => $reportType === 'inventory' ? $this->stockAdjustmentRows($dateFrom, $dateTo) : collect(),
+            'stockAdjustmentRows' => $reportType === 'stock_adjustment' ? $this->stockAdjustmentRows($dateFrom, $dateTo) : collect(),
+            'stockReceivingRows' => $reportType === 'stock_receiving' ? $this->stockReceivingRows($dateFrom, $dateTo) : collect(),
             'orderRows' => $reportType === 'orders' ? $this->orderRows($dateFrom, $dateTo) : collect(),
             'returnRows' => $reportType === 'returns' ? $this->returnRows($dateFrom, $dateTo) : collect(),
             'damageRows' => $reportType === 'damage' ? $this->damageRows($dateFrom, $dateTo) : collect(),
@@ -645,6 +660,8 @@ class ReportController extends Controller
     {
         return match ($type) {
             'inventory' => $this->inventoryRows($dateFrom, $dateTo),
+            'stock_adjustment' => $this->stockAdjustmentRows($dateFrom, $dateTo),
+            'stock_receiving' => $this->stockReceivingRows($dateFrom, $dateTo),
             'orders' => $this->orderItemRows($dateFrom, $dateTo),
             'returns' => $this->returnRows($dateFrom, $dateTo),
             'damage' => $this->damageRows($dateFrom, $dateTo),
@@ -735,15 +752,26 @@ class ReportController extends Controller
             ->get();
     }
 
-    // Supplementary to the Inventory report — every adjustment (increase or
-    // decrease, whatever the reason) that touched stock in the selected
-    // range, so "reports reflect every stock adjustment" is verifiably true.
+    // Its own report type — every adjustment (increase or decrease,
+    // whatever the reason) that touched stock in the selected range, so
+    // "reports reflect every stock adjustment" is verifiably true.
     private function stockAdjustmentRows(?string $dateFrom, ?string $dateTo)
     {
         return StockAdjustment::with('product')
             ->when($dateFrom, fn ($q) => $q->whereDate('Date', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('Date', '<=', $dateTo))
             ->orderByDesc('Date')
+            ->get();
+    }
+
+    // Every unit physically received into stock in the selected range,
+    // whether ad-hoc or against a Purchase Order.
+    private function stockReceivingRows(?string $dateFrom, ?string $dateTo)
+    {
+        return StockReceiving::with(['product', 'supplier'])
+            ->when($dateFrom, fn ($q) => $q->whereDate('DateReceived', '>=', $dateFrom))
+            ->when($dateTo, fn ($q) => $q->whereDate('DateReceived', '<=', $dateTo))
+            ->orderByDesc('DateReceived')
             ->get();
     }
 
@@ -891,6 +919,29 @@ class ReportController extends Controller
                         $this->csvSafe($item->product?->ProductName ?? 'N/A'),
                         $item->Quantity,
                         $item->Status,
+                    ]);
+                }
+            } elseif ($type === 'stock_adjustment') {
+                fputcsv($handle, ['ID', 'Date', 'Product', 'Adjustment', 'Reason']);
+                foreach ($this->stockAdjustmentRows($dateFrom, $dateTo) as $item) {
+                    fputcsv($handle, [
+                        $item->AdjustmentID,
+                        $item->Date,
+                        $this->csvSafe($item->product?->ProductName ?? 'N/A'),
+                        ($item->QuantityAdjust >= 0 ? '+' : '') . $item->QuantityAdjust,
+                        $this->csvSafe($item->Reason),
+                    ]);
+                }
+            } elseif ($type === 'stock_receiving') {
+                fputcsv($handle, ['ID', 'Date Received', 'Product', 'Supplier', 'Quantity', 'Receipt Number']);
+                foreach ($this->stockReceivingRows($dateFrom, $dateTo) as $item) {
+                    fputcsv($handle, [
+                        $item->ReceivingID,
+                        $item->DateReceived,
+                        $this->csvSafe($item->product?->ProductName ?? 'N/A'),
+                        $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
+                        $item->Quantity,
+                        $this->csvSafe($item->ReceiptNumber ?? 'N/A'),
                     ]);
                 }
             } elseif ($type === 'orders') {

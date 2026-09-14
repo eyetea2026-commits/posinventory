@@ -34,6 +34,51 @@
             @endforelse
         </tbody>
     </table>
+@elseif($type === 'stock_adjustment')
+    <table>
+        <thead>
+            <tr>
+                <th>Reference</th><th class="col-date">Date</th><th>Product</th>
+                <th class="col-qty">Adjustment</th><th>Reason</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($rows as $row)
+                <tr>
+                    <td><code>ADJ-{{ str_pad($row->AdjustmentID, 6, '0', STR_PAD_LEFT) }}</code></td>
+                    <td class="col-date">{{ \Illuminate\Support\Carbon::parse($row->Date)->format('m/d/Y') }}</td>
+                    <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
+                    <td class="col-qty">{{ $row->QuantityAdjust >= 0 ? '+' : '' }}{{ $row->QuantityAdjust }}</td>
+                    <td>{{ $row->Reason }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="5" class="no-records"><strong>NO RECORDS FOUND</strong>No stock adjustments match the selected report criteria.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+@elseif($type === 'stock_receiving')
+    <table>
+        <thead>
+            <tr>
+                <th>Reference</th><th class="col-date">Date Received</th><th>Product</th><th>Supplier</th>
+                <th class="col-qty">Quantity</th><th>Receipt Number</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($rows as $row)
+                <tr>
+                    <td><code>REC-{{ str_pad($row->ReceivingID, 6, '0', STR_PAD_LEFT) }}</code></td>
+                    <td class="col-date">{{ \Illuminate\Support\Carbon::parse($row->DateReceived)->format('m/d/Y') }}</td>
+                    <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
+                    <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
+                    <td class="col-qty">{{ number_format($row->Quantity) }}</td>
+                    <td>{{ $row->ReceiptNumber ?? 'N/A' }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="no-records"><strong>NO RECORDS FOUND</strong>No stock receiving records match the selected report criteria.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
 @elseif($type === 'orders')
     <table>
         <thead>

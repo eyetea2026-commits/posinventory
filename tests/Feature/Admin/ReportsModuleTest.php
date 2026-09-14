@@ -109,6 +109,112 @@ class ReportsModuleTest extends TestCase
         $response->assertDontSee('id="reportDateTo" class="form-input" value="" disabled', false);
     }
 
+    // ---- Stock Adjustment / Stock Receiving: split out of Inventory into their own types ----
+
+    public function test_report_type_dropdown_offers_stock_adjustment_and_stock_receiving(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.index'));
+
+        $response->assertOk();
+        $response->assertSee('Stock Adjustment Report');
+        $response->assertSee('Stock Receiving Report');
+        $response->assertSee('value="stock_adjustment"', false);
+        $response->assertSee('value="stock_receiving"', false);
+    }
+
+    public function test_inventory_report_no_longer_bundles_stock_adjustments(): void
+    {
+        StockAdjustment::create([
+            'ProductID' => $this->product->ProductID, 'QuantityAdjust' => -3,
+            'Reason' => StockAdjustment::REASON_LOST, 'Date' => now()->format('Y-m-d'),
+        ]);
+        Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'inventory']));
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('Inventory Items', $html);
+        $this->assertStringNotContainsString('Stock Adjustments', $html);
+        $this->assertStringNotContainsString(StockAdjustment::REASON_LOST, $html);
+    }
+
+    public function test_stock_adjustment_report_shows_its_own_rows(): void
+    {
+        StockAdjustment::create([
+            'ProductID' => $this->product->ProductID, 'QuantityAdjust' => -3,
+            'Reason' => StockAdjustment::REASON_LOST, 'Date' => '2026-06-15',
+        ]);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', [
+            'type' => 'stock_adjustment', 'date_from' => '2026-06-01', 'date_to' => '2026-06-30',
+        ]));
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('Stock Adjustments', $html);
+        $this->assertStringContainsString('DVR Camera', $html);
+        $this->assertStringContainsString('-3', $html);
+        $this->assertStringContainsString(StockAdjustment::REASON_LOST, $html);
+    }
+
+    public function test_stock_receiving_report_shows_its_own_rows(): void
+    {
+        StockReceiving::create([
+            'Quantity' => 15, 'DateReceived' => '2026-06-15', 'ReceiptNumber' => 'RCPT-100',
+            'ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID,
+        ]);
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', [
+            'type' => 'stock_receiving', 'date_from' => '2026-06-01', 'date_to' => '2026-06-30',
+        ]));
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('Stock Receiving', $html);
+        $this->assertStringContainsString('DVR Camera', $html);
+        $this->assertStringContainsString('Acme Supplies', $html);
+        $this->assertStringContainsString('RCPT-100', $html);
+    }
+
+    public function test_stock_adjustment_and_stock_receiving_csv_and_pdf_export_work(): void
+    {
+        StockAdjustment::create([
+            'ProductID' => $this->product->ProductID, 'QuantityAdjust' => 2,
+            'Reason' => StockAdjustment::REASON_COUNT_ERROR, 'Date' => now()->format('Y-m-d'),
+        ]);
+        StockReceiving::create([
+            'Quantity' => 5, 'DateReceived' => now()->format('Y-m-d'), 'ReceiptNumber' => 'RCPT-200',
+            'ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID,
+        ]);
+
+        foreach (['stock_adjustment', 'stock_receiving'] as $type) {
+            $csv = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => $type, 'format' => 'csv']));
+            $csv->assertOk();
+            $csv->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+            $pdf = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => $type, 'format' => 'pdf']));
+            $pdf->assertOk();
+        }
+    }
+
+    public function test_report_summary_builder_computes_stock_adjustment_and_stock_receiving_aggregates(): void
+    {
+        $adjustments = collect([
+            (object) ['QuantityAdjust' => 5],
+            (object) ['QuantityAdjust' => -3],
+        ]);
+        $adjustmentSummary = collect(ReportSummaryBuilder::forType('stock_adjustment', $adjustments))->keyBy('label');
+        $this->assertSame(2, $adjustmentSummary['Total Adjustments']['value']);
+        $this->assertSame(5, $adjustmentSummary['Total Quantity Increased']['value']);
+        $this->assertSame(3, $adjustmentSummary['Total Quantity Decreased']['value']);
+
+        $receipts = collect([(object) ['Quantity' => 10], (object) ['Quantity' => 20]]);
+        $receivingSummary = collect(ReportSummaryBuilder::forType('stock_receiving', $receipts))->keyBy('label');
+        $this->assertSame(2, $receivingSummary['Total Receipts']['value']);
+        $this->assertSame(30, $receivingSummary['Total Quantity Received']['value']);
+    }
+
     public function test_inventory_report_filters_by_date_range_using_stock_activity(): void
     {
         $inMovedProduct = Product::create([
@@ -385,7 +491,7 @@ class ReportsModuleTest extends TestCase
 
     public function test_excel_export_returns_a_valid_spreadsheet_for_every_report_type(): void
     {
-        foreach (['sales', 'inventory', 'orders', 'damage', 'returns', 'supplier'] as $type) {
+        foreach (['sales', 'inventory', 'stock_adjustment', 'stock_receiving', 'orders', 'damage', 'returns', 'supplier'] as $type) {
             $response = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => $type, 'format' => 'excel']));
 
             $response->assertOk();
@@ -538,7 +644,7 @@ class ReportsModuleTest extends TestCase
         // is ever called with an invalid orientation string, so a clean 200
         // for every type confirms the per-type landscape/portrait branch
         // in ReportController::export() is wired correctly for all of them.
-        foreach (['sales', 'inventory', 'orders', 'damage', 'returns', 'supplier'] as $type) {
+        foreach (['sales', 'inventory', 'stock_adjustment', 'stock_receiving', 'orders', 'damage', 'returns', 'supplier'] as $type) {
             $this->actingAs($this->admin)
                 ->get(route('admin.reports.export', ['type' => $type, 'format' => 'pdf']))
                 ->assertOk();

@@ -45,6 +45,8 @@
                 <select id="reportTypeSelect" class="form-select">
                     <option value="sales" {{ $reportType === 'sales' ? 'selected' : '' }}>Sales Report</option>
                     <option value="inventory" {{ $reportType === 'inventory' ? 'selected' : '' }}>Inventory Report</option>
+                    <option value="stock_adjustment" {{ $reportType === 'stock_adjustment' ? 'selected' : '' }}>Stock Adjustment Report</option>
+                    <option value="stock_receiving" {{ $reportType === 'stock_receiving' ? 'selected' : '' }}>Stock Receiving Report</option>
                     <option value="orders" {{ $reportType === 'orders' ? 'selected' : '' }}>Purchase Report</option>
                     <option value="damage" {{ $reportType === 'damage' ? 'selected' : '' }}>Damage Report</option>
                     <option value="returns" {{ $reportType === 'returns' ? 'selected' : '' }}>Return Report</option>
@@ -84,6 +86,7 @@
             'salesRows' => $salesRows,
             'inventoryRows' => $inventoryRows,
             'stockAdjustmentRows' => $stockAdjustmentRows,
+            'stockReceivingRows' => $stockReceivingRows,
             'orderRows' => $orderRows,
             'returnRows' => $returnRows,
             'damageRows' => $damageRows,

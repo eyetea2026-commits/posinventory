@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>{{ ucfirst($type) }} Report</title>
+    <title>{{ \App\Http\Controllers\Admin\ReportController::typeLabel($type) }} Report</title>
     <style>
         @page { margin: 18mm 14mm; }
         body { font-family: sans-serif; font-size: 11px; color: #1a1a1a; }

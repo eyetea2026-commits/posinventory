@@ -23,6 +23,8 @@ class ReportSummaryBuilder
     {
         return match ($type) {
             'inventory' => self::inventory($rows),
+            'stock_adjustment' => self::stockAdjustment($rows),
+            'stock_receiving' => self::stockReceiving($rows),
             'orders' => self::orders($rows),
             'returns' => self::returns($rows),
             'damage' => self::damage($rows),
@@ -55,6 +57,26 @@ class ReportSummaryBuilder
             ['label' => 'Total Inventory Value', 'value' => round($rows->sum(fn ($r) => $r->Quantity * (float) ($r->product?->CostPrice ?? 0)), 2), 'money' => true],
             ['label' => 'Low Stock Items', 'value' => $rows->where('Status', 'Low Stock')->count(), 'money' => false],
             ['label' => 'Out of Stock Items', 'value' => $rows->where('Status', 'Out of Stock')->count(), 'money' => false],
+        ];
+    }
+
+    private static function stockAdjustment(Collection $rows): array
+    {
+        $increases = $rows->filter(fn ($r) => $r->QuantityAdjust > 0)->sum('QuantityAdjust');
+        $decreases = $rows->filter(fn ($r) => $r->QuantityAdjust < 0)->sum('QuantityAdjust');
+
+        return [
+            ['label' => 'Total Adjustments', 'value' => $rows->count(), 'money' => false],
+            ['label' => 'Total Quantity Increased', 'value' => $increases, 'money' => false],
+            ['label' => 'Total Quantity Decreased', 'value' => abs($decreases), 'money' => false],
+        ];
+    }
+
+    private static function stockReceiving(Collection $rows): array
+    {
+        return [
+            ['label' => 'Total Receipts', 'value' => $rows->count(), 'money' => false],
+            ['label' => 'Total Quantity Received', 'value' => $rows->sum('Quantity'), 'money' => false],
         ];
     }
 
