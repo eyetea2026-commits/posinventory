@@ -16,7 +16,7 @@
         <td colspan="6">
             <div class="empty-state">
                 <i class="fas fa-receipt"></i>
-                <p>No transactions found</p>
+                <p>No transactions found for today.</p>
             </div>
         </td>
     </tr>

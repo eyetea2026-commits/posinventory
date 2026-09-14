@@ -36,7 +36,10 @@
 </style>
 
 <div class="content-header">
-    <h1><i class="fas fa-history"></i> Sales Transactions</h1>
+    <div>
+        <h1><i class="fas fa-history"></i> Recent Transactions</h1>
+        <p style="margin:4px 0 0; color:#94a3b8; font-size:0.85rem;">Today's transactions only, for your account — for a full history, ask an Administrator.</p>
+    </div>
     @include('cashier.partials.notification-bell')
 </div>
 
@@ -49,9 +52,7 @@
 <div class="card">
     <div class="toolbar">
         <form method="GET" action="{{ route('cashier.transactions') }}" class="search-form" id="transactionsSearchForm">
-            <input type="text" name="search" id="transactionsSearchInput" placeholder="Search by customer..." value="{{ $search ?? '' }}" autocomplete="off">
-            <input type="date" name="date_from" id="transactionsDateFrom" value="{{ $dateFrom ?? '' }}">
-            <input type="date" name="date_to" id="transactionsDateTo" value="{{ $dateTo ?? '' }}">
+            <input type="text" name="search" id="transactionsSearchInput" placeholder="Search today's transactions by customer..." value="{{ $search ?? '' }}" autocomplete="off">
         </form>
     </div>
 
@@ -79,8 +80,6 @@
 <script>
     (function () {
         const searchInput = document.getElementById('transactionsSearchInput');
-        const dateFromInput = document.getElementById('transactionsDateFrom');
-        const dateToInput = document.getElementById('transactionsDateTo');
         const tbody = document.getElementById('transactionsTbody');
         const paginationWrapper = document.getElementById('transactionsPagination');
         const form = document.getElementById('transactionsSearchForm');
@@ -91,8 +90,6 @@
         function buildQuery() {
             const params = new URLSearchParams();
             if (searchInput.value.trim()) params.set('search', searchInput.value.trim());
-            if (dateFromInput.value) params.set('date_from', dateFromInput.value);
-            if (dateToInput.value) params.set('date_to', dateToInput.value);
             return params.toString();
         }
 
@@ -123,9 +120,6 @@
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(applyFilters, 300);
         });
-
-        dateFromInput.addEventListener('change', applyFilters);
-        dateToInput.addEventListener('change', applyFilters);
 
         // Search is already live — Enter shouldn't trigger a full page reload.
         form.addEventListener('submit', function (e) { e.preventDefault(); });

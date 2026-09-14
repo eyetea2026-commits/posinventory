@@ -159,14 +159,22 @@ class CashierAuthController extends Controller
         ]);
     }
 
+    // Daily shift-audit view: a Cashier may only ever see their OWN sales
+    // from TODAY -- never another cashier's, never a previous day's. Both
+    // boundaries are computed here, server-side, from the app's own clock
+    // (config('app.timezone') = Asia/Manila) and the authenticated user's
+    // own Staff record; neither is taken from the request, so no request
+    // parameter (a date, a search term, a replayed query string) can widen
+    // what comes back. Admin's full-history Sales Report (ReportController)
+    // is a separate, already-unrestricted query and is untouched by this.
     public function transactions(Request $request)
     {
         $user = Auth::user();
         $staff = Staff::where('UserID', $user->id)->first();
 
         $search = $request->get('search');
-        $dateFrom = $request->get('date_from');
-        $dateTo = $request->get('date_to');
+        $todayStart = now()->startOfDay();
+        $tomorrowStart = $todayStart->copy()->addDay();
 
         // Unconditional (not ->when($staff, ...)): a cashier with no Staff
         // record yet (never processed a sale) must see zero transactions,
@@ -174,14 +182,10 @@ class CashierAuthController extends Controller
         // the same pattern already used by CashierReturnController::index().
         $transactions = SalesTransaction::with(['staff', 'billing', 'items.product'])
             ->where('StaffID', $staff->StaffID ?? 0)
+            ->where('SalesTransactionDate', '>=', $todayStart)
+            ->where('SalesTransactionDate', '<', $tomorrowStart)
             ->when($search, function($query) use ($search) {
                 return $query->where('CustomerName', 'like', "%{$search}%");
-            })
-            ->when($dateFrom, function($query) use ($dateFrom) {
-                return $query->whereDate('SalesTransactionDate', '>=', $dateFrom);
-            })
-            ->when($dateTo, function($query) use ($dateTo) {
-                return $query->whereDate('SalesTransactionDate', '<=', $dateTo);
             })
             ->orderBy('SalesTransactionID', 'desc')
             ->paginate(15)
@@ -197,7 +201,7 @@ class CashierAuthController extends Controller
             ]);
         }
 
-        return view('cashier.transactions', compact('transactions', 'search', 'dateFrom', 'dateTo'));
+        return view('cashier.transactions', compact('transactions', 'search'));
     }
 
     public function processSale(Request $request)
@@ -513,8 +517,18 @@ class CashierAuthController extends Controller
         // Extract transaction ID from receipt number (RCT-000001 -> 1)
         $transactionId = (int) str_replace('RCT-', '', $receiptNumber);
 
+        $staff = Staff::where('UserID', Auth::id())->first();
+
         $transaction = SalesTransaction::with(['items.product', 'billing'])
             ->where('SalesTransactionID', $transactionId)
+            // Scoped to the logged-in cashier's own sales -- reached from the
+            // Transaction History "Print" button, so it must be denied the
+            // same way a transaction outside that list would be. A 404
+            // (not 403) is used deliberately: it reads identically whether
+            // the receipt number doesn't exist or simply isn't this
+            // cashier's, so guessing another cashier's ID can't be used to
+            // confirm it exists.
+            ->where('StaffID', $staff->StaffID ?? 0)
             ->first();
 
         if (!$transaction) {
