@@ -58,8 +58,8 @@
             </div>
         </div>
 
-        <div class="form-group" style="margin-top:4px;">
-            <label class="form-label">Quick Range</label>
+        <div class="form-group" style="margin-top:4px; display:flex; align-items:center; flex-wrap:wrap; gap:12px;">
+            <label class="form-label" style="margin-bottom:0; white-space:nowrap;">Quick Range</label>
             <div id="datePresetGroup" style="display:flex; flex-wrap:wrap; gap:8px;">
                 <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="today">Today</button>
                 <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="yesterday">Yesterday</button>
