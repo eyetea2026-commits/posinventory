@@ -12,52 +12,6 @@
 @endsection
 
 @section('content')
-    <!-- Summary Stats -->
-    <div class="stats-grid">
-        <div class="stat-card" id="filteredRevenueCard">
-            <div class="stat-icon green">
-                <i class="fas fa-peso-sign"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-label">Total Revenue <span class="text-muted" style="font-weight:400;">(Selected Range)</span></div>
-                <div class="stat-value" id="filteredRevenueValue">₱{{ number_format($sales->total_revenue ?? 0, 2) }}</div>
-            </div>
-        </div>
-    </div>
-
-    <p class="text-muted mt-4 mb-2" style="font-size:0.82rem;">
-        <i class="fas fa-circle-info"></i> The cards below always show today/this-week/this-month regardless of the filter below — they're quick reference points, not affected by the Report Type / Date Range picker.
-    </p>
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon blue">
-                <i class="fas fa-calendar-day"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-label">Today's Sales</div>
-                <div class="stat-value">₱{{ number_format($todaySales->total ?? 0, 2) }}</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon cyan">
-                <i class="fas fa-calendar-week"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-label">This Week</div>
-                <div class="stat-value">₱{{ number_format($weekSales->total ?? 0, 2) }}</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon primary">
-                <i class="fas fa-calendar-alt"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-label">This Month</div>
-                <div class="stat-value">₱{{ number_format($monthSales->total ?? 0, 2) }}</div>
-            </div>
-        </div>
-    </div>
-
     <div id="dateRangeErrorBanner" class="alert alert-danger mt-4" style="{{ $dateRangeError ? '' : 'display:none;' }}">
         <i class="fas fa-circle-exclamation"></i>
         <span id="dateRangeErrorText">{{ $dateRangeError }}</span>
@@ -322,7 +276,6 @@
             const printPreviewLink = document.getElementById('printPreviewLink');
             const downloadMenuBtn = document.getElementById('downloadMenuBtn');
             const downloadMenu = document.getElementById('downloadMenu');
-            const filteredRevenueValue = document.getElementById('filteredRevenueValue');
             const presetButtons = document.querySelectorAll('.date-preset-btn');
             const previewUrl = '{{ route('admin.reports.preview') }}';
             const exportBaseUrl = '{{ route('admin.reports.export') }}';
@@ -387,9 +340,6 @@
                             errorBanner.style.display = '';
                         } else {
                             errorBanner.style.display = 'none';
-                        }
-                        if (typeof data.totalRevenue === 'number') {
-                            filteredRevenueValue.textContent = '₱' + data.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                         }
                         refreshDownloadTargets();
                     })
