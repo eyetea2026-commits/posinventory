@@ -68,7 +68,6 @@
                 <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="this_month">This Month</button>
                 <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="last_month">Last Month</button>
                 <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="this_year">This Year</button>
-                <button type="button" class="btn btn-sm btn-secondary date-preset-btn" data-preset="custom">Custom</button>
             </div>
         </div>
     </div>
@@ -414,12 +413,6 @@
             presetButtons.forEach((btn) => {
                 btn.addEventListener('click', function () {
                     updateActivePreset();
-
-                    if (btn.dataset.preset === 'custom') {
-                        btn.classList.add('btn-primary');
-                        dateFrom.focus();
-                        return;
-                    }
 
                     const range = presetRange(btn.dataset.preset);
                     if (!range) return;
