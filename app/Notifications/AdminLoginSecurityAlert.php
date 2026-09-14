@@ -63,7 +63,7 @@ class AdminLoginSecurityAlert extends Notification
         return [
             'title' => 'Security Alert — Was this you?',
             'description' => "Your Admin account was used to log in on {$event->LoginAt->format('F j, Y g:i A')} from {$event->IPAddress} ({$event->DeviceSummary}).",
-            'url' => route('admin.dashboard'),
+            'url' => route('admin.security.review', ['loginSecurityEvent' => $event->LoginSecurityEventID]),
             'icon' => 'shield-alert',
             'color' => 'warning',
             'event_id' => $event->LoginSecurityEventID,

@@ -373,38 +373,6 @@
         .toast-error { border-color: #ef4444; }
         .toast-error i { color: #ef4444; }
     </style>
-    {{-- "Was this you?" security check — reads a one-request session flash
-         (set only by AuthController::login()'s Admin success branch), so it
-         fires exactly once right after a real login and never again on a
-         page refresh or plain navigation, with no custom dedup flag needed:
-         flash data physically doesn't survive past the single request
-         immediately following the redirect that set it. Reuses the existing
-         window.confirmAction dialog (partials/swal-helpers.blade.php,
-         already included above) instead of introducing new modal markup. --}}
-    @if(session('security_alert_event_id'))
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                window.confirmAction({
-                    title: 'Security Alert — Was this you?',
-                    text: 'Your Admin account was just used to log in. If this wasn\'t you, choose "No" to secure your account.',
-                    icon: 'question',
-                    confirmText: 'Yes, This Was Me',
-                    cancelText: 'No, This Was Not Me',
-                    confirmColor: '#10b981',
-                }).then(function (result) {
-                    var action = result.isConfirmed ? 'confirm' : 'deny';
-                    fetch('{{ url('admin/security/login-events/' . session('security_alert_event_id')) }}/' + action, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                    }).then(function () {
-                        if (action === 'deny') {
-                            window.toastWarning('Your account has been flagged — the admin team has been notified.');
-                        }
-                    }).catch(function () {});
-                });
-            });
-        </script>
-    @endif
     @stack('scripts')
 </body>
 </html>

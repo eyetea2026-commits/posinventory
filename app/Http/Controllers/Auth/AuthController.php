@@ -131,11 +131,8 @@ class AuthController extends Controller
     // "Was this you?" security check — Admin accounts only (Cashier is
     // untouched). Records a per-login row (structured, updatable status —
     // see LoginSecurityEvent) alongside the ActivityLog entry already
-    // written above, then notifies the admin so they can confirm or flag it.
-    // Flashing the event id (not a new session key) is what makes the
-    // in-app prompt fire exactly once: flash data only survives the single
-    // request immediately after this redirect, so a plain refresh of
-    // /admin/dashboard afterward never sees it again.
+    // written above, then notifies the admin (in-app notification bell +
+    // email) so they can confirm or flag it from there.
     // Wrapped end-to-end: this is a security *notification*, not part of
     // authentication itself, so nothing in here — a missing/locked table,
     // a mail failure — may ever turn a successful login into a 500. Any
@@ -172,8 +169,6 @@ class AuthController extends Controller
                 'exception' => $e->getMessage(),
             ]);
         }
-
-        session()->flash('security_alert_event_id', $event->LoginSecurityEventID);
     }
 
     // Purely a UI hint (the "Administrator"/"Cashier" badge on the login
