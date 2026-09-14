@@ -19,23 +19,7 @@
 
     <!-- Report Type / Date Range -->
     <div class="card mt-4 report-filter-card">
-        <div class="card-header">
-            <div style="display:flex; gap:10px; align-items:center; margin-left:auto;">
-                <div class="dropdown" style="position:relative;">
-                    <button type="button" id="downloadMenuBtn" class="btn btn-secondary" title="Download">
-                        <i class="fas fa-download"></i> Download
-                    </button>
-                    <div id="downloadMenu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:#0f172a; border:1px solid #334155; border-radius:10px; min-width:180px; z-index:20; box-shadow: 0 12px 28px rgba(0,0,0,0.4);">
-                        <a href="#" id="printPreviewLink" target="_blank" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-print"></i> Print Preview</a>
-                        <a href="#" id="exportPdfLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-pdf"></i> Export as PDF</a>
-                        <a href="#" id="exportCsvLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-csv"></i> Export as CSV</a>
-                        <a href="#" id="exportExcelLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-excel"></i> Export as Excel</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items:end;">
             <div class="form-group">
                 <label class="form-label">Report Type</label>
                 <select id="reportTypeSelect" class="form-select">
@@ -58,6 +42,19 @@
                 <label class="form-label">End Date</label>
                 <input type="date" id="reportDateTo" class="form-input" value="{{ $dateTo }}" @if($dateFrom) min="{{ $dateFrom }}" @endif>
                 <span class="form-error" id="dateToError"></span>
+            </div>
+            <div class="form-group">
+                <div class="dropdown" style="position:relative;">
+                    <button type="button" id="downloadMenuBtn" class="btn btn-secondary" title="Download" style="width:100%;">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <div id="downloadMenu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:#0f172a; border:1px solid #334155; border-radius:10px; min-width:180px; z-index:20; box-shadow: 0 12px 28px rgba(0,0,0,0.4);">
+                        <a href="#" id="printPreviewLink" target="_blank" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-print"></i> Print Preview</a>
+                        <a href="#" id="exportPdfLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-pdf"></i> Export as PDF</a>
+                        <a href="#" id="exportCsvLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-csv"></i> Export as CSV</a>
+                        <a href="#" id="exportExcelLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-excel"></i> Export as Excel</a>
+                    </div>
+                </div>
             </div>
         </div>
 
