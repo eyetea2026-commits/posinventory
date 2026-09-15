@@ -39,6 +39,15 @@ class CashierReturnController extends Controller
         });
     }
 
+    // Resolves the logged-in cashier's own Staff row -- 0 (never a real
+    // StaffID) when none exists yet, so an ownership-scoped query naturally
+    // returns nothing instead of matching every SalesReturn with a null
+    // StaffID would.
+    private function currentStaffId(): int
+    {
+        return Staff::where('UserID', Auth::id())->value('StaffID') ?? 0;
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -245,66 +254,79 @@ class CashierReturnController extends Controller
             ], 400);
         }
 
-        $lines = [];
+        try {
+            [$salesReturn, $refundAmount, $productNames] = DB::transaction(function () use ($data, $staff, $transaction) {
+                $lines = [];
 
-        foreach ($data['items'] as $itemData) {
-            $salesItem = SalesItem::where('SalesTransactionID', $data['transaction_id'])
-                ->where('ProductID', $itemData['product_id'])
-                ->first();
+                foreach ($data['items'] as $itemData) {
+                    // Locked so two near-simultaneous requests for the same
+                    // transaction+product can't both read the same
+                    // "already requested" sum before either commits and
+                    // jointly over-request more than was sold (see audit
+                    // finding F6) — the second request blocks here until
+                    // the first's insert below is committed, then re-reads
+                    // a sum that already includes it.
+                    $salesItem = SalesItem::where('SalesTransactionID', $data['transaction_id'])
+                        ->where('ProductID', $itemData['product_id'])
+                        ->lockForUpdate()
+                        ->first();
 
-            if (!$salesItem) {
-                return response()->json(['success' => false, 'message' => 'Product not found in transaction.'], 400);
-            }
+                    if (!$salesItem) {
+                        throw new \RuntimeException('Product not found in transaction.');
+                    }
 
-            // A transaction can only be returned up to the quantity actually sold —
-            // without this, repeated return requests for the same line item could
-            // each get approved and inflate inventory/payouts beyond what was sold.
-            $alreadyRequested = SalesReturnItem::where('ProductID', $itemData['product_id'])
-                ->whereHas('salesReturn', function ($q) use ($data) {
-                    $q->where('SalesTransactionID', $data['transaction_id'])
-                        ->where('Status', '!=', SalesReturn::STATUS_DECLINED);
-                })
-                ->sum('Quantity');
+                    // A transaction can only be returned up to the quantity actually sold —
+                    // without this, repeated return requests for the same line item could
+                    // each get approved and inflate inventory/payouts beyond what was sold.
+                    $alreadyRequested = SalesReturnItem::where('ProductID', $itemData['product_id'])
+                        ->whereHas('salesReturn', function ($q) use ($data) {
+                            $q->where('SalesTransactionID', $data['transaction_id'])
+                                ->where('Status', '!=', SalesReturn::STATUS_DECLINED);
+                        })
+                        ->sum('Quantity');
 
-            if ($alreadyRequested + $itemData['quantity'] > $salesItem->Quantity) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Return quantity exceeds the quantity sold for \"{$salesItem->product?->ProductName}\".",
-                ], 400);
-            }
+                    if ($alreadyRequested + $itemData['quantity'] > $salesItem->Quantity) {
+                        throw new \RuntimeException("Return quantity exceeds the quantity sold for \"{$salesItem->product?->ProductName}\".");
+                    }
 
-            $lines[] = [
-                'salesItem' => $salesItem,
-                'productId' => $itemData['product_id'],
-                'quantity' => $itemData['quantity'],
-                'reasonLabel' => SalesReturn::REASON_CODES[$itemData['reason_code']],
-            ];
-        }
+                    $lines[] = [
+                        'salesItem' => $salesItem,
+                        'productId' => $itemData['product_id'],
+                        'quantity' => $itemData['quantity'],
+                        'reasonLabel' => SalesReturn::REASON_CODES[$itemData['reason_code']],
+                    ];
+                }
 
-        $salesReturn = SalesReturn::create([
-            'SalesTransactionID' => $data['transaction_id'],
-            'Remarks' => $data['remarks'] ?? null,
-            'ReturnType' => $data['return_type'],
-            'ReturnDate' => now()->format('Y-m-d'),
-            'Status' => SalesReturn::STATUS_PENDING,
-            'StaffID' => $staff->StaffID ?? null,
-            'CustomerName' => $transaction->CustomerName,
-        ]);
+                $salesReturn = SalesReturn::create([
+                    'SalesTransactionID' => $data['transaction_id'],
+                    'Remarks' => $data['remarks'] ?? null,
+                    'ReturnType' => $data['return_type'],
+                    'ReturnDate' => now()->format('Y-m-d'),
+                    'Status' => SalesReturn::STATUS_PENDING,
+                    'StaffID' => $staff->StaffID ?? null,
+                    'CustomerName' => $transaction->CustomerName,
+                ]);
 
-        $refundAmount = 0;
-        $productNames = [];
+                $refundAmount = 0;
+                $productNames = [];
 
-        foreach ($lines as $line) {
-            SalesReturnItem::create([
-                'SalesReturnID' => $salesReturn->SalesReturnID,
-                'ProductID' => $line['productId'],
-                'Quantity' => $line['quantity'],
-                'UnitPrice' => $line['salesItem']->UnitPrice,
-                'Reason' => $line['reasonLabel'],
-            ]);
+                foreach ($lines as $line) {
+                    SalesReturnItem::create([
+                        'SalesReturnID' => $salesReturn->SalesReturnID,
+                        'ProductID' => $line['productId'],
+                        'Quantity' => $line['quantity'],
+                        'UnitPrice' => $line['salesItem']->UnitPrice,
+                        'Reason' => $line['reasonLabel'],
+                    ]);
 
-            $refundAmount += round($line['salesItem']->refundable_unit_price * $line['quantity'], 2);
-            $productNames[] = "{$line['quantity']} x \"{$line['salesItem']->product?->ProductName}\"";
+                    $refundAmount += round($line['salesItem']->refundable_unit_price * $line['quantity'], 2);
+                    $productNames[] = "{$line['quantity']} x \"{$line['salesItem']->product?->ProductName}\"";
+                }
+
+                return [$salesReturn, $refundAmount, $productNames];
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
 
         ActivityLog::record('return.requested', "Requested {$data['return_type']} #{$salesReturn->SalesReturnID} for " . implode(', ', $productNames) . " (Txn #{$data['transaction_id']})");
@@ -341,7 +363,13 @@ class CashierReturnController extends Controller
             'account_number' => 'required_if:refund_method,gcash,bank,cheque|nullable|string|max:50',
         ]);
 
-        $salesReturn = SalesReturn::find($salesReturnId);
+        $staffId = $this->currentStaffId();
+
+        // Owner-scoped: a Cashier may only complete a refund they themselves
+        // filed (see CashierReturnController audit finding F2/F1) -- the
+        // lookup during refund creation already stamps StaffID from the
+        // authenticated user, so this is the same identity, not a new rule.
+        $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->first();
 
         if (!$salesReturn) {
             return response()->json(['success' => false, 'message' => 'Refund not found.'], 404);
@@ -352,14 +380,14 @@ class CashierReturnController extends Controller
         }
 
         try {
-            $refundAmount = DB::transaction(function () use ($salesReturnId, $data) {
+            $refundAmount = DB::transaction(function () use ($salesReturnId, $staffId, $data) {
                 // Re-fetch and lock the SalesReturn row itself (the earlier
                 // check above is only a fast-fail before the lock exists).
                 // Without this, two near-simultaneous requests for the same
                 // return can both read Status=approved before either commits,
                 // and both process the same refund — this lock plus the
                 // re-check below serializes them so only the first succeeds.
-                $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->lockForUpdate()->first();
+                $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->lockForUpdate()->first();
 
                 if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
                     throw new \RuntimeException('This refund has already been processed or is no longer approved.');
@@ -397,7 +425,7 @@ class CashierReturnController extends Controller
                     }
 
                     $inventory->Quantity += $item->Quantity;
-                    $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                    $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     $inventory->save();
                 }
 
@@ -474,7 +502,11 @@ class CashierReturnController extends Controller
             'notes' => 'nullable|string|max:255',
         ]);
 
-        $salesReturn = SalesReturn::find($salesReturnId);
+        $staffId = $this->currentStaffId();
+
+        // Owner-scoped: a Cashier may only complete a replacement they
+        // themselves filed (see CashierReturnController audit finding F2/F1).
+        $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->first();
 
         if (!$salesReturn) {
             return response()->json(['success' => false, 'message' => 'Return request not found.'], 404);
@@ -489,7 +521,7 @@ class CashierReturnController extends Controller
         }
 
         try {
-            $replacement = DB::transaction(function () use ($salesReturnId, $data) {
+            $replacement = DB::transaction(function () use ($salesReturnId, $staffId, $data) {
                 // Re-fetch and lock the SalesReturn row itself (the earlier
                 // check above is only a fast-fail before the lock exists).
                 // Without this, two near-simultaneous requests for the same
@@ -497,7 +529,7 @@ class CashierReturnController extends Controller
                 // commits, and both process the same replacement — this
                 // lock plus the re-check below serializes them so only the
                 // first succeeds.
-                $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->lockForUpdate()->first();
+                $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->lockForUpdate()->first();
 
                 if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REPLACEMENT) {
                     throw new \RuntimeException('This return has already been processed or is no longer approved.');
@@ -514,7 +546,7 @@ class CashierReturnController extends Controller
                 }
 
                 $inventory->Quantity -= $data['quantity'];
-                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();
 
                 $slipNumber = 'RPL-' . str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT);
@@ -552,10 +584,16 @@ class CashierReturnController extends Controller
 
     public function printRefundReceipt($salesReturnId)
     {
+        // Owner-scoped, same as viewReceipt() on the Transaction History
+        // page -- a Cashier's own receipts should be reachable directly by
+        // URL, but another Cashier's must 404 the same way a nonexistent
+        // one would (see audit finding F1).
         $salesReturn = SalesReturn::with(['items.product', 'salesTransaction', 'processedByUser'])
-            ->findOrFail($salesReturnId);
+            ->where('SalesReturnID', $salesReturnId)
+            ->where('StaffID', $this->currentStaffId())
+            ->first();
 
-        if ($salesReturn->Status !== SalesReturn::STATUS_PROCESSED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
+        if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_PROCESSED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
             abort(404, 'Refund receipt not found');
         }
 
@@ -568,9 +606,11 @@ class CashierReturnController extends Controller
     public function printReplacementSlip($salesReturnId)
     {
         $salesReturn = SalesReturn::with(['product', 'items.product', 'salesTransaction', 'replacement.product', 'replacement.processedByUser'])
-            ->findOrFail($salesReturnId);
+            ->where('SalesReturnID', $salesReturnId)
+            ->where('StaffID', $this->currentStaffId())
+            ->first();
 
-        if (!$salesReturn->replacement) {
+        if (!$salesReturn || !$salesReturn->replacement) {
             abort(404, 'Replacement slip not found');
         }
 
@@ -584,6 +624,7 @@ class CashierReturnController extends Controller
     {
         $refund = SalesReturn::with(['transaction', 'items.product', 'replacement.product'])
             ->where('SalesReturnID', $refundId)
+            ->where('StaffID', $this->currentStaffId())
             ->first();
 
         if (!$refund) {

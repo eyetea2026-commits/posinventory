@@ -27,9 +27,11 @@ class Product extends Model
         'CategoryID',
     ];
 
-    // Store policy: every product's selling price is derived from its cost
-    // at a fixed 45% profit margin -- (Price - Cost) / Price = 0.45, so
-    // Price = Cost / (1 - 0.45). Selling price is never entered directly.
+    // Store policy: every product's selling price defaults to a fixed 45%
+    // profit margin derived from its cost -- (Price - Cost) / Price = 0.45,
+    // so Price = Cost / (1 - 0.45). An admin can still enter a Price
+    // directly on create/update (ProductController) to override this
+    // default for one product; the formula only applies when none is given.
     const PROFIT_MARGIN = 0.45;
 
     public static function computeSellingPrice(float $costPrice): float

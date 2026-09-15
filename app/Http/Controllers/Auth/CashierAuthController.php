@@ -461,15 +461,7 @@ class CashierAuthController extends Controller
                 foreach ($quantitiesByProduct as $productId => $qty) {
                     $inventory = $inventories->get($productId);
                     $inventory->Quantity -= $qty;
-
-                    if ($inventory->Quantity <= 0) {
-                        $inventory->Status = 'Out of Stock';
-                    } elseif ($inventory->Quantity <= 10) {
-                        $inventory->Status = 'Low Stock';
-                    } else {
-                        $inventory->Status = 'Available';
-                    }
-
+                    $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     $inventory->save();
                 }
 

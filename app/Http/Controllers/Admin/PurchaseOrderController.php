@@ -354,37 +354,55 @@ class PurchaseOrderController extends Controller
                 continue;
             }
 
-            // An open PO (not yet fully received or cancelled) created
-            // during THIS cycle already covers this product — whether
-            // auto- or manually-created — so this cycle is already handled;
-            // don't create a duplicate. Scoped to IDs above the last-restock
-            // watermark (if any) so an old, unactioned PO from a cycle
-            // already closed out by a restock can't block a brand new
-            // automatic draft here.
-            $hasOpenPurchaseOrder = PurchaseOrderItem::where('ProductID', $product->ProductID)
-                ->where('PurchaseOrderID', '>', $inventory->LastRestockPurchaseOrderId ?? 0)
-                ->whereHas('purchaseOrder', function ($query) {
-                    $query->whereNotIn('Status', [PurchaseOrder::STATUS_FULLY_RECEIVED, PurchaseOrder::STATUS_CANCELLED]);
-                })
-                ->exists();
+            // Everything from here through the PO insert and the
+            // AutoReorderTriggered flag runs under one lock on THIS
+            // product's Inventory row. Without it, two overlapping calls
+            // to this method — plausible since it's triggered by ordinary
+            // Inventory-page traffic/polling rather than a single scheduled
+            // job — could both read AutoReorderTriggered=false and "no open
+            // PO" before either commits, and both draft a duplicate PO for
+            // the same low-stock cycle. Re-fetching under lockForUpdate()
+            // and re-checking the flag closes that race: the second call
+            // blocks until the first commits, then sees the flag already
+            // set and does nothing.
+            $purchaseOrder = DB::transaction(function () use ($inventory, $product, $status) {
+                $locked = Inventory::where('InventoryID', $inventory->InventoryID)->lockForUpdate()->first();
 
-            if ($hasOpenPurchaseOrder) {
-                $inventory->update(['AutoReorderTriggered' => true]);
-                continue;
-            }
+                if (! $locked || $locked->AutoReorderTriggered) {
+                    return null;
+                }
 
-            $resolvedSupplier = $product->resolveReorderSupplier();
-            if (! $resolvedSupplier) {
-                // Ambiguous or unknown supplier — can't fabricate one, so
-                // leave the flag false and retry on the next check (e.g.
-                // once an admin assigns a supplier to the product).
-                continue;
-            }
+                // An open PO (not yet fully received or cancelled) created
+                // during THIS cycle already covers this product — whether
+                // auto- or manually-created — so this cycle is already
+                // handled; don't create a duplicate. Scoped to IDs above
+                // the last-restock watermark (if any) so an old,
+                // unactioned PO from a cycle already closed out by a
+                // restock can't block a brand new automatic draft here.
+                $hasOpenPurchaseOrder = PurchaseOrderItem::where('ProductID', $product->ProductID)
+                    ->where('PurchaseOrderID', '>', $locked->LastRestockPurchaseOrderId ?? 0)
+                    ->whereHas('purchaseOrder', function ($query) {
+                        $query->whereNotIn('Status', [PurchaseOrder::STATUS_FULLY_RECEIVED, PurchaseOrder::STATUS_CANCELLED]);
+                    })
+                    ->exists();
 
-            $suggestedQuantity = self::suggestedReorderQuantity((int) $inventory->Quantity, (int) ($inventory->ReorderThreshold ?? 50));
-            $costPrice = $resolvedSupplier->CostPrice ?? $product->CostPrice;
+                if ($hasOpenPurchaseOrder) {
+                    $locked->update(['AutoReorderTriggered' => true]);
 
-            $purchaseOrder = DB::transaction(function () use ($resolvedSupplier, $product, $suggestedQuantity, $costPrice, $status) {
+                    return null;
+                }
+
+                $resolvedSupplier = $product->resolveReorderSupplier();
+                if (! $resolvedSupplier) {
+                    // Ambiguous or unknown supplier — can't fabricate one, so
+                    // leave the flag false and retry on the next check (e.g.
+                    // once an admin assigns a supplier to the product).
+                    return null;
+                }
+
+                $suggestedQuantity = self::suggestedReorderQuantity((int) $locked->Quantity, (int) ($locked->ReorderThreshold ?? 50));
+                $costPrice = $resolvedSupplier->CostPrice ?? $product->CostPrice;
+
                 $purchaseOrder = PurchaseOrder::create([
                     'PurchaseDate' => now()->toDateString(),
                     'Notes' => "Automatically drafted \u{2014} stock status is \"{$status['label']}\".",
@@ -404,12 +422,14 @@ class PurchaseOrderController extends Controller
                     'CostPriceAtOrder' => $costPrice,
                 ]);
 
+                $locked->update(['AutoReorderTriggered' => true]);
+
                 return $purchaseOrder;
             });
 
-            $inventory->update(['AutoReorderTriggered' => true]);
-
-            ActivityLog::record('purchase_order.auto_drafted', "Automatically drafted PO #{$purchaseOrder->PONumber} for \"{$product->ProductName}\" (Low Stock)");
+            if ($purchaseOrder) {
+                ActivityLog::record('purchase_order.auto_drafted', "Automatically drafted PO #{$purchaseOrder->PONumber} for \"{$product->ProductName}\" (Low Stock)");
+            }
         }
     }
 
@@ -455,9 +475,25 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Only draft purchase orders can be submitted.');
         }
 
+        // Locked and re-checked the same way cancel() already is, so this
+        // can't race a concurrent approve()/cancel() on the same PO from
+        // another tab and leave a lost update on Status.
         try {
-            $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_PENDING]);
+            DB::transaction(function () use ($purchaseOrder) {
+                $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
+                    ->where('Status', PurchaseOrder::STATUS_DRAFT)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $locked) {
+                    throw new \RuntimeException('Only draft purchase orders can be submitted.');
+                }
+
+                $locked->update(['Status' => PurchaseOrder::STATUS_PENDING]);
+            });
             ActivityLog::record('purchase_order.submitted', "Submitted PO #{$purchaseOrder->PONumber}");
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         } catch (Throwable $e) {
             Log::error('Failed to submit purchase order', ['purchase_order_id' => $purchaseOrder->PurchaseOrderID, 'exception' => $e->getMessage()]);
 
@@ -473,9 +509,25 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Only draft or pending purchase orders can be approved.');
         }
 
+        // Locked and re-checked the same way cancel() already is, so this
+        // can't race a concurrent submit()/cancel() on the same PO from
+        // another tab and leave a lost update on Status.
         try {
-            $purchaseOrder->update(['Status' => PurchaseOrder::STATUS_APPROVED, 'ApprovedBy' => auth()->id()]);
+            DB::transaction(function () use ($purchaseOrder) {
+                $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
+                    ->whereIn('Status', [PurchaseOrder::STATUS_DRAFT, PurchaseOrder::STATUS_PENDING])
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $locked) {
+                    throw new \RuntimeException('Only draft or pending purchase orders can be approved.');
+                }
+
+                $locked->update(['Status' => PurchaseOrder::STATUS_APPROVED, 'ApprovedBy' => auth()->id()]);
+            });
             ActivityLog::record('purchase_order.approved', "Approved PO #{$purchaseOrder->PONumber}");
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         } catch (Throwable $e) {
             Log::error('Failed to approve purchase order', ['purchase_order_id' => $purchaseOrder->PurchaseOrderID, 'exception' => $e->getMessage()]);
 

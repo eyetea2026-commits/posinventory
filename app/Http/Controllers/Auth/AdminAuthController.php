@@ -247,6 +247,19 @@ class AdminAuthController extends Controller
         $user->password = Hash::make($data['password']);
         $user->save();
 
+        // A password reset is meaningless as an incident response if a
+        // session opened before the compromise was noticed simply keeps
+        // working afterward — force out whatever session is currently
+        // active for this account. Same two-step release
+        // LoginSecurityController::terminateAffectedSession() already uses
+        // for the "Was this you?" flow: drop the real sessions-table row,
+        // then clear the one-active-session-per-account slot.
+        if ($user->current_session_id) {
+            DB::table('sessions')->where('id', $user->current_session_id)->delete();
+            $user->current_session_id = null;
+            $user->save();
+        }
+
         DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
         $request->session()->forget(['otp_verified', 'otp_verified_email', 'email']);
 

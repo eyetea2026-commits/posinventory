@@ -192,6 +192,44 @@ class CheckoutTest extends TestCase
         $response->assertJsonPath('success', true);
     }
 
+    // ---- Insufficient stock is rejected server-side, not just hidden by
+    // the UI, and never partially decrements what little stock exists ----
+
+    public function test_checkout_rejects_a_sale_that_exceeds_available_stock(): void
+    {
+        $product = $this->makeProduct(500, stock: 3);
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 5]],
+            'payment_method' => 'cash',
+            'payment_amount' => 2500,
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('success', false);
+        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'Walk-in Customer']);
+        $this->assertSame(3, Inventory::where('ProductID', $product->ProductID)->value('Quantity'));
+    }
+
+    // ---- A second checkout for the same cashier while the first is still
+    // in flight is rejected (409), not processed twice ----
+
+    public function test_a_second_checkout_for_the_same_cashier_while_one_is_in_flight_is_rejected(): void
+    {
+        $product = $this->makeProduct(500);
+        \Illuminate\Support\Facades\Cache::lock("checkout:user:{$this->cashier->id}", 10)->get();
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => 500,
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertJsonPath('success', false);
+        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'Walk-in Customer']);
+    }
+
     // ---- Money rounding: a discount rate that produces a repeating binary
     // fraction must not make an exact-total payment look insufficient ----
 

@@ -117,8 +117,7 @@ class Discount extends Model
         return $this->discountedPriceFor($this->product);
     }
 
-    // Only 'percentage' math is wired up — DiscountType exists so 'fixed'
-    // can be added later without another migration, but isn't computed yet.
+    // Both 'percentage' and 'fixed' math are wired up here.
     public function discountedPriceFor(Product $product): float
     {
         $price = (float) $product->Price;

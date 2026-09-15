@@ -11,6 +11,7 @@ use App\Models\Inventory;
 use App\Models\User;
 use App\Notifications\ProductUpdated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Throwable;
@@ -420,8 +421,11 @@ class ProductController extends Controller
             || $product->stockAdjustments()->count() > 0
             || $product->purchaseItems()->count() > 0
             || $product->damagedProducts()->count() > 0
-            || $product->salesReturns()->count() > 0) {
-            return redirect()->route('admin.products.index')->with('error', 'Cannot delete product with existing sales, stock, purchase order, damage, or return records.');
+            || $product->salesReturns()->count() > 0
+            || $product->suppliers()->count() > 0
+            || $product->costHistory()->count() > 0
+            || DB::table('discountproduct')->where('ProductID', $product->ProductID)->exists()) {
+            return redirect()->route('admin.products.index')->with('error', 'Cannot delete product with existing sales, stock, purchase order, damage, return, supplier, cost history, or discount records.');
         }
 
         // Delete inventory first

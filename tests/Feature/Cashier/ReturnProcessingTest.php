@@ -346,4 +346,34 @@ class ReturnProcessingTest extends TestCase
         $response->assertJson(['success' => true]);
         $this->assertDatabaseHas('SalesReturn', ['SalesTransactionID' => $this->transaction->SalesTransactionID]);
     }
+
+    // ---- A later request can't push the total requested for one sale/
+    // product past what was actually sold (2 units, per setUp) ----
+
+    public function test_create_refund_rejects_a_request_that_would_exceed_the_quantity_sold(): void
+    {
+        $first = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 2, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+        $first->assertJson(['success' => true]);
+
+        // Only 2 units were ever sold, and both are already covered by the
+        // still-pending request above — a second request for even 1 more
+        // unit must be rejected, not silently allowed to double-count.
+        $second = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+
+        $second->assertStatus(400);
+        $second->assertJsonPath('success', false);
+        $this->assertSame(1, SalesReturn::where('SalesTransactionID', $this->transaction->SalesTransactionID)->count());
+    }
 }

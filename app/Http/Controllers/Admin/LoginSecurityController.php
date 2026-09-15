@@ -20,11 +20,23 @@ use Illuminate\Support\Facades\URL;
 // new auth mechanism, just an either/or check on top of what already exists.
 class LoginSecurityController extends Controller
 {
-    private function authorizeAccess(Request $request): void
+    // A valid signature already proves possession of THIS event's own
+    // emailed link (the signature is generated per-event), so that branch
+    // needs no further scoping. The authenticated-admin fallback (the
+    // in-app "Was this you?" prompt) must additionally be the specific
+    // admin the event belongs to -- being *an* admin isn't enough, or one
+    // admin could confirm/deny another admin's own login-security prompt.
+    private function authorizeAccess(Request $request, LoginSecurityEvent $loginSecurityEvent): void
     {
-        if (! $request->hasValidSignature() && ! (auth()->check() && auth()->user()->isAdmin())) {
-            abort(403);
+        if ($request->hasValidSignature()) {
+            return;
         }
+
+        if (auth()->check() && auth()->user()->isAdmin() && auth()->id() === $loginSecurityEvent->UserID) {
+            return;
+        }
+
+        abort(403);
     }
 
     // GET, signed: a real page to land on (rather than mutating on the bare
@@ -32,7 +44,7 @@ class LoginSecurityController extends Controller
     // the confirm/deny action just by fetching the URL to preview it.
     public function review(Request $request, LoginSecurityEvent $loginSecurityEvent)
     {
-        $this->authorizeAccess($request);
+        $this->authorizeAccess($request, $loginSecurityEvent);
 
         $loginSecurityEvent->loadMissing('user');
 
@@ -46,7 +58,7 @@ class LoginSecurityController extends Controller
 
     public function confirm(Request $request, LoginSecurityEvent $loginSecurityEvent)
     {
-        $this->authorizeAccess($request);
+        $this->authorizeAccess($request, $loginSecurityEvent);
 
         if ($loginSecurityEvent->isPending()) {
             $loginSecurityEvent->update([
@@ -70,7 +82,7 @@ class LoginSecurityController extends Controller
 
     public function deny(Request $request, LoginSecurityEvent $loginSecurityEvent)
     {
-        $this->authorizeAccess($request);
+        $this->authorizeAccess($request, $loginSecurityEvent);
 
         if ($loginSecurityEvent->isPending()) {
             $loginSecurityEvent->update([

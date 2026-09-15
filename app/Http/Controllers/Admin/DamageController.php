@@ -163,7 +163,7 @@ class DamageController extends Controller
                 if ($inventory) {
                     $newQuantity = max(0, $inventory->Quantity - $data['Quantity']);
                     $inventory->Quantity = $newQuantity;
-                    $inventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                    $inventory->Status = Inventory::resolveStatus($newQuantity, $inventory->ReorderThreshold);
                     $inventory->save();
                 }
 
@@ -382,7 +382,7 @@ class DamageController extends Controller
                     if ($inventory) {
                         $newQuantity = max(0, $available - $data['Quantity']);
                         $inventory->Quantity = $newQuantity;
-                        $inventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                        $inventory->Status = Inventory::resolveStatus($newQuantity, $inventory->ReorderThreshold);
                         $inventory->save();
                     }
                 } else {
@@ -396,14 +396,14 @@ class DamageController extends Controller
 
                     if ($oldInventory) {
                         $oldInventory->Quantity += $damage->Quantity;
-                        $oldInventory->Status = $oldInventory->Quantity > 0 ? ($oldInventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                        $oldInventory->Status = Inventory::resolveStatus($oldInventory->Quantity, $oldInventory->ReorderThreshold);
                         $oldInventory->save();
                     }
 
                     if ($newInventory) {
                         $newQuantity = max(0, $newInventory->Quantity - $data['Quantity']);
                         $newInventory->Quantity = $newQuantity;
-                        $newInventory->Status = $newQuantity > 0 ? ($newQuantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                        $newInventory->Status = Inventory::resolveStatus($newQuantity, $newInventory->ReorderThreshold);
                         $newInventory->save();
                     }
                 }
@@ -449,7 +449,7 @@ class DamageController extends Controller
             $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
             if ($inventory) {
                 $inventory->Quantity += $damage->Quantity;
-                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();
             }
 
@@ -585,7 +585,7 @@ class DamageController extends Controller
                 }
 
                 $inventory->Quantity += $qty;
-                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();
 
                 $locked->update([
@@ -639,7 +639,7 @@ class DamageController extends Controller
                 }
 
                 $inventory->Quantity += $damage->Quantity;
-                $inventory->Status = $inventory->Quantity > 0 ? ($inventory->Quantity <= 10 ? 'Low Stock' : 'Available') : 'Out of Stock';
+                $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();
 
                 $locked->update([
