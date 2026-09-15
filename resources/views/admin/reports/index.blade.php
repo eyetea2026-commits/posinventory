@@ -111,24 +111,35 @@
 
     <style>
         .modal-report-details { max-width: 820px; }
-        .report-section-heading { margin: 0 0 14px; font-size: 1rem; font-weight: 600; color: var(--text-primary, #f8fafc); }
-        .report-section-divider { border: none; border-top: 1px solid var(--border, #334155); margin: 20px 0; }
-        .report-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-        .report-detail-item {
-            padding: 12px;
-            background: var(--bg-hover, rgba(30, 41, 59, 0.6));
-            border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
-            border-radius: 10px;
+        .report-section-heading { margin: 0 0 12px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #f8fafc); text-transform: uppercase; letter-spacing: 0.04em; }
+        .report-section-divider { border: none; border-top: 1px solid var(--border, rgba(148, 163, 184, 0.25)); margin: 18px 0; }
+
+        {{-- Line-based report layout: each field is a plain "Label: Value"
+             row, no card/box around it -- replaces the previous
+             card-grid presentation for View Details. --}}
+        .report-detail-lines { display: flex; flex-direction: column; }
+        .report-detail-line {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 4px 12px;
+            padding: 5px 0;
         }
-        .report-detail-item label {
-            display: block;
-            font-size: 0.7rem;
+        .report-detail-line label {
+            flex: 0 0 190px;
+            max-width: 100%;
+            font-size: 0.8rem;
+            font-weight: 600;
             color: var(--text-secondary, #94a3b8);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 4px;
         }
-        .report-detail-item span { font-weight: 600; color: var(--text-primary, #f8fafc); font-size: 0.92rem; word-break: break-word; }
+        .report-detail-line span {
+            flex: 1 1 220px;
+            min-width: 0;
+            font-weight: 500;
+            color: var(--text-primary, #f8fafc);
+            font-size: 0.92rem;
+            word-break: break-word;
+        }
 
         @media print {
             body.printing-report-details * { visibility: hidden !important; }
@@ -159,9 +170,9 @@
             body.printing-report-details .no-print { display: none !important; }
             body.printing-report-details .modal-title,
             body.printing-report-details .report-section-heading { color: #0f172a !important; }
-            body.printing-report-details .report-detail-item { background: #f8fafc !important; border: 1px solid #cbd5e1 !important; }
-            body.printing-report-details .report-detail-item label { color: #475569 !important; }
-            body.printing-report-details .report-detail-item span { color: #0f172a !important; }
+            body.printing-report-details .report-detail-line label { color: #475569 !important; }
+            body.printing-report-details .report-detail-line span { color: #0f172a !important; }
+            body.printing-report-details .report-section-divider { border-top-color: #cbd5e1 !important; }
             body.printing-report-details table.table th,
             body.printing-report-details table.table td { color: #0f172a !important; border-color: #cbd5e1 !important; }
         }
@@ -180,9 +191,9 @@
                 let html = `<h4 class="report-section-heading">${escapeReportDetailHtml(section.heading)}</h4>`;
 
                 if (section.fields && section.fields.length) {
-                    html += '<div class="report-detail-grid">';
+                    html += '<div class="report-detail-lines">';
                     section.fields.forEach(function (f) {
-                        html += `<div class="report-detail-item"><label>${escapeReportDetailHtml(f.label)}</label><span>${escapeReportDetailHtml(f.value)}</span></div>`;
+                        html += `<div class="report-detail-line"><label>${escapeReportDetailHtml(f.label)}:</label><span>${escapeReportDetailHtml(f.value)}</span></div>`;
                     });
                     html += '</div>';
                 }
