@@ -101,9 +101,7 @@ class StockAdjustmentController extends Controller
                 $adjustment = StockAdjustment::create($data);
 
                 $inventory->Quantity = $newQty;
-                $inventory->Status = $newQty <= 0
-                    ? 'Out of Stock'
-                    : ($newQty <= ($inventory->ReorderThreshold ?? 50) ? 'Low Stock' : 'Available');
+                $inventory->Status = Inventory::resolveStatus($newQty, $inventory->ReorderThreshold);
                 $inventory->save();
 
                 // A decrease recorded as "Damaged" is a loss the Damage

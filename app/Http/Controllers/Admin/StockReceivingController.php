@@ -148,9 +148,7 @@ class StockReceivingController extends Controller
                 }
 
                 $inventory->Quantity += $data['Quantity'];
-                $inventory->Status = $inventory->Quantity <= 0
-                    ? 'Out of Stock'
-                    : ($inventory->Quantity <= ($inventory->ReorderThreshold ?? 50) ? 'Low Stock' : 'Available');
+                $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();
 
                 if ($purchaseOrderItem) {

@@ -81,6 +81,20 @@ class ReturnProcessingTest extends TestCase
         ]);
     }
 
+    // A second, unrelated cashier -- used only by the ownership-scoping
+    // tests below (audit finding F1) to prove one cashier can't reach
+    // another's refund/replacement records.
+    private function makeOtherCashier(): Staff
+    {
+        $otherUser = User::factory()->create(['role_id' => $this->cashierUser->role_id]);
+
+        return Staff::create([
+            'FirstName' => 'John', 'MiddleName' => '-', 'LastName' => 'Smith',
+            'ContactNumber' => '0000', 'Email' => 'john@example.com', 'Age' => 28, 'Gender' => 'M',
+            'UserID' => $otherUser->id,
+        ]);
+    }
+
     private function makeReturn(array $overrides = []): SalesReturn
     {
         $fields = array_merge([
@@ -375,5 +389,83 @@ class ReturnProcessingTest extends TestCase
         $second->assertStatus(400);
         $second->assertJsonPath('success', false);
         $this->assertSame(1, SalesReturn::where('SalesTransactionID', $this->transaction->SalesTransactionID)->count());
+    }
+
+    // ---- Ownership scoping on the read/process endpoints (audit finding
+    // F1): a Cashier may only reach their OWN refund/replacement records,
+    // never another Cashier's, even by ID directly. ----
+
+    public function test_print_refund_receipt_is_denied_for_a_different_cashiers_return(): void
+    {
+        $return = $this->makeReturn(['Status' => 'processed', 'ReturnType' => 'refund']);
+        $otherCashier = $this->makeOtherCashier()->user;
+
+        $own = $this->actingAs($this->cashierUser)->get(route('cashier.refunds.receipt', $return->SalesReturnID));
+        $own->assertOk();
+
+        $other = $this->actingAs($otherCashier)->get(route('cashier.refunds.receipt', $return->SalesReturnID));
+        $other->assertNotFound();
+    }
+
+    public function test_print_replacement_slip_is_denied_for_a_different_cashiers_return(): void
+    {
+        $return = $this->makeReturn(['Status' => 'processed', 'ReturnType' => 'replacement']);
+        Replacement::create([
+            'SalesReturnID' => $return->SalesReturnID,
+            'ReplacementProductID' => $this->replacementProduct->ProductID,
+            'Quantity' => 1,
+            'ProcessedBy' => $this->cashierUser->id,
+            'ReplacementDate' => now()->format('Y-m-d'),
+            'SlipNumber' => 'RPL-000001',
+        ]);
+        $otherCashier = $this->makeOtherCashier()->user;
+
+        $own = $this->actingAs($this->cashierUser)->get(route('cashier.refunds.slip', $return->SalesReturnID));
+        $own->assertOk();
+
+        $other = $this->actingAs($otherCashier)->get(route('cashier.refunds.slip', $return->SalesReturnID));
+        $other->assertNotFound();
+    }
+
+    public function test_get_refund_details_is_denied_for_a_different_cashiers_return(): void
+    {
+        $return = $this->makeReturn();
+        $otherCashier = $this->makeOtherCashier()->user;
+
+        $own = $this->actingAs($this->cashierUser)->getJson(route('cashier.refunds.details', $return->SalesReturnID));
+        $own->assertJsonPath('success', true);
+
+        $other = $this->actingAs($otherCashier)->getJson(route('cashier.refunds.details', $return->SalesReturnID));
+        $other->assertStatus(404);
+        $other->assertJsonPath('success', false);
+    }
+
+    public function test_process_refund_is_denied_for_a_different_cashiers_return(): void
+    {
+        $return = $this->makeReturn(['Status' => 'approved', 'ReturnType' => 'refund']);
+        $otherCashier = $this->makeOtherCashier()->user;
+
+        $response = $this->actingAs($otherCashier)->postJson(route('cashier.refunds.process', $return->SalesReturnID), [
+            'refund_method' => 'cash',
+        ]);
+
+        $response->assertStatus(404);
+        $response->assertJsonPath('success', false);
+        $this->assertSame('approved', $return->fresh()->Status);
+    }
+
+    public function test_process_replacement_is_denied_for_a_different_cashiers_return(): void
+    {
+        $return = $this->makeReturn(['Status' => 'approved', 'ReturnType' => 'replacement']);
+        $otherCashier = $this->makeOtherCashier()->user;
+
+        $response = $this->actingAs($otherCashier)->postJson(route('cashier.refunds.process-replacement', $return->SalesReturnID), [
+            'replacement_product_id' => $this->replacementProduct->ProductID,
+            'quantity' => 1,
+        ]);
+
+        $response->assertStatus(404);
+        $response->assertJsonPath('success', false);
+        $this->assertSame('approved', $return->fresh()->Status);
     }
 }
