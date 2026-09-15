@@ -258,44 +258,8 @@
             box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.6);
         }
 
-        .sales-trend-badges {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-
-        .sales-trend-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 0.03em;
-            color: #94a3b8;
-            padding: 4px 12px;
-            border-radius: 999px;
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            cursor: default;
-        }
-
-        .sales-trend-badge.current {
-            border-color: rgba(59, 130, 246, 0.4);
-            color: #93c5fd;
-        }
-
-        .sales-trend-badge-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #3b82f6;
-            flex-shrink: 0;
-        }
-
-        .sales-trend-badge-dot.dashed {
-            background: transparent;
-            border: 1.5px dashed rgba(148, 163, 184, 0.7);
+        .sales-trend-title {
+            margin: 4px 0 10px;
         }
 
         .sales-trend-canvas-wrap {
@@ -733,7 +697,6 @@
 
         @media (max-width: 640px) {
             .analytics-performance-grid { grid-template-columns: 1fr; }
-            .sales-trend-badges { justify-content: flex-start; }
         }
 
         @media (max-width: 480px) {
@@ -823,7 +786,7 @@
                     <div class="sales-trend-stats">
                         <div class="sales-trend-stat">
                             <div class="sales-trend-stat-value" id="salesTrendInvoices">{{ number_format($trendDaily['invoiceCount'] ?? 0) }}</div>
-                            <div class="sales-trend-stat-label">Invoices</div>
+                            <div class="sales-trend-stat-label">Transactions</div>
                         </div>
                         <div class="sales-trend-stat">
                             <div class="sales-trend-stat-value" id="salesTrendRevenue">₱{{ number_format($trendDaily['revenueTotal'] ?? 0, 2) }}</div>
@@ -848,10 +811,7 @@
                         <button type="button" class="chart-toggle-btn" data-range="yearly">Yearly</button>
                     </div>
                 </div>
-                <div class="sales-trend-badges">
-                    <span class="sales-trend-badge current" id="salesTrendCurrentBadge" title="{{ $trendDaily['currentRangeLabel'] ?? '' }}"><span class="sales-trend-badge-dot"></span> Current</span>
-                    <span class="sales-trend-badge compare" id="salesTrendCompareBadge" title="{{ $trendDaily['compareRangeLabel'] ?? '' }}"><span class="sales-trend-badge-dot dashed"></span> Previous</span>
-                </div>
+                <h3 class="chart-title sales-trend-title">Sales Trend</h3>
                 <div class="chart-canvas-wrap sales-trend-canvas-wrap">
                     <canvas id="salesTrendChart"></canvas>
                 </div>
@@ -1120,8 +1080,6 @@
             const invoicesEl = document.getElementById('salesTrendInvoices');
             const revenueEl = document.getElementById('salesTrendRevenue');
             const changeEl = document.getElementById('salesTrendChangeBadge');
-            const currentBadge = document.getElementById('salesTrendCurrentBadge');
-            const compareBadge = document.getElementById('salesTrendCompareBadge');
 
             if (invoicesEl) invoicesEl.textContent = (range.invoiceCount ?? 0).toLocaleString('en-US');
             if (revenueEl) revenueEl.textContent = window.formatPeso(range.revenueTotal ?? 0);
@@ -1140,9 +1098,6 @@
                     changeEl.innerHTML = `<i class="fas fa-arrow-down"></i> ${Math.abs(pct)}%`;
                 }
             }
-
-            if (currentBadge) currentBadge.title = range.currentRangeLabel || '';
-            if (compareBadge) compareBadge.title = range.compareRangeLabel || '';
         }
 
         const trendCanvas = document.getElementById('salesTrendChart');

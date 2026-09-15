@@ -2,6 +2,13 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('Administrator/SalesReturns.css') }}">
+    <style>
+        #detailsModal .modal { max-width: 820px; }
+        .return-details-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        @media (max-width: 640px) {
+            .return-details-columns { grid-template-columns: 1fr; }
+        }
+    </style>
 @endpush
 
 @section('header')
@@ -129,8 +136,6 @@
                                         <button type="button" class="action-btn delete" title="Decline" onclick="declineReturn({{ $return->SalesReturnID }})">
                                             <i class="fas fa-times"></i>
                                         </button>
-                                    @else
-                                        <span class="text-muted">-</span>
                                     @endif
                                 </div>
                             </td>
@@ -211,13 +216,6 @@
 
 @push('scripts')
 <script>
-function statusLabel(status, returnType) {
-    if (status === 'processed') {
-        return returnType === 'replacement' ? 'Completed' : 'Refunded';
-    }
-    return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
 function escapeHtml(value) {
     if (value === null || value === undefined) return '';
     return String(value)
@@ -243,51 +241,66 @@ function viewReturnDetails(id) {
             // server-supplied string before it goes into innerHTML so a
             // return submitted with an HTML/script payload in its Reason or
             // Customer Name can't execute in this admin session.
-            const itemsHtml = items.map(item => `
-                <div style="display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--border);">
-                    <div>
-                        <strong>${escapeHtml(item.ProductName ?? 'N/A')}</strong> x${escapeHtml(item.Quantity)}<br>
-                        <small style="color: var(--text-secondary);">Barcode/SKU: ${escapeHtml(item.Barcode ?? 'N/A')} / ${escapeHtml(item.SKU ?? 'N/A')} | Category: ${escapeHtml(item.Category ?? 'N/A')}</small><br>
-                        <small style="color: var(--text-secondary);">Reason: ${escapeHtml(item.Reason ?? 'N/A')} | Unit Price: ${window.formatPeso(item.UnitPrice ?? 0)}</small>
-                    </div>
-                    <div style="white-space:nowrap; font-weight:600;">${window.formatPeso(item.LineTotal ?? 0)}</div>
-                </div>
+            const rowsHtml = items.map((item, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${escapeHtml(item.Category ?? 'N/A')}</td>
+                    <td>${escapeHtml(item.ProductName ?? 'N/A')}</td>
+                    <td>${escapeHtml(item.Quantity)}</td>
+                    <td>${window.formatPeso(item.UnitPrice ?? 0)}</td>
+                    <td>${window.formatPeso(item.LineTotal ?? 0)}</td>
+                </tr>
             `).join('');
 
+            const returnPolicy = r.DaysSincePurchase !== null
+                ? `${escapeHtml(r.DaysSincePurchase)} day(s) since purchase — ` + (r.EligibleForReturn
+                    ? `<span style="color: var(--success);">within the ${escapeHtml(r.ReturnWindowDays)}-day window</span>`
+                    : `<span style="color: var(--danger);">outside the ${escapeHtml(r.ReturnWindowDays)}-day window</span>`)
+                : 'N/A';
+
             body.innerHTML = `
-                ${rb ? `
-                <h4>Requested By</h4>
-                <p><strong>Cashier Name:</strong> ${escapeHtml(rb.Name)}</p>
-                <p><strong>Employee ID:</strong> ${escapeHtml(rb.EmployeeID)}</p>
-                <p><strong>Role:</strong> ${escapeHtml(rb.Role)}</p>
-                <p><strong>Request Date:</strong> ${escapeHtml(rb.RequestDate ?? 'N/A')}</p>
-                <hr style="border-color: var(--border); margin: 16px 0;">
-                ` : ''}
-                <h4>Transaction Information</h4>
-                <p><strong>Receipt Number:</strong> ${escapeHtml(t.ReceiptNumber ?? 'N/A')}</p>
-                <p><strong>Invoice Number:</strong> ${escapeHtml(t.InvoiceNumber ?? 'N/A')}</p>
-                <p><strong>Transaction Date:</strong> ${escapeHtml(t.TransactionDate ?? 'N/A')}</p>
-                <p><strong>Customer:</strong> ${escapeHtml(t.CustomerName ?? 'N/A')}</p>
-                <p><strong>Cashier:</strong> ${escapeHtml(t.OriginalCashier ?? 'N/A')}</p>
+                <div class="return-details-columns">
+                    <div>
+                        <h4>Requested By</h4>
+                        <p><strong>Employee ID:</strong> ${escapeHtml(rb?.EmployeeID ?? 'N/A')}</p>
+                        <p><strong>Cashier Name:</strong> ${escapeHtml(rb?.Name ?? 'N/A')}</p>
+                        <p><strong>Request Date:</strong> ${escapeHtml(rb?.RequestDate ?? 'N/A')}</p>
+                    </div>
+                    <div>
+                        <h4>Transaction Information</h4>
+                        <p><strong>Receipt Number:</strong> ${escapeHtml(t.ReceiptNumber ?? 'N/A')}</p>
+                        <p><strong>Customer Name:</strong> ${escapeHtml(t.CustomerName ?? 'N/A')}</p>
+                        <p><strong>Transaction Date:</strong> ${escapeHtml(t.TransactionDate ?? 'N/A')}</p>
+                    </div>
+                    <div>
+                        <h4>Return Information</h4>
+                        <p><strong>Return Type:</strong> ${escapeHtml(r.ReturnType)}</p>
+                        <p><strong>Refund Amount:</strong> ${window.formatPeso(r.TotalRefundAmount ?? 0)}</p>
+                        <p><strong>Approved/Declined by:</strong> ${escapeHtml(r.ApprovedBy ?? 'N/A')}</p>
+                        <p><strong>Processed by:</strong> ${escapeHtml(r.ProcessedBy ?? 'N/A')}</p>
+                    </div>
+                </div>
                 <hr style="border-color: var(--border); margin: 16px 0;">
                 <h4>Returned Product(s)</h4>
-                ${itemsHtml || '<p class="text-muted">No items found.</p>'}
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Product Numbering</th>
+                                <th>Category</th>
+                                <th>Product Name</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml || '<tr><td colspan="6" class="text-muted">No items found.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
                 <hr style="border-color: var(--border); margin: 16px 0;">
-                <h4>Return Information</h4>
-                <p><strong>Return Type:</strong> ${escapeHtml(r.ReturnType)}</p>
-                <p><strong>Total Refund Amount:</strong> ${window.formatPeso(r.TotalRefundAmount ?? 0)}</p>
-                ${r.Remarks ? `<p><strong>Supporting Remarks:</strong> ${escapeHtml(r.Remarks)}</p>` : ''}
-                <p><strong>Request Date:</strong> ${escapeHtml(r.ReturnDate)}</p>
-                <p><strong>Current Status:</strong> ${escapeHtml(statusLabel(r.Status, r.ReturnType))}</p>
-                <p><strong>Return Policy:</strong> ${r.DaysSincePurchase !== null
-                    ? `${escapeHtml(r.DaysSincePurchase)} day(s) since purchase — ` + (r.EligibleForReturn
-                        ? `<span style="color: var(--success);">within the ${escapeHtml(r.ReturnWindowDays)}-day window</span>`
-                        : `<span style="color: var(--danger);">outside the ${escapeHtml(r.ReturnWindowDays)}-day window</span>`)
-                    : 'N/A'}</p>
-                ${r.DeclineReason ? `<p><strong>Decline Reason:</strong> ${escapeHtml(r.DeclineReason)}</p>` : ''}
-                ${r.ApprovedBy ? `<p><strong>Approved/Declined By:</strong> ${escapeHtml(r.ApprovedBy)}</p>` : ''}
-                ${r.ProcessedBy ? `<p><strong>Processed By:</strong> ${escapeHtml(r.ProcessedBy)}</p>` : ''}
-                ${r.Replacement ? `<p><strong>Replacement:</strong> ${escapeHtml(r.Replacement.Quantity)} x ${escapeHtml(r.Replacement.ProductName)} (Slip ${escapeHtml(r.Replacement.SlipNumber)})</p>` : ''}
+                <p><strong>Return Policy:</strong> ${returnPolicy}</p>
             `;
         })
         .catch(() => {
