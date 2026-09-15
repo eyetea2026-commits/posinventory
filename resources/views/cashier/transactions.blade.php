@@ -38,7 +38,7 @@
 <div class="content-header">
     <div>
         <h1><i class="fas fa-history"></i> Recent Transactions</h1>
-        <p style="margin:4px 0 0; color:#94a3b8; font-size:0.85rem;">Today's transactions only, for your account — for a full history, ask an Administrator.</p>
+        <p style="margin:4px 0 0; color:#94a3b8; font-size:0.85rem;">Today's transactions only, for your account.</p>
     </div>
     @include('cashier.partials.notification-bell')
 </div>
