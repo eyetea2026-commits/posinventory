@@ -132,24 +132,20 @@ class ReportController extends Controller
         $cashierName = $transaction?->staff?->user?->full_name ?? 'Unknown User';
         $reportNumber = 'SALE-' . str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT);
 
-        $hasReturn = $transaction ? SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
-            ->whereIn('Status', [SalesReturn::STATUS_APPROVED, SalesReturn::STATUS_PROCESSED])
-            ->exists() : false;
-
-        $discountValue = $billing->discount
-            ? ($billing->discount->Name ? "{$billing->discount->Name} ({$billing->discount->DiscountRate}%)" : "{$billing->discount->DiscountRate}%")
-            : 'None';
-        if ($billing->DiscountAmount) {
-            $discountValue .= ' — ' . $this->money($billing->DiscountAmount);
-        }
-
+        // Per-item DiscountAmount is this line's own share of the sale's
+        // promo discount (see SalesItem::getRefundableUnitPriceAttribute()
+        // for the same source-of-truth) — reused here rather than
+        // recomputed, so "Total Amount" always matches what the customer
+        // was actually charged for that line.
         $productsTable = [
-            'columns' => ['Product', 'Quantity', 'Unit Price', 'Subtotal'],
-            'rows' => ($transaction?->items ?? collect())->map(fn (SalesItem $item) => [
+            'columns' => ['Product Numbering', 'Product Name', 'Price', 'Quantity', 'Discount', 'Total Amount'],
+            'rows' => ($transaction?->items ?? collect())->values()->map(fn (SalesItem $item, int $index) => [
+                $index + 1,
                 $item->product?->ProductName ?? 'N/A',
-                $item->Quantity,
                 $this->money($item->UnitPrice),
-                $this->money($item->Quantity * $item->UnitPrice),
+                $item->Quantity,
+                $this->money($item->DiscountAmount ?? 0),
+                $this->money(($item->Quantity * $item->UnitPrice) - ($item->DiscountAmount ?? 0)),
             ])->all(),
         ];
 
@@ -159,15 +155,11 @@ class ReportController extends Controller
                 [
                     'heading' => 'Report Information',
                     'fields' => [
-                        ['label' => 'Report Number', 'value' => $reportNumber],
-                        ['label' => 'Transaction Date & Time', 'value' => $this->fmtDate($billing->BillingDate)],
+                        ['label' => 'Report ID', 'value' => $reportNumber],
                         ['label' => 'Cashier Name', 'value' => $cashierName],
-                        ['label' => 'Receipt Number', 'value' => $billing->payment?->ReceiptNumber ?? 'N/A'],
-                        ['label' => 'Customer', 'value' => $billing->CustomerName ?: 'Walk-in'],
-                        ['label' => 'Discount Applied', 'value' => $discountValue],
+                        ['label' => 'Transaction Date & Time', 'value' => $this->fmtDateTime($transaction?->SalesTransactionDate)],
+                        ['label' => 'Customer Name', 'value' => $billing->CustomerName ?: 'Walk-in Customer'],
                         ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ?? 'N/A'],
-                        ['label' => 'Total Amount', 'value' => $this->money($billing->BillingAmount)],
-                        ['label' => 'Status', 'value' => $hasReturn ? 'Completed (Return Filed)' : 'Completed'],
                     ],
                 ],
                 ['heading' => 'Products Sold', 'table' => $productsTable],
@@ -183,33 +175,27 @@ class ReportController extends Controller
             return null;
         }
 
-        $stockIn = (int) StockReceiving::where('ProductID', $product->ProductID)->sum('Quantity');
-        $stockOut = (int) SalesItem::where('ProductID', $product->ProductID)->sum('Quantity');
-        $stockAdjust = (int) StockAdjustment::where('ProductID', $product->ProductID)->sum('QuantityAdjust');
-
-        $lastReceived = StockReceiving::where('ProductID', $product->ProductID)->max('DateReceived');
-        $lastAdjusted = StockAdjustment::where('ProductID', $product->ProductID)->max('Date');
-        $lastUpdated = collect([$lastReceived, $lastAdjusted])->filter()->sort()->last();
+        $stockTable = [
+            'columns' => ['Current Stock', 'Remaining Stock', 'Reorder Threshold'],
+            'rows' => [[
+                (string) ($product->inventory?->Quantity ?? 0),
+                (string) ($product->inventory?->Quantity ?? 0),
+                (string) ($product->inventory?->ReorderThreshold ?? 'N/A'),
+            ]],
+        ];
 
         return [
             'title' => "Inventory Report — {$product->ProductName}",
             'sections' => [
                 [
-                    'heading' => 'Report Information',
                     'fields' => [
-                        ['label' => 'Product Name', 'value' => $product->ProductName],
-                        ['label' => 'SKU', 'value' => $product->SKU ?? 'N/A'],
                         ['label' => 'Category', 'value' => $product->category?->CategoryName ?? 'N/A'],
+                        ['label' => 'Product Name', 'value' => $product->ProductName],
                         ['label' => 'Brand', 'value' => $product->brand?->BrandName ?? 'N/A'],
-                        ['label' => 'Current Stock', 'value' => (string) ($product->inventory?->Quantity ?? 0)],
-                        ['label' => 'Stock In (All Time)', 'value' => (string) $stockIn],
-                        ['label' => 'Stock Out (All Time)', 'value' => (string) $stockOut],
-                        ['label' => 'Stock Adjustment (Net)', 'value' => ($stockAdjust >= 0 ? '+' : '') . $stockAdjust],
-                        ['label' => 'Remaining Stock', 'value' => (string) ($product->inventory?->Quantity ?? 0)],
-                        ['label' => 'Reorder Threshold', 'value' => (string) ($product->inventory?->ReorderThreshold ?? 'N/A')],
-                        ['label' => 'Last Updated', 'value' => $lastUpdated ? $this->fmtDate($lastUpdated) : 'N/A'],
+                        ['label' => 'Barcode', 'value' => $product->Barcode ?? 'N/A'],
                     ],
                 ],
+                ['table' => $stockTable],
             ],
         ];
     }
@@ -237,9 +223,9 @@ class ReportController extends Controller
         $totalCost = $order->items->sum(fn ($item) => $item->Quantity * $item->CostPriceAtOrder);
 
         $itemsTable = [
-            'columns' => ['Product', 'Quantity Ordered', 'Quantity Received', 'Unit Cost', 'Line Total'],
-            'rows' => $order->items->map(fn ($item) => [
-                $item->product?->ProductName ?? 'N/A',
+            'columns' => ['Product Numbering', 'Quantity Ordered', 'Quantity Received', 'Unit Cost', 'Total Cost'],
+            'rows' => $order->items->values()->map(fn ($item, int $index) => [
+                $index + 1,
                 $item->Quantity,
                 $item->ReceivedQuantity,
                 $this->money($item->CostPriceAtOrder),
@@ -251,20 +237,22 @@ class ReportController extends Controller
             'title' => "Purchase Order Report — {$order->PONumber}",
             'sections' => [
                 [
-                    'heading' => 'Report Information',
                     'fields' => [
-                        ['label' => 'Purchase Order Number', 'value' => $order->PONumber],
-                        ['label' => 'Supplier', 'value' => $order->supplier?->SupplierName ?? 'N/A'],
-                        ['label' => 'Requested By', 'value' => $order->createdByUser?->full_name ?? 'Unknown User'],
+                        ['label' => 'PO Number', 'value' => $order->PONumber],
+                        ['label' => 'Supplier Name', 'value' => $order->supplier?->SupplierName ?? 'N/A'],
+                        ['label' => 'Total Cost', 'value' => $this->money($totalCost)],
                         ['label' => 'Date Created', 'value' => $this->fmtDate($order->PurchaseDate)],
                         ['label' => 'Expected Delivery Date', 'value' => $order->ExpectedDeliveryDate ? $this->fmtDate($order->ExpectedDeliveryDate) : 'N/A'],
-                        ['label' => 'Total Cost', 'value' => $this->money($totalCost)],
                         ['label' => 'Approval Status', 'value' => $approvalStatus],
-                        ['label' => 'Received Status', 'value' => $receivedStatus],
-                        ['label' => 'Notes', 'value' => $order->Notes ?: 'None'],
+                        ['label' => 'Receive Status', 'value' => $receivedStatus],
                     ],
                 ],
                 ['heading' => 'Ordered Products', 'table' => $itemsTable],
+                [
+                    'fields' => [
+                        ['label' => 'Notes', 'value' => $order->Notes ?: 'None'],
+                    ],
+                ],
             ],
         ];
     }
@@ -278,15 +266,16 @@ class ReportController extends Controller
             return null;
         }
 
-        $requestedByName = $return->staff?->user?->full_name ?? 'Unknown User';
         $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? 'N/A';
+        $returnType = ucfirst($return->ReturnType);
 
         $itemsTable = [
-            'columns' => ['Product', 'Quantity', 'Reason'],
+            'columns' => ['Products Return', 'Quantity', 'Reason', 'Return Type'],
             'rows' => $return->items->map(fn (SalesReturnItem $item) => [
                 $item->product?->ProductName ?? 'N/A',
                 $item->Quantity,
                 ucfirst(str_replace('_', ' ', $item->Reason)),
+                $returnType,
             ])->all(),
         ];
 
@@ -296,19 +285,15 @@ class ReportController extends Controller
                 [
                     'heading' => 'Report Information',
                     'fields' => [
-                        ['label' => 'Return Number', 'value' => "RTN-" . str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT)],
+                        ['label' => 'Return ID', 'value' => "RTN-" . str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT)],
                         ['label' => 'Receipt Number', 'value' => $receiptNumber],
-                        ['label' => 'Requested By (Cashier)', 'value' => $requestedByName],
-                        ['label' => 'Customer', 'value' => $return->CustomerName ?: ($return->transaction?->CustomerName ?: 'Walk-in')],
-                        ['label' => 'Return Type', 'value' => ucfirst($return->ReturnType)],
-                        ['label' => 'Return Status', 'value' => ucfirst($return->Status)],
-                        ['label' => 'Approved By', 'value' => $return->approvedByUser?->full_name ?? 'N/A'],
                         ['label' => 'Date Requested', 'value' => $this->fmtDateTime($return->created_at ?? $return->ReturnDate)],
+                        ['label' => 'Approved By', 'value' => $return->approvedByUser?->full_name ?? 'N/A'],
                         ['label' => 'Date Approved', 'value' => in_array($return->Status, [SalesReturn::STATUS_APPROVED, SalesReturn::STATUS_PROCESSED], true) ? $this->fmtDateTime($return->updated_at) : 'N/A'],
-                        ['label' => 'Decline Reason', 'value' => $return->DeclineReason ?: 'N/A'],
+                        ['label' => 'Return Status', 'value' => ucfirst($return->Status)],
                     ],
                 ],
-                ['heading' => 'Products Returned', 'table' => $itemsTable],
+                ['table' => $itemsTable],
             ],
         ];
     }
@@ -327,23 +312,31 @@ class ReportController extends Controller
             $requestedBy = $damage->salesReturn->staff?->user?->full_name ?? 'Unknown User';
         }
 
+        $damageTable = [
+            'columns' => ['Damage ID', 'Category', 'Product Name', 'Quantity', 'Damage Type'],
+            'rows' => [[
+                'DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
+                $damage->product?->category?->CategoryName ?? 'N/A',
+                $damage->product?->ProductName ?? 'N/A',
+                (string) $damage->Quantity,
+                DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType,
+            ]],
+        ];
+
         return [
             'title' => "Damage Report — Damage #{$damage->DamageID}",
             'sections' => [
                 [
                     'heading' => 'Report Information',
                     'fields' => [
-                        ['label' => 'Damage Record Number', 'value' => 'DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT)],
-                        ['label' => 'Product', 'value' => $damage->product?->ProductName ?? 'N/A'],
-                        ['label' => 'Category', 'value' => $damage->product?->category?->CategoryName ?? 'N/A'],
-                        ['label' => 'Quantity Damaged', 'value' => (string) $damage->Quantity],
-                        ['label' => 'Damage Type', 'value' => DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType],
-                        ['label' => 'Source', 'value' => DamagedProduct::SOURCE_LABELS[$damage->SourceModule] ?? ($damage->SourceModule ?? 'Unknown')],
                         ['label' => 'Requested By', 'value' => $requestedBy],
+                        ['label' => 'Date Requested', 'value' => $this->fmtDate($damage->DateRecorded)],
                         ['label' => 'Status', 'value' => DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status],
-                        ['label' => 'Date Recorded', 'value' => $this->fmtDate($damage->DateRecorded)],
-                        ['label' => 'Supplier Return Status', 'value' => $damage->supplier ? (DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status) : 'Not Applicable'],
-                        ['label' => 'Supplier', 'value' => $damage->supplier?->SupplierName ?? 'N/A'],
+                    ],
+                ],
+                ['table' => $damageTable],
+                [
+                    'fields' => [
                         ['label' => 'Description', 'value' => $damage->Description ?: 'N/A'],
                     ],
                 ],
@@ -360,7 +353,6 @@ class ReportController extends Controller
         }
 
         $orders = $supplier->purchaseOrders;
-        $totalAmount = $orders->flatMap->items->sum(fn ($item) => $item->ReceivedQuantity * $item->CostPriceAtOrder);
 
         $ordersTable = [
             'columns' => ['PO Number', 'Date', 'Status', 'Total Cost'],
@@ -376,19 +368,15 @@ class ReportController extends Controller
             'title' => "Supplier Report — {$supplier->SupplierName}",
             'sections' => [
                 [
-                    'heading' => 'Report Information',
                     'fields' => [
                         ['label' => 'Supplier Name', 'value' => $supplier->SupplierName],
-                        ['label' => 'Contact Person', 'value' => $supplier->ContactPerson ?? 'N/A'],
                         ['label' => 'Contact Number', 'value' => $supplier->ContactNumber ?? 'N/A'],
                         ['label' => 'Email', 'value' => $supplier->Email ?? 'N/A'],
                         ['label' => 'Address', 'value' => $supplier->Address ?? 'N/A'],
-                        ['label' => 'Status', 'value' => ucfirst($supplier->Status ?? 'active')],
                         ['label' => 'Total Orders', 'value' => (string) $orders->count()],
-                        ['label' => 'Total Amount', 'value' => $this->money($totalAmount)],
                     ],
                 ],
-                ['heading' => 'Purchase Orders', 'table' => $ordersTable],
+                ['heading' => 'Purchase Order', 'table' => $ordersTable],
             ],
         ];
     }

@@ -188,7 +188,9 @@
 
         function renderReportSections(sections) {
             return (sections || []).map(function (section) {
-                let html = `<h4 class="report-section-heading">${escapeReportDetailHtml(section.heading)}</h4>`;
+                let html = section.heading
+                    ? `<h4 class="report-section-heading">${escapeReportDetailHtml(section.heading)}</h4>`
+                    : '';
 
                 if (section.fields && section.fields.length) {
                     html += '<div class="report-detail-lines">';

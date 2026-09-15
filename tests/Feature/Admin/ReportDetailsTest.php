@@ -66,36 +66,49 @@ class ReportDetailsTest extends TestCase
         $transaction = SalesTransaction::create([
             'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
         ]);
-        SalesItem::create(['Quantity' => 2, 'UnitPrice' => 1000, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID]);
+        // DiscountAmount is this line's own share of the sale's promo
+        // discount -- exercising it here proves the new "Discount"/"Total
+        // Amount" table columns are read from real stored data, not
+        // recomputed from scratch.
+        SalesItem::create([
+            'Quantity' => 2, 'UnitPrice' => 1000, 'DiscountAmount' => 200,
+            'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
         $discount = Discount::firstOrCreate(['DiscountRate' => 0]);
         $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 2000,
+            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1800,
             'BillingDate' => now(), 'DiscountID' => $discount->DiscountID, 'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
-        Payment::create(['PaymentAmount' => 2000, 'PaymentMethod' => 'cash', 'ReceiptNumber' => 'RCT-000001', 'BillingID' => $billing->BillingID]);
+        Payment::create(['PaymentAmount' => 1800, 'PaymentMethod' => 'cash', 'ReceiptNumber' => 'RCT-000001', 'BillingID' => $billing->BillingID]);
 
         $response = $this->fetchDetails('sales', $billing->BillingID);
 
         $response->assertOk();
         $response->assertJsonFragment(['label' => 'Cashier Name', 'value' => 'Jane Doe']);
-        $response->assertJsonFragment(['label' => 'Receipt Number', 'value' => 'RCT-000001']);
+        $response->assertJsonFragment(['label' => 'Customer Name', 'value' => 'Walk-in Customer']);
         $response->assertJsonFragment(['label' => 'Payment Method', 'value' => 'cash']);
-        $this->assertStringContainsString('DVR Camera', $response->getContent());
+        $response->assertJsonFragment([
+            'heading' => 'Products Sold',
+            'table' => [
+                'columns' => ['Product Numbering', 'Product Name', 'Price', 'Quantity', 'Discount', 'Total Amount'],
+                'rows' => [[1, 'DVR Camera', '₱1,000.00', 2, '₱200.00', '₱1,800.00']],
+            ],
+        ]);
     }
 
-    public function test_inventory_report_details_computes_stock_movement(): void
+    public function test_inventory_report_details_shows_product_identity_and_stock_table(): void
     {
-        \App\Models\StockReceiving::create([
-            'Quantity' => 20, 'DateReceived' => now()->format('Y-m-d'), 'ReceiptNumber' => 'RCPT-1',
-            'ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID,
-        ]);
-
         $response = $this->fetchDetails('inventory', $this->product->ProductID);
 
         $response->assertOk();
+        $response->assertJsonFragment(['label' => 'Category', 'value' => 'CCTV']);
         $response->assertJsonFragment(['label' => 'Product Name', 'value' => 'DVR Camera']);
-        $response->assertJsonFragment(['label' => 'SKU', 'value' => 'SKU-001']);
-        $response->assertJsonFragment(['label' => 'Stock In (All Time)', 'value' => '20']);
+        $response->assertJsonFragment([
+            'table' => [
+                'columns' => ['Current Stock', 'Remaining Stock', 'Reorder Threshold'],
+                'rows' => [['8', '8', '5']],
+            ],
+        ]);
     }
 
     public function test_purchase_order_report_details_includes_items_and_status(): void
@@ -113,9 +126,15 @@ class ReportDetailsTest extends TestCase
         $response = $this->fetchDetails('orders', $po->PurchaseOrderID);
 
         $response->assertOk();
-        $response->assertJsonFragment(['label' => 'Supplier', 'value' => 'Acme Supplies']);
-        $response->assertJsonFragment(['label' => 'Received Status', 'value' => 'Fully Received']);
-        $this->assertStringContainsString('DVR Camera', $response->getContent());
+        $response->assertJsonFragment(['label' => 'Supplier Name', 'value' => 'Acme Supplies']);
+        $response->assertJsonFragment(['label' => 'Receive Status', 'value' => 'Fully Received']);
+        $response->assertJsonFragment([
+            'heading' => 'Ordered Products',
+            'table' => [
+                'columns' => ['Product Numbering', 'Quantity Ordered', 'Quantity Received', 'Unit Cost', 'Total Cost'],
+                'rows' => [[1, 10, 10, '₱600.00', '₱6,000.00']],
+            ],
+        ]);
     }
 
     public function test_return_report_details_includes_requested_by_and_items(): void
@@ -136,9 +155,13 @@ class ReportDetailsTest extends TestCase
         $response = $this->fetchDetails('returns', $return->SalesReturnID);
 
         $response->assertOk();
-        $response->assertJsonFragment(['label' => 'Requested By (Cashier)', 'value' => 'Jane Doe']);
         $response->assertJsonFragment(['label' => 'Return Status', 'value' => 'Pending']);
-        $this->assertStringContainsString('DVR Camera', $response->getContent());
+        $response->assertJsonFragment([
+            'table' => [
+                'columns' => ['Products Return', 'Quantity', 'Reason', 'Return Type'],
+                'rows' => [['DVR Camera', 1, 'Factory Defect', 'Refund']],
+            ],
+        ]);
     }
 
     public function test_damage_report_details_returns_product_and_status(): void
@@ -152,8 +175,13 @@ class ReportDetailsTest extends TestCase
         $response = $this->fetchDetails('damage', $damage->DamageID);
 
         $response->assertOk();
-        $response->assertJsonFragment(['label' => 'Product', 'value' => 'DVR Camera']);
-        $response->assertJsonFragment(['label' => 'Quantity Damaged', 'value' => '2']);
+        $response->assertJsonFragment(['label' => 'Status', 'value' => DamagedProduct::STATUS_LABELS[DamagedProduct::STATUS_PENDING]]);
+        $response->assertJsonFragment([
+            'table' => [
+                'columns' => ['Damage ID', 'Category', 'Product Name', 'Quantity', 'Damage Type'],
+                'rows' => [['DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT), 'CCTV', 'DVR Camera', '2', DamagedProduct::DAMAGE_TYPES['broken']]],
+            ],
+        ]);
     }
 
     public function test_supplier_report_details_returns_orders_table(): void
