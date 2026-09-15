@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\DamagedProduct;
 use App\Models\Inventory;
@@ -120,35 +119,6 @@ class ReportController extends Controller
         return $value ? \Illuminate\Support\Carbon::parse($value)->format('F j, Y') : 'N/A';
     }
 
-    /**
-     * Best-effort "who/when" for record types that have no dedicated
-     * created-by/updated-by columns, mined from ActivityLog the same way
-     * DamageController::show() already does for its Audit History — the
-     * earliest matching entry is "Created", the latest is "Last Updated".
-     * $fallback lets a type substitute a real column value (e.g. a proper
-     * CreatedBy relation) instead of the log search where one exists.
-     */
-    private function auditFromLog(string $needle, array $fallback = []): array
-    {
-        $entries = ActivityLog::with('user')
-            ->where('Description', 'like', "%{$needle}%")
-            ->orderBy('DateRecorded')
-            ->get();
-
-        $created = $entries->first();
-        $updated = $entries->count() > 1 ? $entries->last() : null;
-
-        return [
-            'heading' => 'Audit Information',
-            'fields' => [
-                ['label' => 'Created By', 'value' => $created?->user?->full_name ?? $fallback['createdBy'] ?? 'Unknown User'],
-                ['label' => 'Created Date & Time', 'value' => $created ? $this->fmtDateTime($created->DateRecorded) : ($fallback['createdAt'] ?? 'N/A')],
-                ['label' => 'Last Updated By', 'value' => $updated?->user?->full_name ?? $fallback['updatedBy'] ?? 'N/A'],
-                ['label' => 'Last Updated Date & Time', 'value' => $updated ? $this->fmtDateTime($updated->DateRecorded) : ($fallback['updatedAt'] ?? 'N/A')],
-            ],
-        ];
-    }
-
     private function salesDetail($id): ?array
     {
         $billing = Billing::with(['transaction.staff.user', 'transaction.items.product', 'discount', 'payment'])
@@ -201,15 +171,6 @@ class ReportController extends Controller
                     ],
                 ],
                 ['heading' => 'Products Sold', 'table' => $productsTable],
-                [
-                    'heading' => 'Audit Information',
-                    'fields' => [
-                        ['label' => 'Created By', 'value' => $cashierName],
-                        ['label' => 'Created Date & Time', 'value' => $this->fmtDate($billing->BillingDate)],
-                        ['label' => 'Last Updated By', 'value' => 'N/A'],
-                        ['label' => 'Last Updated Date & Time', 'value' => 'N/A'],
-                    ],
-                ],
             ],
         ];
     }
@@ -249,7 +210,6 @@ class ReportController extends Controller
                         ['label' => 'Last Updated', 'value' => $lastUpdated ? $this->fmtDate($lastUpdated) : 'N/A'],
                     ],
                 ],
-                $this->auditFromLog("\"{$product->ProductName}\"", ['createdBy' => 'Unknown User']),
             ],
         ];
     }
@@ -287,14 +247,6 @@ class ReportController extends Controller
             ])->all(),
         ];
 
-        $audit = $this->auditFromLog(
-            "PO #{$order->PONumber}",
-            [
-                'createdBy' => $order->createdByUser?->full_name ?? 'Unknown User',
-                'createdAt' => $this->fmtDate($order->PurchaseDate),
-            ]
-        );
-
         return [
             'title' => "Purchase Order Report — {$order->PONumber}",
             'sections' => [
@@ -313,7 +265,6 @@ class ReportController extends Controller
                     ],
                 ],
                 ['heading' => 'Ordered Products', 'table' => $itemsTable],
-                $audit,
             ],
         ];
     }
@@ -358,15 +309,6 @@ class ReportController extends Controller
                     ],
                 ],
                 ['heading' => 'Products Returned', 'table' => $itemsTable],
-                [
-                    'heading' => 'Audit Information',
-                    'fields' => [
-                        ['label' => 'Created By', 'value' => $requestedByName],
-                        ['label' => 'Created Date & Time', 'value' => $this->fmtDateTime($return->created_at)],
-                        ['label' => 'Last Updated By', 'value' => $return->approvedByUser?->full_name ?? $requestedByName],
-                        ['label' => 'Last Updated Date & Time', 'value' => $this->fmtDateTime($return->updated_at)],
-                    ],
-                ],
             ],
         ];
     }
@@ -384,33 +326,6 @@ class ReportController extends Controller
         if ($damage->salesReturn) {
             $requestedBy = $damage->salesReturn->staff?->user?->full_name ?? 'Unknown User';
         }
-
-        // "damage #{id}" alone would also match unrelated log lines that
-        // merely mention this damage in passing (e.g. a later replacement
-        // received against it) — creation is identified by its own distinct
-        // phrasing ("Recorded ... as damaged"), while every other action
-        // touching this record ("Updated damage record #N", "Cancelled
-        // damage #N", ...) counts as an update.
-        $created = ActivityLog::with('user')
-            ->where('Description', 'like', '%as damaged%')
-            ->where('Description', 'like', "%\"{$damage->product?->ProductName}\"%")
-            ->orderBy('DateRecorded')
-            ->first();
-        $updated = ActivityLog::with('user')
-            ->where('Description', 'like', "%damage #{$damage->DamageID}%")
-            ->orWhere('Description', 'like', "%damage record #{$damage->DamageID}%")
-            ->orderByDesc('DateRecorded')
-            ->first();
-
-        $audit = [
-            'heading' => 'Audit Information',
-            'fields' => [
-                ['label' => 'Created By', 'value' => $created?->user?->full_name ?? $requestedBy],
-                ['label' => 'Created Date & Time', 'value' => $created ? $this->fmtDateTime($created->DateRecorded) : $this->fmtDate($damage->DateRecorded)],
-                ['label' => 'Last Updated By', 'value' => $updated?->user?->full_name ?? 'N/A'],
-                ['label' => 'Last Updated Date & Time', 'value' => $updated ? $this->fmtDateTime($updated->DateRecorded) : 'N/A'],
-            ],
-        ];
 
         return [
             'title' => "Damage Report — Damage #{$damage->DamageID}",
@@ -432,7 +347,6 @@ class ReportController extends Controller
                         ['label' => 'Description', 'value' => $damage->Description ?: 'N/A'],
                     ],
                 ],
-                $audit,
             ],
         ];
     }
@@ -475,7 +389,6 @@ class ReportController extends Controller
                     ],
                 ],
                 ['heading' => 'Purchase Orders', 'table' => $ordersTable],
-                $this->auditFromLog("\"{$supplier->SupplierName}\"", ['createdBy' => 'Unknown User']),
             ],
         ];
     }
