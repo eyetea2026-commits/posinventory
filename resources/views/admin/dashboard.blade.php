@@ -1162,17 +1162,17 @@
                             data: trendData.daily.data,
                             borderColor: '#3b82f6',
                             backgroundColor: trendGradient,
-                            borderWidth: 3,
+                            borderWidth: 1.5,
                             tension: 0.4,
                             fill: true,
                             cubicInterpolationMode: 'monotone',
                             pointStyle: 'circle',
-                            pointRadius: peakPointRadii(trendData.daily.data, 5, 6),
-                            pointHoverRadius: 7,
-                            pointBorderWidth: 2,
+                            pointRadius: peakPointRadii(trendData.daily.data, 2.5, 3),
+                            pointHoverRadius: 4,
+                            pointBorderWidth: 1.5,
                             pointBorderColor: '#05070d',
                             pointBackgroundColor: '#3b82f6',
-                            pointHoverBorderWidth: 2,
+                            pointHoverBorderWidth: 1.5,
                             order: 1,
                         },
                         {
@@ -1180,7 +1180,7 @@
                             data: trendData.daily.compareData || [],
                             borderColor: 'rgba(148, 163, 184, 0.55)',
                             backgroundColor: 'transparent',
-                            borderWidth: 2,
+                            borderWidth: 1,
                             borderDash: [5, 5],
                             tension: 0.4,
                             fill: false,
@@ -1236,7 +1236,7 @@
                     const range = trendData[btn.dataset.range];
                     trendChart.data.labels = range.labels;
                     trendChart.data.datasets[0].data = range.data;
-                    trendChart.data.datasets[0].pointRadius = peakPointRadii(range.data, 5, 6);
+                    trendChart.data.datasets[0].pointRadius = peakPointRadii(range.data, 2.5, 3);
                     trendChart.data.datasets[1].data = range.compareData || [];
                     trendChart.update();
                     updateSalesTrendHeader(range);
