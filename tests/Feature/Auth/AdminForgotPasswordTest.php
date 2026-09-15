@@ -124,4 +124,69 @@ class AdminForgotPasswordTest extends TestCase
         $otherAdmin->refresh();
         $this->assertFalse(\Illuminate\Support\Facades\Hash::check('NewPass1234', $otherAdmin->password));
     }
+
+    // ---- A completed reset must force out whatever session was already
+    // active for the account (audit finding F3) — otherwise the reset
+    // doesn't actually help if that session was the compromised one. ----
+
+    public function test_completing_a_reset_invalidates_the_accounts_active_session(): void
+    {
+        // The feature under test relies on the real `sessions` DB table --
+        // phpunit.xml defaults to the in-memory "array" driver, which never
+        // writes there at all (same reasoning as SingleSessionTest).
+        config(['session.driver' => 'database']);
+        Mail::fake();
+
+        $admin = User::factory()->create([
+            'name' => 'administrator', 'role_id' => $this->adminRole->id,
+            'email' => 'administrator@cctvexpress.local',
+        ]);
+
+        // A real login naturally registers current_session_id and a genuine
+        // row in the sessions table -- exactly the state a since-compromised
+        // session would be in.
+        $this->post(route('login.post'), ['username' => 'administrator', 'password' => 'password']);
+        $admin->refresh();
+        $sessionId = $admin->current_session_id;
+        $this->assertNotNull($sessionId);
+        $this->assertDatabaseHas('sessions', ['id' => $sessionId]);
+
+        $this->post(route('admin.forgot.post'), ['email' => $admin->email]);
+        $otp = DB::table('password_reset_tokens')->where('email', $admin->email)->value('token');
+        $this->post(route('admin.otp.verify'), ['email' => $admin->email, 'otp' => $otp]);
+        $resetResponse = $this->post(route('admin.password.reset'), [
+            'email' => $admin->email,
+            'password' => 'NewPass1234',
+            'password_confirmation' => 'NewPass1234',
+        ]);
+        $resetResponse->assertRedirect(route('welcome'));
+
+        $admin->refresh();
+        $this->assertNull($admin->current_session_id);
+        $this->assertDatabaseMissing('sessions', ['id' => $sessionId]);
+    }
+
+    public function test_completing_a_reset_with_no_prior_active_session_does_not_error(): void
+    {
+        config(['session.driver' => 'database']);
+        Mail::fake();
+
+        // No login ever happened for this admin, so current_session_id is
+        // null from creation -- the reset must still complete cleanly
+        // rather than assuming a session always exists to clear.
+        $admin = User::factory()->create(['role_id' => $this->adminRole->id, 'email' => 'administrator@cctvexpress.local']);
+        $this->assertNull($admin->current_session_id);
+
+        $this->post(route('admin.forgot.post'), ['email' => $admin->email]);
+        $otp = DB::table('password_reset_tokens')->where('email', $admin->email)->value('token');
+        $this->post(route('admin.otp.verify'), ['email' => $admin->email, 'otp' => $otp]);
+        $resetResponse = $this->post(route('admin.password.reset'), [
+            'email' => $admin->email,
+            'password' => 'NewPass1234',
+            'password_confirmation' => 'NewPass1234',
+        ]);
+
+        $resetResponse->assertRedirect(route('welcome'));
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPass1234', $admin->fresh()->password));
+    }
 }
