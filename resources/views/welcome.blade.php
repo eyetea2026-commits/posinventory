@@ -149,6 +149,30 @@
             }
         })();
 
+        // Guard against a double-click/double-submit on Log in -- without
+        // this, a slow response (or an impatient second click) can fire two
+        // POST /login requests; the first succeeds and locks the account to
+        // that session, then the second arrives a moment later and is
+        // rejected by the one-session-per-account rule as "already logged
+        // in on another device", even though it's the same person on the
+        // same browser. Disabling the button (and swapping its label) on
+        // the first submit makes that race impossible client-side.
+        (function () {
+            const loginForm = document.querySelector('form[action="{{ route('login.post') }}"]');
+            if (!loginForm) return;
+            const submitBtn = loginForm.querySelector('.lv2-submit');
+            if (!submitBtn) return;
+
+            loginForm.addEventListener('submit', function (e) {
+                if (submitBtn.disabled) {
+                    e.preventDefault();
+                    return;
+                }
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Logging in...';
+            });
+        })();
+
         function showPassword(fieldId) {
             const field = document.getElementById(fieldId);
             const icon = document.getElementById(fieldId + '-icon');
@@ -538,6 +562,7 @@
         }
         .lv2-submit:hover { background: #2563eb; transform: translateY(-1px); }
         .lv2-submit:active { transform: translateY(0); }
+        .lv2-submit:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
         .lv2-footer {
             margin-top: 16px;
             text-align: center;
