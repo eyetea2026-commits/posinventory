@@ -198,34 +198,109 @@
             flex: 1;
         }
 
-        .chart-legend {
+        /* Sales Trend card — dark "line chart" stat header (invoices +
+           revenue with a period-over-period change badge), a pill toggle,
+           and a current/previous badge pair over the chart itself. */
+        .sales-trend-card {
+            background: linear-gradient(180deg, #0b0f19 0%, #0d1424 100%);
+            border-color: rgba(148, 163, 184, 0.08);
+            padding: 28px;
+        }
+
+        .sales-trend-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .sales-trend-stats {
+            display: flex;
+            gap: 32px;
+            flex-wrap: wrap;
+        }
+
+        .sales-trend-stat-value {
+            font-size: 1.9rem;
+            font-weight: 800;
+            color: #f8fafc;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        .sales-trend-stat-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .sales-trend-toggle {
+            border-radius: 999px;
+        }
+
+        .sales-trend-toggle .chart-toggle-btn {
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 0.7rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .sales-trend-toggle .chart-toggle-btn.active {
+            box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.6);
+        }
+
+        .sales-trend-badges {
             display: flex;
             align-items: center;
             justify-content: flex-end;
-            gap: 14px;
-            flex-wrap: wrap;
-            margin-bottom: 14px;
+            gap: 10px;
+            margin-bottom: 8px;
         }
 
-        .chart-legend-item {
+        .sales-trend-badge {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
             color: #94a3b8;
+            padding: 4px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            cursor: default;
         }
 
-        .chart-legend-dot {
-            width: 9px;
-            height: 9px;
+        .sales-trend-badge.current {
+            border-color: rgba(59, 130, 246, 0.4);
+            color: #93c5fd;
+        }
+
+        .sales-trend-badge-dot {
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
+            background: #3b82f6;
             flex-shrink: 0;
         }
 
-        .chart-legend-dot.high { background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, 0.6); }
-        .chart-legend-dot.medium { background: #fbbf24; box-shadow: 0 0 8px rgba(251, 191, 36, 0.6); }
-        .chart-legend-dot.low { background: #f87171; box-shadow: 0 0 8px rgba(248, 113, 113, 0.6); }
+        .sales-trend-badge-dot.dashed {
+            background: transparent;
+            border: 1.5px dashed rgba(148, 163, 184, 0.7);
+        }
+
+        .sales-trend-canvas-wrap {
+            margin-top: 4px;
+        }
 
         /* Product Performance ranked bar list — rank, name, units, and % all
            live inside the bar itself; the fill's width is the only thing
@@ -652,11 +727,13 @@
             .stat-icon { width: 46px; height: 46px; font-size: 1.15rem; }
             .stat-value { font-size: 1.35rem; }
             .chart-canvas-wrap { height: 240px; }
+            .sales-trend-stat-value { font-size: 1.5rem; }
+            .sales-trend-stats { gap: 20px; }
         }
 
         @media (max-width: 640px) {
             .analytics-performance-grid { grid-template-columns: 1fr; }
-            .chart-legend { justify-content: flex-start; }
+            .sales-trend-badges { justify-content: flex-start; }
         }
 
         @media (max-width: 480px) {
@@ -737,22 +814,45 @@
     <div class="analytics-performance-grid mt-4">
         <div class="analytics-col">
             <h2 class="dashboard-section-title">Sales Analytics</h2>
-            <div class="chart-card">
-                <div class="chart-card-header">
-                    <h3 class="chart-title">Sales Trend</h3>
-                    <div class="chart-toggle-group" data-toggle="trend">
+            @php
+                $trendDaily = $salesTrend['daily'] ?? [];
+                $trendChangePct = $trendDaily['changePct'] ?? null;
+            @endphp
+            <div class="chart-card sales-trend-card">
+                <div class="sales-trend-header">
+                    <div class="sales-trend-stats">
+                        <div class="sales-trend-stat">
+                            <div class="sales-trend-stat-value" id="salesTrendInvoices">{{ number_format($trendDaily['invoiceCount'] ?? 0) }}</div>
+                            <div class="sales-trend-stat-label">Invoices</div>
+                        </div>
+                        <div class="sales-trend-stat">
+                            <div class="sales-trend-stat-value" id="salesTrendRevenue">₱{{ number_format($trendDaily['revenueTotal'] ?? 0, 2) }}</div>
+                            <div class="sales-trend-stat-label">
+                                Revenue
+                                <span id="salesTrendChangeBadge" class="stat-trend {{ is_null($trendChangePct) ? 'new' : ($trendChangePct >= 0 ? 'up' : 'down') }}">
+                                    @if(is_null($trendChangePct))
+                                        <i class="fas fa-sparkles"></i> New
+                                    @elseif($trendChangePct >= 0)
+                                        <i class="fas fa-arrow-up"></i> {{ $trendChangePct }}%
+                                    @else
+                                        <i class="fas fa-arrow-down"></i> {{ abs($trendChangePct) }}%
+                                    @endif
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-toggle-group sales-trend-toggle" data-toggle="trend">
                         <button type="button" class="chart-toggle-btn active" data-range="daily">Daily</button>
                         <button type="button" class="chart-toggle-btn" data-range="weekly">Weekly</button>
                         <button type="button" class="chart-toggle-btn" data-range="monthly">Monthly</button>
                         <button type="button" class="chart-toggle-btn" data-range="yearly">Yearly</button>
                     </div>
                 </div>
-                <div class="chart-legend">
-                    <span class="chart-legend-item"><span class="chart-legend-dot high"></span> High Sales</span>
-                    <span class="chart-legend-item"><span class="chart-legend-dot medium"></span> Medium Sales</span>
-                    <span class="chart-legend-item"><span class="chart-legend-dot low"></span> Low Sales</span>
+                <div class="sales-trend-badges">
+                    <span class="sales-trend-badge current" id="salesTrendCurrentBadge" title="{{ $trendDaily['currentRangeLabel'] ?? '' }}"><span class="sales-trend-badge-dot"></span> Current</span>
+                    <span class="sales-trend-badge compare" id="salesTrendCompareBadge" title="{{ $trendDaily['compareRangeLabel'] ?? '' }}"><span class="sales-trend-badge-dot dashed"></span> Previous</span>
                 </div>
-                <div class="chart-canvas-wrap">
+                <div class="chart-canvas-wrap sales-trend-canvas-wrap">
                     <canvas id="salesTrendChart"></canvas>
                 </div>
             </div>
@@ -999,54 +1099,97 @@
             requestAnimationFrame(tick);
         });
 
-        // Sales Trend (line, daily/weekly/monthly/yearly toggle) — smooth
-        // curve, gradient fill, and per-point dots colored by how each value
-        // ranks against the strongest period currently on screen (>=66% of
-        // that max = high/green, >=33% = medium/orange, else low/red). The
-        // thresholds are relative to the visible range rather than a fixed
-        // peso amount so the coloring stays meaningful across daily vs.
-        // yearly totals, which differ by orders of magnitude.
-        const PERFORMANCE_COLORS = { high: '#34d399', medium: '#fbbf24', low: '#f87171' };
-
-        function performanceColorsFor(values) {
-            const max = Math.max(0, ...values);
-            if (max <= 0) return values.map(() => PERFORMANCE_COLORS.low);
-            return values.map((v) => {
-                const ratio = v / max;
-                if (ratio >= 0.66) return PERFORMANCE_COLORS.high;
-                if (ratio >= 0.33) return PERFORMANCE_COLORS.medium;
-                return PERFORMANCE_COLORS.low;
+        // Sales Trend (line, daily/weekly/monthly/yearly toggle) — one solid
+        // "current period" line against a dashed "previous period" line of
+        // the same length immediately before it, matching the reference
+        // line-chart design: a big Invoices/Revenue stat header instead of
+        // a title, sparse point markers only at local peaks/valleys (plus
+        // the latest point), no y-axis, and small current/previous badges
+        // over the chart instead of a value-ranked legend.
+        function peakPointRadii(values, radius, endRadius) {
+            return values.map((v, i, arr) => {
+                if (i === arr.length - 1) return endRadius;
+                if (i === 0) return 0;
+                const isPeak = v > arr[i - 1] && v >= arr[i + 1];
+                const isValley = v < arr[i - 1] && v <= arr[i + 1];
+                return (isPeak || isValley) ? radius : 0;
             });
+        }
+
+        function updateSalesTrendHeader(range) {
+            const invoicesEl = document.getElementById('salesTrendInvoices');
+            const revenueEl = document.getElementById('salesTrendRevenue');
+            const changeEl = document.getElementById('salesTrendChangeBadge');
+            const currentBadge = document.getElementById('salesTrendCurrentBadge');
+            const compareBadge = document.getElementById('salesTrendCompareBadge');
+
+            if (invoicesEl) invoicesEl.textContent = (range.invoiceCount ?? 0).toLocaleString('en-US');
+            if (revenueEl) revenueEl.textContent = window.formatPeso(range.revenueTotal ?? 0);
+
+            if (changeEl) {
+                const pct = range.changePct;
+                changeEl.classList.remove('up', 'down', 'new');
+                if (pct === null || pct === undefined) {
+                    changeEl.classList.add('new');
+                    changeEl.innerHTML = '<i class="fas fa-sparkles"></i> New';
+                } else if (pct >= 0) {
+                    changeEl.classList.add('up');
+                    changeEl.innerHTML = `<i class="fas fa-arrow-up"></i> ${pct}%`;
+                } else {
+                    changeEl.classList.add('down');
+                    changeEl.innerHTML = `<i class="fas fa-arrow-down"></i> ${Math.abs(pct)}%`;
+                }
+            }
+
+            if (currentBadge) currentBadge.title = range.currentRangeLabel || '';
+            if (compareBadge) compareBadge.title = range.compareRangeLabel || '';
         }
 
         const trendCanvas = document.getElementById('salesTrendChart');
         if (trendCanvas) {
             const trendCtx = trendCanvas.getContext('2d');
             const trendGradient = trendCtx.createLinearGradient(0, 0, 0, trendCanvas.clientHeight || 300);
-            trendGradient.addColorStop(0, 'rgba(96, 165, 250, 0.32)');
-            trendGradient.addColorStop(1, 'rgba(96, 165, 250, 0)');
+            trendGradient.addColorStop(0, 'rgba(59, 130, 246, 0.35)');
+            trendGradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
 
             const trendChart = new Chart(trendCanvas, {
                 type: 'line',
                 data: {
                     labels: trendData.daily.labels,
-                    datasets: [{
-                        label: 'Revenue',
-                        data: trendData.daily.data,
-                        borderColor: '#60a5fa',
-                        backgroundColor: trendGradient,
-                        borderWidth: 2.5,
-                        tension: 0.4,
-                        fill: true,
-                        cubicInterpolationMode: 'monotone',
-                        pointStyle: 'circle',
-                        pointRadius: 4,
-                        pointHoverRadius: 7,
-                        pointBorderWidth: 2,
-                        pointBorderColor: '#0f172a',
-                        pointBackgroundColor: performanceColorsFor(trendData.daily.data),
-                        pointHoverBorderWidth: 2,
-                    }],
+                    datasets: [
+                        {
+                            label: 'Current',
+                            data: trendData.daily.data,
+                            borderColor: '#3b82f6',
+                            backgroundColor: trendGradient,
+                            borderWidth: 3,
+                            tension: 0.4,
+                            fill: true,
+                            cubicInterpolationMode: 'monotone',
+                            pointStyle: 'circle',
+                            pointRadius: peakPointRadii(trendData.daily.data, 5, 6),
+                            pointHoverRadius: 7,
+                            pointBorderWidth: 2,
+                            pointBorderColor: '#05070d',
+                            pointBackgroundColor: '#3b82f6',
+                            pointHoverBorderWidth: 2,
+                            order: 1,
+                        },
+                        {
+                            label: 'Previous',
+                            data: trendData.daily.compareData || [],
+                            borderColor: 'rgba(148, 163, 184, 0.55)',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            tension: 0.4,
+                            fill: false,
+                            cubicInterpolationMode: 'monotone',
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            order: 2,
+                        },
+                    ],
                 },
                 options: {
                     responsive: true,
@@ -1065,13 +1208,23 @@
                             displayColors: false,
                             callbacks: {
                                 title: (items) => items[0]?.label ?? '',
-                                label: (ctx) => 'Sales: ' + window.formatPeso(ctx.raw),
+                                label: (ctx) => (ctx.datasetIndex === 0 ? 'Sales: ' : 'Previous: ') + window.formatPeso(ctx.raw),
                             },
                         },
                     },
                     scales: {
-                        y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.08)' } },
-                        x: { grid: { display: false } },
+                        y: { display: false, beginAtZero: true },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 11, weight: '600' },
+                                callback: function (value) {
+                                    const label = this.getLabelForValue(value);
+                                    return typeof label === 'string' ? label.toUpperCase() : label;
+                                },
+                            },
+                        },
                     },
                 },
             });
@@ -1083,8 +1236,10 @@
                     const range = trendData[btn.dataset.range];
                     trendChart.data.labels = range.labels;
                     trendChart.data.datasets[0].data = range.data;
-                    trendChart.data.datasets[0].pointBackgroundColor = performanceColorsFor(range.data);
+                    trendChart.data.datasets[0].pointRadius = peakPointRadii(range.data, 5, 6);
+                    trendChart.data.datasets[1].data = range.compareData || [];
                     trendChart.update();
+                    updateSalesTrendHeader(range);
                 });
             });
         }

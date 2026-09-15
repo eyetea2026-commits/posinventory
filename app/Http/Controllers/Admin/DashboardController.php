@@ -316,30 +316,40 @@ class DashboardController extends Controller
 
     private function dailyTrend(int $days): array
     {
-        $start = today()->subDays($days - 1);
-        $rows = Billing::where('BillingDate', '>=', $start)
-            ->selectRaw('BillingDate as d, SUM(BillingAmount) as total')
-            ->groupBy('BillingDate')
-            ->pluck('total', 'd');
+        $end = today();
+        $start = $end->copy()->subDays($days - 1);
+        $compareEnd = $start->copy()->subDay();
+        $compareStart = $compareEnd->copy()->subDays($days - 1);
+
+        $rows = $this->trendWindow($start, $end, 'BillingDate', 'd');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'BillingDate', 'd');
 
         $labels = [];
         $data = [];
+        $compareLabels = [];
+        $compareData = [];
         for ($i = 0; $i < $days; $i++) {
             $date = $start->copy()->addDays($i);
             $labels[] = $date->format('M d');
             $data[] = (float) ($rows[$date->format('Y-m-d')] ?? 0);
+
+            $compareDate = $compareStart->copy()->addDays($i);
+            $compareLabels[] = $compareDate->format('M d');
+            $compareData[] = (float) ($compareRows[$compareDate->format('Y-m-d')] ?? 0);
         }
 
-        return ['labels' => $labels, 'data' => $data];
+        return $this->assembleTrend($labels, $data, $compareLabels, $compareData, $start, $end, $compareStart, $compareEnd);
     }
 
     private function weeklyTrend(int $weeks): array
     {
         $start = today()->subWeeks($weeks - 1)->startOfWeek();
-        $rows = Billing::where('BillingDate', '>=', $start)
-            ->selectRaw('YEARWEEK(BillingDate, 3) as yw, SUM(BillingAmount) as total')
-            ->groupBy('yw')
-            ->pluck('total', 'yw');
+        $end = today();
+        $compareEnd = $start->copy()->subDay();
+        $compareStart = $compareEnd->copy()->subWeeks($weeks - 1)->startOfWeek();
+
+        $rows = $this->trendWindow($start, $end, 'YEARWEEK(BillingDate, 3)', 'yw');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'YEARWEEK(BillingDate, 3)', 'yw');
 
         $labels = [];
         $data = [];
@@ -350,16 +360,27 @@ class DashboardController extends Controller
             $data[] = (float) ($rows[$key] ?? 0);
         }
 
-        return ['labels' => $labels, 'data' => $data];
+        $compareLabels = [];
+        $compareData = [];
+        for ($i = 0; $i < $weeks; $i++) {
+            $weekStart = $compareStart->copy()->addWeeks($i);
+            $key = (int) $weekStart->format('oW');
+            $compareLabels[] = 'Wk of ' . $weekStart->format('M d');
+            $compareData[] = (float) ($compareRows[$key] ?? 0);
+        }
+
+        return $this->assembleTrend($labels, $data, $compareLabels, $compareData, $start, $end, $compareStart, $compareEnd);
     }
 
     private function monthlyTrend(int $months): array
     {
         $start = today()->subMonthsNoOverflow($months - 1)->startOfMonth();
-        $rows = Billing::where('BillingDate', '>=', $start)
-            ->selectRaw("DATE_FORMAT(BillingDate, '%Y-%m') as ym, SUM(BillingAmount) as total")
-            ->groupBy('ym')
-            ->pluck('total', 'ym');
+        $end = today();
+        $compareEnd = $start->copy()->subDay();
+        $compareStart = $compareEnd->copy()->subMonthsNoOverflow($months - 1)->startOfMonth();
+
+        $rows = $this->trendWindow($start, $end, "DATE_FORMAT(BillingDate, '%Y-%m')", 'ym');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, "DATE_FORMAT(BillingDate, '%Y-%m')", 'ym');
 
         $labels = [];
         $data = [];
@@ -369,16 +390,26 @@ class DashboardController extends Controller
             $data[] = (float) ($rows[$month->format('Y-m')] ?? 0);
         }
 
-        return ['labels' => $labels, 'data' => $data];
+        $compareLabels = [];
+        $compareData = [];
+        for ($i = 0; $i < $months; $i++) {
+            $month = $compareStart->copy()->addMonthsNoOverflow($i);
+            $compareLabels[] = $month->format('M Y');
+            $compareData[] = (float) ($compareRows[$month->format('Y-m')] ?? 0);
+        }
+
+        return $this->assembleTrend($labels, $data, $compareLabels, $compareData, $start, $end, $compareStart, $compareEnd);
     }
 
     private function yearlyTrend(int $years): array
     {
         $start = today()->subYears($years - 1)->startOfYear();
-        $rows = Billing::where('BillingDate', '>=', $start)
-            ->selectRaw('YEAR(BillingDate) as y, SUM(BillingAmount) as total')
-            ->groupBy('y')
-            ->pluck('total', 'y');
+        $end = today();
+        $compareEnd = $start->copy()->subDay();
+        $compareStart = $compareEnd->copy()->subYears($years - 1)->startOfYear();
+
+        $rows = $this->trendWindow($start, $end, 'YEAR(BillingDate)', 'y');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'YEAR(BillingDate)', 'y');
 
         $labels = [];
         $data = [];
@@ -388,6 +419,53 @@ class DashboardController extends Controller
             $data[] = (float) ($rows[$year] ?? 0);
         }
 
-        return ['labels' => $labels, 'data' => $data];
+        $compareLabels = [];
+        $compareData = [];
+        for ($i = 0; $i < $years; $i++) {
+            $year = $compareStart->copy()->addYears($i)->year;
+            $compareLabels[] = (string) $year;
+            $compareData[] = (float) ($compareRows[$year] ?? 0);
+        }
+
+        return $this->assembleTrend($labels, $data, $compareLabels, $compareData, $start, $end, $compareStart, $compareEnd);
+    }
+
+    /**
+     * Revenue grouped into buckets by an arbitrary SQL expression, bounded
+     * to a specific date window — shared by the current and comparison
+     * series of every trend granularity above.
+     */
+    private function trendWindow($start, $end, string $groupRaw, string $groupAlias)
+    {
+        return Billing::whereBetween('BillingDate', [$start->toDateString(), $end->toDateString()])
+            ->selectRaw("{$groupRaw} as {$groupAlias}, SUM(BillingAmount) as total")
+            ->groupBy($groupAlias)
+            ->pluck('total', $groupAlias);
+    }
+
+    /**
+     * Bundles a trend series with the "Was this you?" header numbers the
+     * Sales Trend card shows (invoice count, revenue total, and the
+     * percentage change against the immediately preceding period of the
+     * same length) plus a human-readable range label for each series,
+     * shown as the current/previous badge tooltips.
+     */
+    private function assembleTrend(array $labels, array $data, array $compareLabels, array $compareData, $start, $end, $compareStart, $compareEnd): array
+    {
+        $invoiceCount = Billing::whereBetween('BillingDate', [$start->toDateString(), $end->toDateString()])->count();
+        $revenueTotal = round(array_sum($data), 2);
+        $compareRevenueTotal = round(array_sum($compareData), 2);
+
+        return [
+            'labels' => $labels,
+            'data' => $data,
+            'compareLabels' => $compareLabels,
+            'compareData' => $compareData,
+            'invoiceCount' => $invoiceCount,
+            'revenueTotal' => $revenueTotal,
+            'changePct' => $compareRevenueTotal > 0 ? round((($revenueTotal - $compareRevenueTotal) / $compareRevenueTotal) * 100, 1) : null,
+            'currentRangeLabel' => $start->format('M j, Y') . ' - ' . $end->format('M j, Y'),
+            'compareRangeLabel' => $compareStart->format('M j, Y') . ' - ' . $compareEnd->format('M j, Y'),
+        ];
     }
 }
