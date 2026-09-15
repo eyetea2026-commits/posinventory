@@ -113,7 +113,7 @@
                             <td>{{ $row->BillingDate }}</td>
                             <td class="text-success">₱{{ number_format($row->BillingAmount, 2) }}</td>
                             <td>{{ $row->CustomerName ?? 'Walk-in' }}</td>
-                            <td>{{ $row->payment?->PaymentMethod ?? 'N/A' }}</td>
+                            <td>{{ $row->payment?->PaymentMethod ? ucfirst($row->payment->PaymentMethod) : 'N/A' }}</td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('sales', {{ $row->BillingID }})">
                                     <i class="fas fa-eye"></i> View Details

@@ -159,7 +159,7 @@ class ReportController extends Controller
                         ['label' => 'Cashier Name', 'value' => $cashierName],
                         ['label' => 'Transaction Date & Time', 'value' => $this->fmtDateTime($transaction?->SalesTransactionDate)],
                         ['label' => 'Customer Name', 'value' => $billing->CustomerName ?: 'Walk-in Customer'],
-                        ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ?? 'N/A'],
+                        ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ? ucfirst($billing->payment->PaymentMethod) : 'N/A'],
                     ],
                 ],
                 ['heading' => 'Products Sold', 'table' => $productsTable],
