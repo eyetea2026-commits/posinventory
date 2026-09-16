@@ -54,15 +54,6 @@
         <span class="form-error" id="error-ExpectedDeliveryDate">@error('ExpectedDeliveryDate'){{ $message }}@enderror</span>
     </div>
 
-    <div class="form-group">
-        <label class="form-label" for="Status">Status <span style="color: var(--danger);">*</span></label>
-        <select id="Status" name="Status" class="form-select" required>
-            <option value="draft" {{ old('Status', 'draft') === 'draft' ? 'selected' : '' }}>Draft</option>
-            <option value="pending" {{ old('Status') === 'pending' ? 'selected' : '' }}>Pending</option>
-        </select>
-        <span class="form-error" id="error-Status">@error('Status'){{ $message }}@enderror</span>
-    </div>
-
     <div class="form-group full-width">
         <label class="form-label" for="Notes">Notes</label>
         <textarea id="Notes" name="Notes" class="form-textarea" placeholder="Optional notes...">{{ old('Notes') }}</textarea>
@@ -73,15 +64,6 @@
 <div class="order-items-section">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
         <h3 style="margin:0;">Order Items</h3>
-        <div class="form-group" style="margin:0; min-width:220px;">
-            <label class="form-label" for="order-category-filter">Filter Products by Category</label>
-            <select id="order-category-filter" class="form-select" onchange="filterOrderItemProducts(this.value)">
-                <option value="">All Categories</option>
-                @foreach($categories as $category)
-                    <option value="{{ $category->CategoryID }}">{{ $category->CategoryName }}</option>
-                @endforeach
-            </select>
-        </div>
     </div>
     <span class="form-error" id="error-products" style="display: block; margin-bottom: 12px;">@error('products'){{ $message }}@enderror</span>
 
@@ -153,8 +135,6 @@
         container.innerHTML = '';
         orderItemIndex = 0;
         addOrderItem();
-        const categoryFilter = document.getElementById('order-category-filter');
-        if (categoryFilter) categoryFilter.value = '';
     }
 
     // Shows the product's currently stored cost as the read-only "Previous
@@ -176,18 +156,6 @@
         if (costInput && hasPreviousCost) {
             costInput.value = cost.toFixed(2);
         }
-    }
-
-    // Filters every product <select> currently in the Order Items list down
-    // to the chosen category — purely a picking aid, doesn't affect what's
-    // already selected in a row.
-    function filterOrderItemProducts(categoryId) {
-        document.querySelectorAll('.order-item-product').forEach(function (select) {
-            Array.from(select.options).forEach(function (option) {
-                if (!option.value) return;
-                option.hidden = categoryId !== '' && option.dataset.category !== categoryId;
-            });
-        });
     }
 
     document.addEventListener('DOMContentLoaded', function () {

@@ -263,6 +263,10 @@ Route::prefix('admin')->group(function () {
         ->name('admin.stock-receivings.create')->middleware(['auth', 'role:admin']);
     Route::post('stock-receivings', [App\Http\Controllers\Admin\StockReceivingController::class, 'store'])
         ->name('admin.stock-receivings.store')->middleware(['auth', 'role:admin']);
+    Route::get('stock-receivings/batches/{stockReceivingBatch}', [App\Http\Controllers\Admin\StockReceivingController::class, 'showBatch'])
+        ->name('admin.stock-receivings.batches.show')->middleware(['auth', 'role:admin']);
+    Route::post('stock-receivings/batches/{stockReceivingBatch}/add-to-inventory', [App\Http\Controllers\Admin\StockReceivingController::class, 'addToInventory'])
+        ->name('admin.stock-receivings.batches.add-to-inventory')->middleware(['auth', 'role:admin']);
 
     Route::get('purchase-orders', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'index'])
         ->name('admin.purchase-orders.index')->middleware(['auth', 'role:admin']);

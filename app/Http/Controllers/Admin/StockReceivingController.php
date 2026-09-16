@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockReceiving;
+use App\Models\StockReceivingBatch;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Notifications\ProductReceived;
@@ -48,12 +49,145 @@ class StockReceivingController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // The two new tabs below the legacy list above: every Purchase
+        // Order sent here by printing (PurchaseOrderController::
+        // printPreview()) shows up in one or the other depending on its
+        // batch's own Status — nothing here touches the legacy
+        // StockReceiving rows/query above.
+        $pendingBatches = StockReceivingBatch::with(['purchaseOrder.supplier', 'purchaseOrder.items.product'])
+            ->where('Status', StockReceivingBatch::STATUS_PENDING)
+            ->orderByDesc('created_at')
+            ->get();
+
+        $completedBatches = StockReceivingBatch::with(['purchaseOrder.supplier', 'purchaseOrder.items.product', 'receivedByUser'])
+            ->where('Status', StockReceivingBatch::STATUS_COMPLETED)
+            ->orderByDesc('CompletedAt')
+            ->get();
+
         return view('admin.stock-receivings.index', [
             'receivings' => $receivings,
             'search' => $search,
             'products' => Product::orderBy('ProductName')->get(),
             'suppliers' => Supplier::orderBy('SupplierName')->get(),
+            'pendingBatches' => $pendingBatches,
+            'completedBatches' => $completedBatches,
         ]);
+    }
+
+    // AJAX View Details for a Pending/Completed batch — the PO's own items
+    // (Product, ordered Quantity read-only, ReceivedQuantity and
+    // ReceiptNumber editable) plus the "Add to Inventory" button's target.
+    public function showBatch(StockReceivingBatch $stockReceivingBatch)
+    {
+        $stockReceivingBatch->load(['purchaseOrder.supplier', 'purchaseOrder.items.product']);
+
+        return response()->json([
+            'html' => view('admin.stock-receivings.partials.batch-details', [
+                'batch' => $stockReceivingBatch,
+            ])->render(),
+        ]);
+    }
+
+    // The core of the Pending -> Completed workflow. Everything below runs
+    // in one transaction: if any line fails validation or any write throws,
+    // the whole thing rolls back — the batch stays exactly Pending, nothing
+    // in Inventory is partially updated, and the record stays visible in
+    // the Pending / Expected Delivery tab untouched. Only once every line
+    // has been written does the batch flip to Completed and the linked
+    // Purchase Order's own Status advance.
+    public function addToInventory(Request $request, StockReceivingBatch $stockReceivingBatch)
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:PurchaseOrderItem,PurchaseOrderItemID'],
+            'items.*.quantity_received' => ['required', 'integer', 'min:0'],
+            'items.*.receipt_number' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        try {
+            DB::transaction(function () use ($data, $stockReceivingBatch) {
+                $lockedBatch = StockReceivingBatch::where('StockReceivingBatchID', $stockReceivingBatch->StockReceivingBatchID)
+                    ->where('Status', StockReceivingBatch::STATUS_PENDING)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $lockedBatch) {
+                    throw new \RuntimeException('This delivery has already been completed or no longer exists.');
+                }
+
+                $purchaseOrder = PurchaseOrder::where('PurchaseOrderID', $lockedBatch->PurchaseOrderID)
+                    ->lockForUpdate()
+                    ->first();
+
+                foreach ($data['items'] as $row) {
+                    $item = PurchaseOrderItem::where('PurchaseOrderItemID', $row['purchase_order_item_id'])
+                        ->where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $item) {
+                        throw new \RuntimeException('That order line no longer belongs to this purchase order.');
+                    }
+
+                    $quantityReceived = (int) $row['quantity_received'];
+
+                    if ($quantityReceived > $item->Quantity) {
+                        throw new \RuntimeException("Quantity Received for \"{$item->product?->ProductName}\" cannot exceed the ordered quantity of {$item->Quantity}.");
+                    }
+
+                    $item->update([
+                        'ReceivedQuantity' => $quantityReceived,
+                        'ReceiptNumber' => $row['receipt_number'] ?? null,
+                    ]);
+
+                    if ($quantityReceived <= 0) {
+                        continue;
+                    }
+
+                    // Locked, computed, and saved entirely inside the
+                    // transaction — the same TOCTOU-safe pattern already
+                    // used by the legacy store() below and Stock Adjustment.
+                    $inventory = Inventory::where('ProductID', $item->ProductID)->lockForUpdate()->first();
+                    if (! $inventory) {
+                        Inventory::firstOrCreate(['ProductID' => $item->ProductID], ['Quantity' => 0, 'Status' => 'Out of Stock']);
+                        $inventory = Inventory::where('ProductID', $item->ProductID)->lockForUpdate()->first();
+                    }
+
+                    // Only the ACTUAL received amount is added to Inventory
+                    // — never the originally ordered Quantity, which stays
+                    // untouched on the PurchaseOrderItem as the reference.
+                    $inventory->Quantity += $quantityReceived;
+                    $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
+                    $inventory->save();
+                }
+
+                $lockedBatch->update([
+                    'Status' => StockReceivingBatch::STATUS_COMPLETED,
+                    'ReceivedBy' => auth()->id(),
+                    'CompletedAt' => now(),
+                ]);
+
+                $purchaseOrder->load('items');
+                $purchaseOrder->update([
+                    'Status' => $purchaseOrder->isFullyReceived()
+                        ? PurchaseOrder::STATUS_FULLY_RECEIVED
+                        : PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                ]);
+
+                ActivityLog::record('stock_receiving_batch.completed', "Completed receiving for PO #{$purchaseOrder->PONumber}");
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (Throwable $e) {
+            Log::error('Failed to complete stock receiving batch', [
+                'batch_id' => $stockReceivingBatch->StockReceivingBatchID,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Failed to add received stock to Inventory. Please try again.');
+        }
+
+        return redirect()->route('admin.stock-receivings.index')->with('success', 'Stock added to Inventory. This delivery is now marked Completed.');
     }
 
     public function create(Request $request)

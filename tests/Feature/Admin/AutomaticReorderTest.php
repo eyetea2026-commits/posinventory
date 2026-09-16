@@ -138,9 +138,12 @@ class AutomaticReorderTest extends TestCase
 
         $response->assertRedirect(route('admin.purchase-orders.index'));
 
+        // Every new Purchase Order starts as a Draft, including this
+        // Inventory-reorder-triggered one — it used to jump straight to
+        // Pending, skipping the review step Draft exists for.
         $this->assertDatabaseHas('PurchaseOrder', [
             'SupplierID' => $this->supplier->SupplierID,
-            'Status' => PurchaseOrder::STATUS_PENDING,
+            'Status' => PurchaseOrder::STATUS_DRAFT,
             'Notes' => 'Restocking low inventory',
         ]);
         $this->assertDatabaseHas('PurchaseOrderItem', [

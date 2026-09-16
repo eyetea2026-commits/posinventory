@@ -63,6 +63,15 @@ class PurchaseOrder extends Model
         return $this->hasMany(StockReceiving::class, 'PurchaseOrderID', 'PurchaseOrderID');
     }
 
+    // The single Stock Receiving batch this PO was sent into when printed
+    // (see PurchaseOrderController::printPreview()) — distinct from the
+    // legacy per-line stockReceivings() log above, which the manual "Record
+    // Receipt" flow still uses independently.
+    public function stockReceivingBatch()
+    {
+        return $this->hasOne(StockReceivingBatch::class, 'PurchaseOrderID', 'PurchaseOrderID');
+    }
+
     public function createdByUser()
     {
         return $this->belongsTo(User::class, 'CreatedBy', 'id');

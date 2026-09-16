@@ -239,18 +239,25 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertSame(0, PurchaseOrder::count());
     }
 
-    public function test_approved_purchase_orders_cannot_be_created_directly(): void
+    public function test_status_is_always_draft_regardless_of_what_the_request_sends(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
             'SupplierID' => $this->supplier->SupplierID,
             'PurchaseDate' => now()->format('Y-m-d'),
             'Status' => 'approved',
             'products' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 5],
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600],
             ],
         ]);
 
-        $response->assertSessionHasErrors('Status');
+        $response->assertSessionDoesntHaveErrors();
+        $response->assertRedirect(route('admin.purchase-orders.index'));
+
+        $this->assertDatabaseHas('PurchaseOrder', [
+            'SupplierID' => $this->supplier->SupplierID,
+            'Status' => PurchaseOrder::STATUS_DRAFT,
+        ]);
+        $this->assertDatabaseMissing('PurchaseOrder', ['Status' => 'approved']);
     }
 
     private function makeOrder(array $overrides = []): PurchaseOrder
@@ -358,19 +365,22 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertSee('Export PDF');
     }
 
-    public function test_index_actions_column_links_to_print_not_export(): void
+    // Print and Edit no longer have their own row actions in the list —
+    // Print now lives inside View Details (and is what moves a Draft PO to
+    // Pending, see the printing-triggers-receiving tests below), and Edit
+    // has no entry point here at all anymore.
+    public function test_index_actions_column_only_shows_view_details(): void
     {
         $po = $this->makeOrder();
 
         $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'));
 
         $response->assertOk();
-        $response->assertSee(route('admin.purchase-orders.print', $po), false);
         $response->assertDontSee(route('admin.purchase-orders.export', $po), false);
         $response->assertSee("openViewPurchaseOrderModal(event, {$po->PurchaseOrderID})", false);
     }
 
-    public function test_index_shows_an_edit_action_for_editable_statuses_only(): void
+    public function test_index_never_shows_an_edit_action_regardless_of_status(): void
     {
         $editablePo = $this->makeOrder(['PONumber' => 'PO-TEST-EDITABLE', 'Status' => PurchaseOrder::STATUS_PENDING]);
         $lockedPo = $this->makeOrder(['PONumber' => 'PO-TEST-LOCKED', 'Status' => PurchaseOrder::STATUS_APPROVED]);
@@ -378,7 +388,7 @@ class PurchaseOrderModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'));
 
         $response->assertOk();
-        $response->assertSee("openEditPurchaseOrderModal(event, {$editablePo->PurchaseOrderID})", false);
+        $response->assertDontSee("openEditPurchaseOrderModal(event, {$editablePo->PurchaseOrderID})", false);
         $response->assertDontSee("openEditPurchaseOrderModal(event, {$lockedPo->PurchaseOrderID})", false);
     }
 

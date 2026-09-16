@@ -123,55 +123,7 @@
                     </tr>
                 </thead>
                 <tbody id="purchaseOrdersTbody">
-                    @forelse($purchaseOrders as $order)
-                        <tr>
-                            <td>
-                                <span class="badge badge-primary">{{ $order->PONumber }}</span>
-                            </td>
-                            <td><strong>{{ $order->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
-                            <td>{{ \Illuminate\Support\Carbon::parse($order->PurchaseDate)->format('M d, Y') }}</td>
-                            <td>{{ $order->items->count() }} items</td>
-                            <td>
-                                @php
-                                    $badgeClass = match($order->Status) {
-                                        \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-success',
-                                        \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-warning',
-                                        \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-info',
-                                        \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-danger',
-                                        default => 'badge-secondary',
-                                    };
-                                @endphp
-                                <span class="badge {{ $badgeClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$order->Status] ?? ucfirst($order->Status) }}</span>
-                            </td>
-                            <td>
-                                <div class="actions-group">
-                                    <!-- REQ059: View purchase order details -->
-                                    <a href="#" class="action-btn view" title="View Details" onclick="openViewPurchaseOrderModal(event, {{ $order->PurchaseOrderID }})">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    @if(in_array($order->Status, \App\Models\PurchaseOrder::EDITABLE_STATUSES, true))
-                                        <a href="#" class="action-btn edit" title="Edit" onclick="openEditPurchaseOrderModal(event, {{ $order->PurchaseOrderID }})">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                    @endif
-                                    <a href="{{ route('admin.purchase-orders.print', $order) }}" target="_blank" class="action-btn" title="Print">
-                                        <i class="fas fa-print"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6">
-                                <div class="empty-state">
-                                    <div class="empty-icon"><i class="fas fa-shopping-cart"></i></div>
-                                    <p class="empty-title">No Purchase Orders</p>
-                                    <p class="empty-text">Create your first purchase order to get started.</p>
-                                    <a href="{{ route('admin.purchase-orders.create') }}" class="btn btn-primary">New Order</a>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforelse
+                    @include('admin.purchase-orders.partials.purchase-order-rows')
                 </tbody>
             </table>
         </div>
@@ -304,7 +256,7 @@
         @endif
 
         // ---- Create Purchase Order modal ----
-        const ADD_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate', 'Status'];
+        const ADD_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate'];
         let addPurchaseOrderLastFocused = null;
 
         function addPurchaseOrderIsSubmitting() {
@@ -367,12 +319,15 @@
             banner.textContent = '';
         }
 
-        function refreshPurchaseOrdersTable(html) {
-            const parsed = new DOMParser().parseFromString(html, 'text/html');
-            const newTbody = parsed.querySelector('#purchaseOrdersTbody');
+        // store() now responds to this modal's fetch() with just the row
+        // markup (see PurchaseOrderController::store()) instead of a full
+        // page to scrape — this is the "row-html" shape, distinct from the
+        // "full-page-html" shape window.submitAjaxForm() (still used by
+        // every other Add-X modal in the app) expects.
+        function refreshPurchaseOrdersTable(rowsHtml) {
             const currentTbody = document.getElementById('purchaseOrdersTbody');
-            if (newTbody && currentTbody) {
-                currentTbody.innerHTML = newTbody.innerHTML;
+            if (currentTbody) {
+                currentTbody.innerHTML = rowsHtml;
             }
         }
 
@@ -479,27 +434,58 @@
                 clearAddPurchaseOrderFieldErrors();
                 hideAddPurchaseOrderGeneralError();
 
-                window.submitAjaxForm(form, '{{ route('admin.purchase-orders.store') }}', {
-                    onFieldErrors: function (errors) {
-                        showAddPurchaseOrderFieldErrors(errors);
-                        resetAddPurchaseOrderSubmitButton();
+                // A dedicated fetch here (not the shared window.submitAjaxForm
+                // helper every other Add-X modal uses) because store() now
+                // answers this request with lean JSON — {success, message,
+                // html: <rows only>} — instead of a redirect the caller
+                // follows and scrapes a whole re-rendered page out of. That
+                // full-page round trip was the actual cause of "saving is
+                // slow"; this is the fix.
+                fetch('{{ route('admin.purchase-orders.store') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
                     },
-                    onSuccess: function (html, message) {
-                        refreshPurchaseOrdersTable(html);
-                        closePurchaseOrderModal();
-                        Swal.fire({
-                            title: 'Success',
-                            text: message,
-                            icon: 'success',
-                            confirmButtonColor: '#10b981',
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                    },
-                    onOtherError: function (message) {
-                        showAddPurchaseOrderGeneralError(message);
+                    body: new FormData(form)
+                }).then(async function (response) {
+                    if (response.status === 422) {
+                        const data = await response.json();
+                        showAddPurchaseOrderFieldErrors(data.errors || {});
                         resetAddPurchaseOrderSubmitButton();
+                        return;
                     }
+                    if (response.status === 419) {
+                        showAddPurchaseOrderGeneralError('Your session has expired. Please refresh the page and try again.');
+                        resetAddPurchaseOrderSubmitButton();
+                        return;
+                    }
+                    if (response.status === 401 || response.status === 403) {
+                        showAddPurchaseOrderGeneralError('You have been logged out. Please log in again.');
+                        resetAddPurchaseOrderSubmitButton();
+                        return;
+                    }
+                    if (!response.ok) {
+                        showAddPurchaseOrderGeneralError('A server error occurred while saving. Please try again, and contact support if the problem continues.');
+                        resetAddPurchaseOrderSubmitButton();
+                        return;
+                    }
+
+                    const data = await response.json();
+                    refreshPurchaseOrdersTable(data.html);
+                    closePurchaseOrderModal();
+                    Swal.fire({
+                        title: 'Success',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }).catch(function () {
+                    showAddPurchaseOrderGeneralError('A network error occurred. Please try again.');
+                    resetAddPurchaseOrderSubmitButton();
                 });
             });
         });

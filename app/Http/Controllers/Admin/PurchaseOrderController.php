@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\StockReceivingBatch;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Notifications\PurchaseOrderApproved;
@@ -44,6 +45,10 @@ class PurchaseOrderController extends Controller
         $categoryId = $request->query('category_id');
 
         $purchaseOrders = PurchaseOrder::with(['supplier', 'items.product'])
+            // Once a PO has been printed it's been sent into the Stock
+            // Receiving queue (see printPreview()) and belongs in that
+            // module's Pending/Completed tabs instead of here.
+            ->whereDoesntHave('stockReceivingBatch')
             ->when($search, function ($query, $search) {
                 $query->where('PONumber', 'like', "%{$search}%")
                     ->orWhere('Status', 'like', "%{$search}%")
@@ -168,7 +173,6 @@ class PurchaseOrderController extends Controller
             'SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
             'PurchaseDate' => ['required', 'date'],
             'ExpectedDeliveryDate' => ['nullable', 'date', 'after_or_equal:PurchaseDate'],
-            'Status' => ['required', 'string', 'in:' . implode(',', PurchaseOrder::EDITABLE_STATUSES)],
             'Notes' => ['nullable', 'string', 'max:1000'],
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_id' => ['required', 'integer', 'exists:Product,ProductID'],
@@ -181,11 +185,15 @@ class PurchaseOrderController extends Controller
         ]);
 
         $purchaseOrder = DB::transaction(function () use ($data) {
+            // Status is never taken from the request — every new Purchase
+            // Order starts life as a Draft, full stop, regardless of what a
+            // client sends. The old Status <select> is gone from the form
+            // for the same reason.
             $purchaseOrder = PurchaseOrder::create([
                 'PurchaseDate' => $data['PurchaseDate'],
                 'ExpectedDeliveryDate' => $data['ExpectedDeliveryDate'] ?? null,
                 'Notes' => $data['Notes'] ?? null,
-                'Status' => $data['Status'],
+                'Status' => PurchaseOrder::STATUS_DRAFT,
                 'SupplierID' => $data['SupplierID'],
                 'CreatedBy' => auth()->id(),
             ]);
@@ -220,7 +228,32 @@ class PurchaseOrderController extends Controller
         $supplier = Supplier::find($data['SupplierID']);
         ActivityLog::record('purchase_order.created', "Created PO #{$purchaseOrder->PONumber} for \"{$supplier?->SupplierName}\"");
 
-        return redirect()->route('admin.purchase-orders.index')->with('success', "Purchase order {$purchaseOrder->PONumber} created successfully.");
+        $message = "Purchase order {$purchaseOrder->PONumber} created successfully.";
+
+        // The "Create Purchase Order" modal's fetch() sends Accept:
+        // application/json — respond with just the new row markup instead
+        // of redirecting to index() and making it re-fetch/re-render the
+        // whole page (every product/supplier/category dropdown, full page
+        // chrome, ...) only to scrape the table back out of it, which was
+        // the actual cause of "saving is slow". The standalone, non-AJAX
+        // create.blade.php page's plain form POST doesn't send that header,
+        // so it keeps getting the original redirect untouched.
+        if ($request->wantsJson()) {
+            $purchaseOrders = PurchaseOrder::with(['supplier', 'items.product'])
+                ->whereDoesntHave('stockReceivingBatch')
+                ->orderByDesc('created_at')
+                ->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'html' => view('admin.purchase-orders.partials.purchase-order-rows', [
+                    'purchaseOrders' => $purchaseOrders,
+                ])->render(),
+            ]);
+        }
+
+        return redirect()->route('admin.purchase-orders.index')->with('success', $message);
     }
 
     // Submission for the dedicated reorder form: only Order Quantity and
@@ -262,10 +295,13 @@ class PurchaseOrderController extends Controller
                 ActivityLog::record('product_supplier.assigned', "Assigned supplier for \"{$product->ProductName}\" while creating a purchase order");
             }
 
+            // Every new Purchase Order starts as a Draft, no matter how it
+            // was created — this one used to jump straight to Pending,
+            // which skipped the review step the Draft status exists for.
             $purchaseOrder = PurchaseOrder::create([
                 'PurchaseDate' => now()->toDateString(),
                 'Notes' => $data['Remarks'] ?? null,
-                'Status' => PurchaseOrder::STATUS_PENDING,
+                'Status' => PurchaseOrder::STATUS_DRAFT,
                 'SupplierID' => $data['SupplierID'],
                 'CreatedBy' => auth()->id(),
             ]);
@@ -608,9 +644,48 @@ class PurchaseOrderController extends Controller
     // dompdf download — reviewed on-screen before printing, matching the
     // admin.damages.print / cashier receipt convention already used
     // elsewhere for printable documents.
+    // Clicking Print inside View Details is what actually sends a Draft PO
+    // into the receiving queue: Draft -> Pending, plus a StockReceivingBatch
+    // is created so it shows up in Stock Receiving -> Pending/Expected
+    // Delivery. This route is a GET (opens in a new tab), so it isn't
+    // idempotent by default — the transition is guarded to only fire when
+    // the PO is still Draft, locked the same way submit()/approve()/
+    // cancel() already guard their own transitions above, and the batch's
+    // PurchaseOrderID column is UNIQUE as a hard backstop against ever
+    // creating two batches for the same PO even under a race. Printing an
+    // already-Pending (or later-stage) PO just re-renders the print view.
     public function printPreview(PurchaseOrder $purchaseOrder)
     {
-        $purchaseOrder->load(['supplier', 'items.product', 'createdByUser', 'approvedByUser']);
+        try {
+            DB::transaction(function () use ($purchaseOrder) {
+                $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
+                    ->where('Status', PurchaseOrder::STATUS_DRAFT)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $locked) {
+                    return;
+                }
+
+                $locked->update(['Status' => PurchaseOrder::STATUS_PENDING]);
+
+                StockReceivingBatch::firstOrCreate(
+                    ['PurchaseOrderID' => $locked->PurchaseOrderID],
+                    ['Status' => StockReceivingBatch::STATUS_PENDING]
+                );
+
+                ActivityLog::record('purchase_order.printed', "Printed PO #{$locked->PONumber} — sent to Stock Receiving");
+            });
+        } catch (Throwable $e) {
+            Log::error('Failed to transition purchase order to pending on print', [
+                'purchase_order_id' => $purchaseOrder->PurchaseOrderID,
+                'exception' => $e->getMessage(),
+            ]);
+            // Printing must still work even if the status transition fails
+            // for some reason — the admin still needs the document.
+        }
+
+        $purchaseOrder->refresh()->load(['supplier', 'items.product', 'createdByUser', 'approvedByUser']);
 
         return view('admin.purchase-orders.print', ['purchaseOrder' => $purchaseOrder]);
     }

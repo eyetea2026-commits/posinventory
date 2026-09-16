@@ -17,6 +17,7 @@ class PurchaseOrderItem extends Model
     protected $fillable = [
         'Quantity',
         'ReceivedQuantity',
+        'ReceiptNumber',
         'CostPriceAtOrder',
         'PurchaseOrderID',
         'ProductID',
