@@ -117,9 +117,53 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $po = $this->makeDraftOrder();
 
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $firstBatchId = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->value('StockReceivingBatchID');
+
+        // Print two more times for good measure -- covers both "already
+        // Pending" (this PO's actual state right now) and repeated clicks
+        // in general.
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
 
         $this->assertSame(1, StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->count());
+        $this->assertSame($firstBatchId, StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->value('StockReceivingBatchID'));
+        $this->assertSame(1, PurchaseOrder::where('PurchaseOrderID', $po->PurchaseOrderID)->count());
+        $this->assertSame(PurchaseOrder::STATUS_PENDING, $po->fresh()->Status);
+    }
+
+    // Explicitly covers the "already Completed" case: printing a PO whose
+    // batch has already been completed (Add to Inventory already ran) must
+    // not create a second batch, must not touch Inventory again, and must
+    // not change the PO's own (now Partially/Fully Received) status.
+    public function test_printing_a_po_whose_batch_is_already_completed_changes_nothing(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
+
+        $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
+        $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
+
+        $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'items' => [
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50],
+                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
+            ],
+        ]);
+
+        $statusAfterCompletion = $po->fresh()->Status;
+        $inventoryAAfterCompletion = Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity');
+        $inventoryBAfterCompletion = Inventory::where('ProductID', $this->productB->ProductID)->value('Quantity');
+
+        // Printing again now that the batch is Completed and the PO has
+        // moved on to Fully Received — must be a total no-op.
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+
+        $this->assertSame(1, StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->count());
+        $this->assertSame(StockReceivingBatch::STATUS_COMPLETED, $batch->fresh()->Status);
+        $this->assertSame($statusAfterCompletion, $po->fresh()->Status);
+        $this->assertSame($inventoryAAfterCompletion, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
+        $this->assertSame($inventoryBAfterCompletion, Inventory::where('ProductID', $this->productB->ProductID)->value('Quantity'));
     }
 
     public function test_add_to_inventory_with_partial_quantity_only_adds_what_was_actually_received(): void

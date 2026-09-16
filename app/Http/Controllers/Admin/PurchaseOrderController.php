@@ -658,6 +658,12 @@ class PurchaseOrderController extends Controller
     {
         try {
             DB::transaction(function () use ($purchaseOrder) {
+                // Only a still-Draft PO can start this transition — once it's
+                // Pending (already sent to receiving), Approved/Partially/
+                // Fully Received (progressed via the legacy path), or
+                // Cancelled, this lock simply matches nothing and the method
+                // falls through to just rendering the print view, no matter
+                // how many times Print is clicked.
                 $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
                     ->where('Status', PurchaseOrder::STATUS_DRAFT)
                     ->lockForUpdate()
@@ -667,12 +673,31 @@ class PurchaseOrderController extends Controller
                     return;
                 }
 
+                // Belt-and-suspenders: even though a batch can only exist
+                // once this PO has already left Draft, explicitly re-check
+                // for one under the same lock before creating anything —
+                // this is the "always check before creating" guarantee,
+                // made explicit rather than left implicit in firstOrCreate()
+                // below, and it's what makes a future edge case (e.g. a
+                // Draft status somehow restored on a PO that already has a
+                // batch) fail safe instead of silently duplicating.
+                $existingBatch = StockReceivingBatch::where('PurchaseOrderID', $locked->PurchaseOrderID)->first();
+                if ($existingBatch) {
+                    ActivityLog::record('purchase_order.print_duplicate_prevented', "Print re-triggered for PO #{$locked->PONumber} but a Stock Receiving record already exists — skipped.");
+
+                    return;
+                }
+
                 $locked->update(['Status' => PurchaseOrder::STATUS_PENDING]);
 
-                StockReceivingBatch::firstOrCreate(
-                    ['PurchaseOrderID' => $locked->PurchaseOrderID],
-                    ['Status' => StockReceivingBatch::STATUS_PENDING]
-                );
+                // The StockReceivingBatch.PurchaseOrderID UNIQUE constraint
+                // is the hard backstop underneath this: even if two requests
+                // somehow got past the checks above at the same time, only
+                // one insert can ever succeed.
+                StockReceivingBatch::create([
+                    'PurchaseOrderID' => $locked->PurchaseOrderID,
+                    'Status' => StockReceivingBatch::STATUS_PENDING,
+                ]);
 
                 ActivityLog::record('purchase_order.printed', "Printed PO #{$locked->PONumber} — sent to Stock Receiving");
             });
