@@ -525,10 +525,13 @@ class PurchaseOrderModuleTest extends TestCase
 
     // Product selection for ad-hoc receiving is one searchable field
     // (native datalist on a text input), not a plain <select> with a
-    // separate search box beside it.
+    // separate search box beside it. The manual "Record Receipt" entry
+    // form now only lives on its own standalone create page — the index
+    // page's inline modal for it was removed, but this underlying feature
+    // is otherwise untouched.
     public function test_stock_receiving_product_selection_is_a_single_searchable_field(): void
     {
-        $response = $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'));
+        $response = $this->actingAs($this->admin)->get(route('admin.stock-receivings.create'));
 
         $response->assertOk();
         $response->assertSee('list="productOptions"', false);

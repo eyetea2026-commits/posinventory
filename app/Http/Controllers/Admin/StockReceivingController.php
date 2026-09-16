@@ -33,27 +33,14 @@ class StockReceivingController extends Controller
         });
     }
 
-    public function index(Request $request)
+    // The legacy per-item StockReceiving list/search (a flat manual-entry
+    // audit log) no longer has a view to render it in — this page now shows
+    // only the Purchase Order Deliveries tabs below. The StockReceiving
+    // table, create()/store() (still reachable directly), and the "ad hoc"
+    // manual-entry business logic are all untouched; only this now-unused
+    // read query is gone.
+    public function index()
     {
-        $search = $request->query('search');
-
-        $receivings = StockReceiving::with(['product', 'supplier'])
-            ->when($search, function ($query, $search) {
-                $query->whereHas('product', function ($product) use ($search) {
-                    $product->where('ProductName', 'like', "%{$search}%");
-                })->orWhereHas('supplier', function ($supplier) use ($search) {
-                    $supplier->where('SupplierName', 'like', "%{$search}%");
-                });
-            })
-            ->orderByDesc('DateReceived')
-            ->paginate(15)
-            ->withQueryString();
-
-        // The two new tabs below the legacy list above: every Purchase
-        // Order sent here by printing (PurchaseOrderController::
-        // printPreview()) shows up in one or the other depending on its
-        // batch's own Status — nothing here touches the legacy
-        // StockReceiving rows/query above.
         $pendingBatches = StockReceivingBatch::with(['purchaseOrder.supplier', 'purchaseOrder.items.product'])
             ->where('Status', StockReceivingBatch::STATUS_PENDING)
             ->orderByDesc('created_at')
@@ -65,10 +52,6 @@ class StockReceivingController extends Controller
             ->get();
 
         return view('admin.stock-receivings.index', [
-            'receivings' => $receivings,
-            'search' => $search,
-            'products' => Product::orderBy('ProductName')->get(),
-            'suppliers' => Supplier::orderBy('SupplierName')->get(),
             'pendingBatches' => $pendingBatches,
             'completedBatches' => $completedBatches,
         ]);
