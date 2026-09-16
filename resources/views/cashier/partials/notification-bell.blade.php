@@ -20,19 +20,21 @@
                 </form>
             @endif
         </div>
-        @forelse(($headerUnreadNotifications ?? collect()) as $notification)
-            <a href="{{ route('cashier.notifications.read', $notification->id) }}"
-               onclick="event.preventDefault(); this.nextElementSibling.submit();"
-               class="notif-item">
-                {{ $notification->data['title'] ?? 'Notification' }}
-                <br><small>{{ Str::limit($notification->data['description'] ?? '', 60) }}</small>
-            </a>
-            <form method="POST" action="{{ route('cashier.notifications.read', $notification->id) }}" style="display:none;">
-                @csrf
-            </form>
-        @empty
-            <div class="notif-empty">You're all caught up.</div>
-        @endforelse
+        <div class="notif-items">
+            @forelse(($headerUnreadNotifications ?? collect()) as $notification)
+                <a href="{{ route('cashier.notifications.read', $notification->id) }}"
+                   onclick="event.preventDefault(); this.nextElementSibling.submit();"
+                   class="notif-item">
+                    {{ $notification->data['title'] ?? 'Notification' }}
+                    <br><small>{{ Str::limit($notification->data['description'] ?? '', 60) }}</small>
+                </a>
+                <form method="POST" action="{{ route('cashier.notifications.read', $notification->id) }}" style="display:none;">
+                    @csrf
+                </form>
+            @empty
+                <div class="notif-empty">You're all caught up.</div>
+            @endforelse
+        </div>
         <a href="{{ route('cashier.notifications.index') }}" class="notif-view-all">View all notifications</a>
     </div>
 </div>

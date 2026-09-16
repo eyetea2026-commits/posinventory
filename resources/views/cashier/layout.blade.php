@@ -381,6 +381,7 @@
         }
         .notif-dropdown {
             display: none;
+            flex-direction: column;
             position: absolute;
             top: 100%;
             right: 0;
@@ -390,23 +391,28 @@
                overflowing past the screen edge and clipping its own
                content or the "Mark all read" / "View all" controls. */
             max-width: calc(100vw - 24px);
-            max-height: 400px;
-            overflow-y: auto;
-            background: #1a1d2d;
-            border: 1px solid rgba(148, 163, 184, 0.15);
+            background: rgba(26, 29, 45, 0.72);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(148, 163, 184, 0.18);
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.4);
             z-index: 1100;
             text-align: left;
         }
-        .notif-dropdown.active { display: block; }
-        .notif-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); font-weight: 600; }
+        .notif-dropdown.active { display: flex; }
+        .notif-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); font-weight: 600; flex-shrink: 0; }
         .notif-dropdown-header button { background: none; border: none; color: #94a3b8; font-size: 0.75rem; cursor: pointer; }
+        {{-- Only the notification list itself scrolls -- the header and
+             "View all notifications" footer link stay pinned in view, and
+             the list never grows the dropdown past a fixed height no
+             matter how many unread notifications there are. --}}
+        .notif-items { max-height: 320px; overflow-y: auto; }
         .notif-item { display: block; padding: 10px 16px; text-decoration: none; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); font-size: 0.85rem; }
         .notif-item:hover { background: rgba(59, 130, 246, 0.1); }
         .notif-item small { color: #94a3b8; }
         .notif-empty { padding: 20px 16px; color: #94a3b8; font-size: 0.85rem; text-align: center; }
-        .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; }
+        .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; flex-shrink: 0; }
     </style>
 </body>
 </html>

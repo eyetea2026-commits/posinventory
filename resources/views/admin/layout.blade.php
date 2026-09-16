@@ -85,8 +85,10 @@
             top: calc(100% + 10px);
             right: 0;
             width: 280px;
-            background: #0F172A;
-            border: 1px solid rgba(148, 163, 184, 0.15);
+            background: rgba(15, 23, 42, 0.72);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(148, 163, 184, 0.18);
             border-radius: 14px;
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
             z-index: 50;
@@ -100,6 +102,15 @@
             letter-spacing: 0.05em;
             color: #94a3b8;
             border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+        {{-- Only the notification list itself scrolls -- the header
+             ("Notifications" / "Mark all read") and the "View all
+             notifications" footer link stay pinned in view, and the list
+             never grows the dropdown past a fixed height no matter how
+             many unread notifications there are. --}}
+        .header-dropdown-items {
+            max-height: 320px;
+            overflow-y: auto;
         }
         .header-dropdown a.header-dropdown-item {
             display: flex;
@@ -259,41 +270,43 @@
                                     </form>
                                 @endif
                             </div>
-                            @if($headerUnreadNotifications->isEmpty())
-                                <div class="header-dropdown-empty">You're all caught up.</div>
-                            @else
-                                @php
-                                    $__notifIcons = [
-                                        'triangle-alert' => 'fa-triangle-exclamation',
-                                        'sliders-horizontal' => 'fa-sliders',
-                                        'clipboard-check' => 'fa-clipboard-check',
-                                        'rotate-ccw' => 'fa-rotate-left',
-                                        'shield-alert' => 'fa-shield-halved',
-                                    ];
-                                    $__notifColors = [
-                                        'danger' => '#f87171',
-                                        'warning' => '#fbbf24',
-                                        'info' => '#60a5fa',
-                                        'success' => '#34d399',
-                                    ];
-                                @endphp
-                                @foreach($headerUnreadNotifications as $notification)
+                            <div class="header-dropdown-items">
+                                @if($headerUnreadNotifications->isEmpty())
+                                    <div class="header-dropdown-empty">You're all caught up.</div>
+                                @else
                                     @php
-                                        $__color = $__notifColors[$notification->data['color'] ?? 'info'] ?? '#60a5fa';
-                                        $__icon = $__notifIcons[$notification->data['icon'] ?? ''] ?? 'fa-circle-info';
+                                        $__notifIcons = [
+                                            'triangle-alert' => 'fa-triangle-exclamation',
+                                            'sliders-horizontal' => 'fa-sliders',
+                                            'clipboard-check' => 'fa-clipboard-check',
+                                            'rotate-ccw' => 'fa-rotate-left',
+                                            'shield-alert' => 'fa-shield-halved',
+                                        ];
+                                        $__notifColors = [
+                                            'danger' => '#f87171',
+                                            'warning' => '#fbbf24',
+                                            'info' => '#60a5fa',
+                                            'success' => '#34d399',
+                                        ];
                                     @endphp
-                                    <a href="{{ route('admin.notifications.read', $notification->id) }}"
-                                       onclick="event.preventDefault(); document.getElementById('notif-read-{{ $notification->id }}').submit();"
-                                       class="header-dropdown-item">
-                                        <span><i class="fas {{ $__icon }}" style="color:{{ $__color }};"></i> {{ $notification->data['title'] ?? 'Notification' }}
-                                            <br><small style="color:var(--text-secondary);">{{ Str::limit($notification->data['description'] ?? '', 60) }}</small>
-                                        </span>
-                                    </a>
-                                    <form id="notif-read-{{ $notification->id }}" method="POST" action="{{ route('admin.notifications.read', $notification->id) }}" style="display:none;">
-                                        @csrf
-                                    </form>
-                                @endforeach
-                            @endif
+                                    @foreach($headerUnreadNotifications as $notification)
+                                        @php
+                                            $__color = $__notifColors[$notification->data['color'] ?? 'info'] ?? '#60a5fa';
+                                            $__icon = $__notifIcons[$notification->data['icon'] ?? ''] ?? 'fa-circle-info';
+                                        @endphp
+                                        <a href="{{ route('admin.notifications.read', $notification->id) }}"
+                                           onclick="event.preventDefault(); document.getElementById('notif-read-{{ $notification->id }}').submit();"
+                                           class="header-dropdown-item">
+                                            <span><i class="fas {{ $__icon }}" style="color:{{ $__color }};"></i> {{ $notification->data['title'] ?? 'Notification' }}
+                                                <br><small style="color:var(--text-secondary);">{{ Str::limit($notification->data['description'] ?? '', 60) }}</small>
+                                            </span>
+                                        </a>
+                                        <form id="notif-read-{{ $notification->id }}" method="POST" action="{{ route('admin.notifications.read', $notification->id) }}" style="display:none;">
+                                            @csrf
+                                        </form>
+                                    @endforeach
+                                @endif
+                            </div>
                             <a href="{{ route('admin.notifications.index') }}" class="header-dropdown-item" style="justify-content:center;color:var(--text-secondary);font-size:.8rem;">
                                 View all notifications
                             </a>
