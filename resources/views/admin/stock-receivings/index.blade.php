@@ -94,21 +94,22 @@
     {{-- Purchase Orders sent to receiving via Print (see
          PurchaseOrderController::printPreview()) land here, split by their
          StockReceivingBatch's own Status — both tabs are rendered up front
-         and just toggled client-side, same as the Discount module. --}}
-    <div class="card">
-        <div class="tabs-header">
-            <h2 style="margin:0;">Purchase Order Deliveries</h2>
-            <div class="chart-toggle-group">
-                <button type="button" class="chart-toggle-btn active" data-tab="pending" onclick="switchReceivingTab('pending')">
-                    Pending / Expected Delivery ({{ $pendingBatches->count() }})
-                </button>
-                <button type="button" class="chart-toggle-btn" data-tab="completed" onclick="switchReceivingTab('completed')">
-                    Completed ({{ $completedBatches->count() }})
-                </button>
-            </div>
+         and just toggled client-side. Tab button placement (above the
+         card, its own row) matches the Discount module's layout exactly:
+         admin/discounts/index.blade.php's own .tabs-header/.chart-toggle-group. --}}
+    <div class="tabs-header">
+        <div class="chart-toggle-group">
+            <button type="button" class="chart-toggle-btn active" data-tab="pending" onclick="switchReceivingTab('pending')">
+                Pending / Expected Delivery ({{ $pendingBatches->count() }})
+            </button>
+            <button type="button" class="chart-toggle-btn" data-tab="completed" onclick="switchReceivingTab('completed')">
+                Completed ({{ $completedBatches->count() }})
+            </button>
         </div>
+    </div>
 
-        <div id="tab-pending" class="tab-panel active">
+    <div id="tab-pending" class="tab-panel active">
+        <div class="card">
             <div class="table-container">
                 <table class="table">
                     <thead>
@@ -150,8 +151,10 @@
                 </table>
             </div>
         </div>
+    </div>
 
-        <div id="tab-completed" class="tab-panel">
+    <div id="tab-completed" class="tab-panel">
+        <div class="card">
             <div class="table-container">
                 <table class="table">
                     <thead>
