@@ -31,9 +31,46 @@ class AuthController extends Controller
     private const MAX_LOGIN_ATTEMPTS = 5;
     private const LOGIN_LOCKOUT_SECONDS = 60;
 
+    // Two things guard against the browser Back/Forward button showing a
+    // stale, confusing login form to someone who's actually still logged
+    // in:
+    //
+    // 1. An already-authenticated visitor is redirected straight to their
+    //    dashboard instead of ever seeing the login form — Auth::check()
+    //    reads the SAME session cookie/row the single-session guard in
+    //    login() checks, so this is the exact same "is this session still
+    //    valid" truth, just applied on the way IN instead of only at
+    //    submit time.
+    // 2. The response is sent with Cache-Control: no-store, not just
+    //    no-cache. Per the HTTP/bfcache spec, "no-cache" does NOT stop a
+    //    browser from serving this page out of its back-forward cache on
+    //    Back/Forward — only "no-store" does. Without this, pressing Back
+    //    after logging in shows a fully offline, previously-rendered copy
+    //    of this page with zero server contact; the login attempt itself
+    //    was always correctly rejected either way (the single-session
+    //    check in login() below never trusted the page you're looking at),
+    //    but forcing a fresh request here means check #1 actually runs
+    //    every time instead of only when the browser happens not to serve
+    //    this page from bfcache.
     public function showLogin()
     {
-        return view('welcome');
+        if (Auth::check()) {
+            $user = Auth::user();
+
+            if ($user->isAdmin()) {
+                return redirect('/admin/dashboard')
+                    ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, private']);
+            }
+
+            if ($user->isCashier()) {
+                return redirect('/cashier/pos')
+                    ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, private']);
+            }
+        }
+
+        return response()
+            ->view('welcome')
+            ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, private']);
     }
 
     public function login(Request $request)

@@ -197,4 +197,84 @@ class SingleSessionTest extends TestCase
         $response->assertRedirect('/cashier/pos');
         $this->assertAuthenticatedAs($secondCashier);
     }
+
+    // ---- Browser Back/Forward button after login: reported as "the
+    // session gets bypassed" — it never actually was (the single-session
+    // check below already always ran at submit time), but the login page
+    // itself is cacheable enough (Cache-Control: no-cache, not no-store)
+    // that pressing Back could show a fully offline, stale copy of the
+    // login form to someone who is in fact still logged in. Fixed by (1)
+    // redirecting an already-authenticated visit to the login route
+    // straight to that account's dashboard, and (2) marking the response
+    // no-store so Back/Forward can never serve it from bfcache without a
+    // real request reaching the server first. ----
+
+    public function test_visiting_the_login_page_while_still_authenticated_skips_the_form_and_redirects_to_the_dashboard(): void
+    {
+        $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+        $sessionId = $this->admin->fresh()->current_session_id;
+
+        // The exact "pressed Back and landed on the login route" scenario:
+        // same browser (same session cookie), a plain GET to '/'.
+        $response = $this->withCookie(config('session.cookie'), $sessionId)->get(route('welcome'));
+
+        $response->assertRedirect('/admin/dashboard');
+        $response->assertDontSee('Log in', false);
+    }
+
+    public function test_visiting_the_login_page_while_authenticated_as_cashier_redirects_to_pos(): void
+    {
+        $this->post(route('login.post'), ['username' => 'cashier1', 'password' => 'password']);
+        $sessionId = $this->cashier->fresh()->current_session_id;
+
+        $response = $this->withCookie(config('session.cookie'), $sessionId)->get(route('welcome'));
+
+        $response->assertRedirect('/cashier/pos');
+    }
+
+    public function test_login_page_is_always_sent_as_no_store_so_back_forward_cannot_serve_a_stale_copy(): void
+    {
+        $anonymous = $this->get(route('welcome'));
+        $this->assertStringContainsString('no-store', $anonymous->headers->get('Cache-Control'));
+
+        $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+        $sessionId = $this->admin->fresh()->current_session_id;
+        $authenticated = $this->withCookie(config('session.cookie'), $sessionId)->get(route('welcome'));
+        $this->assertStringContainsString('no-store', $authenticated->headers->get('Cache-Control'));
+    }
+
+    // The full reported scenario end to end: log in on browser 1, "press
+    // Back" on that same browser (still authenticated -- redirected away,
+    // never shown a login form to resubmit), and confirm browser 2 (a
+    // fresh, cookie-less client, exactly like the user's own second
+    // attempt) is still correctly denied for as long as browser 1's
+    // session remains active -- proving the session was never bypassed or
+    // duplicated at any point in this sequence.
+    public function test_pressing_back_to_the_login_page_does_not_let_a_second_browser_log_in(): void
+    {
+        $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+        $sessionId = $this->admin->fresh()->current_session_id;
+
+        $backNavigation = $this->withCookie(config('session.cookie'), $sessionId)->get(route('welcome'));
+        $backNavigation->assertRedirect('/admin/dashboard');
+
+        // Browser 1's session must be completely untouched by that back
+        // navigation -- no duplicate, no overwrite, no invalidation.
+        $this->assertSame($sessionId, $this->admin->fresh()->current_session_id);
+
+        // withCookie() persists onto every subsequent request in this test
+        // (that's what lets it simulate "the same browser" across multiple
+        // calls above) -- cleared here so this next call is a genuinely
+        // fresh, cookie-less client, exactly like the other browser-2
+        // scenarios elsewhere in this file.
+        $this->defaultCookies = [];
+
+        $secondBrowser = $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+        $secondBrowser->assertSessionHasErrors('username');
+        $this->assertStringContainsString(
+            'already logged in on another device or browser',
+            collect(session('errors')->get('username'))->implode(' ')
+        );
+        $this->assertSame($sessionId, $this->admin->fresh()->current_session_id);
+    }
 }
