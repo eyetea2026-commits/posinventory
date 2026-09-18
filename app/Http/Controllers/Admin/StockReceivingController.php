@@ -68,6 +68,10 @@ class StockReceivingController extends Controller
             'html' => view('admin.stock-receivings.partials.batch-details', [
                 'batch' => $stockReceivingBatch,
             ])->render(),
+            // Lets the modal shell's own static "Add to Inventory" button
+            // (kept there, alongside Close, rather than rendered inside the
+            // fetched partial) know whether to show itself.
+            'isPending' => $stockReceivingBatch->Status === StockReceivingBatch::STATUS_PENDING,
         ]);
     }
 

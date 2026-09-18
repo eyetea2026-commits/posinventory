@@ -73,11 +73,3 @@
         </table>
     </div>
 </form>
-
-@if($isPending)
-    <div class="modal-actions" style="margin-top:20px;">
-        <button type="button" class="btn btn-primary" id="addToInventoryBtn" onclick="submitAddToInventory({{ $batch->StockReceivingBatchID }})">
-            <i class="fas fa-boxes-stacked"></i> Add to Inventory
-        </button>
-    </div>
-@endif

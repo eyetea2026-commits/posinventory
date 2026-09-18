@@ -216,6 +216,9 @@
                 <button type="button" class="btn btn-secondary" id="batchDetailsCloseBtn">
                     <i class="fas fa-times"></i> Close
                 </button>
+                <button type="button" class="btn btn-primary" id="addToInventoryBtn" style="display:none;">
+                    <i class="fas fa-boxes-stacked"></i> Add to Inventory
+                </button>
             </div>
         </div>
     </div>
@@ -290,11 +293,23 @@
             requestAnimationFrame(function () { modal.classList.add('active'); });
             document.addEventListener('keydown', handleBatchDetailsModalKeydown);
 
+            const addToInventoryBtn = document.getElementById('addToInventoryBtn');
+            addToInventoryBtn.style.display = 'none';
+
             fetch('{{ url('admin/stock-receivings/batches') }}/' + batchId, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
             })
                 .then(function (r) { return r.json(); })
-                .then(function (data) { body.innerHTML = data.html; })
+                .then(function (data) {
+                    body.innerHTML = data.html;
+                    // Add to Inventory lives in the modal's static footer
+                    // (beside Close, same row) rather than inside the
+                    // fetched partial, so it only needs to be shown/hidden
+                    // here based on whether this batch is still Pending —
+                    // a Completed batch's read-only view has no action to
+                    // take.
+                    addToInventoryBtn.style.display = data.isPending ? '' : 'none';
+                })
                 .catch(function () {
                     body.innerHTML = '<p class="form-error">Failed to load this delivery. Please try again.</p>';
                 });
@@ -315,6 +330,7 @@
             if (e.target === this) closeBatchDetailsModal();
         });
         document.getElementById('batchDetailsCloseBtn').addEventListener('click', closeBatchDetailsModal);
+        document.getElementById('addToInventoryBtn').addEventListener('click', submitAddToInventory);
 
         // Add to Inventory — a real (non-AJAX) form submission: the backend
         // redirects back to this same page with a flash message either way
@@ -322,7 +338,10 @@
         // "Auto-show session messages" block above already turns into a
         // Swal, and the reloaded page's Pending/Completed tabs reflect the
         // outcome directly — no extra client-side state to keep in sync.
-        window.submitAddToInventory = function (batchId) {
+        // The form itself (and its action URL, already pointed at the
+        // right batch) lives inside the fetched partial in #batchDetailsBody
+        // — this button just lives in the static footer alongside Close.
+        function submitAddToInventory() {
             const form = document.getElementById('batchReceivingForm');
             if (!form || !form.checkValidity()) {
                 if (form) form.reportValidity();
