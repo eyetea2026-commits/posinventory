@@ -191,10 +191,10 @@
     /* Reused by the View Details modal's Promo Details section. */
     .apply-promo-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
     .apply-promo-detail-grid .detail-mini label {
-        display: block; font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;
+        display: block; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase;
         letter-spacing: 0.05em; margin-bottom: 3px; font-weight: 700;
     }
-    .apply-promo-detail-grid .detail-mini span { font-weight: 400; color: #e2e8f0; font-size: 0.88rem; }
+    .apply-promo-detail-grid .detail-mini span { font-weight: 400; color: #e2e8f0; font-size: 0.82rem; }
 
     /* Apply Discount/Promo popup — wide/tall card, checkbox list for
        selecting several products in one action. */
