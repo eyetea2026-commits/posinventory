@@ -3,7 +3,7 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('Administrator/SalesReturns.css') }}">
     <style>
-        #detailsModal .modal { max-width: 820px; }
+        #detailsModal .modal { max-width: 1040px; }
         .return-details-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
         @media (max-width: 640px) {
             .return-details-columns { grid-template-columns: 1fr; }
