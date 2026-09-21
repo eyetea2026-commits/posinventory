@@ -72,7 +72,7 @@
     }
     .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 16px;
         margin-bottom: 20px;
     }
@@ -95,25 +95,6 @@
         font-weight: 700;
         color: var(--text-primary);
     }
-    .recent-list {
-        margin-bottom: 20px;
-    }
-    .recent-list-header {
-        padding: 16px 24px;
-        font-weight: 600;
-        color: var(--text-muted);
-        font-size: 0.85rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .recent-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 24px;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.06);
-        font-size: 0.9rem;
-    }
-    .recent-item:last-child { border-bottom: none; }
     .search-form {
         display: flex;
         flex-wrap: wrap;
@@ -290,10 +271,6 @@
         <div class="kpi-value">{{ number_format($kpis['total']) }}</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Pending Supplier Return</div>
-        <div class="kpi-value">{{ number_format($kpis['pending_supplier_return']) }}</div>
-    </div>
-    <div class="kpi-card">
         <div class="kpi-label">Total Damage Cost</div>
         <div class="kpi-value">₱{{ number_format($kpis['total_cost'], 2) }}</div>
     </div>
@@ -301,22 +278,6 @@
         <div class="kpi-label">Returned to Supplier</div>
         <div class="kpi-value">{{ number_format($kpis['returned_to_supplier']) }}</div>
     </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Disposed Items</div>
-        <div class="kpi-value">{{ number_format($kpis['disposed']) }}</div>
-    </div>
-</div>
-
-<div class="card recent-list">
-    <div class="recent-list-header">Recently Added</div>
-    @forelse($recentlyAdded as $recent)
-        <div class="recent-item">
-            <span>{{ $recent->product?->ProductName ?? 'N/A' }} &mdash; {{ $recent->Quantity }} units</span>
-            <span class="text-muted">{{ \Carbon\Carbon::parse($recent->DateRecorded)->format('M d, Y') }}</span>
-        </div>
-    @empty
-        <div class="recent-item"><span class="text-muted">No damage records yet.</span></div>
-    @endforelse
 </div>
 
 <div class="card">

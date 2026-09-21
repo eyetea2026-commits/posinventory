@@ -62,18 +62,11 @@ class DamageController extends Controller
 
         $kpis = [
             'total' => DamagedProduct::count(),
-            'pending_supplier_return' => DamagedProduct::where('Status', DamagedProduct::STATUS_FOR_SUPPLIER_RETURN)->count(),
             'returned_to_supplier' => DamagedProduct::where('Status', DamagedProduct::STATUS_RETURNED_TO_SUPPLIER)->count(),
-            'disposed' => DamagedProduct::where('Status', DamagedProduct::STATUS_DISPOSED)->count(),
             'total_cost' => (float) DamagedProduct::join('Product', 'DamagedProduct.ProductID', '=', 'Product.ProductID')
                 ->selectRaw('SUM(DamagedProduct.Quantity * COALESCE(Product.CostPrice, 0)) as cost')
                 ->value('cost'),
         ];
-
-        $recentlyAdded = DamagedProduct::with(['product', 'supplier'])
-            ->orderByDesc('DamageID')
-            ->take(5)
-            ->get();
 
         $suppliers = Supplier::orderBy('SupplierName')->get();
         $products = Product::with('inventory')->orderBy('ProductName')->get();
@@ -81,7 +74,7 @@ class DamageController extends Controller
 
         return view('admin.damages.index', compact(
             'damagedProducts', 'search', 'supplierId',
-            'kpis', 'recentlyAdded', 'suppliers', 'products', 'purchaseOrders'
+            'kpis', 'suppliers', 'products', 'purchaseOrders'
         ));
     }
 
