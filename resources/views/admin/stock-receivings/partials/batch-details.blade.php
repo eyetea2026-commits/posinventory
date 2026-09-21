@@ -62,7 +62,7 @@
                         </td>
                         <td>
                             @if($isPending)
-                                <input type="text" class="form-input" style="max-width:160px;" name="items[{{ $loop->index }}][receipt_number]" maxlength="50" value="{{ $item->ReceiptNumber }}" placeholder="Optional">
+                                <input type="text" class="form-input" style="max-width:160px;" name="items[{{ $loop->index }}][receipt_number]" maxlength="50" value="{{ $item->ReceiptNumber }}">
                             @else
                                 {{ $item->ReceiptNumber ?? 'N/A' }}
                             @endif

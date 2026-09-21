@@ -259,6 +259,8 @@ function viewReturnDetails(id) {
                 : 'N/A';
 
             body.innerHTML = `
+                <p><strong>Return Policy:</strong> ${returnPolicy}</p>
+                <hr style="border-color: var(--border); margin: 16px 0;">
                 <div class="return-details-columns">
                     <div>
                         <h4>Requested By</h4>
@@ -299,8 +301,6 @@ function viewReturnDetails(id) {
                         </tbody>
                     </table>
                 </div>
-                <hr style="border-color: var(--border); margin: 16px 0;">
-                <p><strong>Return Policy:</strong> ${returnPolicy}</p>
             `;
         })
         .catch(() => {
