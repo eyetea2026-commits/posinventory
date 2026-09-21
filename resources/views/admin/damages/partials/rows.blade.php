@@ -71,8 +71,6 @@
                         @csrf
                         <button type="submit" class="btn btn-sm btn-secondary" title="Receive Replacement"><i class="fa-solid fa-box"></i> Receive Replacement</button>
                     </form>
-                @else
-                    <span class="text-muted">-</span>
                 @endif
             </div>
         </td>
