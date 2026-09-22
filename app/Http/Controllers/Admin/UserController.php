@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Role;
+use App\Models\SalesTransaction;
+use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\UserAccountCreated;
 use App\Notifications\UserAccountDeactivated;
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class UserController extends Controller
@@ -82,7 +85,7 @@ class UserController extends Controller
         $last = trim((string) $request->input('last_name', ''));
         $excludeId = $request->input('exclude_id');
 
-        $fullName = trim($first . ' ' . $middle . ' ' . $last);
+        $fullName = trim($first.' '.$middle.' '.$last);
         $normalized = preg_replace('/\s+/', ' ', strtolower($fullName));
 
         $duplicate = false;
@@ -93,8 +96,9 @@ class UserController extends Controller
                     $existingFullName = preg_replace(
                         '/\s+/',
                         ' ',
-                        strtolower(trim(($existing->first_name ?? '') . ' ' . ($existing->middle_name ?? '') . ' ' . ($existing->last_name ?? '')))
+                        strtolower(trim(($existing->first_name ?? '').' '.($existing->middle_name ?? '').' '.($existing->last_name ?? '')))
                     );
+
                     return $existingFullName !== '' && $existingFullName === $normalized;
                 });
         }
@@ -136,7 +140,7 @@ class UserController extends Controller
         ]);
 
         // Combine name from first, middle, last
-        $fullName = trim($data['first_name'] . ' ' . ($data['middle_name'] ?? '') . ' ' . $data['last_name']);
+        $fullName = trim($data['first_name'].' '.($data['middle_name'] ?? '').' '.$data['last_name']);
 
         // Block duplicate full name (case-insensitive, whitespace-normalized).
         // This is the authoritative server-side check — anything the client-side
@@ -146,15 +150,16 @@ class UserController extends Controller
             $existingFullName = preg_replace(
                 '/\s+/',
                 ' ',
-                strtolower(trim(($existing->first_name ?? '') . ' ' . ($existing->middle_name ?? '') . ' ' . ($existing->last_name ?? '')))
+                strtolower(trim(($existing->first_name ?? '').' '.($existing->middle_name ?? '').' '.($existing->last_name ?? '')))
             );
+
             return $existingFullName !== '' && $existingFullName === $normalizedFullName;
         });
 
         if ($duplicate) {
             return back()
                 ->withInput()
-                ->with('error', 'A user with the name "' . $fullName . '" already exists. Duplicate names are not allowed.');
+                ->with('error', 'A user with the name "'.$fullName.'" already exists. Duplicate names are not allowed.');
         }
 
         $newUser = User::create([
@@ -216,10 +221,10 @@ class UserController extends Controller
             'last_name' => ['required', 'string', 'max:100'],
             'age' => ['nullable', 'integer', 'min:1', 'max:150'],
             'address' => ['nullable', 'string', 'max:255'],
-            'contact_number' => ['required', 'string', 'max:50', 'unique:users,contact_number,' . $user->id],
+            'contact_number' => ['required', 'string', 'max:50', 'unique:users,contact_number,'.$user->id],
             'gender' => ['nullable', 'in:Male,Female,Other'],
-            'name' => ['required', 'string', 'max:255', 'unique:users,name,' . $user->id],
-            'email' => ['nullable', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'name' => ['required', 'string', 'max:255', 'unique:users,name,'.$user->id],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'role_id' => ['required', 'integer', 'exists:roles,id'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
         ]);
@@ -233,6 +238,7 @@ class UserController extends Controller
             if ($this->isAjaxRequest()) {
                 return response()->json(['error' => $message], 422);
             }
+
             return back()->withInput()->with('error', $message);
         }
 
@@ -255,7 +261,7 @@ class UserController extends Controller
 
         $user->save();
 
-        ActivityLog::record('user.updated', "Updated user \"{$user->name}\"" . ($passwordChanged ? ' (password changed)' : ''));
+        ActivityLog::record('user.updated', "Updated user \"{$user->name}\"".($passwordChanged ? ' (password changed)' : ''));
         if ($roleChanged) {
             $newRoleName = Role::find($data['role_id'])?->role_name;
             ActivityLog::record('user.role_changed', "Changed \"{$user->name}\"'s role from \"{$oldRoleName}\" to \"{$newRoleName}\"");
@@ -282,8 +288,15 @@ class UserController extends Controller
     public function resetPassword(Request $request, User $user)
     {
         $data = $request->validate([
+            'current_password' => ['required', 'string'],
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);
+
+        if (! Hash::check($data['current_password'], auth()->user()->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => 'Your password is incorrect.',
+            ]);
+        }
 
         $user->password = Hash::make($data['password']);
         $user->save();
@@ -309,6 +322,7 @@ class UserController extends Controller
             if ($this->isAjaxRequest()) {
                 return response()->json(['error' => $message], 403);
             }
+
             return back()->with('error', $message);
         }
 
@@ -327,6 +341,7 @@ class UserController extends Controller
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User account deactivated.']);
         }
+
         return back()->with('status', 'User account deactivated.');
     }
 
@@ -338,6 +353,7 @@ class UserController extends Controller
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User account activated.']);
         }
+
         return back()->with('status', 'User account activated.');
     }
 
@@ -359,15 +375,17 @@ class UserController extends Controller
             if ($this->isAjaxRequest()) {
                 return response()->json(['error' => $message], 403);
             }
+
             return back()->with('error', $message);
         }
 
-        $staff = \App\Models\Staff::where('UserID', $user->id)->first();
-        if ($staff && \App\Models\SalesTransaction::where('StaffID', $staff->StaffID)->exists()) {
+        $staff = Staff::where('UserID', $user->id)->first();
+        if ($staff && SalesTransaction::where('StaffID', $staff->StaffID)->exists()) {
             $message = 'Cannot delete this cashier — they have recorded sales. Deactivate the account instead.';
             if ($this->isAjaxRequest()) {
                 return response()->json(['error' => $message], 409);
             }
+
             return back()->with('error', $message);
         }
 
@@ -378,6 +396,7 @@ class UserController extends Controller
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User deleted successfully.']);
         }
+
         return redirect()->route('admin.users.index')->with('status', 'User deleted successfully.');
     }
 

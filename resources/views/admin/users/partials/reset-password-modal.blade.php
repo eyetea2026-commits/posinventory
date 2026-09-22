@@ -19,6 +19,12 @@
         <form id="resetPasswordForm" onsubmit="return false;">
             <div class="form-grid">
                 <div class="form-group full-width">
+                    <label class="form-label">Your Password <span class="required">*</span></label>
+                    <input type="password" id="resetPasswordCurrentAdmin" class="form-input" autocomplete="current-password" required>
+                    <span class="form-hint" style="display:block; margin-top:6px; color: var(--text-secondary); font-size:0.85rem;">Enter your own password to confirm this change.</span>
+                    <span class="form-error" id="error-reset-current-password"></span>
+                </div>
+                <div class="form-group full-width">
                     <label class="form-label">New Password <span class="required">*</span></label>
                     <input type="password" id="resetPasswordNew" class="form-input" required>
                     <span class="form-error" id="error-reset-password"></span>
@@ -47,10 +53,13 @@
         resetPasswordUserId = userId;
         resetPasswordLastFocused = document.activeElement;
 
+        document.getElementById('resetPasswordCurrentAdmin').value = '';
         document.getElementById('resetPasswordNew').value = '';
         document.getElementById('resetPasswordConfirm').value = '';
+        document.getElementById('resetPasswordCurrentAdmin').classList.remove('error');
         document.getElementById('resetPasswordNew').classList.remove('error');
         document.getElementById('resetPasswordConfirm').classList.remove('error');
+        document.getElementById('error-reset-current-password').textContent = '';
         document.getElementById('error-reset-password').textContent = '';
         hideResetPasswordGeneralError();
         resetResetPasswordSaveBtn();
@@ -62,7 +71,7 @@
         void modal.offsetHeight;
         requestAnimationFrame(function () { modal.classList.add('active'); });
         document.addEventListener('keydown', handleResetPasswordModalKeydown);
-        document.getElementById('resetPasswordNew').focus();
+        document.getElementById('resetPasswordCurrentAdmin').focus();
     };
 
     window.closeResetPasswordModal = function () {
@@ -108,15 +117,26 @@
     }
 
     document.getElementById('resetPasswordSaveBtn').addEventListener('click', function () {
+        const currentAdminInput = document.getElementById('resetPasswordCurrentAdmin');
         const newPasswordInput = document.getElementById('resetPasswordNew');
         const confirmInput = document.getElementById('resetPasswordConfirm');
+        const currentAdminPassword = currentAdminInput.value;
         const newPassword = newPasswordInput.value;
         const confirmPassword = confirmInput.value;
 
+        currentAdminInput.classList.remove('error');
         newPasswordInput.classList.remove('error');
         confirmInput.classList.remove('error');
+        document.getElementById('error-reset-current-password').textContent = '';
         document.getElementById('error-reset-password').textContent = '';
         hideResetPasswordGeneralError();
+
+        if (!currentAdminPassword) {
+            currentAdminInput.classList.add('error');
+            document.getElementById('error-reset-current-password').textContent = 'Please enter your password to confirm.';
+            currentAdminInput.focus();
+            return;
+        }
 
         if (!newPassword) {
             newPasswordInput.classList.add('error');
@@ -150,11 +170,23 @@
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ password: newPassword, password_confirmation: confirmPassword }),
+                body: JSON.stringify({
+                    current_password: currentAdminPassword,
+                    password: newPassword,
+                    password_confirmation: confirmPassword,
+                }),
             })
                 .then(async function (response) {
                     if (response.status === 422) {
                         const data = await response.json();
+                        const currentPasswordError = data.errors?.current_password?.[0];
+                        if (currentPasswordError) {
+                            document.getElementById('error-reset-current-password').textContent = currentPasswordError;
+                            currentAdminInput.classList.add('error');
+                            currentAdminInput.focus();
+                            resetResetPasswordSaveBtn();
+                            return;
+                        }
                         const message = data.errors?.password?.[0] || 'Please check the password requirements.';
                         document.getElementById('error-reset-password').textContent = message;
                         newPasswordInput.classList.add('error');

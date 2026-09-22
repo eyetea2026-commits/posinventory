@@ -4,7 +4,6 @@ namespace Tests\Feature\Security;
 
 use App\Models\ActivityLog;
 use App\Models\Category;
-use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Role;
@@ -12,6 +11,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
@@ -20,8 +20,11 @@ class SecurityFixesTest extends TestCase
     use RefreshDatabase;
 
     private Role $adminRole;
+
     private Role $cashierRole;
+
     private User $admin;
+
     private User $cashier;
 
     protected function setUp(): void
@@ -193,17 +196,17 @@ class SecurityFixesTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'auth.login_locked')->exists());
 
         // Even the CORRECT password is rejected while locked out.
-        RateLimiter::clear('login:' . strtolower($this->admin->name));
+        RateLimiter::clear('login:'.strtolower($this->admin->name));
     }
 
     public function test_successful_login_clears_the_lockout_counter(): void
     {
         $this->post(route('login.post'), ['username' => $this->admin->name, 'password' => 'wrong-password']);
-        $this->assertTrue(RateLimiter::tooManyAttempts('login:' . strtolower($this->admin->name), 5) === false);
+        $this->assertTrue(RateLimiter::tooManyAttempts('login:'.strtolower($this->admin->name), 5) === false);
 
         $this->post(route('login.post'), ['username' => $this->admin->name, 'password' => 'password']);
 
-        $this->assertEquals(0, RateLimiter::attempts('login:' . strtolower($this->admin->name)));
+        $this->assertEquals(0, RateLimiter::attempts('login:'.strtolower($this->admin->name)));
     }
 
     // ---- Unified login: no upfront role choice, routed by credentials ----
@@ -379,7 +382,7 @@ class SecurityFixesTest extends TestCase
         $this->assertStringContainsString('Current Password', $html);
         $this->assertStringContainsString('************', $html);
         $this->assertStringContainsString('Reset Password', $html);
-        $this->assertStringContainsString('openResetPasswordModal(' . $this->admin->id . ')', $html);
+        $this->assertStringContainsString('openResetPasswordModal('.$this->admin->id.')', $html);
         $this->assertStringNotContainsString('name="password"', $html);
         $this->assertStringNotContainsString($this->admin->password, $html);
     }
@@ -388,11 +391,12 @@ class SecurityFixesTest extends TestCase
     // independent of the general profile Update User form.
     public function test_reset_password_endpoint_updates_the_password_and_keeps_it_hashed(): void
     {
-        $oldHash = $this->admin->password;
+        $oldHash = $this->cashier->password;
 
         $response = $this->actingAs($this->admin)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
-            ->patchJson(route('admin.users.reset-password', $this->admin), [
+            ->patchJson(route('admin.users.reset-password', $this->cashier), [
+                'current_password' => 'password',
                 'password' => 'NewSecure!Pass123',
                 'password_confirmation' => 'NewSecure!Pass123',
             ]);
@@ -400,12 +404,12 @@ class SecurityFixesTest extends TestCase
         $response->assertOk();
         $response->assertJson(['success' => true]);
 
-        $this->admin->refresh();
-        $this->assertNotSame($oldHash, $this->admin->password);
+        $this->cashier->refresh();
+        $this->assertNotSame($oldHash, $this->cashier->password);
         // Hash::check is exactly what the login flow itself uses to verify
         // a password — this is the authoritative proof the new password
         // actually works for logging in, not just that some hash changed.
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewSecure!Pass123', $this->admin->password));
+        $this->assertTrue(Hash::check('NewSecure!Pass123', $this->cashier->password));
     }
 
     public function test_reset_password_endpoint_rejects_a_mismatched_confirmation(): void
@@ -415,6 +419,7 @@ class SecurityFixesTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
             ->patchJson(route('admin.users.reset-password', $this->admin), [
+                'current_password' => 'password',
                 'password' => 'NewSecure!Pass123',
                 'password_confirmation' => 'DoesNotMatch',
             ]);
@@ -422,6 +427,41 @@ class SecurityFixesTest extends TestCase
         $response->assertStatus(422);
         $this->admin->refresh();
         $this->assertSame($oldHash, $this->admin->password);
+    }
+
+    // Resetting a Cashier's password requires the Admin to re-enter their
+    // OWN current password first -- a wrong (or missing) admin password
+    // must block the reset even though the new password itself is valid,
+    // and must never touch the cashier's password.
+    public function test_reset_password_endpoint_requires_the_admins_own_current_password(): void
+    {
+        $oldHash = $this->cashier->password;
+
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->patchJson(route('admin.users.reset-password', $this->cashier), [
+                'current_password' => 'totally-wrong-password',
+                'password' => 'NewSecure!Pass123',
+                'password_confirmation' => 'NewSecure!Pass123',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('current_password');
+        $this->cashier->refresh();
+        $this->assertSame($oldHash, $this->cashier->password);
+    }
+
+    public function test_reset_password_endpoint_rejects_a_missing_admin_current_password(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->patchJson(route('admin.users.reset-password', $this->cashier), [
+                'password' => 'NewSecure!Pass123',
+                'password_confirmation' => 'NewSecure!Pass123',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('current_password');
     }
 
     public function test_second_admin_account_can_be_deactivated_normally(): void
