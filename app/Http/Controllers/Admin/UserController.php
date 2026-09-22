@@ -279,6 +279,28 @@ class UserController extends Controller
         return redirect()->route('admin.users.index')->with('status', 'User account updated successfully.');
     }
 
+    // "Enter Your Credentials" popup shown before the Reset Password form —
+    // lets the admin's own password be checked (and a wrong one rejected)
+    // as its own step, before the New Password fields even appear. This is
+    // a UX gate only; resetPassword() below re-checks the same password
+    // server-side against the same request, so a client that skips this
+    // call and posts straight to reset-password still can't get through
+    // without it.
+    public function verifyPassword(Request $request)
+    {
+        $data = $request->validate([
+            'password' => ['required', 'string'],
+        ]);
+
+        if (! Hash::check($data['password'], auth()->user()->password)) {
+            throw ValidationException::withMessages([
+                'password' => 'Your password is incorrect.',
+            ]);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
     // Dedicated Reset Password popup — deliberately separate from update()
     // above so it can be a small, self-contained form (just the two
     // password fields) instead of having to carry every other profile

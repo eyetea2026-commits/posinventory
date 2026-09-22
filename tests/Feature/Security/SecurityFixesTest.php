@@ -387,6 +387,33 @@ class SecurityFixesTest extends TestCase
         $this->assertStringNotContainsString($this->admin->password, $html);
     }
 
+    // "Enter Your Credentials" step, shown before the Reset Password form
+    // itself: verifies the ADMIN's own password, independent of whichever
+    // user's password is about to be reset.
+    public function test_verify_password_endpoint_confirms_the_admins_own_correct_password(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->postJson(route('admin.users.verify-password'), [
+                'password' => 'password',
+            ]);
+
+        $response->assertOk();
+        $response->assertJson(['success' => true]);
+    }
+
+    public function test_verify_password_endpoint_rejects_a_wrong_admin_password(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->postJson(route('admin.users.verify-password'), [
+                'password' => 'totally-wrong-password',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('password');
+    }
+
     // The Reset Password popup itself posts to its own dedicated endpoint,
     // independent of the general profile Update User form.
     public function test_reset_password_endpoint_updates_the_password_and_keeps_it_hashed(): void

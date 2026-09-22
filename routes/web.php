@@ -1,10 +1,29 @@
 <?php
 
-use App\Http\Controllers\DashboardController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\DamageController;
+use App\Http\Controllers\Admin\DiscountController;
+use App\Http\Controllers\Admin\InventoryController;
+use App\Http\Controllers\Admin\LoginSecurityController;
+use App\Http\Controllers\Admin\NotificationController;
+use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ProductSupplierController;
+use App\Http\Controllers\Admin\PurchaseOrderController;
+use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\SalesReturnController;
+use App\Http\Controllers\Admin\StockAdjustmentController;
+use App\Http\Controllers\Admin\StockReceivingController;
+use App\Http\Controllers\Admin\SupplierController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AdminAuthController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
+use App\Http\Controllers\Cashier\CashierReturnController;
+use App\Http\Controllers\DashboardController;
+use App\Models\Customer;
+use App\Models\Product;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 // The one sign-in entry point for the whole system — see AuthController for
 // why this replaced separate admin/cashier login forms and a portal-picker
@@ -34,10 +53,10 @@ Route::get('/login/role-lookup', [AuthController::class, 'lookupRole'])->name('l
 // before any session exists — but the response is intentionally generic and
 // never confirms/denies account existence or discloses a role, to prevent
 // username enumeration. Rate limited to slow down probing.
-Route::post('/check-user-role', function (\Illuminate\Http\Request $request) {
+Route::post('/check-user-role', function (Request $request) {
     $username = $request->input('username');
 
-    if (!$username) {
+    if (! $username) {
         return response()->json(['error' => 'Username is required'], 400);
     }
 
@@ -52,11 +71,11 @@ Route::post('/check-user-role', function (\Illuminate\Http\Request $request) {
 // API route for barcode scanning (POS) — cashier-only, mirrors every other
 // data-bearing route's auth requirement instead of being publicly reachable.
 Route::get('/api/products/barcode/{barcode}', function ($barcode) {
-    $product = \App\Models\Product::with('inventory')
+    $product = Product::with('inventory')
         ->where('Barcode', $barcode)
         ->first();
 
-    if (!$product) {
+    if (! $product) {
         return response()->json(['product' => null], 404);
     }
 
@@ -65,10 +84,10 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
 
 // API route for getting customers (POS) — cashier-only; previously reachable
 // with no authentication at all.
-Route::get('/api/customers/search', function (\Illuminate\Http\Request $request) {
+Route::get('/api/customers/search', function (Request $request) {
     $search = $request->query('q', '');
 
-    $customers = \App\Models\Customer::where('CustomerName', 'like', "%{$search}%")
+    $customers = Customer::where('CustomerName', 'like', "%{$search}%")
         ->orWhere('Email', 'like', "%{$search}%")
         ->limit(10)
         ->get();
@@ -102,231 +121,234 @@ Route::prefix('admin')->group(function () {
         ->name('admin.dashboard.live-inventory')
         ->middleware(['auth', 'role:admin']);
 
-    Route::get('users', [App\Http\Controllers\Admin\UserController::class, 'index'])
+    Route::get('users', [UserController::class, 'index'])
         ->name('admin.users.index')
         ->middleware(['auth', 'role:admin']);
-    Route::get('users/create', [App\Http\Controllers\Admin\UserController::class, 'create'])
+    Route::get('users/create', [UserController::class, 'create'])
         ->name('admin.users.create')
         ->middleware(['auth', 'role:admin']);
-    Route::post('users/check-name', [App\Http\Controllers\Admin\UserController::class, 'checkName'])
+    Route::post('users/check-name', [UserController::class, 'checkName'])
         ->name('admin.users.check-name')
         ->middleware(['auth', 'role:admin']);
-    Route::post('users', [App\Http\Controllers\Admin\UserController::class, 'store'])
+    Route::post('users', [UserController::class, 'store'])
         ->name('admin.users.store')
         ->middleware(['auth', 'role:admin']);
-    Route::get('users/{user}/edit', [App\Http\Controllers\Admin\UserController::class, 'edit'])
+    Route::get('users/{user}/edit', [UserController::class, 'edit'])
         ->name('admin.users.edit')
         ->middleware(['auth', 'role:admin']);
-    Route::put('users/{user}', [App\Http\Controllers\Admin\UserController::class, 'update'])
+    Route::put('users/{user}', [UserController::class, 'update'])
         ->name('admin.users.update')
         ->middleware(['auth', 'role:admin']);
-    Route::patch('users/{user}/reset-password', [App\Http\Controllers\Admin\UserController::class, 'resetPassword'])
+    Route::post('users/verify-password', [UserController::class, 'verifyPassword'])
+        ->name('admin.users.verify-password')
+        ->middleware(['auth', 'role:admin']);
+    Route::patch('users/{user}/reset-password', [UserController::class, 'resetPassword'])
         ->name('admin.users.reset-password')
         ->middleware(['auth', 'role:admin']);
-    Route::post('users/{user}/deactivate', [App\Http\Controllers\Admin\UserController::class, 'deactivate'])
+    Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])
         ->name('admin.users.deactivate')
         ->middleware(['auth', 'role:admin']);
-    Route::post('users/{user}/activate', [App\Http\Controllers\Admin\UserController::class, 'activate'])
+    Route::post('users/{user}/activate', [UserController::class, 'activate'])
         ->name('admin.users.activate')
         ->middleware(['auth', 'role:admin']);
-    Route::delete('users/{user}', [App\Http\Controllers\Admin\UserController::class, 'destroy'])
+    Route::delete('users/{user}', [UserController::class, 'destroy'])
         ->name('admin.users.destroy')
         ->middleware(['auth', 'role:admin']);
-    Route::get('users/{user}', [App\Http\Controllers\Admin\UserController::class, 'show'])
+    Route::get('users/{user}', [UserController::class, 'show'])
         ->name('admin.users.show')
         ->middleware(['auth', 'role:admin']);
 
-    Route::get('products', [App\Http\Controllers\Admin\ProductController::class, 'index'])
+    Route::get('products', [ProductController::class, 'index'])
         ->name('admin.products.index')->middleware(['auth', 'role:admin']);
-    Route::get('products/create', [App\Http\Controllers\Admin\ProductController::class, 'create'])
+    Route::get('products/create', [ProductController::class, 'create'])
         ->name('admin.products.create')->middleware(['auth', 'role:admin']);
-    Route::post('products/check-name', [App\Http\Controllers\Admin\ProductController::class, 'checkName'])
+    Route::post('products/check-name', [ProductController::class, 'checkName'])
         ->name('admin.products.check-name')->middleware(['auth', 'role:admin']);
-    Route::post('products', [App\Http\Controllers\Admin\ProductController::class, 'store'])
+    Route::post('products', [ProductController::class, 'store'])
         ->name('admin.products.store')->middleware(['auth', 'role:admin']);
-    Route::get('products/{product}', [App\Http\Controllers\Admin\ProductController::class, 'show'])
+    Route::get('products/{product}', [ProductController::class, 'show'])
         ->name('admin.products.show')->middleware(['auth', 'role:admin']);
-    Route::get('products/{product}/edit', [App\Http\Controllers\Admin\ProductController::class, 'edit'])
+    Route::get('products/{product}/edit', [ProductController::class, 'edit'])
         ->name('admin.products.edit')->middleware(['auth', 'role:admin']);
-    Route::put('products/{product}', [App\Http\Controllers\Admin\ProductController::class, 'update'])
+    Route::put('products/{product}', [ProductController::class, 'update'])
         ->name('admin.products.update')->middleware(['auth', 'role:admin']);
-    Route::delete('products/{product}', [App\Http\Controllers\Admin\ProductController::class, 'destroy'])
+    Route::delete('products/{product}', [ProductController::class, 'destroy'])
         ->name('admin.products.destroy')->middleware(['auth', 'role:admin']);
 
     // Inventory (view-only)
-    Route::get('inventory', [App\Http\Controllers\Admin\InventoryController::class, 'index'])
+    Route::get('inventory', [InventoryController::class, 'index'])
         ->name('admin.inventory.index')->middleware(['auth', 'role:admin']);
-    Route::get('inventory/{product}', [App\Http\Controllers\Admin\InventoryController::class, 'show'])
+    Route::get('inventory/{product}', [InventoryController::class, 'show'])
         ->name('admin.inventory.show')->middleware(['auth', 'role:admin']);
 
     // Categories
-    Route::get('categories', [App\Http\Controllers\Admin\CategoryController::class, 'index'])
+    Route::get('categories', [CategoryController::class, 'index'])
         ->name('admin.categories.index')->middleware(['auth', 'role:admin']);
-    Route::get('categories/create', [App\Http\Controllers\Admin\CategoryController::class, 'create'])
+    Route::get('categories/create', [CategoryController::class, 'create'])
         ->name('admin.categories.create')->middleware(['auth', 'role:admin']);
-    Route::post('categories', [App\Http\Controllers\Admin\CategoryController::class, 'store'])
+    Route::post('categories', [CategoryController::class, 'store'])
         ->name('admin.categories.store')->middleware(['auth', 'role:admin']);
-    Route::post('categories/check-name', [App\Http\Controllers\Admin\CategoryController::class, 'checkName'])
+    Route::post('categories/check-name', [CategoryController::class, 'checkName'])
         ->name('admin.categories.check-name')->middleware(['auth', 'role:admin']);
-    Route::get('categories/{category}/edit', [App\Http\Controllers\Admin\CategoryController::class, 'edit'])
+    Route::get('categories/{category}/edit', [CategoryController::class, 'edit'])
         ->name('admin.categories.edit')->middleware(['auth', 'role:admin']);
-    Route::put('categories/{category}', [App\Http\Controllers\Admin\CategoryController::class, 'update'])
+    Route::put('categories/{category}', [CategoryController::class, 'update'])
         ->name('admin.categories.update')->middleware(['auth', 'role:admin']);
-    Route::delete('categories/{category}', [App\Http\Controllers\Admin\CategoryController::class, 'destroy'])
+    Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
         ->name('admin.categories.destroy')->middleware(['auth', 'role:admin']);
 
     // Discounts
-    Route::get('discounts', [App\Http\Controllers\Admin\DiscountController::class, 'index'])
+    Route::get('discounts', [DiscountController::class, 'index'])
         ->name('admin.discounts.index')->middleware(['auth', 'role:admin']);
-    Route::get('discounts/create', [App\Http\Controllers\Admin\DiscountController::class, 'create'])
+    Route::get('discounts/create', [DiscountController::class, 'create'])
         ->name('admin.discounts.create')->middleware(['auth', 'role:admin']);
-    Route::post('discounts', [App\Http\Controllers\Admin\DiscountController::class, 'store'])
+    Route::post('discounts', [DiscountController::class, 'store'])
         ->name('admin.discounts.store')->middleware(['auth', 'role:admin']);
-    Route::post('discounts/check-promo-code', [App\Http\Controllers\Admin\DiscountController::class, 'checkPromoCode'])
+    Route::post('discounts/check-promo-code', [DiscountController::class, 'checkPromoCode'])
         ->name('admin.discounts.check-promo-code')->middleware(['auth', 'role:admin']);
     // Must stay before the wildcard discounts/{discount} routes below —
     // both are static segments that would otherwise be swallowed by it.
-    Route::get('discounts/history', [App\Http\Controllers\Admin\DiscountController::class, 'history'])
+    Route::get('discounts/history', [DiscountController::class, 'history'])
         ->name('admin.discounts.history')->middleware(['auth', 'role:admin']);
-    Route::get('discounts/{discount}/edit', [App\Http\Controllers\Admin\DiscountController::class, 'edit'])
+    Route::get('discounts/{discount}/edit', [DiscountController::class, 'edit'])
         ->name('admin.discounts.edit')->middleware(['auth', 'role:admin']);
-    Route::put('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'update'])
+    Route::put('discounts/{discount}', [DiscountController::class, 'update'])
         ->name('admin.discounts.update')->middleware(['auth', 'role:admin']);
-    Route::delete('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'destroy'])
+    Route::delete('discounts/{discount}', [DiscountController::class, 'destroy'])
         ->name('admin.discounts.destroy')->middleware(['auth', 'role:admin']);
-    Route::post('discounts/{discount}/products', [App\Http\Controllers\Admin\DiscountController::class, 'assignProducts'])
+    Route::post('discounts/{discount}/products', [DiscountController::class, 'assignProducts'])
         ->name('admin.discounts.assign-products')->middleware(['auth', 'role:admin']);
-    Route::delete('discounts/{discount}/products/{product}', [App\Http\Controllers\Admin\DiscountController::class, 'detachProduct'])
+    Route::delete('discounts/{discount}/products/{product}', [DiscountController::class, 'detachProduct'])
         ->name('admin.discounts.detach-product')->middleware(['auth', 'role:admin']);
-    Route::get('discounts/{discount}', [App\Http\Controllers\Admin\DiscountController::class, 'show'])
+    Route::get('discounts/{discount}', [DiscountController::class, 'show'])
         ->name('admin.discounts.show')->middleware(['auth', 'role:admin']);
 
     // Damages
-    Route::get('damages', [App\Http\Controllers\Admin\DamageController::class, 'index'])
+    Route::get('damages', [DamageController::class, 'index'])
         ->name('admin.damages.index')->middleware(['auth', 'role:admin']);
-    Route::get('damages/create', [App\Http\Controllers\Admin\DamageController::class, 'create'])
+    Route::get('damages/create', [DamageController::class, 'create'])
         ->name('admin.damages.create')->middleware(['auth', 'role:admin']);
-    Route::post('damages', [App\Http\Controllers\Admin\DamageController::class, 'store'])
+    Route::post('damages', [DamageController::class, 'store'])
         ->name('admin.damages.store')->middleware(['auth', 'role:admin']);
-    Route::get('damages/{damage}/print', [App\Http\Controllers\Admin\DamageController::class, 'printReport'])
+    Route::get('damages/{damage}/print', [DamageController::class, 'printReport'])
         ->name('admin.damages.print')->middleware(['auth', 'role:admin']);
-    Route::get('damages/{damage}', [App\Http\Controllers\Admin\DamageController::class, 'show'])
+    Route::get('damages/{damage}', [DamageController::class, 'show'])
         ->name('admin.damages.show')->middleware(['auth', 'role:admin']);
-    Route::get('damages/{damage}/edit', [App\Http\Controllers\Admin\DamageController::class, 'edit'])
+    Route::get('damages/{damage}/edit', [DamageController::class, 'edit'])
         ->name('admin.damages.edit')->middleware(['auth', 'role:admin']);
-    Route::put('damages/{damage}', [App\Http\Controllers\Admin\DamageController::class, 'update'])
+    Route::put('damages/{damage}', [DamageController::class, 'update'])
         ->name('admin.damages.update')->middleware(['auth', 'role:admin']);
-    Route::delete('damages/{damage}', [App\Http\Controllers\Admin\DamageController::class, 'destroy'])
+    Route::delete('damages/{damage}', [DamageController::class, 'destroy'])
         ->name('admin.damages.destroy')->middleware(['auth', 'role:admin']);
-    Route::post('damages/{damage}/mark-supplier-return', [App\Http\Controllers\Admin\DamageController::class, 'markForSupplierReturn'])
+    Route::post('damages/{damage}/mark-supplier-return', [DamageController::class, 'markForSupplierReturn'])
         ->name('admin.damages.mark-supplier-return')->middleware(['auth', 'role:admin']);
-    Route::post('damages/{damage}/confirm-supplier-return', [App\Http\Controllers\Admin\DamageController::class, 'confirmSupplierReturn'])
+    Route::post('damages/{damage}/confirm-supplier-return', [DamageController::class, 'confirmSupplierReturn'])
         ->name('admin.damages.confirm-supplier-return')->middleware(['auth', 'role:admin']);
-    Route::post('damages/{damage}/dispose', [App\Http\Controllers\Admin\DamageController::class, 'markDisposed'])
+    Route::post('damages/{damage}/dispose', [DamageController::class, 'markDisposed'])
         ->name('admin.damages.dispose')->middleware(['auth', 'role:admin']);
-    Route::post('damages/{damage}/receive-replacement', [App\Http\Controllers\Admin\DamageController::class, 'receiveReplacement'])
+    Route::post('damages/{damage}/receive-replacement', [DamageController::class, 'receiveReplacement'])
         ->name('admin.damages.receive-replacement')->middleware(['auth', 'role:admin']);
-    Route::post('damages/{damage}/cancel', [App\Http\Controllers\Admin\DamageController::class, 'cancel'])
+    Route::post('damages/{damage}/cancel', [DamageController::class, 'cancel'])
         ->name('admin.damages.cancel')->middleware(['auth', 'role:admin']);
-    Route::post('damages/bulk-return-to-supplier', [App\Http\Controllers\Admin\DamageController::class, 'bulkConfirmSupplierReturn'])
+    Route::post('damages/bulk-return-to-supplier', [DamageController::class, 'bulkConfirmSupplierReturn'])
         ->name('admin.damages.bulk-return-to-supplier')->middleware(['auth', 'role:admin']);
 
-    Route::get('suppliers', [App\Http\Controllers\Admin\SupplierController::class, 'index'])
+    Route::get('suppliers', [SupplierController::class, 'index'])
         ->name('admin.suppliers.index')->middleware(['auth', 'role:admin']);
-    Route::get('suppliers/create', [App\Http\Controllers\Admin\SupplierController::class, 'create'])
+    Route::get('suppliers/create', [SupplierController::class, 'create'])
         ->name('admin.suppliers.create')->middleware(['auth', 'role:admin']);
-    Route::post('suppliers', [App\Http\Controllers\Admin\SupplierController::class, 'store'])
+    Route::post('suppliers', [SupplierController::class, 'store'])
         ->name('admin.suppliers.store')->middleware(['auth', 'role:admin']);
-    Route::post('suppliers/check-name', [App\Http\Controllers\Admin\SupplierController::class, 'checkName'])
+    Route::post('suppliers/check-name', [SupplierController::class, 'checkName'])
         ->name('admin.suppliers.check-name')->middleware(['auth', 'role:admin']);
-    Route::get('suppliers/{supplier}/edit', [App\Http\Controllers\Admin\SupplierController::class, 'edit'])
+    Route::get('suppliers/{supplier}/edit', [SupplierController::class, 'edit'])
         ->name('admin.suppliers.edit')->middleware(['auth', 'role:admin']);
-    Route::put('suppliers/{supplier}', [App\Http\Controllers\Admin\SupplierController::class, 'update'])
+    Route::put('suppliers/{supplier}', [SupplierController::class, 'update'])
         ->name('admin.suppliers.update')->middleware(['auth', 'role:admin']);
-    Route::get('suppliers/{supplier}', [App\Http\Controllers\Admin\SupplierController::class, 'show'])
+    Route::get('suppliers/{supplier}', [SupplierController::class, 'show'])
         ->name('admin.suppliers.show')->middleware(['auth', 'role:admin']);
-    Route::get('suppliers/{supplier}/purchase-orders/{purchaseOrder}', [App\Http\Controllers\Admin\SupplierController::class, 'purchaseOrderDetails'])
+    Route::get('suppliers/{supplier}/purchase-orders/{purchaseOrder}', [SupplierController::class, 'purchaseOrderDetails'])
         ->name('admin.suppliers.purchase-order-details')->middleware(['auth', 'role:admin']);
 
-    Route::get('products/{product}/suppliers', [App\Http\Controllers\Admin\ProductSupplierController::class, 'index'])
+    Route::get('products/{product}/suppliers', [ProductSupplierController::class, 'index'])
         ->name('admin.products.suppliers.index')->middleware(['auth', 'role:admin']);
-    Route::post('products/{product}/suppliers', [App\Http\Controllers\Admin\ProductSupplierController::class, 'store'])
+    Route::post('products/{product}/suppliers', [ProductSupplierController::class, 'store'])
         ->name('admin.products.suppliers.store')->middleware(['auth', 'role:admin']);
-    Route::post('product-suppliers/{productSupplier}/prefer', [App\Http\Controllers\Admin\ProductSupplierController::class, 'markPreferred'])
+    Route::post('product-suppliers/{productSupplier}/prefer', [ProductSupplierController::class, 'markPreferred'])
         ->name('admin.product-suppliers.prefer')->middleware(['auth', 'role:admin']);
-    Route::delete('product-suppliers/{productSupplier}', [App\Http\Controllers\Admin\ProductSupplierController::class, 'destroy'])
+    Route::delete('product-suppliers/{productSupplier}', [ProductSupplierController::class, 'destroy'])
         ->name('admin.product-suppliers.destroy')->middleware(['auth', 'role:admin']);
 
-    Route::get('stock-receivings', [App\Http\Controllers\Admin\StockReceivingController::class, 'index'])
+    Route::get('stock-receivings', [StockReceivingController::class, 'index'])
         ->name('admin.stock-receivings.index')->middleware(['auth', 'role:admin']);
-    Route::get('stock-receivings/create', [App\Http\Controllers\Admin\StockReceivingController::class, 'create'])
+    Route::get('stock-receivings/create', [StockReceivingController::class, 'create'])
         ->name('admin.stock-receivings.create')->middleware(['auth', 'role:admin']);
-    Route::post('stock-receivings', [App\Http\Controllers\Admin\StockReceivingController::class, 'store'])
+    Route::post('stock-receivings', [StockReceivingController::class, 'store'])
         ->name('admin.stock-receivings.store')->middleware(['auth', 'role:admin']);
-    Route::get('stock-receivings/batches/{stockReceivingBatch}', [App\Http\Controllers\Admin\StockReceivingController::class, 'showBatch'])
+    Route::get('stock-receivings/batches/{stockReceivingBatch}', [StockReceivingController::class, 'showBatch'])
         ->name('admin.stock-receivings.batches.show')->middleware(['auth', 'role:admin']);
-    Route::post('stock-receivings/batches/{stockReceivingBatch}/add-to-inventory', [App\Http\Controllers\Admin\StockReceivingController::class, 'addToInventory'])
+    Route::post('stock-receivings/batches/{stockReceivingBatch}/add-to-inventory', [StockReceivingController::class, 'addToInventory'])
         ->name('admin.stock-receivings.batches.add-to-inventory')->middleware(['auth', 'role:admin']);
 
-    Route::get('purchase-orders', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'index'])
+    Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])
         ->name('admin.purchase-orders.index')->middleware(['auth', 'role:admin']);
-    Route::get('purchase-orders/create', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'create'])
+    Route::get('purchase-orders/create', [PurchaseOrderController::class, 'create'])
         ->name('admin.purchase-orders.create')->middleware(['auth', 'role:admin']);
-    Route::get('purchase-orders/create-from-reorder/{product}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'createFromReorder'])
+    Route::get('purchase-orders/create-from-reorder/{product}', [PurchaseOrderController::class, 'createFromReorder'])
         ->name('admin.purchase-orders.create-from-reorder')->middleware(['auth', 'role:admin']);
-    Route::post('purchase-orders/create-from-reorder/{product}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'storeFromReorder'])
+    Route::post('purchase-orders/create-from-reorder/{product}', [PurchaseOrderController::class, 'storeFromReorder'])
         ->name('admin.purchase-orders.store-from-reorder')->middleware(['auth', 'role:admin']);
-    Route::post('purchase-orders', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'store'])
+    Route::post('purchase-orders', [PurchaseOrderController::class, 'store'])
         ->name('admin.purchase-orders.store')->middleware(['auth', 'role:admin']);
-    Route::get('purchase-orders/{purchaseOrder}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'show'])
+    Route::get('purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])
         ->name('admin.purchase-orders.show')->middleware(['auth', 'role:admin']);
-    Route::get('purchase-orders/{purchaseOrder}/edit', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'edit'])
+    Route::get('purchase-orders/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit'])
         ->name('admin.purchase-orders.edit')->middleware(['auth', 'role:admin']);
-    Route::put('purchase-orders/{purchaseOrder}', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'update'])
+    Route::put('purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update'])
         ->name('admin.purchase-orders.update')->middleware(['auth', 'role:admin']);
-    Route::post('purchase-orders/{purchaseOrder}/submit', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'submit'])
+    Route::post('purchase-orders/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit'])
         ->name('admin.purchase-orders.submit')->middleware(['auth', 'role:admin']);
-    Route::post('purchase-orders/{purchaseOrder}/approve', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'approve'])
+    Route::post('purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])
         ->name('admin.purchase-orders.approve')->middleware(['auth', 'role:admin']);
-    Route::post('purchase-orders/{purchaseOrder}/cancel', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'cancel'])
+    Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])
         ->name('admin.purchase-orders.cancel')->middleware(['auth', 'role:admin']);
-    Route::get('purchase-orders/{purchaseOrder}/export', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'export'])
+    Route::get('purchase-orders/{purchaseOrder}/export', [PurchaseOrderController::class, 'export'])
         ->name('admin.purchase-orders.export')->middleware(['auth', 'role:admin']);
-    Route::get('purchase-orders/{purchaseOrder}/print', [App\Http\Controllers\Admin\PurchaseOrderController::class, 'printPreview'])
+    Route::get('purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'printPreview'])
         ->name('admin.purchase-orders.print')->middleware(['auth', 'role:admin']);
 
-    Route::get('stock-adjustments', [App\Http\Controllers\Admin\StockAdjustmentController::class, 'index'])
+    Route::get('stock-adjustments', [StockAdjustmentController::class, 'index'])
         ->name('admin.stock-adjustments.index')->middleware(['auth', 'role:admin']);
-    Route::get('stock-adjustments/create', [App\Http\Controllers\Admin\StockAdjustmentController::class, 'create'])
+    Route::get('stock-adjustments/create', [StockAdjustmentController::class, 'create'])
         ->name('admin.stock-adjustments.create')->middleware(['auth', 'role:admin']);
-    Route::post('stock-adjustments', [App\Http\Controllers\Admin\StockAdjustmentController::class, 'store'])
+    Route::post('stock-adjustments', [StockAdjustmentController::class, 'store'])
         ->name('admin.stock-adjustments.store')->middleware(['auth', 'role:admin']);
 
-    Route::get('sales-returns', [App\Http\Controllers\Admin\SalesReturnController::class, 'index'])
+    Route::get('sales-returns', [SalesReturnController::class, 'index'])
         ->name('admin.sales-returns.index')->middleware(['auth', 'role:admin']);
-    Route::get('sales-returns/{salesReturn}', [App\Http\Controllers\Admin\SalesReturnController::class, 'show'])
+    Route::get('sales-returns/{salesReturn}', [SalesReturnController::class, 'show'])
         ->name('admin.sales-returns.show')->middleware(['auth', 'role:admin']);
-    Route::post('sales-returns/{salesReturn}/approve', [App\Http\Controllers\Admin\SalesReturnController::class, 'approve'])
+    Route::post('sales-returns/{salesReturn}/approve', [SalesReturnController::class, 'approve'])
         ->name('admin.sales-returns.approve')->middleware(['auth', 'role:admin']);
-    Route::post('sales-returns/{salesReturn}/decline', [App\Http\Controllers\Admin\SalesReturnController::class, 'decline'])
+    Route::post('sales-returns/{salesReturn}/decline', [SalesReturnController::class, 'decline'])
         ->name('admin.sales-returns.decline')->middleware(['auth', 'role:admin']);
 
-    Route::get('notifications', [App\Http\Controllers\Admin\NotificationController::class, 'index'])
+    Route::get('notifications', [NotificationController::class, 'index'])
         ->name('admin.notifications.index')->middleware(['auth', 'role:admin']);
-    Route::post('notifications/{notification}/read', [App\Http\Controllers\Admin\NotificationController::class, 'markAsRead'])
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
         ->name('admin.notifications.read')->middleware(['auth', 'role:admin']);
-    Route::post('notifications/read-all', [App\Http\Controllers\Admin\NotificationController::class, 'markAllAsRead'])
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])
         ->name('admin.notifications.read-all')->middleware(['auth', 'role:admin']);
 
-    Route::get('reports', [App\Http\Controllers\Admin\ReportController::class, 'index'])
+    Route::get('reports', [ReportController::class, 'index'])
         ->name('admin.reports.index')->middleware(['auth', 'role:admin']);
-    Route::get('reports/preview', [App\Http\Controllers\Admin\ReportController::class, 'preview'])
+    Route::get('reports/preview', [ReportController::class, 'preview'])
         ->name('admin.reports.preview')->middleware(['auth', 'role:admin']);
-    Route::get('reports/export', [App\Http\Controllers\Admin\ReportController::class, 'export'])
+    Route::get('reports/export', [ReportController::class, 'export'])
         ->name('admin.reports.export')->middleware(['auth', 'role:admin']);
-    Route::get('reports/details', [App\Http\Controllers\Admin\ReportController::class, 'details'])
+    Route::get('reports/details', [ReportController::class, 'details'])
         ->name('admin.reports.details')->middleware(['auth', 'role:admin']);
-    Route::get('reports/print', [App\Http\Controllers\Admin\ReportController::class, 'printPreview'])
+    Route::get('reports/print', [ReportController::class, 'printPreview'])
         ->name('admin.reports.print')->middleware(['auth', 'role:admin']);
 });
 
@@ -337,11 +359,11 @@ Route::prefix('admin')->group(function () {
 // session, so the in-app prompt's fetch calls reuse the exact same routes.
 // throttle limits brute-force guessing of a login-event ID.
 Route::prefix('admin/security')->middleware('throttle:30,1')->group(function () {
-    Route::get('login-events/{loginSecurityEvent}/review', [App\Http\Controllers\Admin\LoginSecurityController::class, 'review'])
+    Route::get('login-events/{loginSecurityEvent}/review', [LoginSecurityController::class, 'review'])
         ->name('admin.security.review');
-    Route::post('login-events/{loginSecurityEvent}/confirm', [App\Http\Controllers\Admin\LoginSecurityController::class, 'confirm'])
+    Route::post('login-events/{loginSecurityEvent}/confirm', [LoginSecurityController::class, 'confirm'])
         ->name('admin.security.confirm');
-    Route::post('login-events/{loginSecurityEvent}/deny', [App\Http\Controllers\Admin\LoginSecurityController::class, 'deny'])
+    Route::post('login-events/{loginSecurityEvent}/deny', [LoginSecurityController::class, 'deny'])
         ->name('admin.security.deny');
 });
 
@@ -359,17 +381,17 @@ Route::prefix('cashier')->group(function () {
     Route::get('transactions', [CashierAuthController::class, 'transactions'])->name('cashier.transactions')->middleware(['auth', 'role:cashier']);
 
     // Return/Refund/Replacement routes
-    Route::get('refunds', [App\Http\Controllers\Cashier\CashierReturnController::class, 'index'])->name('cashier.refunds')->middleware(['auth', 'role:cashier']);
-    Route::get('refunds/search', [App\Http\Controllers\Cashier\CashierReturnController::class, 'searchTransaction'])->name('cashier.refunds.search')->middleware(['auth', 'role:cashier']);
-    Route::post('refunds/create', [App\Http\Controllers\Cashier\CashierReturnController::class, 'createRefund'])->name('cashier.refunds.create')->middleware(['auth', 'role:cashier']);
-    Route::get('refunds/{transactionId}/transaction', [App\Http\Controllers\Cashier\CashierReturnController::class, 'getTransactionDetails'])->name('cashier.refunds.transaction')->middleware(['auth', 'role:cashier']);
-    Route::post('refunds/{salesReturn}/process-refund', [App\Http\Controllers\Cashier\CashierReturnController::class, 'processRefund'])->name('cashier.refunds.process')->middleware(['auth', 'role:cashier']);
-    Route::post('refunds/{salesReturn}/process-replacement', [App\Http\Controllers\Cashier\CashierReturnController::class, 'processReplacement'])->name('cashier.refunds.process-replacement')->middleware(['auth', 'role:cashier']);
-    Route::get('refunds/{salesReturn}/details', [App\Http\Controllers\Cashier\CashierReturnController::class, 'getRefundDetails'])->name('cashier.refunds.details')->middleware(['auth', 'role:cashier']);
-    Route::get('refunds/{salesReturn}/slip', [App\Http\Controllers\Cashier\CashierReturnController::class, 'printReplacementSlip'])->name('cashier.refunds.slip')->middleware(['auth', 'role:cashier']);
-    Route::get('refunds/{salesReturn}/receipt', [App\Http\Controllers\Cashier\CashierReturnController::class, 'printRefundReceipt'])->name('cashier.refunds.receipt')->middleware(['auth', 'role:cashier']);
-    Route::get('replacement-inventory/search', [App\Http\Controllers\Cashier\CashierReturnController::class, 'searchReplacementInventory'])->name('cashier.replacement-inventory.search')->middleware(['auth', 'role:cashier']);
-    Route::get('stats', [App\Http\Controllers\Cashier\CashierReturnController::class, 'getCashierStats'])->name('cashier.stats')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds', [CashierReturnController::class, 'index'])->name('cashier.refunds')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds/search', [CashierReturnController::class, 'searchTransaction'])->name('cashier.refunds.search')->middleware(['auth', 'role:cashier']);
+    Route::post('refunds/create', [CashierReturnController::class, 'createRefund'])->name('cashier.refunds.create')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds/{transactionId}/transaction', [CashierReturnController::class, 'getTransactionDetails'])->name('cashier.refunds.transaction')->middleware(['auth', 'role:cashier']);
+    Route::post('refunds/{salesReturn}/process-refund', [CashierReturnController::class, 'processRefund'])->name('cashier.refunds.process')->middleware(['auth', 'role:cashier']);
+    Route::post('refunds/{salesReturn}/process-replacement', [CashierReturnController::class, 'processReplacement'])->name('cashier.refunds.process-replacement')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds/{salesReturn}/details', [CashierReturnController::class, 'getRefundDetails'])->name('cashier.refunds.details')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds/{salesReturn}/slip', [CashierReturnController::class, 'printReplacementSlip'])->name('cashier.refunds.slip')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds/{salesReturn}/receipt', [CashierReturnController::class, 'printRefundReceipt'])->name('cashier.refunds.receipt')->middleware(['auth', 'role:cashier']);
+    Route::get('replacement-inventory/search', [CashierReturnController::class, 'searchReplacementInventory'])->name('cashier.replacement-inventory.search')->middleware(['auth', 'role:cashier']);
+    Route::get('stats', [CashierReturnController::class, 'getCashierStats'])->name('cashier.stats')->middleware(['auth', 'role:cashier']);
 
     // Notification routes
     Route::get('notifications', [App\Http\Controllers\Cashier\NotificationController::class, 'index'])
