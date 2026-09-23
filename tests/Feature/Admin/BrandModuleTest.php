@@ -31,13 +31,16 @@ class BrandModuleTest extends TestCase
         $this->dvr = Category::create(['CategoryName' => 'DVR']);
     }
 
-    public function test_admin_can_create_a_brand_assigned_to_a_category(): void
+    // The Edit Category modal's "Brands in this Category" panel posts here.
+    public function test_admin_can_add_a_brand_to_a_category_from_the_edit_category_form(): void
     {
-        $response = $this->actingAs($this->admin)->post(route('admin.brands.store'), [
-            'BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID,
-        ]);
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->post(route('admin.categories.brands.store', $this->tv), ['BrandName' => 'Samsung']);
 
-        $response->assertRedirect(route('admin.brands.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('brand.BrandName', 'Samsung');
         $this->assertDatabaseHas('Brand', ['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
     }
 
@@ -45,11 +48,12 @@ class BrandModuleTest extends TestCase
     {
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
 
-        $response = $this->actingAs($this->admin)->post(route('admin.brands.store'), [
-            'BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID,
-        ]);
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->post(route('admin.categories.brands.store', $this->tv), ['BrandName' => 'Samsung']);
 
-        $response->assertSessionHasErrors('BrandName');
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('BrandName');
         $this->assertSame(1, Brand::where('BrandName', 'Samsung')->where('CategoryID', $this->tv->CategoryID)->count());
     }
 
@@ -60,14 +64,12 @@ class BrandModuleTest extends TestCase
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
 
         foreach (['SAMSUNG', 'samsung', 'SamSung', '  Samsung  '] as $variant) {
-            $response = $this->actingAs($this->admin)->post(route('admin.brands.store'), [
-                'BrandName' => $variant, 'CategoryID' => $this->tv->CategoryID,
-            ]);
+            $response = $this->actingAs($this->admin)
+                ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+                ->post(route('admin.categories.brands.store', $this->tv), ['BrandName' => $variant]);
 
-            $response->assertSessionHasErrors('BrandName');
-            $response->assertSessionHasErrors([
-                'BrandName' => 'This brand already exists under the selected category.',
-            ]);
+            $response->assertStatus(422);
+            $response->assertJsonFragment(['BrandName' => ['This brand already exists under the selected category.']]);
         }
 
         $this->assertSame(1, Brand::where('CategoryID', $this->tv->CategoryID)->count());
@@ -78,66 +80,13 @@ class BrandModuleTest extends TestCase
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
 
         // Samsung under DVR is a different Brand+Category combination.
-        $response = $this->actingAs($this->admin)->post(route('admin.brands.store'), [
-            'BrandName' => 'Samsung', 'CategoryID' => $this->dvr->CategoryID,
-        ]);
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->post(route('admin.categories.brands.store', $this->dvr), ['BrandName' => 'Samsung']);
 
-        $response->assertRedirect(route('admin.brands.index'));
+        $response->assertOk();
         $this->assertSame(1, Brand::where('CategoryID', $this->tv->CategoryID)->count());
         $this->assertSame(1, Brand::where('CategoryID', $this->dvr->CategoryID)->count());
-    }
-
-    public function test_update_rejects_renaming_into_an_existing_duplicate_combination(): void
-    {
-        Brand::create(['BrandName' => 'LG', 'CategoryID' => $this->tv->CategoryID]);
-        $sony = Brand::create(['BrandName' => 'Sony', 'CategoryID' => $this->tv->CategoryID]);
-
-        $response = $this->actingAs($this->admin)->put(route('admin.brands.update', $sony), [
-            'BrandName' => 'lg', 'CategoryID' => $this->tv->CategoryID,
-        ]);
-
-        $response->assertSessionHasErrors('BrandName');
-        $sony->refresh();
-        $this->assertSame('Sony', $sony->BrandName);
-    }
-
-    public function test_update_rejects_moving_into_an_existing_duplicate_under_a_different_category(): void
-    {
-        Brand::create(['BrandName' => 'Dahua', 'CategoryID' => $this->dvr->CategoryID]);
-        $movable = Brand::create(['BrandName' => 'Dahua', 'CategoryID' => $this->tv->CategoryID]);
-
-        $response = $this->actingAs($this->admin)->put(route('admin.brands.update', $movable), [
-            'BrandName' => 'Dahua', 'CategoryID' => $this->dvr->CategoryID,
-        ]);
-
-        $response->assertSessionHasErrors('BrandName');
-        $movable->refresh();
-        $this->assertSame($this->tv->CategoryID, $movable->CategoryID);
-    }
-
-    public function test_update_allows_keeping_a_brands_own_current_name_and_category(): void
-    {
-        $brand = Brand::create(['BrandName' => 'Sony', 'CategoryID' => $this->tv->CategoryID]);
-
-        $response = $this->actingAs($this->admin)->put(route('admin.brands.update', $brand), [
-            'BrandName' => 'Sony', 'CategoryID' => $this->tv->CategoryID,
-        ]);
-
-        $response->assertRedirect(route('admin.brands.index'));
-        $response->assertSessionHasNoErrors();
-    }
-
-    public function test_update_allows_moving_a_brand_to_a_different_category_when_not_a_duplicate_there(): void
-    {
-        $brand = Brand::create(['BrandName' => 'Panther', 'CategoryID' => $this->tv->CategoryID]);
-
-        $response = $this->actingAs($this->admin)->put(route('admin.brands.update', $brand), [
-            'BrandName' => 'Panther', 'CategoryID' => $this->dvr->CategoryID,
-        ]);
-
-        $response->assertRedirect(route('admin.brands.index'));
-        $brand->refresh();
-        $this->assertSame($this->dvr->CategoryID, $brand->CategoryID);
     }
 
     public function test_destroy_is_blocked_while_the_brand_still_has_products(): void
@@ -148,9 +97,12 @@ class BrandModuleTest extends TestCase
             'CostPrice' => 100, 'Price' => 150, 'CategoryID' => $this->dvr->CategoryID, 'BrandID' => $brand->BrandID,
         ]);
 
-        $response = $this->actingAs($this->admin)->delete(route('admin.brands.destroy', $brand));
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->delete(route('admin.brands.destroy', $brand));
 
-        $response->assertRedirect(route('admin.brands.index'));
+        $response->assertStatus(422);
+        $response->assertJsonPath('success', false);
         $this->assertDatabaseHas('Brand', ['BrandID' => $brand->BrandID]);
     }
 
@@ -158,29 +110,50 @@ class BrandModuleTest extends TestCase
     {
         $brand = Brand::create(['BrandName' => 'Omni', 'CategoryID' => $this->dvr->CategoryID]);
 
-        $response = $this->actingAs($this->admin)->delete(route('admin.brands.destroy', $brand));
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->delete(route('admin.brands.destroy', $brand));
 
-        $response->assertRedirect(route('admin.brands.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
         $this->assertDatabaseMissing('Brand', ['BrandID' => $brand->BrandID]);
     }
 
-    public function test_show_returns_brand_details_with_its_category_and_products(): void
+    // Category deletion must also account for brands, not just products.
+    public function test_category_destroy_is_blocked_while_it_still_has_brands(): void
     {
-        $brand = Brand::create(['BrandName' => 'LG', 'CategoryID' => $this->tv->CategoryID]);
-        Product::create([
-            'ProductName' => 'LG Smart TV', 'Model' => 'LG-01', 'Barcode' => 'BAR-LG-01',
-            'CostPrice' => 100, 'Price' => 150, 'CategoryID' => $this->tv->CategoryID, 'BrandID' => $brand->BrandID,
-        ]);
+        Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
+
+        $response = $this->actingAs($this->admin)->delete(route('admin.categories.destroy', $this->tv));
+
+        $response->assertRedirect(route('admin.categories.index'));
+        $this->assertDatabaseHas('Category', ['CategoryID' => $this->tv->CategoryID]);
+    }
+
+    public function test_edit_category_form_lists_its_existing_brands(): void
+    {
+        Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
+        Brand::create(['BrandName' => 'LG', 'CategoryID' => $this->tv->CategoryID]);
 
         $response = $this->actingAs($this->admin)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
-            ->get(route('admin.brands.show', $brand));
+            ->get(route('admin.categories.edit', $this->tv));
 
         $response->assertOk();
-        $response->assertJsonPath('brand.BrandName', 'LG');
-        $response->assertJsonPath('brand.CategoryName', 'TV');
-        $response->assertJsonPath('brand.ProductCount', 1);
-        $response->assertJsonFragment(['Products' => ['LG Smart TV']]);
+        $html = $response->json('html');
+        $this->assertStringContainsString('Samsung', $html);
+        $this->assertStringContainsString('LG', $html);
+        $this->assertStringContainsString('data-category-id="'.$this->tv->CategoryID.'"', $html);
+    }
+
+    public function test_add_category_form_does_not_show_the_brands_panel(): void
+    {
+        // A Brand always belongs to exactly one Category, so there's
+        // nothing to attach one to until the Category itself is saved.
+        $response = $this->actingAs($this->admin)->get(route('admin.categories.create'));
+
+        $response->assertOk();
+        $response->assertDontSee('Brands in this Category');
     }
 
     // Database-level protection: the unique index on (BrandNameNormalized,

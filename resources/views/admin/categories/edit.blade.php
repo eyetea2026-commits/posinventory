@@ -130,6 +130,29 @@
         background: rgba(239, 68, 68, 0.15);
         color: #fca5a5;
     }
+
+    /* Brands panel, inline in this form */
+    .brand-chip-list {
+        display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
+        min-height: 32px;
+    }
+    .brand-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(59, 130, 246, 0.15); color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 999px; padding: 5px 8px 5px 12px; font-size: 0.82rem;
+    }
+    .brand-chip-remove {
+        border: none; background: rgba(148, 163, 184, 0.15); color: #cbd5e1;
+        width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.9rem; line-height: 1; padding: 0;
+    }
+    .brand-chip-remove:hover { background: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+    .brand-chip-empty { color: var(--text-secondary); font-size: 0.82rem; }
+    .brand-add-row { display: flex; gap: 8px; }
+    .brand-add-row .form-control { flex: 1; }
+    .brand-add-row .btn { white-space: nowrap; padding: 10px 16px; font-size: 0.85rem; }
 </style>
 
 @if($errors->any())
@@ -144,23 +167,7 @@
         @csrf
         @method('PUT')
 
-        <div class="form-group">
-            <label for="CategoryName">Category Name <span class="required">*</span></label>
-            <input type="text" id="CategoryName" name="CategoryName" class="form-control"
-                   value="{{ old('CategoryName', $category->CategoryName) }}" required maxlength="100">
-            @error('CategoryName')
-                <span class="error">{{ $message }}</span>
-            @enderror
-        </div>
-
-        <div class="form-group">
-            <label for="Description">Description</label>
-            <textarea id="Description" name="Description" class="form-control"
-                      rows="4">{{ old('Description', $category->Description) }}</textarea>
-            @error('Description')
-                <span class="error">{{ $message }}</span>
-            @enderror
-        </div>
+        @include('admin.categories.partials.category-form-fields')
 
         <div class="form-actions">
             <a href="{{ route('admin.categories.index') }}" class="btn btn-secondary">
@@ -216,4 +223,5 @@
         });
     @endif
 </script>
+@include('admin.categories.partials.category-brands-behavior')
 @endsection

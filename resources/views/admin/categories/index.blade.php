@@ -277,6 +277,29 @@
     textarea.form-control { min-height: 90px; resize: vertical; }
     .error { display: block; margin-top: 3px; color: #fca5a5; font-size: 0.72rem; }
 
+    /* Brands panel, inline in the Edit Category modal */
+    .brand-chip-list {
+        display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
+        min-height: 32px;
+    }
+    .brand-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(59, 130, 246, 0.15); color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 999px; padding: 5px 8px 5px 12px; font-size: 0.82rem;
+    }
+    .brand-chip-remove {
+        border: none; background: rgba(148, 163, 184, 0.15); color: #cbd5e1;
+        width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.9rem; line-height: 1; padding: 0;
+    }
+    .brand-chip-remove:hover { background: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+    .brand-chip-empty { color: var(--text-muted); font-size: 0.82rem; }
+    .brand-add-row { display: flex; gap: 8px; }
+    .brand-add-row .form-control { flex: 1; }
+    .brand-add-row .btn { white-space: nowrap; }
+
     .modal-overlay {
         display: none;
         position: fixed;
@@ -454,6 +477,7 @@
 </div>
 
 @include('admin.partials.ajax-modal-form')
+@include('admin.categories.partials.category-brands-behavior')
 
 <script>
     function confirmDelete(categoryId) {
