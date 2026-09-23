@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\DamagedProduct;
+use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
-use App\Models\Inventory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class DamageController extends Controller
 {
@@ -48,11 +50,11 @@ class DamageController extends Controller
         // Live search (explicit ?ajax=1, not just an XHR header) — return
         // just the table rows + pagination as rendered partials. Deliberately
         // NOT keyed off $request->ajax()/wantsJson()/X-Requested-With alone:
-        // the Add/Edit Damage modals' own AJAX POSTs (mark-supplier-return,
-        // store, update, ...) carry those same headers, and fetch() follows
-        // their redirect back to this same index route — if that redirect-
-        // follow also matched here, it would return this JSON instead of the
-        // full HTML page those modals' shared submit helper expects to parse.
+        // the Edit Damage modal's own AJAX POSTs (mark-supplier-return,
+        // update, ...) carry those same headers, and fetch() follows their
+        // redirect back to this same index route — if that redirect-follow
+        // also matched here, it would return this JSON instead of the full
+        // HTML page that modal's shared submit helper expects to parse.
         if ($request->boolean('ajax')) {
             return response()->json([
                 'rows' => view('admin.damages.partials.rows', ['damagedProducts' => $damagedProducts])->render(),
@@ -69,110 +71,8 @@ class DamageController extends Controller
         ];
 
         $suppliers = Supplier::orderBy('SupplierName')->get();
-        $products = Product::with('inventory')->orderBy('ProductName')->get();
-        $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
 
-        return view('admin.damages.index', compact(
-            'damagedProducts', 'search', 'supplierId',
-            'kpis', 'suppliers', 'products', 'purchaseOrders'
-        ));
-    }
-
-    // Show create form
-    public function create()
-    {
-        $products = Product::with(['inventory', 'category', 'suppliers'])->orderBy('ProductName')->get();
-        $suppliers = Supplier::orderBy('SupplierName')->get();
-        $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
-
-        // Approved defective/damaged customer returns awaiting a supplier
-        // return transaction — only return-originated records, not manually
-        // recorded warehouse damage.
-        $pendingReturnDamages = DamagedProduct::whereNotNull('SalesReturnID')
-            ->where('Status', DamagedProduct::STATUS_FOR_SUPPLIER_RETURN)
-            ->with(['product', 'salesReturn.transaction'])
-            ->orderByDesc('DamageID')
-            ->get();
-
-        return view('admin.damages.create', compact('products', 'suppliers', 'purchaseOrders', 'pendingReturnDamages'));
-    }
-
-    // Store new damaged product record
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'ProductID' => 'required|exists:Product,ProductID',
-            'SupplierID' => 'required|exists:Supplier,SupplierID',
-            'PurchaseOrderID' => 'nullable|integer|exists:PurchaseOrder,PurchaseOrderID',
-            'Quantity' => 'required|integer|min:1',
-            'Description' => 'required|string|max:500',
-            'DateRecorded' => 'required|date',
-            'DamageType' => 'required|in:' . implode(',', array_keys(DamagedProduct::DAMAGE_TYPES)),
-            'InspectionNotes' => 'nullable|string|max:1000',
-            'WarehouseLocation' => 'nullable|string|max:100',
-            'Remarks' => 'nullable|string|max:500',
-            'Image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
-        ], [
-            'ProductID.required' => 'Please select a product.',
-            'SupplierID.required' => 'Please select a supplier.',
-            'Quantity.required' => 'Quantity is required.',
-            'Quantity.min' => 'Quantity must be at least 1.',
-            'Description.required' => 'Damage description is required.',
-            'DateRecorded.required' => 'Date is required.',
-            'DamageType.required' => 'Please select a damage type.',
-        ]);
-
-        $imagePath = $request->hasFile('Image') ? $request->file('Image')->store('damages', 'public') : null;
-
-        // The availability check and the decrement must happen against the
-        // same locked snapshot, inside the transaction — reading Inventory
-        // unlocked beforehand (as this used to) lets two concurrent damage
-        // submissions both pass the check against the same stale quantity.
-        try {
-            $damage = DB::transaction(function () use ($data, $imagePath) {
-                $inventory = Inventory::where('ProductID', $data['ProductID'])->lockForUpdate()->first();
-                $available = $inventory->Quantity ?? 0;
-
-                if ($data['Quantity'] > $available) {
-                    throw new \RuntimeException("Cannot record {$data['Quantity']} damaged units — only {$available} in stock.");
-                }
-
-                $damage = DamagedProduct::create([
-                    'ProductID' => $data['ProductID'],
-                    'SupplierID' => $data['SupplierID'],
-                    'PurchaseOrderID' => $data['PurchaseOrderID'] ?? null,
-                    'Quantity' => $data['Quantity'],
-                    'Description' => $data['Description'],
-                    'DateRecorded' => $data['DateRecorded'],
-                    'DamageType' => $data['DamageType'],
-                    'InspectionNotes' => $data['InspectionNotes'] ?? null,
-                    'WarehouseLocation' => $data['WarehouseLocation'] ?? null,
-                    'Remarks' => $data['Remarks'] ?? null,
-                    'ImagePath' => $imagePath,
-                    'SourceModule' => DamagedProduct::SOURCE_MANUAL,
-                    'Status' => DamagedProduct::STATUS_PENDING,
-                ]);
-
-                if ($inventory) {
-                    $newQuantity = max(0, $inventory->Quantity - $data['Quantity']);
-                    $inventory->Quantity = $newQuantity;
-                    $inventory->Status = Inventory::resolveStatus($newQuantity, $inventory->ReorderThreshold);
-                    $inventory->save();
-                }
-
-                return $damage;
-            });
-        } catch (\RuntimeException $e) {
-            if ($imagePath) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($imagePath);
-            }
-            return back()->with('error', $e->getMessage())->withInput();
-        }
-
-        $productName = $damage->product?->ProductName ?? 'Unknown Product';
-        ActivityLog::record('damage.created', "Recorded {$damage->Quantity} x \"{$productName}\" as damaged (Supplier: \"{$damage->supplier?->SupplierName}\")");
-
-        return redirect()->route('admin.damages.index')->with('success', 'Damaged product recorded successfully.');
+        return view('admin.damages.index', compact('damagedProducts', 'search', 'supplierId', 'kpis', 'suppliers'));
     }
 
     // View Details modal — full picture of one damage record: product,
@@ -182,11 +82,13 @@ class DamageController extends Controller
     {
         $damage->load([
             'product.category',
+            'product.brand',
             'product.inventory',
             'supplier',
             'purchaseOrder',
             'salesReturn.transaction',
             'salesReturn.staff.user.role',
+            'salesReturn.approvedByUser',
             'stockAdjustment',
             'resolvedByUser',
         ]);
@@ -208,7 +110,7 @@ class DamageController extends Controller
 
             $requestedBy = [
                 'Name' => $user?->full_name ?? 'Unknown User',
-                'EmployeeID' => $staff ? ('EMP-' . str_pad((string) $staff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
+                'EmployeeID' => $staff ? ('EMP-'.str_pad((string) $staff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
                 'Role' => $user?->role?->role_name ? ucfirst($user->role->role_name) : 'Unknown',
                 'RequestDate' => optional($damage->salesReturn->created_at)->format('F j, Y g:i A'),
             ];
@@ -251,7 +153,7 @@ class DamageController extends Controller
         return response()->json([
             'damage' => [
                 'DamageID' => $damage->DamageID,
-                'DamageNumber' => 'DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
+                'DamageNumber' => 'DMG-'.str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
                 'Quantity' => $damage->Quantity,
                 'DamageType' => DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType,
                 'Status' => DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status,
@@ -260,7 +162,7 @@ class DamageController extends Controller
                 'InspectionNotes' => $damage->InspectionNotes,
                 'WarehouseLocation' => $damage->WarehouseLocation,
                 'Remarks' => $damage->Remarks,
-                'ImageUrl' => $damage->ImagePath ? \Illuminate\Support\Facades\Storage::url($damage->ImagePath) : null,
+                'ImageUrl' => $damage->ImagePath ? Storage::url($damage->ImagePath) : null,
                 'DateRecorded' => optional($damage->DateRecorded)->format('Y-m-d'),
                 'ResolvedBy' => $damage->resolvedByUser?->full_name,
                 'ResolvedDate' => optional($damage->ResolvedDate)->format('Y-m-d'),
@@ -268,6 +170,7 @@ class DamageController extends Controller
             'product' => [
                 'ProductName' => $damage->product?->ProductName,
                 'SKU' => $damage->product?->SKU,
+                'Brand' => $damage->product?->brand?->BrandName,
                 'Category' => $damage->product?->category?->CategoryName,
                 'CostPrice' => $damage->product?->CostPrice,
                 'CurrentStock' => $damage->product?->inventory?->Quantity,
@@ -282,9 +185,13 @@ class DamageController extends Controller
             ] : null,
             'salesReturn' => $damage->salesReturn ? [
                 'SalesReturnID' => $damage->salesReturn->SalesReturnID,
-                'ReceiptNumber' => $damage->salesReturn->SalesTransactionID ? ('RCT-' . str_pad($damage->salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT)) : null,
+                'ReceiptNumber' => $damage->salesReturn->SalesTransactionID ? ('RCT-'.str_pad($damage->salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT)) : null,
+                'Reason' => DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType,
             ] : null,
             'requestedBy' => $requestedBy,
+            'approvedBy' => $damage->salesReturn?->approvedByUser ? [
+                'Name' => $damage->salesReturn->approvedByUser->full_name,
+            ] : null,
             'supplierReturnStatus' => $supplierReturnStatus,
             'stockAdjustment' => $damage->stockAdjustment ? [
                 'AdjustmentID' => $damage->stockAdjustment->AdjustmentID,
@@ -297,7 +204,14 @@ class DamageController extends Controller
 
     public function printReport(DamagedProduct $damage)
     {
-        $damage->load(['product', 'supplier', 'purchaseOrder']);
+        $damage->load([
+            'product.category',
+            'product.brand',
+            'supplier',
+            'purchaseOrder',
+            'salesReturn.staff.user',
+            'salesReturn.approvedByUser',
+        ]);
 
         return view('admin.damages.print', ['damage' => $damage]);
     }
@@ -311,6 +225,7 @@ class DamageController extends Controller
             if ($isAjax) {
                 return response()->json(['error' => 'Only pending damage records can be edited.'], 422);
             }
+
             return redirect()->route('admin.damages.index')->with('error', 'Only pending damage records can be edited.');
         }
 
@@ -343,7 +258,7 @@ class DamageController extends Controller
             'Quantity' => 'required|integer|min:1',
             'Description' => 'required|string|max:500',
             'DateRecorded' => 'required|date',
-            'DamageType' => 'required|in:' . implode(',', array_keys(DamagedProduct::DAMAGE_TYPES)),
+            'DamageType' => 'required|in:'.implode(',', array_keys(DamagedProduct::DAMAGE_TYPES)),
             'InspectionNotes' => 'nullable|string|max:1000',
             'WarehouseLocation' => 'nullable|string|max:100',
             'Remarks' => 'nullable|string|max:500',
@@ -417,9 +332,9 @@ class DamageController extends Controller
             });
         } catch (\RuntimeException $e) {
             if ($newImagePath) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($newImagePath);
+                Storage::disk('public')->delete($newImagePath);
             }
-            throw \Illuminate\Validation\ValidationException::withMessages(['Quantity' => $e->getMessage()]);
+            throw ValidationException::withMessages(['Quantity' => $e->getMessage()]);
         }
 
         ActivityLog::record('damage.updated', "Updated damage record #{$damage->DamageID}");
@@ -498,8 +413,8 @@ class DamageController extends Controller
         return back()->with('success', 'Damage record marked as disposed.');
     }
 
-    // Multiple "Pending Supplier Return" records selected together on the
-    // Create Damage Record page and sent to the supplier as one transaction.
+    // Multiple "Pending Supplier Return" records selected together and sent
+    // to the supplier as one transaction.
     public function bulkConfirmSupplierReturn(Request $request)
     {
         $data = $request->validate([
@@ -570,7 +485,7 @@ class DamageController extends Controller
                 }
 
                 $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
-                if (!$inventory) {
+                if (! $inventory) {
                     $inventory = Inventory::firstOrCreate(
                         ['ProductID' => $damage->ProductID],
                         ['Quantity' => 0, 'Status' => 'Out of Stock']
@@ -624,7 +539,7 @@ class DamageController extends Controller
                 }
 
                 $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
-                if (!$inventory) {
+                if (! $inventory) {
                     $inventory = Inventory::firstOrCreate(
                         ['ProductID' => $damage->ProductID],
                         ['Quantity' => 0, 'Status' => 'Out of Stock']
@@ -649,5 +564,4 @@ class DamageController extends Controller
 
         return back()->with('success', 'Damage record cancelled and quantity restored to inventory.');
     }
-
 }

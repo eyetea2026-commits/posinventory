@@ -25,9 +25,20 @@
         <h2>Product</h2>
         <div class="row"><span>Product</span><strong>{{ $damage->product?->ProductName ?? 'N/A' }}</strong></div>
         <div class="row"><span>SKU</span><strong>{{ $damage->product?->SKU ?? 'N/A' }}</strong></div>
+        <div class="row"><span>Brand</span><strong>{{ $damage->product?->brand?->BrandName ?? 'N/A' }}</strong></div>
+        <div class="row"><span>Category</span><strong>{{ $damage->product?->category?->CategoryName ?? 'N/A' }}</strong></div>
         <div class="row"><span>Quantity</span><strong>{{ $damage->Quantity }}</strong></div>
-        <div class="row"><span>Damage Type</span><strong>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType }}</strong></div>
+        <div class="row"><span>Reason for Return</span><strong>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType }}</strong></div>
     </div>
+
+    @if($damage->salesReturn)
+        <div class="section">
+            <h2>Return / Traceability</h2>
+            <div class="row"><span>Return Reference</span><strong>Return #{{ $damage->salesReturn->SalesReturnID }} &mdash; Receipt RCT-{{ str_pad((string) $damage->salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</strong></div>
+            <div class="row"><span>Cashier Who Processed the Return</span><strong>{{ $damage->salesReturn->staff?->user?->full_name ?? 'Unknown' }}</strong></div>
+            <div class="row"><span>Administrator Who Approved</span><strong>{{ $damage->salesReturn->approvedByUser?->full_name ?? 'Unknown' }}</strong></div>
+        </div>
+    @endif
 
     <div class="section">
         <h2>Supplier</h2>

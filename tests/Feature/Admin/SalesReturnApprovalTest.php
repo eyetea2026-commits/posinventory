@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\ActivityLog;
 use App\Models\Billing;
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\DamagedProduct;
 use App\Models\Discount;
@@ -25,7 +26,13 @@ class SalesReturnApprovalTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
+    private User $cashierUser;
+
+    private Staff $staff;
+
     private Product $product;
+
     private SalesTransaction $transaction;
 
     protected function setUp(): void
@@ -47,12 +54,14 @@ class SalesReturnApprovalTest extends TestCase
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
 
         $cashierRole = Role::create(['role_name' => 'cashier']);
-        $cashierUser = User::factory()->create(['role_id' => $cashierRole->id]);
-        $staff = Staff::create([
+        $this->cashierUser = User::factory()->create(['role_id' => $cashierRole->id]);
+        $cashierUser = $this->cashierUser;
+        $this->staff = Staff::create([
             'FirstName' => 'Jane', 'MiddleName' => '-', 'LastName' => 'Doe',
             'ContactNumber' => '0000', 'Email' => 'jane@example.com', 'Age' => 30, 'Gender' => 'F',
             'UserID' => $cashierUser->id,
         ]);
+        $staff = $this->staff;
 
         $this->transaction = SalesTransaction::create([
             'CustomerName' => 'Walk-in Customer',
@@ -80,7 +89,7 @@ class SalesReturnApprovalTest extends TestCase
         Payment::create([
             'PaymentAmount' => 2000,
             'PaymentMethod' => 'cash',
-            'ReceiptNumber' => 'RCT-' . str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+            'ReceiptNumber' => 'RCT-'.str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
             'BillingID' => $billing->BillingID,
         ]);
     }
@@ -127,13 +136,13 @@ class SalesReturnApprovalTest extends TestCase
         // without the dropdown.
         $pendingOnly = $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['status' => 'pending']));
         $pendingOnly->assertOk();
-        $pendingOnly->assertSee('#' . $pending->SalesReturnID . '</td>', false);
-        $pendingOnly->assertDontSee('#' . $declined->SalesReturnID . '</td>', false);
+        $pendingOnly->assertSee('#'.$pending->SalesReturnID.'</td>', false);
+        $pendingOnly->assertDontSee('#'.$declined->SalesReturnID.'</td>', false);
 
         // Return-type filter still auto-applies without the Filter button.
         $replacementOnly = $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['return_type' => 'replacement']));
         $replacementOnly->assertOk();
-        $replacementOnly->assertDontSee('#' . $pending->SalesReturnID . '</td>', false);
+        $replacementOnly->assertDontSee('#'.$pending->SalesReturnID.'</td>', false);
     }
 
     public function test_approve_only_works_on_pending_requests(): void
@@ -179,6 +188,51 @@ class SalesReturnApprovalTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return));
 
         $this->assertDatabaseMissing('DamagedProduct', ['SalesReturnID' => $return->SalesReturnID]);
+    }
+
+    // The Damage module must stay dynamic and synchronized only with
+    // APPROVED returns — a decline must never divert anything to Damage,
+    // even for an otherwise-unsalable reason.
+    public function test_declining_a_return_does_not_create_a_damage_record(): void
+    {
+        $return = $this->makeReturn(['Reason' => 'Factory Defect']);
+
+        $this->actingAs($this->admin)->post(route('admin.sales-returns.decline', $return), [
+            'DeclineReason' => 'Photos show mishandling by the customer.',
+        ]);
+
+        $this->assertSame('declined', $return->fresh()->Status);
+        $this->assertDatabaseMissing('DamagedProduct', ['SalesReturnID' => $return->SalesReturnID]);
+    }
+
+    // End-to-end traceability: once an admin approves an unsalable-reason
+    // return, the auto-created Damage record's View Details must surface
+    // Product, Brand, Category, Quantity, the Transaction/Return reference,
+    // the Reason for Return, the cashier who filed the return, and the
+    // admin who approved it — without any manual data entry.
+    public function test_damage_record_view_details_traces_back_to_product_brand_category_cashier_and_approver(): void
+    {
+        $category = $this->product->category;
+        $brand = Brand::create(['BrandName' => 'Hikvision', 'CategoryID' => $category->CategoryID]);
+        $this->product->update(['BrandID' => $brand->BrandID]);
+
+        $return = $this->makeReturn(['Reason' => 'Factory Defect', 'Quantity' => 1, 'StaffID' => $this->staff->StaffID]);
+
+        $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return));
+
+        $damage = DamagedProduct::where('SalesReturnID', $return->SalesReturnID)->firstOrFail();
+
+        $response = $this->actingAs($this->admin)->getJson(route('admin.damages.show', $damage));
+
+        $response->assertOk();
+        $response->assertJsonPath('product.ProductName', $this->product->ProductName);
+        $response->assertJsonPath('product.Brand', 'Hikvision');
+        $response->assertJsonPath('product.Category', $category->CategoryName);
+        $response->assertJsonPath('damage.Quantity', 1);
+        $response->assertJsonPath('salesReturn.SalesReturnID', $return->SalesReturnID);
+        $response->assertJsonPath('salesReturn.Reason', 'Factory Defect');
+        $response->assertJsonPath('requestedBy.Name', $this->cashierUser->full_name);
+        $response->assertJsonPath('approvedBy.Name', $this->admin->full_name);
     }
 
     public function test_decline_requires_a_reason_and_persists_it(): void

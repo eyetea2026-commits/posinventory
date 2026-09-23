@@ -4,6 +4,7 @@ namespace Tests\Feature\Security;
 
 use App\Models\ActivityLog;
 use App\Models\Category;
+use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Role;
@@ -276,6 +277,11 @@ class SecurityFixesTest extends TestCase
 
     // ---- #9: File upload restrictions ----
 
+    // Damage records are only ever created automatically from an approved
+    // return — there is no manual create/store endpoint — so this coverage
+    // exercises the same 'Image' mime validation on the still-manual
+    // update() path instead (an admin correcting a pending, auto-generated
+    // record).
     public function test_damage_record_rejects_svg_upload(): void
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
@@ -285,10 +291,15 @@ class SecurityFixesTest extends TestCase
         ]);
         Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);
         $supplier = Supplier::create(['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0000', 'Email' => 'acme@example.com', 'Address' => 'N/A']);
+        $damage = DamagedProduct::create([
+            'ProductID' => $product->ProductID, 'SupplierID' => $supplier->SupplierID,
+            'Quantity' => 1, 'Description' => 'Test damage', 'DateRecorded' => now()->format('Y-m-d'),
+            'DamageType' => 'broken', 'Status' => DamagedProduct::STATUS_PENDING,
+        ]);
 
         $svg = UploadedFile::fake()->create('payload.svg', 10, 'image/svg+xml');
 
-        $response = $this->actingAs($this->admin)->post(route('admin.damages.store'), [
+        $response = $this->actingAs($this->admin)->put(route('admin.damages.update', $damage), [
             'ProductID' => $product->ProductID,
             'SupplierID' => $supplier->SupplierID,
             'Quantity' => 1,
@@ -299,7 +310,7 @@ class SecurityFixesTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('Image');
-        $this->assertDatabaseMissing('DamagedProduct', ['ProductID' => $product->ProductID]);
+        $this->assertNull($damage->fresh()->ImagePath);
     }
 
     public function test_damage_record_accepts_a_real_image_upload(): void
@@ -311,10 +322,15 @@ class SecurityFixesTest extends TestCase
         ]);
         Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);
         $supplier = Supplier::create(['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0000', 'Email' => 'acme2@example.com', 'Address' => 'N/A']);
+        $damage = DamagedProduct::create([
+            'ProductID' => $product->ProductID, 'SupplierID' => $supplier->SupplierID,
+            'Quantity' => 1, 'Description' => 'Test damage', 'DateRecorded' => now()->format('Y-m-d'),
+            'DamageType' => 'broken', 'Status' => DamagedProduct::STATUS_PENDING,
+        ]);
 
         $image = UploadedFile::fake()->image('photo.jpg');
 
-        $response = $this->actingAs($this->admin)->post(route('admin.damages.store'), [
+        $response = $this->actingAs($this->admin)->put(route('admin.damages.update', $damage), [
             'ProductID' => $product->ProductID,
             'SupplierID' => $supplier->SupplierID,
             'Quantity' => 1,
@@ -325,7 +341,7 @@ class SecurityFixesTest extends TestCase
         ]);
 
         $response->assertSessionDoesntHaveErrors('Image');
-        $this->assertDatabaseHas('DamagedProduct', ['ProductID' => $product->ProductID]);
+        $this->assertNotNull($damage->fresh()->ImagePath);
     }
 
     // ---- #13: Administrator protection logic ----

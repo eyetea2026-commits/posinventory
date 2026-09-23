@@ -68,7 +68,7 @@
             <div class="empty-state">
                 <div class="empty-icon"><i class="fa-solid fa-box-open"></i></div>
                 <p class="empty-title">No Damage Records Found</p>
-                <p class="empty-text">Record your first damaged product to get started.</p>
+                <p class="empty-text">Damage records are created automatically once an Administrator approves a defective or damaged customer return.</p>
             </div>
         </td>
     </tr>

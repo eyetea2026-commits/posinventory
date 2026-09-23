@@ -294,9 +294,6 @@
                 @endforeach
             </select>
         </form>
-        <a href="{{ route('admin.damages.create') }}" class="btn btn-primary" title="Record Damage" onclick="openDamageModal(event)">
-            <i class="fa-solid fa-plus"></i> Record Damage
-        </a>
     </div>
     <div class="card-body">
         <table class="table">
@@ -320,33 +317,6 @@
 
         <div id="damagePaginationWrapper">
             @include('admin.damages.partials.pagination', ['damagedProducts' => $damagedProducts])
-        </div>
-    </div>
-</div>
-
-<!-- Record Damage Modal -->
-<div id="addDamageModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addDamageModalTitle" aria-hidden="true">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2 id="addDamageModalTitle"><i class="fa-solid fa-box-open"></i> Record Damage</h2>
-            <button type="button" class="modal-close" onclick="closeDamageModal()" aria-label="Close">&times;</button>
-        </div>
-
-        <div id="addDamageGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
-
-        <form id="addDamageForm">
-            {{-- Explicit damage=>null guards against $damage leaking in from
-                 the @forelse($damagedProducts as $damage) table loop above. --}}
-            @include('admin.damages.partials.damage-form-fields', ['damage' => null])
-        </form>
-
-        <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" id="addDamageCancelBtn">
-                <i class="fas fa-times"></i> Cancel
-            </button>
-            <button type="button" class="btn btn-primary" id="addDamageSubmitBtn">
-                <i class="fas fa-save"></i> Record Damage
-            </button>
         </div>
     </div>
 </div>
@@ -417,25 +387,31 @@
         fetch(`/admin/damages/${damageId}`, { headers: { 'Accept': 'application/json' } })
             .then(res => res.json())
             .then(data => {
-                const d = data.damage, p = data.product, s = data.supplier, r = data.requestedBy;
+                const d = data.damage, p = data.product, s = data.supplier, r = data.requestedBy, a = data.approvedBy;
                 let html = '';
                 html += `<p><strong>Damage Record Number:</strong> ${escapeHtml(d.DamageNumber)}</p>`;
                 html += '<hr><h4>Product Information</h4>';
                 html += `<p><strong>Product:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>`;
                 html += `<p><strong>SKU:</strong> ${escapeHtml(p.SKU ?? 'N/A')}</p>`;
+                html += `<p><strong>Brand:</strong> ${escapeHtml(p.Brand ?? 'N/A')}</p>`;
                 html += `<p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>`;
                 html += `<p><strong>Cost Price:</strong> ${window.formatPeso ? window.formatPeso(p.CostPrice ?? 0) : p.CostPrice}</p>`;
                 html += `<p><strong>Current Stock:</strong> ${escapeHtml(p.CurrentStock ?? 0)}</p>`;
                 if (r) {
-                    html += '<hr><h4>Requested By</h4>';
+                    html += '<hr><h4>Cashier Who Processed the Return</h4>';
                     html += `<p><strong>Name:</strong> ${escapeHtml(r.Name)}</p>`;
                     html += `<p><strong>Employee ID:</strong> ${escapeHtml(r.EmployeeID)}</p>`;
                     html += `<p><strong>Role:</strong> ${escapeHtml(r.Role)}</p>`;
                     html += `<p><strong>Date:</strong> ${escapeHtml(r.RequestDate ?? 'N/A')}</p>`;
                 }
+                if (a) {
+                    html += '<hr><h4>Administrator Who Approved</h4>';
+                    html += `<p><strong>Name:</strong> ${escapeHtml(a.Name)}</p>`;
+                }
                 if (data.salesReturn) {
                     html += '<hr><h4>Return Information</h4>';
                     html += `<p><strong>Return #${escapeHtml(data.salesReturn.SalesReturnID)}</strong> — Receipt ${escapeHtml(data.salesReturn.ReceiptNumber ?? 'N/A')}</p>`;
+                    html += `<p><strong>Reason for Return:</strong> ${escapeHtml(data.salesReturn.Reason ?? 'N/A')}</p>`;
                 }
                 html += '<hr><h4>Damage Information</h4>';
                 html += `<p><strong>Quantity Damaged:</strong> ${escapeHtml(d.Quantity)}</p>`;
@@ -524,291 +500,8 @@
         });
     @endif
 
-    // ---- Record Damage modal ----
-    const ADD_DAMAGE_FIELD_IDS = ['ProductID', 'SupplierID', 'PurchaseOrderID', 'Quantity', 'DateRecorded', 'DamageType', 'Description', 'InspectionNotes', 'WarehouseLocation', 'Remarks'];
-    let addDamageLastFocused = null;
-
-    function addDamageIsSubmitting() {
-        const btn = document.getElementById('addDamageSubmitBtn');
-        return btn ? btn.disabled : false;
-    }
-
-    function clearAddDamageFieldErrors() {
-        const form = document.getElementById('addDamageForm');
-        ADD_DAMAGE_FIELD_IDS.forEach(function (field) {
-            const span = document.getElementById('error-' + field);
-            if (span) span.textContent = '';
-            const input = form.querySelector('[name="' + field + '"]');
-            if (input) input.classList.remove('error');
-        });
-    }
-
-    function showAddDamageFieldErrors(errors) {
-        const form = document.getElementById('addDamageForm');
-        clearAddDamageFieldErrors();
-        let firstInvalid = null;
-        Object.keys(errors).forEach(function (field) {
-            const span = document.getElementById('error-' + field);
-            if (span) span.textContent = errors[field][0];
-            const input = form.querySelector('[name="' + field + '"]');
-            if (input) {
-                input.classList.add('error');
-                if (!firstInvalid) firstInvalid = input;
-            }
-        });
-        if (firstInvalid) firstInvalid.focus();
-    }
-
-    function showAddDamageGeneralError(message) {
-        const banner = document.getElementById('addDamageGeneralError');
-        banner.textContent = message;
-        banner.style.display = 'flex';
-    }
-
-    function hideAddDamageGeneralError() {
-        const banner = document.getElementById('addDamageGeneralError');
-        banner.style.display = 'none';
-        banner.textContent = '';
-    }
-
-    function refreshDamagesTable(html) {
-        const parsed = new DOMParser().parseFromString(html, 'text/html');
-        const newTbody = parsed.querySelector('#damagesTbody');
-        const currentTbody = document.getElementById('damagesTbody');
-        if (newTbody && currentTbody) {
-            currentTbody.innerHTML = newTbody.innerHTML;
-        }
-        const newPagination = parsed.querySelector('#damagePaginationWrapper');
-        const currentPagination = document.getElementById('damagePaginationWrapper');
-        if (newPagination && currentPagination) {
-            currentPagination.innerHTML = newPagination.innerHTML;
-            if (window.rebindDamagePagination) window.rebindDamagePagination();
-        }
-    }
-
-    // ---- Live search (matches the Inventory module's pattern) ----
-    (function setupDamageLiveSearch() {
-        const filterForm = document.getElementById('damageFilterForm');
-        const searchInput = document.getElementById('damageSearchInput');
-        const supplierInput = document.getElementById('damageSupplierInput');
-        const tbody = document.getElementById('damagesTbody');
-        const paginationWrapper = document.getElementById('damagePaginationWrapper');
-
-        let debounceTimer = null;
-        let currentController = null;
-
-        function buildQuery(page) {
-            const params = new URLSearchParams();
-            const search = searchInput.value.trim();
-            const supplierId = supplierInput.value;
-
-            if (search) params.set('search', search);
-            if (supplierId) params.set('supplier_id', supplierId);
-            if (page > 1) params.set('page', page);
-
-            return params.toString();
-        }
-
-        async function applyFilters(page = 1) {
-            window.currentDamagePage = page;
-            const query = buildQuery(page);
-            const url = `${filterForm.action}${query ? '?' + query : ''}`;
-            // ?ajax=1 is only ever sent on the fetch itself, never pushed
-            // into the visible URL bar — it's the explicit signal the
-            // controller uses to tell this deliberate live-search request
-            // apart from an unrelated redirect-follow landing on the same
-            // route with the same XHR headers (see DamageController::index()).
-            const fetchUrl = url + (query ? '&' : '?') + 'ajax=1';
-
-            window.history.replaceState({}, '', url);
-
-            if (currentController) currentController.abort();
-            currentController = new AbortController();
-
-            try {
-                const response = await fetch(fetchUrl, {
-                    method: 'GET',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                    signal: currentController.signal,
-                });
-                if (!response.ok) throw new Error(`Request failed (${response.status})`);
-
-                const data = await response.json();
-                tbody.innerHTML = data.rows || '';
-                paginationWrapper.innerHTML = data.pagination || '';
-                rebindPagination();
-            } catch (err) {
-                if (err.name === 'AbortError') return;
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="9">
-                            <div class="empty-state">
-                                <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                                <p class="empty-title">Unable to load damage records</p>
-                                <p class="empty-text">Please try again.</p>
-                            </div>
-                        </td>
-                    </tr>`;
-                paginationWrapper.innerHTML = '';
-            }
-        }
-
-        function rebindPagination() {
-            paginationWrapper.querySelectorAll('a.pagination-link').forEach(function (link) {
-                link.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const page = new URL(this.href).searchParams.get('page') || 1;
-                    applyFilters(page);
-                });
-            });
-        }
-
-        searchInput.addEventListener('input', function () {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(function () { applyFilters(1); }, 300);
-        });
-
-        supplierInput.addEventListener('change', function () { applyFilters(1); });
-
-        filterForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            applyFilters(1);
-        });
-
-        rebindPagination();
-        window.applyDamageFilters = applyFilters;
-        window.rebindDamagePagination = rebindPagination;
-    })();
-
-    function resetAddDamageSubmitButton() {
-        const btn = document.getElementById('addDamageSubmitBtn');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save"></i> Record Damage';
-    }
-
-    window.openDamageModal = function (event) {
-        if (event) event.preventDefault();
-        const modal = document.getElementById('addDamageModal');
-        const form = document.getElementById('addDamageForm');
-
-        addDamageLastFocused = document.activeElement;
-        form.reset();
-        clearAddDamageFieldErrors();
-        hideAddDamageGeneralError();
-        resetAddDamageSubmitButton();
-
-        modal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-        void modal.offsetHeight;
-        requestAnimationFrame(function () {
-            modal.classList.add('active');
-        });
-
-        const firstField = form.querySelector('input, textarea, select');
-        if (firstField) firstField.focus();
-
-        document.addEventListener('keydown', handleAddDamageModalKeydown);
-    };
-
-    window.closeDamageModal = function () {
-        const modal = document.getElementById('addDamageModal');
-        modal.classList.remove('active');
-        document.removeEventListener('keydown', handleAddDamageModalKeydown);
-        setTimeout(function () { modal.style.display = 'none'; }, 250);
-        document.body.style.overflow = '';
-        if (addDamageLastFocused && typeof addDamageLastFocused.focus === 'function') {
-            addDamageLastFocused.focus();
-        }
-    };
-
-    function handleAddDamageModalKeydown(e) {
-        const modal = document.getElementById('addDamageModal');
-        if (!modal.classList.contains('active')) return;
-
-        if (e.key === 'Escape') {
-            if (!addDamageIsSubmitting()) closeDamageModal();
-            return;
-        }
-
-        if (e.key === 'Tab') {
-            const focusable = modal.querySelectorAll('input, select, textarea, button, [href]');
-            if (!focusable.length) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first.focus();
-            }
-        }
-    }
-
-    document.getElementById('addDamageModal').addEventListener('mousedown', function (e) {
-        if (e.target === this && !addDamageIsSubmitting()) {
-            closeDamageModal();
-        }
-    });
-
-    document.getElementById('addDamageForm').addEventListener('submit', function (e) { e.preventDefault(); });
-
-    document.getElementById('addDamageCancelBtn').addEventListener('click', function () {
-        closeDamageModal();
-    });
-
-    document.getElementById('addDamageSubmitBtn').addEventListener('click', function () {
-        const form = document.getElementById('addDamageForm');
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-
-        Swal.fire({
-            title: 'Confirm Save',
-            text: 'Are you sure you want to record this damaged product?',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Yes',
-            cancelButtonText: 'No',
-            confirmButtonColor: '#10b981',
-            cancelButtonColor: '#64748b'
-        }).then(function (result) {
-            if (!result.isConfirmed) return;
-
-            const submitBtn = document.getElementById('addDamageSubmitBtn');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-            clearAddDamageFieldErrors();
-            hideAddDamageGeneralError();
-
-            window.submitAjaxForm(form, '{{ route('admin.damages.store') }}', {
-                onFieldErrors: function (errors) {
-                    showAddDamageFieldErrors(errors);
-                    resetAddDamageSubmitButton();
-                },
-                onSuccess: function (html, message) {
-                    refreshDamagesTable(html);
-                    closeDamageModal();
-                    Swal.fire({
-                        title: 'Success',
-                        text: message,
-                        icon: 'success',
-                        confirmButtonColor: '#10b981',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                },
-                onOtherError: function (message) {
-                    showAddDamageGeneralError(message);
-                    resetAddDamageSubmitButton();
-                }
-            });
-        });
-    });
-
     // ---- Edit Damage modal ----
-    const EDIT_DAMAGE_FIELD_IDS = ADD_DAMAGE_FIELD_IDS;
+    const EDIT_DAMAGE_FIELD_IDS = ['ProductID', 'SupplierID', 'PurchaseOrderID', 'Quantity', 'DateRecorded', 'DamageType', 'Description', 'InspectionNotes', 'WarehouseLocation', 'Remarks'];
     let editDamageLastFocused = null;
     let currentEditDamageId = null;
 

@@ -18,7 +18,9 @@ class DamageModuleTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
+
     private Supplier $supplier;
 
     protected function setUp(): void
@@ -52,36 +54,8 @@ class DamageModuleTest extends TestCase
         ], $overrides);
     }
 
-    public function test_store_deducts_inventory_and_logs_activity(): void
-    {
-        $response = $this->actingAs($this->admin)->post(route('admin.damages.store'), $this->baseDamagePayload());
-
-        $response->assertRedirect(route('admin.damages.index'));
-        $this->assertSame(8, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
-        $this->assertDatabaseHas('DamagedProduct', ['Quantity' => 2, 'Status' => DamagedProduct::STATUS_PENDING]);
-        $this->assertTrue(ActivityLog::where('Action', 'damage.created')->exists());
-    }
-
-    // The Add Damage modal submits via fetch() with X-Requested-With +
-    // Accept: application/json, then follows the resulting redirect back to
-    // index() and parses that final response's HTML for the "Auto-show
-    // session messages" Swal marker (see admin/partials/ajax-modal-form).
-    // followingRedirects() reproduces that exact round trip — this fails if
-    // index()'s live-search JSON branch ever goes back to keying off those
-    // same XHR headers instead of the explicit ?ajax=1 flag.
-    public function test_store_via_the_modals_xhr_flow_still_returns_html_after_the_redirect(): void
-    {
-        $response = $this->actingAs($this->admin)
-            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
-            ->followingRedirects()
-            ->post(route('admin.damages.store'), $this->baseDamagePayload());
-
-        $response->assertOk();
-        $response->assertSee('Auto-show session messages', false);
-        $response->assertSee('Damaged product recorded successfully.');
-        $this->assertDatabaseHas('DamagedProduct', ['Quantity' => 2, 'Status' => DamagedProduct::STATUS_PENDING]);
-    }
-
+    // Damage records can no longer be created manually — the create/store
+    // routes are gone entirely (see test_create_and_store_routes_no_longer_exist).
     public function test_edit_and_delete_are_blocked_once_not_pending(): void
     {
         $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
@@ -112,8 +86,7 @@ class DamageModuleTest extends TestCase
 
     public function test_status_transitions_do_not_further_touch_inventory(): void
     {
-        $this->actingAs($this->admin)->post(route('admin.damages.store'), $this->baseDamagePayload());
-        $damage = DamagedProduct::first();
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_PENDING]));
         $quantityAfterCreate = Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity;
 
         $this->actingAs($this->admin)->post(route('admin.damages.mark-supplier-return', $damage));
@@ -237,50 +210,16 @@ class DamageModuleTest extends TestCase
         $this->assertSame(2, ActivityLog::where('Action', 'damage.returned_to_supplier')->count());
     }
 
-    public function test_create_page_lists_only_return_originated_pending_supplier_return_records(): void
+    // Damage records are only ever created automatically (see
+    // SalesReturnController::createDamageRecordForItem()) — these routes
+    // must not exist at all.
+    public function test_create_and_store_routes_no_longer_exist(): void
     {
-        $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);
-        $cashierUser = User::factory()->create(['role_id' => $cashierRole->id]);
-        $staff = \App\Models\Staff::create([
-            'FirstName' => 'Jane', 'MiddleName' => '-', 'LastName' => 'Doe',
-            'ContactNumber' => '0000', 'Email' => 'jane.staff@example.com', 'Age' => 30, 'Gender' => 'F',
-            'UserID' => $cashierUser->id,
-        ]);
-        $transaction = \App\Models\SalesTransaction::create([
-            'CustomerName' => 'Jane Buyer',
-            'SalesTransactionDate' => now(),
-            'StaffID' => $staff->StaffID,
-        ]);
-        $salesReturn = \App\Models\SalesReturn::create([
-            'SalesTransactionID' => $transaction->SalesTransactionID,
-            'ProductID' => $this->product->ProductID,
-            'Quantity' => 1,
-            'Reason' => 'Factory Defect',
-            'ReturnType' => 'refund',
-            'ReturnDate' => now()->format('Y-m-d'),
-            'Status' => 'approved',
-            'CustomerName' => 'Jane Buyer',
-        ]);
-        $fromReturn = DamagedProduct::create(array_merge($this->baseDamagePayload(), [
-            'Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN,
-            'SalesReturnID' => $salesReturn->SalesReturnID,
-        ]));
-        // Manually-recorded damage marked for supplier return — must NOT appear in this list.
-        DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
-
-        $response = $this->actingAs($this->admin)->get(route('admin.damages.create'));
-
-        $response->assertStatus(200);
-        $response->assertViewHas('pendingReturnDamages', function ($records) use ($fromReturn) {
-            return $records->count() === 1 && $records->first()->DamageID === $fromReturn->DamageID;
-        });
-    }
-
-    public function test_manually_created_damage_is_tagged_with_manual_source(): void
-    {
-        $this->actingAs($this->admin)->post(route('admin.damages.store'), $this->baseDamagePayload());
-
-        $this->assertDatabaseHas('DamagedProduct', ['SourceModule' => DamagedProduct::SOURCE_MANUAL]);
+        $this->actingAs($this->admin)->get('/admin/damages/create')->assertStatus(404);
+        // POST /admin/damages: the URI itself still matches (GET damages ==
+        // the index route), just not this verb — Laravel reports that as
+        // 405, not 404.
+        $this->actingAs($this->admin)->post('/admin/damages', $this->baseDamagePayload())->assertStatus(405);
     }
 
     public function test_show_returns_full_details_json(): void
@@ -302,23 +241,8 @@ class DamageModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.damages.print', $damage));
 
         $response->assertOk();
-        $response->assertSee('Damage Report #' . $damage->DamageID);
+        $response->assertSee('Damage Report #'.$damage->DamageID);
         $response->assertSee($this->product->ProductName);
-    }
-
-    public function test_store_accepts_an_optional_photo_upload(): void
-    {
-        \Illuminate\Support\Facades\Storage::fake('public');
-        $file = \Illuminate\Http\UploadedFile::fake()->image('damage.jpg');
-
-        $response = $this->actingAs($this->admin)->post(route('admin.damages.store'), array_merge($this->baseDamagePayload(), [
-            'Image' => $file,
-        ]));
-
-        $response->assertRedirect(route('admin.damages.index'));
-        $damage = DamagedProduct::first();
-        $this->assertNotNull($damage->ImagePath);
-        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($damage->ImagePath);
     }
 
     public function test_index_no_longer_shows_removed_filters_and_export_buttons(): void
@@ -334,8 +258,9 @@ class DamageModuleTest extends TestCase
         $response->assertDontSee('>PDF<', false);
         $response->assertDontSee('>Excel<', false);
         $response->assertDontSee('window.print()', false);
-        // Add Damage Record stays — explicitly kept per the approved requirements.
-        $response->assertSee('Record Damage');
+        // There is no manual "Add Damage Record" function — records are only
+        // ever created automatically from an approved customer return.
+        $response->assertDontSee('Record Damage');
         // Supplier filter stays — only the date/status filters were removed.
         $response->assertSee('All Suppliers');
     }
@@ -355,21 +280,21 @@ class DamageModuleTest extends TestCase
     }
 
     // Regression guard: fetch() follows a POST's redirect while preserving
-    // custom headers, so the Add/Edit Damage modal's XHR-flagged submit to
-    // store()/update()/mark-supplier-return/etc. lands back on this same
+    // custom headers, so the Edit Damage modal's XHR-flagged submit to
+    // update()/mark-supplier-return/etc. lands back on this same
     // index route carrying the exact same X-Requested-With/Accept headers
     // a deliberate live-search request would send. If index() keyed off
     // those headers alone, that redirect-follow would get JSON instead of
     // the full HTML page the modal's shared submit helper expects to parse
-    // for its success/error message — silently breaking every Add/Edit
-    // Damage save. Only the explicit ?ajax=1 the live-search JS sends may
-    // trigger the JSON branch.
+    // for its success/error message — silently breaking every Edit Damage
+    // save. Only the explicit ?ajax=1 the live-search JS sends may trigger
+    // the JSON branch.
     public function test_xhr_headers_alone_without_ajax_flag_still_return_the_full_page(): void
     {
         $response = $this->actingAs($this->admin)->getJson(route('admin.damages.index'));
 
         $response->assertOk();
-        $response->assertSee('Record Damage');
+        $response->assertSee('Total Damage Records');
         $response->assertDontSee('"rows":', false);
     }
 
@@ -401,7 +326,7 @@ class DamageModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->getJson(route('admin.damages.show', $damage));
 
         $response->assertOk();
-        $response->assertJsonPath('damage.DamageNumber', 'DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT));
+        $response->assertJsonPath('damage.DamageNumber', 'DMG-'.str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT));
         $response->assertJsonPath('supplierReturnStatus', 'Pending Supplier Return');
     }
 
@@ -422,10 +347,14 @@ class DamageModuleTest extends TestCase
         $response->assertJsonPath('supplierReturnStatus', 'Not Applicable');
     }
 
+    // Legacy rows created before manual entry was removed (SourceModule =
+    // manual) can still be viewed/edited — show() falls back to resolving
+    // "requested by" from the record's own creation ActivityLog entry since
+    // it has no CreatedBy column of its own.
     public function test_show_resolves_requested_by_for_a_manually_created_damage_record(): void
     {
-        $this->actingAs($this->admin)->post(route('admin.damages.store'), $this->baseDamagePayload());
-        $damage = DamagedProduct::first();
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['SourceModule' => DamagedProduct::SOURCE_MANUAL]));
+        ActivityLog::record('damage.created', "Recorded {$damage->Quantity} x \"{$this->product->ProductName}\" as damaged (Supplier: \"{$this->supplier->SupplierName}\")", $this->admin->id);
 
         $response = $this->actingAs($this->admin)->getJson(route('admin.damages.show', $damage));
 

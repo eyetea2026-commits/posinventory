@@ -231,13 +231,11 @@ Route::prefix('admin')->group(function () {
     Route::get('discounts/{discount}', [DiscountController::class, 'show'])
         ->name('admin.discounts.show')->middleware(['auth', 'role:admin']);
 
-    // Damages
+    // Damages — records are created automatically when an approved customer
+    // return is for an unsalable reason (see SalesReturnController::approve());
+    // there is no manual create/store route.
     Route::get('damages', [DamageController::class, 'index'])
         ->name('admin.damages.index')->middleware(['auth', 'role:admin']);
-    Route::get('damages/create', [DamageController::class, 'create'])
-        ->name('admin.damages.create')->middleware(['auth', 'role:admin']);
-    Route::post('damages', [DamageController::class, 'store'])
-        ->name('admin.damages.store')->middleware(['auth', 'role:admin']);
     Route::get('damages/{damage}/print', [DamageController::class, 'printReport'])
         ->name('admin.damages.print')->middleware(['auth', 'role:admin']);
     Route::get('damages/{damage}', [DamageController::class, 'show'])

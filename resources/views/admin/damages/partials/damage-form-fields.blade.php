@@ -1,6 +1,6 @@
-{{-- Shared Damage field markup. Included by the standalone create/edit
-     pages and the Add/Edit Damage modals. Pass an optional $damage to
-     pre-fill for editing (its absence means "Add" mode). --}}
+{{-- Shared Damage field markup, used only for editing an already
+     auto-generated (approved-return) damage record. Records can no longer be
+     created manually — see routes/web.php and DamageController::edit(). --}}
 <div class="form-grid">
     <div class="form-group full-width">
         <label class="form-label" for="ProductID">Product <span class="required">*</span></label>
