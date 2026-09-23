@@ -6,14 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Brand;
 use App\Models\Category;
-use App\Models\Product;
 use App\Models\Inventory;
+use App\Models\Product;
+use App\Models\ProductCostHistory;
 use App\Models\User;
 use App\Notifications\ProductUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class ProductController extends Controller
@@ -196,7 +198,7 @@ class ProductController extends Controller
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'Price' => ['nullable', 'numeric', 'min:0.01'],
-            'BrandName' => ['nullable', 'string', 'max:100'],
+            'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
         ], [
@@ -205,12 +207,16 @@ class ProductController extends Controller
             'Barcode.unique' => 'This barcode is already assigned to another product.',
         ]);
 
-        // The Brand field accepts either an existing brand name (via the
-        // datalist) or a freshly typed one — resolve to a BrandID here
-        // rather than requiring a pre-existing Brand row.
-        $brandId = null;
-        if (! empty($data['BrandName'])) {
-            $brandId = Brand::firstOrCreate(['BrandName' => trim($data['BrandName'])])->BrandID;
+        // Brand is managed via Brand Management (Category module) and is
+        // always scoped to one Category — the Add Product form's Brand
+        // dropdown only ever offers brands belonging to the selected
+        // Category, but a crafted request could still send a mismatched
+        // pair, so re-verify server-side rather than trusting the client.
+        $brandId = $data['BrandID'] ?? null;
+        if ($brandId !== null && ! Brand::where('BrandID', $brandId)->where('CategoryID', $data['CategoryID'])->exists()) {
+            throw ValidationException::withMessages([
+                'BrandID' => 'The selected brand does not belong to the selected category.',
+            ]);
         }
 
         // Block duplicate Product Name and Model (case-insensitive, whitespace-normalized).
@@ -237,6 +243,7 @@ class ProductController extends Controller
             if ($modelTaken) {
                 $messages['Model'] = 'A product with this model number already exists. Duplicate model numbers are not allowed.';
             }
+
             return back()
                 ->withErrors($messages)
                 ->withInput();
@@ -313,11 +320,11 @@ class ProductController extends Controller
             'ProductName' => ['required', 'string', 'max:100'],
             'Model' => ['required', 'string', 'max:100'],
             'Description' => ['nullable', 'string', 'max:500'],
-            'SKU' => ['nullable', 'string', 'max:100', 'unique:Product,SKU,' . $product->ProductID . ',ProductID'],
-            'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode,' . $product->ProductID . ',ProductID'],
+            'SKU' => ['nullable', 'string', 'max:100', 'unique:Product,SKU,'.$product->ProductID.',ProductID'],
+            'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode,'.$product->ProductID.',ProductID'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'Price' => ['nullable', 'numeric', 'min:0.01'],
-            'BrandName' => ['nullable', 'string', 'max:100'],
+            'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
         ], [
@@ -326,11 +333,13 @@ class ProductController extends Controller
             'Barcode.unique' => 'This barcode is already assigned to another product.',
         ]);
 
-        // See store() — resolve the typed/selected brand name to a BrandID,
-        // creating a new Brand row on the fly if it doesn't exist yet.
-        $brandId = null;
-        if (! empty($data['BrandName'])) {
-            $brandId = Brand::firstOrCreate(['BrandName' => trim($data['BrandName'])])->BrandID;
+        // See store() — re-verify the selected Brand actually belongs to the
+        // selected Category rather than trusting the client.
+        $brandId = $data['BrandID'] ?? null;
+        if ($brandId !== null && ! Brand::where('BrandID', $brandId)->where('CategoryID', $data['CategoryID'])->exists()) {
+            throw ValidationException::withMessages([
+                'BrandID' => 'The selected brand does not belong to the selected category.',
+            ]);
         }
 
         // Block duplicate Model against every OTHER product (case-insensitive,
@@ -356,7 +365,7 @@ class ProductController extends Controller
             // for a plain form post, or 422 JSON for the Edit modal's AJAX
             // submission — instead of always producing a redirect that an
             // AJAX caller can't distinguish from success.
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'Model' => ['A product with this model number already exists. Duplicate model numbers are not allowed.'],
             ]);
         }
@@ -385,14 +394,14 @@ class ProductController extends Controller
             'CategoryID' => $data['CategoryID'],
         ]);
 
-        \App\Models\ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], \App\Models\ProductCostHistory::SOURCE_PRODUCT_UPDATE);
+        ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], ProductCostHistory::SOURCE_PRODUCT_UPDATE);
 
         $product->inventory()->updateOrCreate(
             ['ProductID' => $product->ProductID],
             [
                 'Quantity' => $currentQuantity,
                 'ReorderThreshold' => $data['ReorderThreshold'] ?? 50,
-                'Status' => $status
+                'Status' => $status,
             ]
         );
 

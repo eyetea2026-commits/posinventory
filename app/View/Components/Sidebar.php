@@ -43,6 +43,7 @@ class Sidebar extends Component
                 'label' => 'Product Management',
                 'items' => [
                     ['label' => 'Category', 'route' => 'admin.categories.index', 'pattern' => 'admin.categories.*', 'icon' => 'folder'],
+                    ['label' => 'Brands', 'route' => 'admin.brands.index', 'pattern' => 'admin.brands.*', 'icon' => 'tag'],
                     ['label' => 'Product Management', 'route' => 'admin.products.index', 'pattern' => 'admin.products.*', 'icon' => 'package'],
                     ['label' => 'Inventory', 'route' => 'admin.inventory.index', 'pattern' => 'admin.inventory.*', 'icon' => 'archive'],
                     ['label' => 'Discounts', 'route' => 'admin.discounts.index', 'pattern' => 'admin.discounts.*', 'icon' => 'percent'],

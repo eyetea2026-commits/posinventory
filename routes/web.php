@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DamageController;
 use App\Http\Controllers\Admin\DiscountController;
@@ -196,6 +197,22 @@ Route::prefix('admin')->group(function () {
         ->name('admin.categories.update')->middleware(['auth', 'role:admin']);
     Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
         ->name('admin.categories.destroy')->middleware(['auth', 'role:admin']);
+
+    // Brands (Category Module — every Brand belongs to exactly one Category)
+    Route::get('brands', [BrandController::class, 'index'])
+        ->name('admin.brands.index')->middleware(['auth', 'role:admin']);
+    Route::get('brands/create', [BrandController::class, 'create'])
+        ->name('admin.brands.create')->middleware(['auth', 'role:admin']);
+    Route::post('brands', [BrandController::class, 'store'])
+        ->name('admin.brands.store')->middleware(['auth', 'role:admin']);
+    Route::get('brands/{brand}', [BrandController::class, 'show'])
+        ->name('admin.brands.show')->middleware(['auth', 'role:admin']);
+    Route::get('brands/{brand}/edit', [BrandController::class, 'edit'])
+        ->name('admin.brands.edit')->middleware(['auth', 'role:admin']);
+    Route::put('brands/{brand}', [BrandController::class, 'update'])
+        ->name('admin.brands.update')->middleware(['auth', 'role:admin']);
+    Route::delete('brands/{brand}', [BrandController::class, 'destroy'])
+        ->name('admin.brands.destroy')->middleware(['auth', 'role:admin']);
 
     // Discounts
     Route::get('discounts', [DiscountController::class, 'index'])

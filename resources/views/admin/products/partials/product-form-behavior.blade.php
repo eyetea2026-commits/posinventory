@@ -24,6 +24,8 @@ window.initProductAddForm = function (formId, options) {
     var productNameErrorEl = form.querySelector('#productNameDuplicateError');
     var modelErrorEl = form.querySelector('#modelDuplicateError');
     var barcodeErrorEl = form.querySelector('#error-Barcode');
+    var categorySelect = form.querySelector('#CategoryID');
+    var brandSelect = form.querySelector('#BrandID');
 
     var formChanged = false;
     var nameDuplicate = false;
@@ -37,6 +39,68 @@ window.initProductAddForm = function (formId, options) {
 
     window.attachMoneyInput(costPriceInput);
     window.attachMoneyInput(sellingPriceInput);
+
+    // Brand is dependent on Category: every <option> in #BrandID already
+    // carries the Brand's own Category as data-category — show only the
+    // ones matching whatever Category is currently selected, and replace
+    // the list with a single disabled "No brands available" option when
+    // none match. The previously-selected BrandID is preserved across a
+    // filter pass whenever it's still valid for the new Category (e.g. on
+    // first load while editing a product), and cleared otherwise.
+    function filterBrandOptionsByCategory(preserveBrandId) {
+        if (!categorySelect || !brandSelect) return;
+        var categoryId = categorySelect.value;
+        var previousValue = preserveBrandId !== undefined ? String(preserveBrandId) : brandSelect.value;
+        var options = Array.prototype.slice.call(brandSelect.querySelectorAll('option[data-category]'));
+
+        var matching = options.filter(function (option) {
+            return String(option.dataset.category) === String(categoryId);
+        });
+
+        brandSelect.innerHTML = '';
+
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        if (!categoryId) {
+            placeholder.textContent = 'Select a category first';
+        } else if (matching.length === 0) {
+            placeholder.textContent = 'No brands available for this category.';
+        } else {
+            placeholder.textContent = 'No Brand';
+        }
+        brandSelect.appendChild(placeholder);
+
+        matching.forEach(function (option) {
+            brandSelect.appendChild(option);
+        });
+
+        var stillValid = matching.some(function (option) { return option.value === previousValue; });
+        brandSelect.value = stillValid ? previousValue : '';
+        brandSelect.disabled = matching.length === 0;
+    }
+
+    if (categorySelect && brandSelect) {
+        // Preserve the full, unfiltered option list so re-filtering after a
+        // later Category change can draw from every Brand again, not just
+        // whatever the previous filter pass left behind.
+        var allBrandOptions = Array.prototype.slice.call(brandSelect.querySelectorAll('option[data-category]'));
+        var initialBrandId = brandSelect.value;
+
+        categorySelect.addEventListener('change', function () {
+            brandSelect.innerHTML = '';
+            allBrandOptions.forEach(function (option) { brandSelect.appendChild(option.cloneNode(true)); });
+            // A user-initiated Category change always starts the Brand
+            // field fresh, rather than risking it land on whatever
+            // arbitrary option the browser defaults a freshly-repopulated
+            // <select> to.
+            filterBrandOptionsByCategory('');
+        });
+
+        // Initial pass (Add mode: no category picked yet, so everything is
+        // hidden behind "Select a category first"; Edit mode: filter down
+        // to the product's own category and keep its current brand selected).
+        filterBrandOptionsByCategory(initialBrandId);
+    }
 
     function currentMarginFraction() {
         var margin = parseFloat(profitMarginInput.value);

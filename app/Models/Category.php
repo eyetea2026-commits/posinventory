@@ -12,6 +12,7 @@ class Category extends Model
     public $timestamps = false;
 
     protected $table = 'Category';
+
     protected $primaryKey = 'CategoryID';
 
     protected $fillable = ['CategoryName', 'Description'];
@@ -19,5 +20,10 @@ class Category extends Model
     public function products()
     {
         return $this->hasMany(Product::class, 'CategoryID', 'CategoryID');
+    }
+
+    public function brands()
+    {
+        return $this->hasMany(Brand::class, 'CategoryID', 'CategoryID');
     }
 }

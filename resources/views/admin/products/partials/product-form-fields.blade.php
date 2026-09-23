@@ -30,7 +30,7 @@
 
     <div class="form-group">
         <label class="form-label">Category <span class="required">*</span></label>
-        <select name="CategoryID" class="form-select @error('CategoryID') is-invalid @enderror" required>
+        <select name="CategoryID" id="CategoryID" class="form-select @error('CategoryID') is-invalid @enderror" required>
             <option value="">Select Category</option>
             @foreach($categories as $category)
                 <option value="{{ $category->CategoryID }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
@@ -43,16 +43,22 @@
 
     <div class="form-group">
         <label class="form-label">Brand</label>
-        <input type="text" name="BrandName" id="BrandName" class="form-input @error('BrandName') is-invalid @enderror"
-               list="brandOptions" autocomplete="off"
-               value="{{ old('BrandName', $product->brand->BrandName ?? null) }}"
-               placeholder="Select a brand or type a new one">
-        <datalist id="brandOptions">
-            @foreach($brands as $brand)
-                <option value="{{ $brand->BrandName }}"></option>
+        {{-- Populated client-side (see product-form-behavior.blade.php) from
+             every option below, filtered down to whichever ones carry the
+             currently-selected Category's data-category id. Brands are
+             managed exclusively through Brand Management (Category module)
+             now — this form only ever selects an existing Brand, it never
+             creates one. --}}
+        <select name="BrandID" id="BrandID" class="form-select @error('BrandID') is-invalid @enderror">
+            <option value="">No Brand</option>
+            @foreach($brands as $brandOption)
+                <option value="{{ $brandOption->BrandID }}" data-category="{{ $brandOption->CategoryID }}"
+                    {{ old('BrandID', $product->BrandID ?? null) == $brandOption->BrandID ? 'selected' : '' }}>
+                    {{ $brandOption->BrandName }}
+                </option>
             @endforeach
-        </datalist>
-        <span class="form-error" id="error-BrandName">@error('BrandName'){{ $message }}@enderror</span>
+        </select>
+        <span class="form-error" id="error-BrandID">@error('BrandID'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">

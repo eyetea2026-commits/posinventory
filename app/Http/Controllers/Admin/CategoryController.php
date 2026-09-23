@@ -20,15 +20,17 @@ class CategoryController extends Controller
             if (! auth()->user() || ! auth()->user()->isAdmin()) {
                 abort(403);
             }
+
             return $next($request);
         });
     }
+
     // Display categories list
     public function index(Request $request)
     {
         $search = $request->get('search');
 
-        $categories = Category::when($search, function($query) use ($search) {
+        $categories = Category::when($search, function ($query) use ($search) {
             return $query->where('CategoryName', 'like', "%{$search}%");
         })->orderBy('CategoryID', 'desc')->paginate(15)->withQueryString();
 
@@ -91,7 +93,7 @@ class CategoryController extends Controller
     {
         $request->validate([
             'CategoryName' => 'required|string|max:100|unique:Category,CategoryName',
-            'Description' => 'nullable|string|max:500'
+            'Description' => 'nullable|string|max:500',
         ], [
             'CategoryName.required' => 'Category name is required.',
             'CategoryName.unique' => 'This category already exists.',
@@ -99,7 +101,7 @@ class CategoryController extends Controller
 
         $category = Category::create([
             'CategoryName' => $request->CategoryName,
-            'Description' => $request->Description
+            'Description' => $request->Description,
         ]);
 
         try {
@@ -134,8 +136,8 @@ class CategoryController extends Controller
     public function update(Request $request, Category $category)
     {
         $request->validate([
-            'CategoryName' => 'required|string|max:100|unique:Category,CategoryName,' . $category->CategoryID . ',CategoryID',
-            'Description' => 'nullable|string|max:500'
+            'CategoryName' => 'required|string|max:100|unique:Category,CategoryName,'.$category->CategoryID.',CategoryID',
+            'Description' => 'nullable|string|max:500',
         ], [
             'CategoryName.required' => 'Category name is required.',
             'CategoryName.unique' => 'This category already exists.',
@@ -143,7 +145,7 @@ class CategoryController extends Controller
 
         $category->update([
             'CategoryName' => $request->CategoryName,
-            'Description' => $request->Description
+            'Description' => $request->Description,
         ]);
 
         try {
@@ -164,6 +166,10 @@ class CategoryController extends Controller
         // Check if category has products
         if ($category->products()->count() > 0) {
             return redirect()->route('admin.categories.index')->with('error', 'Cannot delete category with associated products.');
+        }
+
+        if ($category->brands()->count() > 0) {
+            return redirect()->route('admin.categories.index')->with('error', 'Cannot delete category with associated brands.');
         }
 
         $category->delete();
