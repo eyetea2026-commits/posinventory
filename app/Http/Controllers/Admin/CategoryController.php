@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\User;
 use App\Notifications\CategoryUpdated;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class CategoryController extends Controller
@@ -91,18 +95,56 @@ class CategoryController extends Controller
     // Store new category
     public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'CategoryName' => 'required|string|max:100|unique:Category,CategoryName',
             'Description' => 'nullable|string|max:500',
+            // A Brand can't be attached before the Category exists, so the
+            // Add Category form's "Brands in this Category" panel just
+            // collects plain names client-side and submits them alongside
+            // the category — created here in the same request instead of
+            // the immediate per-brand AJAX calls the Edit form uses.
+            'Brands' => ['nullable', 'array'],
+            'Brands.*' => ['nullable', 'string', 'max:100'],
         ], [
             'CategoryName.required' => 'Category name is required.',
             'CategoryName.unique' => 'This category already exists.',
         ]);
 
-        $category = Category::create([
-            'CategoryName' => $request->CategoryName,
-            'Description' => $request->Description,
-        ]);
+        $category = DB::transaction(function () use ($data) {
+            $category = Category::create([
+                'CategoryName' => $data['CategoryName'],
+                'Description' => $data['Description'] ?? null,
+            ]);
+
+            // De-duplicate case-insensitively — the client already blocks
+            // adding the same brand name twice, but never trust that alone.
+            $seen = [];
+            foreach ($data['Brands'] ?? [] as $brandName) {
+                $brandName = trim((string) $brandName);
+                if ($brandName === '') {
+                    continue;
+                }
+                $normalized = mb_strtolower($brandName);
+                if (isset($seen[$normalized])) {
+                    continue;
+                }
+                $seen[$normalized] = true;
+
+                try {
+                    Brand::create(['BrandName' => $brandName, 'CategoryID' => $category->CategoryID]);
+                } catch (QueryException $e) {
+                    if ($e->getCode() === '23000') {
+                        throw ValidationException::withMessages([
+                            'Brands' => 'This brand already exists under the selected category.',
+                        ]);
+                    }
+
+                    throw $e;
+                }
+            }
+
+            return $category;
+        });
 
         try {
             Notification::send(User::admins(), new CategoryUpdated($category, 'Created'));

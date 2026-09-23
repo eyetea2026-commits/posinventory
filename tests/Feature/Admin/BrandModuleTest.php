@@ -146,14 +146,55 @@ class BrandModuleTest extends TestCase
         $this->assertStringContainsString('data-category-id="'.$this->tv->CategoryID.'"', $html);
     }
 
-    public function test_add_category_form_does_not_show_the_brands_panel(): void
+    public function test_add_category_form_shows_the_brands_panel(): void
     {
-        // A Brand always belongs to exactly one Category, so there's
-        // nothing to attach one to until the Category itself is saved.
         $response = $this->actingAs($this->admin)->get(route('admin.categories.create'));
 
         $response->assertOk();
-        $response->assertDontSee('Brands in this Category');
+        $response->assertSee('Brands in this Category');
+        // No CategoryID exists yet -- the panel starts empty, driven purely
+        // client-side until the whole Create Category form is submitted.
+        $response->assertSee('data-category-id=""', false);
+    }
+
+    // The Add Category form's "Brands in this Category" panel collects
+    // plain names client-side (see category-brands-behavior.blade.php) and
+    // submits them as Brands[] alongside CategoryName/Description.
+    public function test_creating_a_category_also_creates_the_brands_submitted_with_it(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.categories.store'), [
+            'CategoryName' => 'AVR',
+            'Brands' => ['Panther', 'Omni'],
+        ]);
+
+        $response->assertRedirect(route('admin.categories.index'));
+        $category = Category::where('CategoryName', 'AVR')->firstOrFail();
+        $this->assertDatabaseHas('Brand', ['BrandName' => 'Panther', 'CategoryID' => $category->CategoryID]);
+        $this->assertDatabaseHas('Brand', ['BrandName' => 'Omni', 'CategoryID' => $category->CategoryID]);
+    }
+
+    public function test_creating_a_category_with_no_brands_still_works(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.categories.store'), [
+            'CategoryName' => 'Empty Category',
+        ]);
+
+        $response->assertRedirect(route('admin.categories.index'));
+        $this->assertDatabaseHas('Category', ['CategoryName' => 'Empty Category']);
+    }
+
+    // The client already blocks adding the same name twice, but the server
+    // must not trust that alone.
+    public function test_creating_a_category_de_duplicates_case_insensitive_brand_names_server_side(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.categories.store'), [
+            'CategoryName' => 'AVR',
+            'Brands' => ['Panther', 'PANTHER', 'panther'],
+        ]);
+
+        $response->assertRedirect(route('admin.categories.index'));
+        $category = Category::where('CategoryName', 'AVR')->firstOrFail();
+        $this->assertSame(1, Brand::where('CategoryID', $category->CategoryID)->count());
     }
 
     // Database-level protection: the unique index on (BrandNameNormalized,

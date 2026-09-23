@@ -676,6 +676,17 @@
         resetAddCategorySubmitButton();
         addCategoryFormChanged = false;
 
+        // form.reset() only reverts native input values — clear out any
+        // pending brand chips left over from a previous open too.
+        const brandList = form.querySelector('.brand-chip-list');
+        if (brandList) {
+            brandList.innerHTML = '<span class="brand-chip-empty">No brands added yet.</span>';
+        }
+        const brandNameInput = form.querySelector('.brand-name-input');
+        if (brandNameInput) brandNameInput.value = '';
+        const brandNameError = form.querySelector('.brand-name-error');
+        if (brandNameError) brandNameError.textContent = '';
+
         modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
         void modal.offsetHeight;

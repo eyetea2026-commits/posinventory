@@ -15,28 +15,41 @@
     <span class="error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
 </div>
 
-{{-- Brands can only be assigned once the Category itself exists (a Brand
-     always belongs to exactly one Category, so there's nothing to attach
-     one to yet in Add mode) — this section only renders when editing. --}}
-@if(!empty($category))
-    <div class="form-group">
-        <label>Brands in this Category</label>
-        <div id="categoryBrandsList" class="brand-chip-list" data-category-id="{{ $category->CategoryID }}">
+{{-- Brands panel: in Edit mode (a real CategoryID exists), adding/removing a
+     brand chip is an immediate AJAX call against that category. In Add mode
+     (no CategoryID yet), chips are held client-side only as "Brands[]"
+     hidden inputs and only actually created once the whole Create Category
+     form is submitted (see CategoryController::store()). Scoped via classes
+     rather than ids since the Add and Edit forms both exist in the DOM at
+     the same time. --}}
+<div class="form-group">
+    <label>Brands in this Category</label>
+    <div class="brand-chip-list" data-category-id="{{ $category->CategoryID ?? '' }}">
+        @if(!empty($category))
             @forelse($category->brands()->orderBy('BrandName')->get() as $brand)
                 <span class="brand-chip" data-brand-id="{{ $brand->BrandID }}">
                     {{ $brand->BrandName }}
-                    <button type="button" class="brand-chip-remove" onclick="window.removeCategoryBrandChip({{ $brand->BrandID }}, this)" title="Remove brand">&times;</button>
+                    <button type="button" class="brand-chip-remove" onclick="window.removeCategoryBrandChip(this)" title="Remove brand">&times;</button>
                 </span>
             @empty
-                <span class="brand-chip-empty" id="categoryBrandsEmptyHint">No brands assigned yet.</span>
+                <span class="brand-chip-empty">No brands added yet.</span>
             @endforelse
-        </div>
-        <div class="brand-add-row">
-            <input type="text" id="newBrandNameInput" class="form-control" placeholder="Add a brand (e.g., Samsung)" maxlength="100">
-            <button type="button" class="btn btn-secondary btn-sm" id="addBrandBtn" onclick="window.addCategoryBrandChip()">
-                <i class="fas fa-plus"></i> Add
-            </button>
-        </div>
-        <span class="error" id="error-BrandName"></span>
+        @else
+            @foreach(old('Brands', []) as $oldBrandName)
+                <span class="brand-chip" data-pending="1" data-name="{{ $oldBrandName }}">
+                    {{ $oldBrandName }}
+                    <input type="hidden" name="Brands[]" value="{{ $oldBrandName }}">
+                    <button type="button" class="brand-chip-remove" onclick="window.removePendingBrandChip(this)" title="Remove brand">&times;</button>
+                </span>
+            @endforeach
+            <span class="brand-chip-empty" @if(count(old('Brands', []))) style="display:none;" @endif>No brands added yet.</span>
+        @endif
     </div>
-@endif
+    <div class="brand-add-row">
+        <input type="text" class="form-control brand-name-input" placeholder="Add a brand (e.g., Samsung)" maxlength="100">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="window.addCategoryBrandChip(this)">
+            <i class="fas fa-plus"></i> Add
+        </button>
+    </div>
+    <span class="error brand-name-error">@error('Brands'){{ $message }}@enderror</span>
+</div>
