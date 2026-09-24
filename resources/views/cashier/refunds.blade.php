@@ -324,7 +324,7 @@
         </div>
         <div class="form-group">
             <label>Search Replacement Item</label>
-            <input type="text" id="replacement-search-input" placeholder="Search by name, SKU, or barcode..." oninput="searchReplacementInventory()">
+            <input type="text" id="replacement-search-input" placeholder="Search by name or barcode..." oninput="searchReplacementInventory()">
         </div>
         <div class="transaction-items" id="replacement-product-list"></div>
 
@@ -510,7 +510,7 @@ function populateTransactionDetails(transaction) {
                     onchange='toggleRefundItem(this, ${productId}, ${Number(item.UnitPrice)}, ${maxQty})'>
                 <div style="flex:1; min-width:0;">
                     <div class="refund-item-name"><strong>${escapeHtml(item.ProductName)}</strong></div>
-                    <small class="refund-item-meta">SKU: ${escapeHtml(item.SKU ?? 'N/A')} | ${escapeHtml(item.Category ?? 'N/A')} | Purchased: ${Number(item.QuantityPurchased)} | Unit: ${window.formatPeso(item.UnitPrice)} | Returnable: ${maxQty}</small>
+                    <small class="refund-item-meta">Barcode: ${escapeHtml(item.Barcode ?? 'N/A')} | ${escapeHtml(item.Category ?? 'N/A')} | Purchased: ${Number(item.QuantityPurchased)} | Unit: ${window.formatPeso(item.UnitPrice)} | Returnable: ${maxQty}</small>
                 </div>
                 <div class="refund-item-price" style="text-align: right;">
                     <strong>${window.formatPeso(item.TotalPrice)}</strong>
@@ -768,7 +768,7 @@ function searchReplacementInventory() {
                     <div class="refund-product-row" onclick='selectReplacementProduct(${Number(p.ProductID)}, "${escapeHtml(p.ProductName).replace(/"/g, '&quot;')}", ${Number(p.Stock)})'>
                         <div>
                             <strong>${escapeHtml(p.ProductName)}</strong><br>
-                            <small>SKU: ${escapeHtml(p.SKU ?? 'N/A')} | Barcode: ${escapeHtml(p.Barcode ?? 'N/A')}</small>
+                            <small>Barcode: ${escapeHtml(p.Barcode ?? 'N/A')}</small>
                         </div>
                         <div style="text-align:right;">Stock: ${Number(p.Stock)}</div>
                     </div>

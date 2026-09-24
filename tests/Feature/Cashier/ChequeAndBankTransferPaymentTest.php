@@ -21,6 +21,7 @@ class ChequeAndBankTransferPaymentTest extends TestCase
     use RefreshDatabase;
 
     private User $cashier;
+
     private Product $product;
 
     protected function setUp(): void
@@ -32,7 +33,7 @@ class ChequeAndBankTransferPaymentTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'Test Camera', 'Model' => 'CAM-X', 'SKU' => 'SKU-' . uniqid(),
+            'ProductName' => 'Test Camera', 'Model' => 'CAM-X'.uniqid(),
             'Price' => 1000, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 50, 'Status' => 'Available']);

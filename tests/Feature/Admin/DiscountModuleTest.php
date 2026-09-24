@@ -11,6 +11,8 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class DiscountModuleTest extends TestCase
@@ -18,6 +20,7 @@ class DiscountModuleTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
 
     protected function setUp(): void
@@ -29,7 +32,7 @@ class DiscountModuleTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'Bullet 2MP', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'Bullet 2MP', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
     }
@@ -106,7 +109,7 @@ class DiscountModuleTest extends TestCase
     {
         $discount = Discount::create($this->basePromoPayload());
         $secondProduct = Product::create([
-            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
         ]);
 
@@ -131,7 +134,7 @@ class DiscountModuleTest extends TestCase
     public function test_assign_products_overlap_check_does_not_scale_per_product(): void
     {
         $makeProducts = fn (int $count, string $prefix) => collect(range(1, $count))->map(fn ($i) => Product::create([
-            'ProductName' => "{$prefix} {$i}", 'Model' => "MODEL-{$prefix}{$i}", 'SKU' => "SKU-{$prefix}{$i}",
+            'ProductName' => "{$prefix} {$i}", 'Model' => "MODEL-{$prefix}{$i}",
             'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
         ]));
 
@@ -140,18 +143,18 @@ class DiscountModuleTest extends TestCase
         $discountFive = Discount::create($this->basePromoPayload(['PromoCode' => 'FIVEPRODUCTS']));
         $fiveProducts = $makeProducts(5, 'Five');
 
-        \Illuminate\Support\Facades\DB::enableQueryLog();
+        DB::enableQueryLog();
         $responseOne = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $discountOne), [
             'product_ids' => $oneProduct->pluck('ProductID')->all(),
         ]);
-        $queryCountForOne = count(\Illuminate\Support\Facades\DB::getQueryLog());
-        \Illuminate\Support\Facades\DB::flushQueryLog();
+        $queryCountForOne = count(DB::getQueryLog());
+        DB::flushQueryLog();
 
         $responseFive = $this->actingAs($this->admin)->postJson(route('admin.discounts.assign-products', $discountFive), [
             'product_ids' => $fiveProducts->pluck('ProductID')->all(),
         ]);
-        $queryCountForFive = count(\Illuminate\Support\Facades\DB::getQueryLog());
-        \Illuminate\Support\Facades\DB::disableQueryLog();
+        $queryCountForFive = count(DB::getQueryLog());
+        DB::disableQueryLog();
 
         $responseOne->assertOk();
         $responseFive->assertOk();
@@ -180,7 +183,7 @@ class DiscountModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload());
 
         $response->assertRedirect(route('admin.discounts.index'));
-        $this->assertSame(1, \Illuminate\Support\Facades\DB::table('notifications')->count());
+        $this->assertSame(1, DB::table('notifications')->count());
     }
 
     public function test_update_promo_still_notifies_admins_and_succeeds(): void
@@ -190,14 +193,14 @@ class DiscountModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload(['PromoCode' => 'UPDATEDCODE']));
 
         $response->assertRedirect(route('admin.discounts.index'));
-        $this->assertSame(1, \Illuminate\Support\Facades\DB::table('notifications')->count());
+        $this->assertSame(1, DB::table('notifications')->count());
     }
 
     public function test_assign_products_never_applies_to_a_product_not_selected(): void
     {
         $discount = Discount::create($this->basePromoPayload());
         $unrelatedProduct = Product::create([
-            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
         ]);
 
@@ -338,7 +341,7 @@ class DiscountModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_products' => 1]));
 
         $response->assertOk();
-        $response->assertJsonStructure(['products' => [['id', 'name', 'sku', 'category', 'price']]]);
+        $response->assertJsonStructure(['products' => [['id', 'name', 'category', 'price']]]);
         $names = collect($response->json('products'))->pluck('name');
         $this->assertTrue($names->contains('Bullet 2MP'));
     }
@@ -346,7 +349,7 @@ class DiscountModuleTest extends TestCase
     public function test_index_ajax_products_flag_filters_by_search(): void
     {
         Product::create([
-            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
         ]);
 
@@ -377,7 +380,7 @@ class DiscountModuleTest extends TestCase
     {
         $discount = Discount::create($this->basePromoPayload());
         $otherProduct = Product::create([
-            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
         ]);
         $discount->products()->attach([$this->product->ProductID, $otherProduct->ProductID]);
@@ -425,7 +428,7 @@ class DiscountModuleTest extends TestCase
 
         // No duplicate rows anywhere — same underlying pivot/promo records.
         $this->assertSame(1, Discount::where('PromoCode', 'ALLGONE')->count());
-        $this->assertSame(1, \Illuminate\Support\Facades\DB::table('DiscountProduct')
+        $this->assertSame(1, DB::table('DiscountProduct')
             ->where('DiscountID', $expired->DiscountID)->where('ProductID', $this->product->ProductID)->count());
     }
 
@@ -438,7 +441,7 @@ class DiscountModuleTest extends TestCase
         ]));
 
         $otherProduct = Product::create([
-            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
         ]);
 
@@ -670,7 +673,7 @@ class DiscountModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
 
         $response->assertOk();
-        $response->assertSee('window.openPromoDetails(' . $discount->DiscountID . ')', false);
+        $response->assertSee('window.openPromoDetails('.$discount->DiscountID.')', false);
         $response->assertSee('event.preventDefault(); window.openPromoDetails', false);
     }
 
@@ -826,8 +829,8 @@ class DiscountModuleTest extends TestCase
 
     public function test_activate_and_deactivate_routes_no_longer_exist(): void
     {
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.discounts.activate'));
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.discounts.deactivate'));
+        $this->assertFalse(Route::has('admin.discounts.activate'));
+        $this->assertFalse(Route::has('admin.discounts.deactivate'));
     }
 
     private function createBillingFor(Discount $discount): Billing
@@ -836,7 +839,7 @@ class DiscountModuleTest extends TestCase
         $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
         $staff = Staff::create([
             'FirstName' => 'Jane', 'MiddleName' => '-', 'LastName' => 'Doe',
-            'ContactNumber' => '0000', 'Email' => 'jane-' . uniqid() . '@example.com', 'Age' => 30, 'Gender' => 'F', 'UserID' => $cashier->id,
+            'ContactNumber' => '0000', 'Email' => 'jane-'.uniqid().'@example.com', 'Age' => 30, 'Gender' => 'F', 'UserID' => $cashier->id,
         ]);
         $transaction = SalesTransaction::create(['CustomerName' => 'Walk-in', 'SalesTransactionDate' => now(), 'StaffID' => $staff->StaffID]);
 

@@ -11,6 +11,7 @@ use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Notifications\ReturnRequestApproved;
 use App\Notifications\ReturnRequestDeclined;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -44,14 +45,14 @@ class SalesReturnController extends Controller
         ];
 
         $returns = SalesReturn::with([
-                'transaction.billing.payment',
-                'transaction.staff.user',
-                'items.product.category',
-                'staff.user',
-                'approvedByUser',
-                'processedByUser',
-                'replacement.product',
-            ])
+            'transaction.billing.payment',
+            'transaction.staff.user',
+            'items.product.category',
+            'staff.user',
+            'approvedByUser',
+            'processedByUser',
+            'replacement.product',
+        ])
             ->when($search, function ($query, $search) {
                 $query->where('Status', 'like', "%{$search}%")
                     ->orWhereHas('items', function ($item) use ($search) {
@@ -103,13 +104,13 @@ class SalesReturnController extends Controller
         $requestUser = $requestStaff?->user;
         $requestedBy = [
             'Name' => $requestUser?->full_name ?? 'Unknown User',
-            'EmployeeID' => $requestStaff ? ('EMP-' . str_pad((string) $requestStaff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
+            'EmployeeID' => $requestStaff ? ('EMP-'.str_pad((string) $requestStaff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
             'Role' => $requestUser?->role?->role_name ? ucfirst($requestUser->role->role_name) : 'Unknown',
             'RequestDate' => optional($salesReturn->created_at)->format('F j, Y g:i A'),
         ];
 
         $transaction = $salesReturn->transaction;
-        $receiptNumber = $transaction ? 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) : null;
+        $receiptNumber = $transaction ? 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) : null;
 
         $items = $salesReturn->items->map(function (SalesReturnItem $item) use ($salesReturn) {
             // What this line is actually refundable for — pulled from the
@@ -126,7 +127,6 @@ class SalesReturnController extends Controller
             return [
                 'ProductName' => $item->product?->ProductName,
                 'Barcode' => $item->product?->Barcode,
-                'SKU' => $item->product?->SKU,
                 'Category' => $item->product?->category?->CategoryName,
                 'UnitPrice' => $item->UnitPrice,
                 'Quantity' => $item->Quantity,
@@ -154,7 +154,7 @@ class SalesReturnController extends Controller
                 'ReturnType' => $salesReturn->ReturnType,
                 'Remarks' => $salesReturn->Remarks,
                 'TotalRefundAmount' => $totalRefundAmount,
-                'ReturnDate' => $salesReturn->ReturnDate ? \Carbon\Carbon::parse($salesReturn->ReturnDate)->format('Y-m-d') : null,
+                'ReturnDate' => $salesReturn->ReturnDate ? Carbon::parse($salesReturn->ReturnDate)->format('Y-m-d') : null,
                 'Status' => $salesReturn->Status,
                 'DeclineReason' => $salesReturn->DeclineReason,
                 'ApprovedBy' => $salesReturn->approvedByUser?->full_name,
@@ -184,7 +184,7 @@ class SalesReturnController extends Controller
         // request outside the 7-day window can only be declined, not
         // approved.
         if ($salesReturn->is_within_return_window === false) {
-            return back()->with('status', "This request was made {$salesReturn->days_since_purchase} day(s) after purchase, outside the " . SalesReturn::RETURN_WINDOW_DAYS . '-day return window, and can no longer be approved. Decline it instead.');
+            return back()->with('status', "This request was made {$salesReturn->days_since_purchase} day(s) after purchase, outside the ".SalesReturn::RETURN_WINDOW_DAYS.'-day return window, and can no longer be approved. Decline it instead.');
         }
 
         try {
@@ -251,7 +251,7 @@ class SalesReturnController extends Controller
             ->orderByDesc('PurchaseOrder.PurchaseOrderID')
             ->value('PurchaseOrder.SupplierID');
 
-        $receiptNumber = 'RCT-' . str_pad($salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $receiptNumber = 'RCT-'.str_pad($salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         $damage = DamagedProduct::create([
             'ProductID' => $item->ProductID,

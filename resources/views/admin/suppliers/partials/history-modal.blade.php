@@ -225,12 +225,11 @@
                 html += '<p><strong>Supplier:</strong> ' + e(s.SupplierName) + ' (' + e(s.ContactNumber) + ' / ' + e(s.Email) + ')</p>';
 
                 html += '<hr><h4>Ordered Products</h4>';
-                html += '<div style="overflow-x:auto;"><table class="supplier-history-table"><thead><tr><th>Product</th><th>Category</th><th>SKU</th><th>Ordered</th><th>Received</th><th>Remaining</th><th>Unit Cost</th><th>Subtotal</th></tr></thead><tbody>';
+                html += '<div style="overflow-x:auto;"><table class="supplier-history-table"><thead><tr><th>Product</th><th>Category</th><th>Ordered</th><th>Received</th><th>Remaining</th><th>Unit Cost</th><th>Subtotal</th></tr></thead><tbody>';
                 (data.items || []).forEach(function (item) {
                     html += '<tr>'
                         + '<td>' + e(item.ProductName) + '</td>'
                         + '<td>' + e(item.Category) + '</td>'
-                        + '<td>' + e(item.SKU) + '</td>'
                         + '<td>' + e(item.OrderedQuantity) + '</td>'
                         + '<td>' + e(item.ReceivedQuantity) + '</td>'
                         + '<td>' + e(item.RemainingQuantity) + '</td>'

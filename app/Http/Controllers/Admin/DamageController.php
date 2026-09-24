@@ -169,7 +169,6 @@ class DamageController extends Controller
             ],
             'product' => [
                 'ProductName' => $damage->product?->ProductName,
-                'SKU' => $damage->product?->SKU,
                 'Brand' => $damage->product?->brand?->BrandName,
                 'Category' => $damage->product?->category?->CategoryName,
                 'CostPrice' => $damage->product?->CostPrice,

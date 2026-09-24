@@ -18,7 +18,9 @@ class SupplierHistoryTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
+
     private Supplier $supplier;
 
     protected function setUp(): void
@@ -30,7 +32,7 @@ class SupplierHistoryTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         $this->supplier = Supplier::create(['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0000', 'Email' => 'acme@example.com', 'Address' => 'N/A']);
@@ -60,10 +62,10 @@ class SupplierHistoryTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.suppliers.index'));
 
         $response->assertOk();
-        $response->assertSee('openSupplierHistoryModal(' . $this->supplier->SupplierID . ',', false);
+        $response->assertSee('openSupplierHistoryModal('.$this->supplier->SupplierID.',', false);
         $response->assertSee('id="supplierHistoryModal"', false);
         // No direct navigation link to the standalone history page anymore.
-        $response->assertDontSee('href="' . route('admin.suppliers.show', $this->supplier) . '"', false);
+        $response->assertDontSee('href="'.route('admin.suppliers.show', $this->supplier).'"', false);
     }
 
     public function test_history_page_lists_transactions_with_required_columns(): void
@@ -83,7 +85,7 @@ class SupplierHistoryTest extends TestCase
         $this->makeOrder('PO-2026-000001');
         $this->makeOrder('PO-2026-000002');
 
-        $response = $this->actingAs($this->admin)->getJson(route('admin.suppliers.show', $this->supplier) . '?search=000002');
+        $response = $this->actingAs($this->admin)->getJson(route('admin.suppliers.show', $this->supplier).'?search=000002');
 
         $response->assertOk();
         $this->assertStringContainsString('PO-2026-000002', $response->json('rows'));
@@ -124,7 +126,6 @@ class SupplierHistoryTest extends TestCase
         $response->assertJsonPath('purchaseOrder.CreatedBy', $this->admin->full_name);
         $response->assertJsonPath('items.0.ProductName', 'DVR Camera');
         $response->assertJsonPath('items.0.Category', 'CCTV');
-        $response->assertJsonPath('items.0.SKU', 'SKU-001');
         $response->assertJsonPath('summary.TotalQuantityOrdered', 10);
         $response->assertJsonPath('summary.TotalPurchaseAmount', 6000);
     }

@@ -10,7 +10,6 @@
                 @php $resolvedSupplier = $product->resolveReorderSupplier(); @endphp
                 <option
                     value="{{ $product->ProductID }}"
-                    data-sku="{{ $product->SKU ?? 'N/A' }}"
                     data-category="{{ $product->category?->CategoryName ?? 'Uncategorized' }}"
                     data-cost="{{ $product->CostPrice ?? 0 }}"
                     data-stock="{{ $product->inventory?->Quantity ?? 0 }}"
@@ -31,7 +30,6 @@
 
     <div class="form-group full-width" id="damageProductContext" style="display:none; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 10px; padding: 12px 16px;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 0.85rem; color: var(--text-secondary, #94a3b8);">
-            <div>SKU<br><strong id="damageCtxSku" style="color: var(--text-primary, #f8fafc);"></strong></div>
             <div>Category<br><strong id="damageCtxCategory" style="color: var(--text-primary, #f8fafc);"></strong></div>
             <div>Cost Price<br><strong id="damageCtxCost" style="color: var(--text-primary, #f8fafc);"></strong></div>
             <div>Current Stock<br><strong id="damageCtxStock" style="color: var(--text-primary, #f8fafc);"></strong></div>
@@ -132,7 +130,7 @@
 <script>
     // Auto-populates read-only context and, when a resolvable supplier
     // exists for the product, pre-selects it — the admin only needs to
-    // verify before saving, not hunt down SKU/category/supplier by hand.
+    // verify before saving, not hunt down category/supplier by hand.
     function onDamageProductChange(select) {
         const option = select.options[select.selectedIndex];
         const context = document.getElementById('damageProductContext');
@@ -142,7 +140,6 @@
         }
 
         context.style.display = 'block';
-        document.getElementById('damageCtxSku').textContent = option.dataset.sku || 'N/A';
         document.getElementById('damageCtxCategory').textContent = option.dataset.category || 'Uncategorized';
         document.getElementById('damageCtxCost').textContent = window.formatPeso ? window.formatPeso(option.dataset.cost) : ('₱' + parseFloat(option.dataset.cost || 0).toFixed(2));
         document.getElementById('damageCtxStock').textContent = option.dataset.stock || 0;

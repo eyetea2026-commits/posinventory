@@ -46,7 +46,6 @@ class SalesReturnApprovalTest extends TestCase
         $this->product = Product::create([
             'ProductName' => 'DVR Camera',
             'Model' => 'CAM-01',
-            'SKU' => 'SKU-001',
             'Price' => 1000,
             'CategoryID' => $category->CategoryID,
         ]);

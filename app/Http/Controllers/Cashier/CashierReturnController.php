@@ -14,6 +14,7 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\NewRefundRequest;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -98,7 +99,7 @@ class CashierReturnController extends Controller
             $transaction = SalesTransaction::with(['items.product.category', 'billing.payment', 'staff.user'])
                 ->find($transactionId);
 
-            if (!$transaction) {
+            if (! $transaction) {
                 return response()->json(['success' => false, 'message' => 'Transaction not found.'], 404);
             }
 
@@ -117,13 +118,14 @@ class CashierReturnController extends Controller
 
             if ($transactions->count() === 1) {
                 $transaction = $transactions->first()->load(['items.product.category', 'billing.payment', 'staff.user']);
+
                 return response()->json(['success' => true, 'multiple' => false, 'transaction' => $this->buildTransactionDetails($transaction)]);
             }
 
             return response()->json(['success' => true, 'multiple' => true, 'matches' => $transactions->map(function ($t) {
                 return [
                     'SalesTransactionID' => $t->SalesTransactionID,
-                    'ReceiptNumber' => 'RCT-' . str_pad($t->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+                    'ReceiptNumber' => 'RCT-'.str_pad($t->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'CustomerName' => $t->CustomerName,
                     'TransactionDate' => optional($t->SalesTransactionDate)->format('Y-m-d H:i'),
                 ];
@@ -132,7 +134,7 @@ class CashierReturnController extends Controller
 
         // barcode
         $product = Product::where('Barcode', $query)->first();
-        if (!$product) {
+        if (! $product) {
             return response()->json(['success' => false, 'message' => 'No product found with that barcode.'], 404);
         }
 
@@ -151,13 +153,14 @@ class CashierReturnController extends Controller
 
         if ($transactions->count() === 1) {
             $transaction = $transactions->first()->load(['items.product.category', 'billing.payment', 'staff.user']);
+
             return response()->json(['success' => true, 'multiple' => false, 'transaction' => $this->buildTransactionDetails($transaction)]);
         }
 
         return response()->json(['success' => true, 'multiple' => true, 'matches' => $transactions->map(function ($t) {
             return [
                 'SalesTransactionID' => $t->SalesTransactionID,
-                'ReceiptNumber' => 'RCT-' . str_pad($t->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+                'ReceiptNumber' => 'RCT-'.str_pad($t->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                 'CustomerName' => $t->CustomerName,
                 'TransactionDate' => optional($t->SalesTransactionDate)->format('Y-m-d H:i'),
             ];
@@ -173,7 +176,7 @@ class CashierReturnController extends Controller
             ->where('SalesTransactionID', $transactionId)
             ->first();
 
-        if (!$transaction) {
+        if (! $transaction) {
             return response()->json(['success' => false, 'message' => 'Transaction not found.'], 404);
         }
 
@@ -182,7 +185,7 @@ class CashierReturnController extends Controller
 
     private function buildTransactionDetails(SalesTransaction $transaction): array
     {
-        $receiptNumber = 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $receiptNumber = 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         $items = $transaction->items->map(function ($item) use ($transaction) {
             $alreadyRequested = SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
@@ -194,7 +197,6 @@ class CashierReturnController extends Controller
                 'ProductID' => $item->ProductID,
                 'ProductName' => $item->product?->ProductName ?? 'Unknown',
                 'Barcode' => $item->product?->Barcode,
-                'SKU' => $item->product?->SKU,
                 'Category' => $item->product?->category?->CategoryName,
                 'CategoryID' => $item->product?->CategoryID,
                 'QuantityPurchased' => $item->Quantity,
@@ -227,7 +229,7 @@ class CashierReturnController extends Controller
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:Product,ProductID',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.reason_code' => 'required|in:' . implode(',', array_keys(SalesReturn::REASON_CODES)),
+            'items.*.reason_code' => 'required|in:'.implode(',', array_keys(SalesReturn::REASON_CODES)),
             // Replacement retired as a request-time option (2026-07-19) — cashiers can
             // no longer originate one. processReplacement() below is left intact so
             // any pre-existing replacement-type SalesReturn rows can still be processed.
@@ -244,13 +246,13 @@ class CashierReturnController extends Controller
         // date to today (the same math SalesReturn::days_since_purchase uses
         // once a request exists) — checked here before a request record is
         // even created, so a late request can't be submitted at all.
-        $daysSincePurchase = \Carbon\Carbon::parse($transaction->SalesTransactionDate)->startOfDay()
+        $daysSincePurchase = Carbon::parse($transaction->SalesTransactionDate)->startOfDay()
             ->diffInDays(now()->startOfDay());
 
         if ($daysSincePurchase > SalesReturn::RETURN_WINDOW_DAYS) {
             return response()->json([
                 'success' => false,
-                'message' => "This purchase was made {$daysSincePurchase} day(s) ago, outside the " . SalesReturn::RETURN_WINDOW_DAYS . '-day return window. It can no longer be returned.',
+                'message' => "This purchase was made {$daysSincePurchase} day(s) ago, outside the ".SalesReturn::RETURN_WINDOW_DAYS.'-day return window. It can no longer be returned.',
             ], 400);
         }
 
@@ -271,7 +273,7 @@ class CashierReturnController extends Controller
                         ->lockForUpdate()
                         ->first();
 
-                    if (!$salesItem) {
+                    if (! $salesItem) {
                         throw new \RuntimeException('Product not found in transaction.');
                     }
 
@@ -329,7 +331,7 @@ class CashierReturnController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
 
-        ActivityLog::record('return.requested', "Requested {$data['return_type']} #{$salesReturn->SalesReturnID} for " . implode(', ', $productNames) . " (Txn #{$data['transaction_id']})");
+        ActivityLog::record('return.requested', "Requested {$data['return_type']} #{$salesReturn->SalesReturnID} for ".implode(', ', $productNames)." (Txn #{$data['transaction_id']})");
 
         // The return request record already committed above — a
         // notification failure (broken mail transport, queue connection
@@ -371,7 +373,7 @@ class CashierReturnController extends Controller
         // authenticated user, so this is the same identity, not a new rule.
         $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->first();
 
-        if (!$salesReturn) {
+        if (! $salesReturn) {
             return response()->json(['success' => false, 'message' => 'Refund not found.'], 404);
         }
 
@@ -389,7 +391,7 @@ class CashierReturnController extends Controller
                 // re-check below serializes them so only the first succeeds.
                 $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->lockForUpdate()->first();
 
-                if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
+                if (! $salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
                     throw new \RuntimeException('This refund has already been processed or is no longer approved.');
                 }
 
@@ -417,7 +419,7 @@ class CashierReturnController extends Controller
                     }
 
                     $inventory = Inventory::where('ProductID', $item->ProductID)->lockForUpdate()->first();
-                    if (!$inventory) {
+                    if (! $inventory) {
                         $inventory = Inventory::firstOrCreate(
                             ['ProductID' => $item->ProductID],
                             ['Quantity' => 0, 'Status' => 'Out of Stock']
@@ -444,12 +446,12 @@ class CashierReturnController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
 
-        ActivityLog::record('return.refund_processed', "Processed refund #{$salesReturnId} — ₱" . number_format((float) $refundAmount, 2) . " via {$data['refund_method']} (Txn #{$salesReturn->SalesTransactionID})");
+        ActivityLog::record('return.refund_processed', "Processed refund #{$salesReturnId} — ₱".number_format((float) $refundAmount, 2)." via {$data['refund_method']} (Txn #{$salesReturn->SalesTransactionID})");
 
         return response()->json([
             'success' => true,
             'message' => 'Refund processed successfully.',
-            'receipt_number' => 'RFD-' . str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
+            'receipt_number' => 'RFD-'.str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
         ]);
     }
 
@@ -467,8 +469,7 @@ class CashierReturnController extends Controller
             ->when($data['q'] ?? null, function ($query, $q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('ProductName', 'like', "%{$q}%")
-                        ->orWhere('Barcode', $q)
-                        ->orWhere('SKU', $q);
+                        ->orWhere('Barcode', $q);
                 });
             })
             ->when($data['category_id'] ?? null, function ($query, $categoryId) {
@@ -482,7 +483,6 @@ class CashierReturnController extends Controller
                     'ProductID' => $product->ProductID,
                     'ProductName' => $product->ProductName,
                     'Barcode' => $product->Barcode,
-                    'SKU' => $product->SKU,
                     'Price' => $product->Price,
                     'Stock' => $product->inventory?->Quantity ?? 0,
                 ];
@@ -508,7 +508,7 @@ class CashierReturnController extends Controller
         // themselves filed (see CashierReturnController audit finding F2/F1).
         $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->first();
 
-        if (!$salesReturn) {
+        if (! $salesReturn) {
             return response()->json(['success' => false, 'message' => 'Return request not found.'], 404);
         }
 
@@ -531,7 +531,7 @@ class CashierReturnController extends Controller
                 // first succeeds.
                 $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->lockForUpdate()->first();
 
-                if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REPLACEMENT) {
+                if (! $salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REPLACEMENT) {
                     throw new \RuntimeException('This return has already been processed or is no longer approved.');
                 }
 
@@ -541,15 +541,15 @@ class CashierReturnController extends Controller
 
                 $inventory = Inventory::where('ProductID', $data['replacement_product_id'])->lockForUpdate()->first();
 
-                if (!$inventory || $inventory->Quantity < $data['quantity']) {
-                    throw new \RuntimeException('Insufficient stock for the selected replacement item. Available: ' . ($inventory?->Quantity ?? 0));
+                if (! $inventory || $inventory->Quantity < $data['quantity']) {
+                    throw new \RuntimeException('Insufficient stock for the selected replacement item. Available: '.($inventory?->Quantity ?? 0));
                 }
 
                 $inventory->Quantity -= $data['quantity'];
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();
 
-                $slipNumber = 'RPL-' . str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT);
+                $slipNumber = 'RPL-'.str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT);
 
                 $replacement = Replacement::create([
                     'SalesReturnID' => $salesReturn->SalesReturnID,
@@ -593,13 +593,13 @@ class CashierReturnController extends Controller
             ->where('StaffID', $this->currentStaffId())
             ->first();
 
-        if (!$salesReturn || $salesReturn->Status !== SalesReturn::STATUS_PROCESSED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
+        if (! $salesReturn || $salesReturn->Status !== SalesReturn::STATUS_PROCESSED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
             abort(404, 'Refund receipt not found');
         }
 
         return view('cashier.refund-receipt', [
             'salesReturn' => $salesReturn,
-            'receiptNumber' => 'RFD-' . str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
+            'receiptNumber' => 'RFD-'.str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
         ]);
     }
 
@@ -610,7 +610,7 @@ class CashierReturnController extends Controller
             ->where('StaffID', $this->currentStaffId())
             ->first();
 
-        if (!$salesReturn || !$salesReturn->replacement) {
+        if (! $salesReturn || ! $salesReturn->replacement) {
             abort(404, 'Replacement slip not found');
         }
 
@@ -627,7 +627,7 @@ class CashierReturnController extends Controller
             ->where('StaffID', $this->currentStaffId())
             ->first();
 
-        if (!$refund) {
+        if (! $refund) {
             return response()->json(['success' => false, 'message' => 'Refund not found.'], 404);
         }
 
@@ -683,7 +683,7 @@ class CashierReturnController extends Controller
         $user = Auth::user();
         $staff = Staff::where('UserID', $user->id)->first();
 
-        if (!$staff) {
+        if (! $staff) {
             return response()->json([
                 'total_refunds' => 0,
                 'pending_refunds' => 0,

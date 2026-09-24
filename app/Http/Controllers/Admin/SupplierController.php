@@ -33,10 +33,10 @@ class SupplierController extends Controller
         $search = $request->query('search');
 
         $suppliers = Supplier::when($search, function ($query, $search) {
-                $query->where('SupplierName', 'like', "%{$search}%")
-                    ->orWhere('Email', 'like', "%{$search}%")
-                    ->orWhere('ContactNumber', 'like', "%{$search}%");
-            })
+            $query->where('SupplierName', 'like', "%{$search}%")
+                ->orWhere('Email', 'like', "%{$search}%")
+                ->orWhere('ContactNumber', 'like', "%{$search}%");
+        })
             ->orderBy('SupplierName')
             ->paginate(15)
             ->withQueryString();
@@ -113,7 +113,7 @@ class SupplierController extends Controller
             'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email'],
             'Address' => ['required', 'string', 'max:255'],
-            'Status' => ['nullable', 'string', 'in:' . Supplier::STATUS_ACTIVE . ',' . Supplier::STATUS_INACTIVE],
+            'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
         ]);
 
         $supplier = Supplier::create($data);
@@ -177,7 +177,7 @@ class SupplierController extends Controller
 
     // Full breakdown of one Purchase Order for the History page's "View
     // Details" modal — Purchase Order info, every ordered product
-    // (Category/SKU/ordered/received/remaining/cost/subtotal), an order
+    // (Category/ordered/received/remaining/cost/subtotal), an order
     // summary, and a best-effort audit trail from ActivityLog.
     public function purchaseOrderDetails(Supplier $supplier, PurchaseOrder $purchaseOrder)
     {
@@ -189,7 +189,6 @@ class SupplierController extends Controller
             return [
                 'ProductName' => $item->product?->ProductName ?? 'N/A',
                 'Category' => $item->product?->category?->CategoryName ?? 'N/A',
-                'SKU' => $item->product?->SKU ?? 'N/A',
                 'OrderedQuantity' => $item->Quantity,
                 'ReceivedQuantity' => $item->ReceivedQuantity,
                 'RemainingQuantity' => $item->remaining_quantity,
@@ -273,12 +272,12 @@ class SupplierController extends Controller
     public function update(Request $request, Supplier $supplier)
     {
         $data = $request->validate([
-            'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName,' . $supplier->SupplierID . ',SupplierID'],
+            'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName,'.$supplier->SupplierID.',SupplierID'],
             'ContactPerson' => ['nullable', 'string', 'max:150'],
             'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
-            'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email,' . $supplier->SupplierID . ',SupplierID'],
+            'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email,'.$supplier->SupplierID.',SupplierID'],
             'Address' => ['required', 'string', 'max:255'],
-            'Status' => ['nullable', 'string', 'in:' . Supplier::STATUS_ACTIVE . ',' . Supplier::STATUS_INACTIVE],
+            'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
         ]);
 
         $supplier->update($data);

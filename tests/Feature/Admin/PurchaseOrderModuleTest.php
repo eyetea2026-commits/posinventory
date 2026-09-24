@@ -20,7 +20,9 @@ class PurchaseOrderModuleTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Supplier $supplier;
+
     private Product $product;
 
     protected function setUp(): void
@@ -35,7 +37,7 @@ class PurchaseOrderModuleTest extends TestCase
         ]);
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
@@ -97,7 +99,7 @@ class PurchaseOrderModuleTest extends TestCase
     {
         $otherCategory = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
         $otherProduct = Product::create([
-            'ProductName' => 'Network Switch', 'Model' => 'SW-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'Network Switch', 'Model' => 'SW-01',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $otherCategory->CategoryID,
         ]);
         $matchingPo = PurchaseOrder::create([
@@ -145,7 +147,7 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertRedirect(route('admin.purchase-orders.index'));
         $po = PurchaseOrder::first();
         $this->assertNotNull($po->PONumber);
-        $this->assertStringStartsWith('PO-' . now()->format('Y') . '-', $po->PONumber);
+        $this->assertStringStartsWith('PO-'.now()->format('Y').'-', $po->PONumber);
         $this->assertDatabaseHas('PurchaseOrderItem', [
             'ProductID' => $this->product->ProductID, 'Quantity' => 5, 'CostPriceAtOrder' => 650,
         ]);
@@ -536,7 +538,7 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertOk();
         $response->assertSee('list="productOptions"', false);
         $response->assertSee('id="productOptions"', false);
-        $response->assertSee('data-product-id="' . $this->product->ProductID . '"', false);
+        $response->assertSee('data-product-id="'.$this->product->ProductID.'"', false);
         $response->assertDontSee('id="ProductSearch" class="form-input" placeholder="Search product by name', false);
         $response->assertDontSee('<select id="ProductID"', false);
     }

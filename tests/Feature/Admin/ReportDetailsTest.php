@@ -27,8 +27,11 @@ class ReportDetailsTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
+
     private Supplier $supplier;
+
     private Staff $staff;
 
     protected function setUp(): void
@@ -40,7 +43,7 @@ class ReportDetailsTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 8, 'ReorderThreshold' => 5, 'Status' => 'Available']);
@@ -179,7 +182,7 @@ class ReportDetailsTest extends TestCase
         $response->assertJsonFragment([
             'table' => [
                 'columns' => ['Damage ID', 'Category', 'Product Name', 'Quantity', 'Damage Type'],
-                'rows' => [['DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT), 'CCTV', 'DVR Camera', '2', DamagedProduct::DAMAGE_TYPES['broken']]],
+                'rows' => [['DMG-'.str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT), 'CCTV', 'DVR Camera', '2', DamagedProduct::DAMAGE_TYPES['broken']]],
             ],
         ]);
     }

@@ -42,7 +42,6 @@ class ProductController extends Controller
                 $query->where(function ($inner) use ($search) {
                     $inner->where('ProductName', 'like', "%{$search}%")
                         ->orWhere('Model', 'like', "%{$search}%")
-                        ->orWhere('SKU', 'like', "%{$search}%")
                         ->orWhere('Barcode', 'like', "%{$search}%")
                         ->orWhereHas('category', function ($category) use ($search) {
                             $category->where('CategoryName', 'like', "%{$search}%");
@@ -194,7 +193,6 @@ class ProductController extends Controller
             'ProductName' => ['required', 'string', 'max:100'],
             'Model' => ['required', 'string', 'max:100'],
             'Description' => ['nullable', 'string', 'max:500'],
-            'SKU' => ['nullable', 'string', 'max:100', 'unique:Product,SKU'],
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'Price' => ['nullable', 'numeric', 'min:0.01'],
@@ -202,7 +200,6 @@ class ProductController extends Controller
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
         ], [
-            'SKU.unique' => 'This SKU is already in use.',
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
         ]);
@@ -220,7 +217,7 @@ class ProductController extends Controller
         }
 
         // Block duplicate Product Name and Model (case-insensitive, whitespace-normalized).
-        // SKU and Barcode are already covered by the `unique` validation rules above.
+        // Barcode is already covered by the `unique` validation rule above.
         // This is the authoritative server-side check — anything the client-side
         // duplicate-name AJAX misses is caught here before a product is created.
         $normalize = function (string $value): string {
@@ -260,7 +257,6 @@ class ProductController extends Controller
             'ProductName' => $data['ProductName'],
             'Model' => $data['Model'],
             'Description' => $data['Description'] ?? null,
-            'SKU' => $data['SKU'] ?? null,
             'Barcode' => $data['Barcode'] ?? null,
             'CostPrice' => $data['CostPrice'],
             'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
@@ -320,7 +316,6 @@ class ProductController extends Controller
             'ProductName' => ['required', 'string', 'max:100'],
             'Model' => ['required', 'string', 'max:100'],
             'Description' => ['nullable', 'string', 'max:500'],
-            'SKU' => ['nullable', 'string', 'max:100', 'unique:Product,SKU,'.$product->ProductID.',ProductID'],
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode,'.$product->ProductID.',ProductID'],
             'CostPrice' => ['required', 'numeric', 'min:0.01'],
             'Price' => ['nullable', 'numeric', 'min:0.01'],
@@ -328,7 +323,6 @@ class ProductController extends Controller
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
         ], [
-            'SKU.unique' => 'This SKU is already in use.',
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
         ]);
@@ -386,7 +380,6 @@ class ProductController extends Controller
             'ProductName' => $data['ProductName'],
             'Model' => $data['Model'],
             'Description' => $data['Description'] ?? null,
-            'SKU' => $data['SKU'] ?? null,
             'Barcode' => $data['Barcode'] ?? null,
             'CostPrice' => $data['CostPrice'],
             'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),

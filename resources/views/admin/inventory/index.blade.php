@@ -510,7 +510,7 @@
                 id="searchInput"
                 value="{{ $search }}"
                 class="search-input"
-                placeholder="Search by name, model, SKU, barcode, or category..."
+                placeholder="Search by name, model, barcode, or category..."
             />
             <input type="hidden" name="status" id="statusInput" value="{{ $status ?? '' }}" />
         </form>

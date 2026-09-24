@@ -9,9 +9,12 @@ use App\Models\Inventory;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\SalesItem;
 use App\Models\SalesTransaction;
+use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -33,7 +36,7 @@ class CheckoutTest extends TestCase
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $product = Product::create([
-            'ProductName' => 'Test Camera', 'Model' => 'CAM-X', 'SKU' => 'SKU-' . uniqid(),
+            'ProductName' => 'Test Camera', 'Model' => 'CAM-X'.uniqid(),
             'Price' => $price, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => $stock, 'Status' => 'Available']);
@@ -217,7 +220,7 @@ class CheckoutTest extends TestCase
     public function test_a_second_checkout_for_the_same_cashier_while_one_is_in_flight_is_rejected(): void
     {
         $product = $this->makeProduct(500);
-        \Illuminate\Support\Facades\Cache::lock("checkout:user:{$this->cashier->id}", 10)->get();
+        Cache::lock("checkout:user:{$this->cashier->id}", 10)->get();
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
@@ -304,13 +307,13 @@ class CheckoutTest extends TestCase
         $transaction = SalesTransaction::create([
             'CustomerName' => 'Walk-in Customer',
             'SalesTransactionDate' => now(),
-            'StaffID' => \App\Models\Staff::create([
+            'StaffID' => Staff::create([
                 'FirstName' => 'Legacy', 'MiddleName' => '-', 'LastName' => 'Cashier',
                 'ContactNumber' => '0000', 'Email' => 'legacy@example.com', 'Age' => 30, 'Gender' => 'F',
                 'UserID' => $this->cashier->id,
             ])->StaffID,
         ]);
-        \App\Models\SalesItem::create([
+        SalesItem::create([
             'Quantity' => 1, 'UnitPrice' => 1000, 'ProductID' => $product->ProductID,
             'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
@@ -322,11 +325,11 @@ class CheckoutTest extends TestCase
         ]);
         Payment::create([
             'PaymentAmount' => 1008, 'PaymentMethod' => 'cash',
-            'ReceiptNumber' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+            'ReceiptNumber' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
             'BillingID' => $billing->BillingID,
         ]);
 
-        $receiptNumber = 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $receiptNumber = 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         $receiptResponse = $this->actingAs($this->cashier)->get(route('cashier.receipt', $receiptNumber));
         $receiptResponse->assertOk();

@@ -25,6 +25,7 @@ class ProductDeletionGuardTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Category $category;
 
     protected function setUp(): void
@@ -39,7 +40,7 @@ class ProductDeletionGuardTest extends TestCase
     private function makeProduct(): Product
     {
         return Product::create([
-            'ProductName' => 'Test Camera', 'Model' => 'CAM-X', 'SKU' => 'SKU-' . uniqid(),
+            'ProductName' => 'Test Camera', 'Model' => 'CAM-X'.uniqid(),
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $this->category->CategoryID,
         ]);
     }

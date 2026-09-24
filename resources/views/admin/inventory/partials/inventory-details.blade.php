@@ -102,10 +102,6 @@
         <span class="detail-value">{{ $product->Model ?? 'N/A' }}</span>
     </div>
     <div class="detail-row">
-        <span class="detail-label">SKU</span>
-        <span class="detail-value"><code>{{ $product->SKU ?? '-' }}</code></span>
-    </div>
-    <div class="detail-row">
         <span class="detail-label">Barcode</span>
         <span class="detail-value"><code>{{ $product->Barcode ?? '-' }}</code></span>
     </div>

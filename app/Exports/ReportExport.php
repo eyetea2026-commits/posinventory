@@ -2,9 +2,9 @@
 
 namespace App\Exports;
 
+use App\Http\Controllers\Admin\ReportController;
 use App\Models\DamagedProduct;
 use App\Models\PurchaseOrder;
-use App\Models\Supplier;
 use App\Services\ReportSummaryBuilder;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -27,8 +27,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         private Collection $rows,
         private ?string $dateFrom = null,
         private ?string $dateTo = null,
-    ) {
-    }
+    ) {}
 
     public function collection()
     {
@@ -37,7 +36,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
 
     public function drawings()
     {
-        $drawing = new Drawing();
+        $drawing = new Drawing;
         $drawing->setName('CCTV Express Solution');
         $drawing->setDescription('Company logo');
         $drawing->setPath(public_path('Images/logo.png'));
@@ -50,7 +49,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     public function headings(): array
     {
         return match ($this->type) {
-            'inventory' => ['Product', 'SKU / Barcode', 'Category', 'Supplier', 'Current Stock', 'Reorder Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Status'],
+            'inventory' => ['Product', 'Barcode', 'Category', 'Supplier', 'Current Stock', 'Reorder Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Status'],
             'stock_adjustment' => ['Reference', 'Date', 'Product', 'Adjustment', 'Reason'],
             'stock_receiving' => ['Reference', 'Date Received', 'Product', 'Supplier', 'Quantity', 'Receipt Number'],
             'orders' => ['PO Number', 'Date', 'Supplier', 'Product', 'Qty', 'Unit Price', 'Subtotal', 'Status'],
@@ -66,7 +65,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         return match ($this->type) {
             'inventory' => [
                 $row->product?->ProductName ?? 'N/A',
-                $row->product?->SKU ?: ($row->product?->Barcode ?: 'N/A'),
+                $row->product?->Barcode ?: 'N/A',
                 $row->product?->category?->CategoryName ?? 'Uncategorized',
                 $row->product?->resolveReorderSupplier()?->supplier?->SupplierName ?? 'N/A',
                 $row->Quantity,
@@ -77,14 +76,14 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $row->Status,
             ],
             'stock_adjustment' => [
-                'ADJ-' . str_pad((string) $row->AdjustmentID, 6, '0', STR_PAD_LEFT),
+                'ADJ-'.str_pad((string) $row->AdjustmentID, 6, '0', STR_PAD_LEFT),
                 $row->Date,
                 $row->product?->ProductName ?? 'N/A',
-                ($row->QuantityAdjust >= 0 ? '+' : '') . $row->QuantityAdjust,
+                ($row->QuantityAdjust >= 0 ? '+' : '').$row->QuantityAdjust,
                 $row->Reason,
             ],
             'stock_receiving' => [
-                'REC-' . str_pad((string) $row->ReceivingID, 6, '0', STR_PAD_LEFT),
+                'REC-'.str_pad((string) $row->ReceivingID, 6, '0', STR_PAD_LEFT),
                 $row->DateReceived,
                 $row->product?->ProductName ?? 'N/A',
                 $row->supplier?->SupplierName ?? 'N/A',
@@ -102,7 +101,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 PurchaseOrder::STATUS_LABELS[$row->Status] ?? ucfirst($row->Status),
             ],
             'returns' => [
-                'RET-' . str_pad((string) $row->SalesReturnID, 6, '0', STR_PAD_LEFT),
+                'RET-'.str_pad((string) $row->SalesReturnID, 6, '0', STR_PAD_LEFT),
                 $row->ReturnDate,
                 $row->ReceiptNumber,
                 $row->CustomerName,
@@ -114,7 +113,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $row->ProcessedByName,
             ],
             'damage' => [
-                'DMG-' . str_pad((string) $row->DamageID, 6, '0', STR_PAD_LEFT),
+                'DMG-'.str_pad((string) $row->DamageID, 6, '0', STR_PAD_LEFT),
                 optional($row->DateRecorded)->format('Y-m-d'),
                 $row->product?->ProductName ?? 'N/A',
                 $row->supplier?->SupplierName ?? 'N/A',
@@ -206,13 +205,13 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
 
                 // ---- Title block, inserted above the heading/data grid ----
                 $period = ($this->dateFrom || $this->dateTo)
-                    ? ($this->dateFrom ?: 'Earliest') . ' to ' . ($this->dateTo ?: 'Latest')
+                    ? ($this->dateFrom ?: 'Earliest').' to '.($this->dateTo ?: 'Latest')
                     : 'All Time';
 
                 $titleRows = [
                     ['', 'CCTV EXPRESS TRADING'],
                     ['', 'Point of Sale & Inventory System'],
-                    ['', \App\Http\Controllers\Admin\ReportController::typeLabel($this->type) . ' Report'],
+                    ['', ReportController::typeLabel($this->type).' Report'],
                     [],
                     ['Report Period', $period],
                     ['Generated By', auth()->user()->full_name ?? 'N/A'],
@@ -250,7 +249,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $sheet->getStyle("A{$headerRow}:{$lastColumnLetter}{$headerRow}")->getFill()
                     ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E2E8F0');
                 $sheet->setAutoFilter("A{$headerRow}:{$lastColumnLetter}{$headerRow}");
-                $sheet->freezePane('A' . $dataStartRow);
+                $sheet->freezePane('A'.$dataStartRow);
 
                 if ($dataRowCount > 0) {
                     foreach ($this->moneyColumns() as $moneyCol) {

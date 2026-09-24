@@ -67,12 +67,12 @@ class Phase5PolishTest extends TestCase
         $supplier = Supplier::create(['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0000000', 'Email' => 'acme@example.com', 'Address' => 'N/A']);
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
 
         $po = PurchaseOrder::create(array_merge([
-            'PONumber' => 'PO-TEST-' . uniqid(),
+            'PONumber' => 'PO-TEST-'.uniqid(),
             'SupplierID' => $supplier->SupplierID,
             'PurchaseDate' => now()->format('Y-m-d'),
             'Status' => PurchaseOrder::STATUS_PENDING,

@@ -50,7 +50,6 @@ class ModuleDisplayAndFilterTest extends TestCase
         $cameraProduct = Product::create([
             'ProductName' => 'DVR Camera',
             'Model' => 'CAM-01',
-            'SKU' => 'SKU-001',
             'Price' => 1500,
             'CategoryID' => $cameraCategory->CategoryID,
         ]);
@@ -58,7 +57,6 @@ class ModuleDisplayAndFilterTest extends TestCase
         Product::create([
             'ProductName' => 'Cable',
             'Model' => 'CAB-01',
-            'SKU' => 'SKU-002',
             'Price' => 200,
             'CategoryID' => $accessoryCategory->CategoryID,
         ]);

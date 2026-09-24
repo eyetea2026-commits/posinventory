@@ -392,7 +392,6 @@
                 html += `<p><strong>Damage Record Number:</strong> ${escapeHtml(d.DamageNumber)}</p>`;
                 html += '<hr><h4>Product Information</h4>';
                 html += `<p><strong>Product:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>`;
-                html += `<p><strong>SKU:</strong> ${escapeHtml(p.SKU ?? 'N/A')}</p>`;
                 html += `<p><strong>Brand:</strong> ${escapeHtml(p.Brand ?? 'N/A')}</p>`;
                 html += `<p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>`;
                 html += `<p><strong>Cost Price:</strong> ${window.formatPeso ? window.formatPeso(p.CostPrice ?? 0) : p.CostPrice}</p>`;

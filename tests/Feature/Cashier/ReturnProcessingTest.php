@@ -25,9 +25,13 @@ class ReturnProcessingTest extends TestCase
     use RefreshDatabase;
 
     private User $cashierUser;
+
     private Staff $staff;
+
     private Product $product;
+
     private Product $replacementProduct;
+
     private SalesTransaction $transaction;
 
     protected function setUp(): void
@@ -45,13 +49,13 @@ class ReturnProcessingTest extends TestCase
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
 
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
 
         $this->replacementProduct = Product::create([
-            'ProductName' => 'DVR Camera (New Unit)', 'Model' => 'CAM-01B', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR Camera (New Unit)', 'Model' => 'CAM-01B',
             'Price' => 1000, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->replacementProduct->ProductID, 'Quantity' => 3, 'Status' => 'Available']);
@@ -76,7 +80,7 @@ class ReturnProcessingTest extends TestCase
         ]);
         Payment::create([
             'PaymentAmount' => 2000, 'PaymentMethod' => 'cash',
-            'ReceiptNumber' => 'RCT-' . str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+            'ReceiptNumber' => 'RCT-'.str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
             'BillingID' => $billing->BillingID,
         ]);
     }
@@ -214,7 +218,7 @@ class ReturnProcessingTest extends TestCase
         ]);
         Payment::create([
             'PaymentAmount' => 1600, 'PaymentMethod' => 'cash',
-            'ReceiptNumber' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+            'ReceiptNumber' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
             'BillingID' => $billing->BillingID,
         ]);
 
@@ -307,7 +311,7 @@ class ReturnProcessingTest extends TestCase
     public function test_search_transaction_by_receipt_and_customer_and_barcode(): void
     {
         $byReceipt = $this->actingAs($this->cashierUser)->getJson(
-            route('cashier.refunds.search', ['mode' => 'receipt', 'q' => 'RCT-' . str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT)])
+            route('cashier.refunds.search', ['mode' => 'receipt', 'q' => 'RCT-'.str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT)])
         );
         $byReceipt->assertJson(['success' => true, 'multiple' => false]);
 

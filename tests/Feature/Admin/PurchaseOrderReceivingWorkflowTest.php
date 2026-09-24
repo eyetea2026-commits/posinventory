@@ -23,8 +23,11 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Supplier $supplier;
+
     private Product $productA;
+
     private Product $productB;
 
     protected function setUp(): void
@@ -40,13 +43,13 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
 
         $this->productA = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->productA->ProductID, 'Quantity' => 5, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);
 
         $this->productB = Product::create([
-            'ProductName' => 'NVR 8CH', 'Model' => 'NVR-08', 'SKU' => 'SKU-002',
+            'ProductName' => 'NVR 8CH', 'Model' => 'NVR-08',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->productB->ProductID, 'Quantity' => 2, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Http\Controllers\Admin\DashboardController;
 use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Inventory;
@@ -12,6 +13,7 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Tests\TestCase;
 
 // Note: the dashboard's index() route can't be exercised end-to-end in this
@@ -38,7 +40,7 @@ class DashboardChartsTest extends TestCase
     {
         $category = Category::firstOrCreate(['CategoryName' => $categoryName], ['Description' => $categoryName]);
         $product = Product::create([
-            'ProductName' => $productName, 'Model' => 'M-' . uniqid(), 'SKU' => 'SKU-' . uniqid(),
+            'ProductName' => $productName, 'Model' => 'M-'.uniqid().uniqid(),
             'Price' => $price, 'CostPrice' => $price * 0.6, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => $quantity, 'Status' => 'Available']);
@@ -52,7 +54,7 @@ class DashboardChartsTest extends TestCase
         $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
         $staff = Staff::create([
             'FirstName' => 'Test', 'MiddleName' => '-', 'LastName' => 'Cashier',
-            'ContactNumber' => '0000', 'Email' => 'cashier' . uniqid() . '@example.com', 'Age' => 30, 'Gender' => 'F',
+            'ContactNumber' => '0000', 'Email' => 'cashier'.uniqid().'@example.com', 'Age' => 30, 'Gender' => 'F',
             'UserID' => $cashier->id,
         ]);
         $transaction = SalesTransaction::create([
@@ -78,7 +80,7 @@ class DashboardChartsTest extends TestCase
             'salesTrend' => ['daily' => ['labels' => [], 'data' => []], 'weekly' => ['labels' => [], 'data' => []], 'monthly' => ['labels' => [], 'data' => []], 'yearly' => ['labels' => [], 'data' => []]],
             'categoryChart' => ['labels' => [], 'data' => []],
             'topSelling' => collect(), 'leastSelling' => collect(),
-            'recentTransactions' => new \Illuminate\Pagination\LengthAwarePaginator(collect(), 0, 10),
+            'recentTransactions' => new LengthAwarePaginator(collect(), 0, 10),
             'txnSearch' => null, 'txnSort' => 'date_desc',
         ], $overrides);
     }
@@ -125,10 +127,10 @@ class DashboardChartsTest extends TestCase
         $this->actingAs($this->admin);
         $html = view('admin.dashboard', $this->baseViewData())->render();
 
-        $this->assertStringContainsString('href="' . route('admin.reports.index', ['type' => 'sales']) . '" class="stat-card"', $html);
-        $this->assertStringContainsString('href="' . route('admin.products.index') . '" class="stat-card"', $html);
-        $this->assertStringContainsString('href="' . route('admin.inventory.index') . '" class="stat-card"', $html);
-        $this->assertStringContainsString('href="' . route('admin.suppliers.index') . '" class="stat-card"', $html);
+        $this->assertStringContainsString('href="'.route('admin.reports.index', ['type' => 'sales']).'" class="stat-card"', $html);
+        $this->assertStringContainsString('href="'.route('admin.products.index').'" class="stat-card"', $html);
+        $this->assertStringContainsString('href="'.route('admin.inventory.index').'" class="stat-card"', $html);
+        $this->assertStringContainsString('href="'.route('admin.suppliers.index').'" class="stat-card"', $html);
         // Every stat card is now an <a>, not a plain non-interactive <div>.
         $this->assertStringNotContainsString('<div class="stat-card"', $html);
     }
@@ -172,7 +174,7 @@ class DashboardChartsTest extends TestCase
     // to go through like buildInventoryQuantityChart()/buildCategorySalesChart() have.
     private function callBuildProductRankings(): array
     {
-        $controller = new \App\Http\Controllers\Admin\DashboardController();
+        $controller = new DashboardController;
         $method = new \ReflectionMethod($controller, 'buildProductRankings');
         $method->setAccessible(true);
 
@@ -314,7 +316,7 @@ class DashboardChartsTest extends TestCase
         $html = $response->json('recentTransactionsHtml');
 
         $this->assertStringContainsString('pagination-link', $html);
-        $this->assertStringContainsString(route('admin.dashboard') . '?', $html);
+        $this->assertStringContainsString(route('admin.dashboard').'?', $html);
         $this->assertStringNotContainsString(route('admin.dashboard.live-inventory'), $html);
     }
 
@@ -331,7 +333,7 @@ class DashboardChartsTest extends TestCase
         // Default sort is date_desc, so the Amount header's toggle link
         // targets amount_desc.
         $this->assertStringContainsString('txn_sort=amount_desc', $html);
-        $this->assertStringContainsString(route('admin.dashboard') . '?', $html);
+        $this->assertStringContainsString(route('admin.dashboard').'?', $html);
         $this->assertStringNotContainsString(route('admin.dashboard.live-inventory'), $html);
     }
 

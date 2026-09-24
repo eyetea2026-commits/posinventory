@@ -7,6 +7,7 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use App\Models\Role;
 use App\Models\Supplier;
 use App\Models\User;
@@ -18,7 +19,9 @@ class AutomaticReorderTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
+
     private Supplier $supplier;
 
     protected function setUp(): void
@@ -30,7 +33,7 @@ class AutomaticReorderTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 5, 'ReorderThreshold' => 20, 'Status' => 'Low Stock']);
@@ -91,10 +94,10 @@ class AutomaticReorderTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.inventory.index'));
 
         $response->assertOk();
-        $response->assertSee('openReorderModal(' . $this->product->ProductID . ')', false);
+        $response->assertSee('openReorderModal('.$this->product->ProductID.')', false);
         $response->assertSee('id="reorderPurchaseOrderModal"', false);
         // The page must no longer navigate away to a separate PO page.
-        $response->assertDontSee('href="' . route('admin.purchase-orders.create-from-reorder', $this->product) . '"', false);
+        $response->assertDontSee('href="'.route('admin.purchase-orders.create-from-reorder', $this->product).'"', false);
     }
 
     public function test_create_reorder_page_flags_ambiguity_with_multiple_unpreferred_suppliers(): void
@@ -122,7 +125,7 @@ class AutomaticReorderTest extends TestCase
         // page (so it can react to products becoming low-stock via the
         // live poll without a reload) — what must be absent is a trigger
         // wired to THIS specific, fully-stocked product.
-        $response->assertDontSee('openReorderModal(' . $this->product->ProductID . ')', false);
+        $response->assertDontSee('openReorderModal('.$this->product->ProductID.')', false);
     }
 
     public function test_store_from_reorder_creates_po_using_resolved_supplier_and_cost(): void
@@ -297,7 +300,7 @@ class AutomaticReorderTest extends TestCase
             'SupplierID' => $this->supplier->SupplierID,
             'CreatedBy' => $this->admin->id,
         ]);
-        \App\Models\PurchaseOrderItem::create([
+        PurchaseOrderItem::create([
             'PurchaseOrderID' => $manualPo->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 35, 'CostPriceAtOrder' => 550,
         ]);
 

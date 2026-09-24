@@ -8,7 +8,7 @@
     <table>
         <thead>
             <tr>
-                <th>Product</th><th>SKU / Barcode</th><th>Category</th><th>Supplier</th>
+                <th>Product</th><th>Barcode</th><th>Category</th><th>Supplier</th>
                 <th class="col-qty">Current Stock</th><th class="col-qty">Reorder Level</th>
                 <th class="col-money">Cost Price</th><th class="col-money">Selling Price</th>
                 <th class="col-money">Stock Value</th><th>Status</th>
@@ -19,7 +19,7 @@
                 @php($supplierName = $row->product?->resolveReorderSupplier()?->supplier?->SupplierName)
                 <tr>
                     <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                    <td>{{ $row->product?->SKU ?: ($row->product?->Barcode ?: '—') }}</td>
+                    <td>{{ $row->product?->Barcode ?: '—' }}</td>
                     <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
                     <td>{{ $supplierName ?? 'N/A' }}</td>
                     <td class="col-qty">{{ number_format($row->Quantity) }}</td>

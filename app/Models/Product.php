@@ -12,12 +12,12 @@ class Product extends Model
     public $timestamps = false;
 
     protected $table = 'Product';
+
     protected $primaryKey = 'ProductID';
 
     protected $fillable = [
         'ProductName',
         'Model',
-        'SKU',
         'UnitOfMeasure',
         'Barcode',
         'Price',

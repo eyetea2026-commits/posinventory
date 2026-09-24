@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Notifications\DiscountUpdated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
@@ -86,10 +87,7 @@ class DiscountController extends Controller
 
             $products = Product::with('category')
                 ->when($productSearch, function ($query) use ($productSearch) {
-                    $query->where(function ($inner) use ($productSearch) {
-                        $inner->where('ProductName', 'like', "%{$productSearch}%")
-                            ->orWhere('SKU', 'like', "%{$productSearch}%");
-                    });
+                    $query->where('ProductName', 'like', "%{$productSearch}%");
                 })
                 ->orderBy('ProductName')
                 ->limit(20)
@@ -99,7 +97,6 @@ class DiscountController extends Controller
                 'products' => $products->map(fn ($p) => [
                     'id' => $p->ProductID,
                     'name' => $p->ProductName,
-                    'sku' => $p->SKU,
                     'category' => $p->category?->CategoryName,
                     'price' => (float) $p->Price,
                 ]),
@@ -182,7 +179,6 @@ class DiscountController extends Controller
                 return [$d->DiscountID => $d->products->map(fn ($p) => [
                     'id' => $p->ProductID,
                     'name' => $p->ProductName,
-                    'sku' => $p->SKU,
                     'category' => $p->category?->CategoryName,
                 ])];
             }),
@@ -192,8 +188,8 @@ class DiscountController extends Controller
                     'code' => $d->PromoCode ?? '—',
                     'typeLabel' => $d->DiscountType === Discount::TYPE_FIXED ? 'Fixed Amount' : 'Percentage',
                     'valueLabel' => $d->DiscountType === Discount::TYPE_FIXED
-                        ? '₱' . number_format($d->DiscountRate, 2)
-                        : number_format($d->DiscountRate, 2) . '%',
+                        ? '₱'.number_format($d->DiscountRate, 2)
+                        : number_format($d->DiscountRate, 2).'%',
                     'start' => $d->StartDate?->format('M d, Y') ?? '—',
                     'end' => $d->EndDate?->format('M d, Y') ?? '—',
                     // "Scheduled" here (Apply tab display only) rather than
@@ -417,7 +413,7 @@ class DiscountController extends Controller
             // safety net against a concurrent request assigning the same
             // pair in the moment between our check and this write.
             $now = now();
-            \Illuminate\Support\Facades\DB::table('DiscountProduct')->insertOrIgnore(
+            DB::table('DiscountProduct')->insertOrIgnore(
                 collect($assigned)->map(fn ($productId) => [
                     'DiscountID' => $discount->DiscountID,
                     'ProductID' => $productId,
@@ -431,7 +427,7 @@ class DiscountController extends Controller
         // committed, so a logging hiccup must never be reported back as a
         // failed apply when the products were actually assigned.
         try {
-            ActivityLog::record('discount.products_assigned', "Assigned promo \"{$discount->PromoCode}\" to " . count($assigned) . ' product(s)');
+            ActivityLog::record('discount.products_assigned', "Assigned promo \"{$discount->PromoCode}\" to ".count($assigned).' product(s)');
         } catch (Throwable $e) {
             Log::error('Failed to record discount.products_assigned activity log', [
                 'discount_id' => $discount->DiscountID,
@@ -439,9 +435,9 @@ class DiscountController extends Controller
             ]);
         }
 
-        $message = count($assigned) . ' product(s) assigned.';
+        $message = count($assigned).' product(s) assigned.';
         if (! empty($rejected)) {
-            $message .= ' ' . count($rejected) . ' skipped — already covered by another promo in an overlapping date range.';
+            $message .= ' '.count($rejected).' skipped — already covered by another promo in an overlapping date range.';
         }
 
         return response()->json([
@@ -542,7 +538,7 @@ class DiscountController extends Controller
             return [];
         }
 
-        return \Illuminate\Support\Facades\DB::table('DiscountProduct')
+        return DB::table('DiscountProduct')
             ->join('Discount', 'Discount.DiscountID', '=', 'DiscountProduct.DiscountID')
             ->whereIn('DiscountProduct.ProductID', $productIds)
             ->whereNull('Discount.deleted_at')

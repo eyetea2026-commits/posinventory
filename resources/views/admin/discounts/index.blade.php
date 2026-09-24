@@ -417,7 +417,7 @@
 
         <div class="form-group">
             <label class="picker-label">Products</label>
-            <input type="text" id="productPickerInput" class="form-control" placeholder="Search product by name or SKU…" autocomplete="off">
+            <input type="text" id="productPickerInput" class="form-control" placeholder="Search product by name…" autocomplete="off">
             <div class="modal-select-all-row">
                 <label class="modal-product-row modal-select-all-label">
                     <input type="checkbox" id="modalSelectAll">
@@ -579,7 +579,7 @@
 
     // ---- Tab 2: Apply Discount/Promo ----
     (function () {
-        {{-- {id, name, sku, category} objects per promo — the source of
+        {{-- {id, name, category} objects per promo — the source of
              truth for "already assigned" (excluded from the picker) and for
              the View Details modal's Applied Products table. Built in
              DiscountController::index() rather than inline here — see that
@@ -602,7 +602,7 @@
         const appliedTbody = document.getElementById('appliedAssignmentsTbody');
         const appliedPaginationWrapper = document.getElementById('appliedPaginationWrapper');
 
-        let selectedProducts = []; // checked products: [{id, name, sku, category}]
+        let selectedProducts = []; // checked products: [{id, name, category}]
         let searchDebounce = null;
         let searchController = null;
         let lastResults = [];

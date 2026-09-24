@@ -32,7 +32,7 @@ class DamageModuleTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);
@@ -303,7 +303,7 @@ class DamageModuleTest extends TestCase
         DamagedProduct::create($this->baseDamagePayload());
 
         $otherProduct = Product::create([
-            'ProductName' => 'Speed Dome PTZ', 'Model' => 'SPD-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'Speed Dome PTZ', 'Model' => 'SPD-01',
             'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $this->product->CategoryID,
         ]);
         Inventory::create(['ProductID' => $otherProduct->ProductID, 'Quantity' => 5, 'Status' => 'Available']);

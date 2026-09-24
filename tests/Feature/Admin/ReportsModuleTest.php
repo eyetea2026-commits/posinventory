@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Http\Controllers\Admin\ReportController;
 use App\Models\Billing;
 use App\Models\Category;
 use App\Models\DamagedProduct;
@@ -19,6 +20,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Services\ReportSummaryBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ReportsModuleTest extends TestCase
@@ -26,7 +28,9 @@ class ReportsModuleTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
+
     private Supplier $supplier;
 
     protected function setUp(): void
@@ -38,7 +42,7 @@ class ReportsModuleTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         $this->supplier = Supplier::create(['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0000', 'Email' => 'acme@example.com', 'Address' => 'N/A']);
@@ -50,7 +54,7 @@ class ReportsModuleTest extends TestCase
         $cashierUser = User::factory()->create(['role_id' => $cashierRole->id]);
         $staff = Staff::create([
             'FirstName' => 'Jane', 'MiddleName' => '-', 'LastName' => 'Doe', 'ContactNumber' => '0000',
-            'Email' => 'jane' . uniqid() . '@example.com', 'Age' => 30, 'Gender' => 'F', 'UserID' => $cashierUser->id,
+            'Email' => 'jane'.uniqid().'@example.com', 'Age' => 30, 'Gender' => 'F', 'UserID' => $cashierUser->id,
         ]);
         $transaction = SalesTransaction::create([
             'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => $billingDate, 'StaffID' => $staff->StaffID,
@@ -218,7 +222,7 @@ class ReportsModuleTest extends TestCase
     public function test_inventory_report_filters_by_date_range_using_stock_activity(): void
     {
         $inMovedProduct = Product::create([
-            'ProductName' => 'Moved In Range', 'Model' => 'M1', 'SKU' => 'SKU-M1',
+            'ProductName' => 'Moved In Range', 'Model' => 'M1',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $this->product->CategoryID,
         ]);
         Inventory::create(['ProductID' => $inMovedProduct->ProductID, 'Quantity' => 10, 'ReorderThreshold' => 5, 'Status' => 'In Stock']);
@@ -228,7 +232,7 @@ class ReportsModuleTest extends TestCase
         ]);
 
         $outsideProduct = Product::create([
-            'ProductName' => 'Moved Outside Range', 'Model' => 'M2', 'SKU' => 'SKU-M2',
+            'ProductName' => 'Moved Outside Range', 'Model' => 'M2',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $this->product->CategoryID,
         ]);
         Inventory::create(['ProductID' => $outsideProduct->ProductID, 'Quantity' => 5, 'ReorderThreshold' => 5, 'Status' => 'In Stock']);
@@ -321,10 +325,10 @@ class ReportsModuleTest extends TestCase
             ]);
         }
 
-        \Illuminate\Support\Facades\DB::enableQueryLog();
+        DB::enableQueryLog();
         $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'supplier']));
-        $queryCount = count(\Illuminate\Support\Facades\DB::getQueryLog());
-        \Illuminate\Support\Facades\DB::disableQueryLog();
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
 
         $response->assertOk();
         // A per-supplier N+1 would be 5+ queries just for purchase orders,
@@ -504,7 +508,7 @@ class ReportsModuleTest extends TestCase
     public function test_sales_report_export_explodes_to_one_row_per_line_item(): void
     {
         $secondProduct = Product::create([
-            'ProductName' => 'IP Camera', 'Model' => 'CAM-02', 'SKU' => 'SKU-002',
+            'ProductName' => 'IP Camera', 'Model' => 'CAM-02',
             'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
         ]);
         $billing = $this->makeBilling(1120, '2026-06-15');
@@ -526,7 +530,7 @@ class ReportsModuleTest extends TestCase
     public function test_sales_report_item_rows_sum_back_to_the_original_billing_amount(): void
     {
         $secondProduct = Product::create([
-            'ProductName' => 'IP Camera', 'Model' => 'CAM-02', 'SKU' => 'SKU-002',
+            'ProductName' => 'IP Camera', 'Model' => 'CAM-02',
             'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
         ]);
         $billing = $this->makeBilling(1120, '2026-06-15');
@@ -534,9 +538,9 @@ class ReportsModuleTest extends TestCase
         SalesItem::create(['Quantity' => 2, 'UnitPrice' => 400, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
         SalesItem::create(['Quantity' => 1, 'UnitPrice' => 200, 'ProductID' => $secondProduct->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
 
-        $method = new \ReflectionMethod(\App\Http\Controllers\Admin\ReportController::class, 'salesItemRows');
+        $method = new \ReflectionMethod(ReportController::class, 'salesItemRows');
         $method->setAccessible(true);
-        $rows = $method->invoke(new \App\Http\Controllers\Admin\ReportController(), null, null);
+        $rows = $method->invoke(new ReportController, null, null);
 
         $this->assertCount(2, $rows);
         // Gross (sum of every line's Quantity*UnitPrice) minus discount plus
@@ -598,7 +602,6 @@ class ReportsModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'inventory']));
 
         $response->assertOk();
-        $response->assertSee('SKU-001');
         $response->assertSee('CCTV');
         $response->assertSee('₱600.00'); // Cost Price
         $response->assertSee('₱24,000.00'); // Stock Value = 40 * 600

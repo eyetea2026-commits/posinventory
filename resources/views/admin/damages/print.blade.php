@@ -24,7 +24,6 @@
     <div class="section">
         <h2>Product</h2>
         <div class="row"><span>Product</span><strong>{{ $damage->product?->ProductName ?? 'N/A' }}</strong></div>
-        <div class="row"><span>SKU</span><strong>{{ $damage->product?->SKU ?? 'N/A' }}</strong></div>
         <div class="row"><span>Brand</span><strong>{{ $damage->product?->brand?->BrandName ?? 'N/A' }}</strong></div>
         <div class="row"><span>Category</span><strong>{{ $damage->product?->category?->CategoryName ?? 'N/A' }}</strong></div>
         <div class="row"><span>Quantity</span><strong>{{ $damage->Quantity }}</strong></div>

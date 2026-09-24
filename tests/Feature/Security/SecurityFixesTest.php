@@ -64,7 +64,7 @@ class SecurityFixesTest extends TestCase
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001', 'Barcode' => '1234567890',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'Barcode' => '1234567890',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
 
@@ -286,7 +286,7 @@ class SecurityFixesTest extends TestCase
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);
@@ -317,7 +317,7 @@ class SecurityFixesTest extends TestCase
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-003',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);

@@ -8,6 +8,7 @@ use App\Models\Discount;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\SalesItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -17,7 +18,9 @@ class ApplyPromoTest extends TestCase
     use RefreshDatabase;
 
     private User $cashier;
+
     private Product $product;
+
     private Product $otherProduct;
 
     protected function setUp(): void
@@ -29,13 +32,13 @@ class ApplyPromoTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'Bullet 2MP', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'Bullet 2MP', 'Model' => 'CAM-01',
             'Price' => 1000, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
 
         $this->otherProduct = Product::create([
-            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01', 'SKU' => 'SKU-002',
+            'ProductName' => 'DVR 8CH', 'Model' => 'DVR-01',
             'Price' => 2000, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->otherProduct->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
@@ -44,7 +47,7 @@ class ApplyPromoTest extends TestCase
     // Creates a promo and assigns it to the given product(s) via the pivot —
     // matches how the admin's "Apply Discount/Promo" tab actually attaches a
     // promo, instead of the old single-ProductID column.
-    private function makePromo(array $overrides = [], array $productIds = null): Discount
+    private function makePromo(array $overrides = [], ?array $productIds = null): Discount
     {
         $discount = Discount::create(array_merge([
             'DiscountRate' => 20,
@@ -283,7 +286,7 @@ class ApplyPromoTest extends TestCase
         $discount = $this->makePromo([], [$this->product->ProductID, $this->otherProduct->ProductID]);
 
         $thirdProduct = Product::create([
-            'ProductName' => 'NVR 16CH', 'Model' => 'NVR-01', 'SKU' => 'SKU-003',
+            'ProductName' => 'NVR 16CH', 'Model' => 'NVR-01',
             'Price' => 500, 'CategoryID' => $this->product->CategoryID,
         ]);
         Inventory::create(['ProductID' => $thirdProduct->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
@@ -356,12 +359,12 @@ class ApplyPromoTest extends TestCase
         $transactionId = (int) str_replace('RCT-', '', $transactionId);
 
         // Bullet 2MP: 1000 * 20% = 200/unit discount, x2 qty = 400 total.
-        $promodItem = \App\Models\SalesItem::where('SalesTransactionID', $transactionId)
+        $promodItem = SalesItem::where('SalesTransactionID', $transactionId)
             ->where('ProductID', $this->product->ProductID)->firstOrFail();
         $this->assertEquals(400.0, (float) $promodItem->DiscountAmount);
 
         // DVR 8CH: not assigned to the promo — no discount at all.
-        $unpromodItem = \App\Models\SalesItem::where('SalesTransactionID', $transactionId)
+        $unpromodItem = SalesItem::where('SalesTransactionID', $transactionId)
             ->where('ProductID', $this->otherProduct->ProductID)->firstOrFail();
         $this->assertEquals(0.0, (float) $unpromodItem->DiscountAmount);
     }
@@ -408,7 +411,7 @@ class ApplyPromoTest extends TestCase
         $this->makePromo();
 
         $expired = Product::create([
-            'ProductName' => 'Expired Promo Cam', 'Model' => 'CAM-EXP', 'SKU' => 'SKU-EXP',
+            'ProductName' => 'Expired Promo Cam', 'Model' => 'CAM-EXP',
             'Price' => 800, 'CategoryID' => $this->product->CategoryID,
         ]);
         Inventory::create(['ProductID' => $expired->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
@@ -417,7 +420,7 @@ class ApplyPromoTest extends TestCase
         ], [$expired->ProductID]);
 
         $scheduled = Product::create([
-            'ProductName' => 'Future Promo Cam', 'Model' => 'CAM-FUT', 'SKU' => 'SKU-FUT',
+            'ProductName' => 'Future Promo Cam', 'Model' => 'CAM-FUT',
             'Price' => 900, 'CategoryID' => $this->product->CategoryID,
         ]);
         Inventory::create(['ProductID' => $scheduled->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
@@ -428,13 +431,13 @@ class ApplyPromoTest extends TestCase
         $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
 
         $response->assertOk();
-        $response->assertSee('"' . $this->product->ProductID . '":{"discount_id"', false);
+        $response->assertSee('"'.$this->product->ProductID.'":{"discount_id"', false);
         $response->assertSee('SUMMER20', false);
         $response->assertDontSee('OLDONE', false);
         $response->assertDontSee('NOTYET', false);
-        $response->assertDontSee('"' . $this->otherProduct->ProductID . '":{"discount_id"', false);
-        $response->assertDontSee('"' . $expired->ProductID . '":{"discount_id"', false);
-        $response->assertDontSee('"' . $scheduled->ProductID . '":{"discount_id"', false);
+        $response->assertDontSee('"'.$this->otherProduct->ProductID.'":{"discount_id"', false);
+        $response->assertDontSee('"'.$expired->ProductID.'":{"discount_id"', false);
+        $response->assertDontSee('"'.$scheduled->ProductID.'":{"discount_id"', false);
     }
 
     // The catalog cards on the left side of the POS Panel show the promo
@@ -448,7 +451,7 @@ class ApplyPromoTest extends TestCase
         $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
 
         $response->assertOk();
-        $response->assertSee('data-product-id="' . $this->product->ProductID . '"', false);
+        $response->assertSee('data-product-id="'.$this->product->ProductID.'"', false);
         $response->assertSee('data-price="1000"', false);
         $response->assertSee('class="price-block"', false);
     }
@@ -467,7 +470,7 @@ class ApplyPromoTest extends TestCase
 
         $response = $this->actingAs($this->cashier)->getJson(route('cashier.pos.promo-map'));
         $response->assertOk();
-        $entry = $response->json('products.' . $this->product->ProductID);
+        $entry = $response->json('products.'.$this->product->ProductID);
         $this->assertNotNull($entry);
         $this->assertSame('SUMMER20', $entry['code']);
     }

@@ -15,6 +15,7 @@ class InventoryModuleUiTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
 
     protected function setUp(): void
@@ -26,7 +27,7 @@ class InventoryModuleUiTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 20, 'ReorderThreshold' => 5, 'Status' => 'Available']);
@@ -56,7 +57,7 @@ class InventoryModuleUiTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.inventory.index'));
 
         $response->assertOk();
-        $response->assertSee('openInventoryDetailsModal(' . $this->product->ProductID . ')', false);
+        $response->assertSee('openInventoryDetailsModal('.$this->product->ProductID.')', false);
     }
 
     public function test_show_ajax_request_returns_the_details_partial_as_json(): void
@@ -69,7 +70,6 @@ class InventoryModuleUiTest extends TestCase
         $response->assertJsonStructure(['html', 'productName']);
         $response->assertJsonPath('productName', 'DVR Camera');
         $this->assertStringContainsString('DVR Camera', $response->json('html'));
-        $this->assertStringContainsString('SKU-001', $response->json('html'));
     }
 
     // The "Create Purchase Order" button used to show inside View Details

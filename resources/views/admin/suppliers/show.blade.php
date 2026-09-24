@@ -225,12 +225,11 @@
                 html += `<p><strong>Supplier:</strong> ${escapeHtml(s.SupplierName)} (${escapeHtml(s.ContactNumber)} / ${escapeHtml(s.Email)})</p>`;
 
                 html += '<hr><h4>Ordered Products</h4>';
-                html += '<div style="overflow-x:auto;"><table class="items-table"><thead><tr><th>Product</th><th>Category</th><th>SKU</th><th>Ordered</th><th>Received</th><th>Remaining</th><th>Unit Cost</th><th>Subtotal</th></tr></thead><tbody>';
+                html += '<div style="overflow-x:auto;"><table class="items-table"><thead><tr><th>Product</th><th>Category</th><th>Ordered</th><th>Received</th><th>Remaining</th><th>Unit Cost</th><th>Subtotal</th></tr></thead><tbody>';
                 (data.items || []).forEach(function (item) {
                     html += `<tr>
                         <td>${escapeHtml(item.ProductName)}</td>
                         <td>${escapeHtml(item.Category)}</td>
-                        <td>${escapeHtml(item.SKU)}</td>
                         <td>${escapeHtml(item.OrderedQuantity)}</td>
                         <td>${escapeHtml(item.ReceivedQuantity)}</td>
                         <td>${escapeHtml(item.RemainingQuantity)}</td>

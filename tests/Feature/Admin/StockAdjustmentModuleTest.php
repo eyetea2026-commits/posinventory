@@ -18,6 +18,7 @@ class StockAdjustmentModuleTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Product $product;
 
     protected function setUp(): void
@@ -29,7 +30,7 @@ class StockAdjustmentModuleTest extends TestCase
 
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
         $this->product = Product::create([
-            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'SKU' => 'SKU-001',
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01',
             'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);
@@ -141,7 +142,7 @@ class StockAdjustmentModuleTest extends TestCase
         $response->assertOk();
         $response->assertSee('list="productOptions"', false);
         $response->assertSee('id="productOptions"', false);
-        $response->assertSee('data-product-id="' . $this->product->ProductID . '"', false);
+        $response->assertSee('data-product-id="'.$this->product->ProductID.'"', false);
         $response->assertSee($this->product->ProductName);
         // No separate visible search input alongside the dropdown/select.
         $response->assertDontSee('id="ProductSearch" class="form-input" placeholder="Search product by name', false);
