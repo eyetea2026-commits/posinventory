@@ -48,7 +48,7 @@
                     </tr>
                 </thead>
                 <tbody id="suppliersTbody">
-                    @forelse($suppliers as $supplier)
+                    @foreach($suppliers as $supplier)
                         <tr>
                             <td>
                                 <strong>{{ $supplier->SupplierName }}</strong>
@@ -77,18 +77,7 @@
                                 </div>
                             </td>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6">
-                                <div class="empty-state">
-                                    <div class="empty-icon"><i class="fas fa-truck"></i></div>
-                                    <p class="empty-title">No Suppliers Found</p>
-                                    <p class="empty-text">Add your first supplier to get started.</p>
-                                    <a href="{{ route('admin.suppliers.create') }}" class="btn btn-primary">Add Supplier</a>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforelse
+                    @endforeach
                 </tbody>
             </table>
         </div>
