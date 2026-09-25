@@ -405,7 +405,7 @@
         <table class="table">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>No.</th>
                     <th>Category Name</th>
                     <th>Products Count</th>
                     <th>Actions</th>

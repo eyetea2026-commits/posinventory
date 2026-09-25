@@ -1,6 +1,6 @@
 @forelse($categories as $category)
     <tr>
-        <td>{{ $category->CategoryID }}</td>
+        <td>{{ $categories->firstItem() + $loop->index }}</td>
         <td>
             <div class="category-name-cell">
                 <strong>{{ $category->CategoryName }}</strong>
