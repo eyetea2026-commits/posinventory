@@ -375,18 +375,11 @@ class SecurityFixesTest extends TestCase
         // "Locked" assertions above already confirm.
     }
 
-    // Edit User's password section: the real password is never fetched or
-    // shown — a masked placeholder plus a "Reset Password" button, with the
-    // actual New/Confirm Password inputs hidden until that button is
-    // clicked (see the inline toggle script in
-    // user-form-fields.blade.php).
-    // The Edit User form shows a masked placeholder and a "Reset Password"
-    // button that opens a separate popup (reset-password-modal.blade.php) —
-    // this form itself carries no password field at all anymore, since a
-    // <script> tag embedded in HTML injected via .innerHTML (how the Edit
-    // User modal loads this partial) never executes, which is why the
-    // earlier inline-toggle version silently didn't work.
-    public function test_edit_user_form_shows_masked_password_with_reset_button_not_the_real_value(): void
+    // The Edit User form has no password UI of its own at all — no masked
+    // placeholder, no Reset Password button, no New/Confirm Password
+    // inputs. The reset-password-modal.blade.php popup and its endpoint
+    // (tested below) are unreachable from this form now, by design.
+    public function test_edit_user_form_shows_no_password_ui(): void
     {
         $response = $this->actingAs($this->admin)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
@@ -395,10 +388,9 @@ class SecurityFixesTest extends TestCase
         $response->assertOk();
         $html = $response->json('html');
 
-        $this->assertStringContainsString('Current Password', $html);
-        $this->assertStringContainsString('************', $html);
-        $this->assertStringContainsString('Reset Password', $html);
-        $this->assertStringContainsString('openResetPasswordModal('.$this->admin->id.')', $html);
+        $this->assertStringNotContainsString('Current Password', $html);
+        $this->assertStringNotContainsString('Reset Password', $html);
+        $this->assertStringNotContainsString('openResetPasswordModal(', $html);
         $this->assertStringNotContainsString('name="password"', $html);
         $this->assertStringNotContainsString($this->admin->password, $html);
     }
