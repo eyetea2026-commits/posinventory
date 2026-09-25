@@ -5,7 +5,7 @@
      scrape a full page render for this exact markup). Expects
      $purchaseOrders (a paginator or any Collection of PurchaseOrder with
      supplier/items.product loaded). --}}
-@foreach($purchaseOrders as $order)
+@forelse($purchaseOrders as $order)
     <tr>
         <td>
             <span class="badge badge-primary">{{ $order->PONumber }}</span>
@@ -33,4 +33,14 @@
             </div>
         </td>
     </tr>
-@endforeach
+@empty
+    <tr>
+        <td colspan="6">
+            <div class="empty-state">
+                <div class="empty-icon"><i class="fas fa-shopping-cart"></i></div>
+                <p class="empty-title">No Purchase Orders</p>
+                <p class="empty-text">Purchase orders you create will appear here.</p>
+            </div>
+        </td>
+    </tr>
+@endforelse

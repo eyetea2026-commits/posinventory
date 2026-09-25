@@ -48,7 +48,7 @@
                     </tr>
                 </thead>
                 <tbody id="suppliersTbody">
-                    @foreach($suppliers as $supplier)
+                    @forelse($suppliers as $supplier)
                         <tr>
                             <td>
                                 <strong>{{ $supplier->SupplierName }}</strong>
@@ -77,7 +77,17 @@
                                 </div>
                             </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr>
+                            <td colspan="6">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="fas fa-truck"></i></div>
+                                    <p class="empty-title">No Suppliers Found</p>
+                                    <p class="empty-text">Suppliers you add will appear here.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>

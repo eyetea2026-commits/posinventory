@@ -54,7 +54,7 @@
                     </tr>
                 </thead>
                 <tbody id="adjustmentsTbody">
-                    @foreach($adjustments as $adjustment)
+                    @forelse($adjustments as $adjustment)
                         <tr>
                             <td>{{ \Illuminate\Support\Carbon::parse($adjustment->Date)->format('M d, Y') }}</td>
                             <td><strong>{{ $adjustment->product?->ProductName ?? 'Unknown' }}</strong></td>
@@ -69,7 +69,17 @@
                                 <span class="badge badge-info">{{ $adjustment->Reason }}</span>
                             </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr>
+                            <td colspan="4">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="fas fa-sliders-h"></i></div>
+                                    <p class="empty-title">No Stock Adjustments</p>
+                                    <p class="empty-text">Stock adjustments you create will appear here.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
