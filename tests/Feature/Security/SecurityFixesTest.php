@@ -561,6 +561,7 @@ class SecurityFixesTest extends TestCase
             'name' => $this->admin->name,
             'email' => $this->admin->email,
             'role_id' => $this->adminRole->id,
+            'current_password' => 'password',
         ]);
         $response->assertRedirect(route('admin.users.index'));
         $this->assertDatabaseHas('users', ['id' => $this->admin->id, 'first_name' => 'Updated']);
@@ -572,8 +573,57 @@ class SecurityFixesTest extends TestCase
             'name' => $this->admin->name,
             'email' => $this->admin->email,
             'role_id' => $cashierRoleId,
+            'current_password' => 'password',
         ]);
         $roleChangeResponse->assertSessionHas('error');
         $this->assertDatabaseHas('users', ['id' => $this->admin->id, 'role_id' => $this->adminRole->id]);
+    }
+
+    // Updating an Administrator account requires the acting admin's own
+    // current password, on top of normal auth — a step-up check, same
+    // pattern as resetPassword()'s current_password requirement.
+    public function test_updating_an_admin_account_requires_the_admins_own_current_password(): void
+    {
+        $response = $this->actingAs($this->admin)->put(route('admin.users.update', $this->admin), [
+            'first_name' => 'Updated', 'last_name' => 'Admin',
+            'contact_number' => '09991112222',
+            'name' => $this->admin->name,
+            'email' => $this->admin->email,
+            'role_id' => $this->adminRole->id,
+        ]);
+
+        $response->assertSessionHasErrors('current_password');
+        $this->assertDatabaseMissing('users', ['id' => $this->admin->id, 'first_name' => 'Updated']);
+    }
+
+    public function test_updating_an_admin_account_rejects_a_wrong_current_password(): void
+    {
+        $response = $this->actingAs($this->admin)->put(route('admin.users.update', $this->admin), [
+            'first_name' => 'Updated', 'last_name' => 'Admin',
+            'contact_number' => '09991112222',
+            'name' => $this->admin->name,
+            'email' => $this->admin->email,
+            'role_id' => $this->adminRole->id,
+            'current_password' => 'totally-wrong-password',
+        ]);
+
+        $response->assertSessionHasErrors('current_password');
+        $this->assertDatabaseMissing('users', ['id' => $this->admin->id, 'first_name' => 'Updated']);
+    }
+
+    // Updating a Cashier (non-admin target) never requires the acting
+    // admin's own password — the step-up check is admin-target-only.
+    public function test_updating_a_non_admin_account_does_not_require_current_password(): void
+    {
+        $response = $this->actingAs($this->admin)->put(route('admin.users.update', $this->cashier), [
+            'first_name' => 'Updated', 'last_name' => 'Cashier',
+            'contact_number' => '09991112223',
+            'name' => $this->cashier->name,
+            'email' => $this->cashier->email,
+            'role_id' => $this->cashierRole->id,
+        ]);
+
+        $response->assertRedirect(route('admin.users.index'));
+        $this->assertDatabaseHas('users', ['id' => $this->cashier->id, 'first_name' => 'Updated']);
     }
 }

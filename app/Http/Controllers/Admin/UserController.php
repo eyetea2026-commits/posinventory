@@ -229,6 +229,21 @@ class UserController extends Controller
             'password' => ['nullable', 'confirmed', Password::defaults()],
         ]);
 
+        // Updating an Administrator account requires the ACTING admin to
+        // re-enter their own current password first — a step-up check on
+        // top of the normal auth session, same as resetPassword() below.
+        // This gates any edit to an admin account (including an admin
+        // editing their own profile), not just a role or password change.
+        if ($user->isAdmin()) {
+            $request->validate(['current_password' => ['required', 'string']]);
+
+            if (! Hash::check($request->input('current_password'), auth()->user()->password)) {
+                throw ValidationException::withMessages([
+                    'current_password' => 'Your password is incorrect.',
+                ]);
+            }
+        }
+
         // Never rely on the Edit form disabling the Role field client-side —
         // if this is the last active Administrator, reject any attempt to
         // change their role away from admin server-side too, since that

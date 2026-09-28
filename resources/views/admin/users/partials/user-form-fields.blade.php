@@ -110,6 +110,17 @@
                 <button type="button" class="btn btn-secondary" onclick="window.openResetPasswordModal({{ $user->id }})">Reset Password</button>
             </div>
         </div>
+    @elseif(isset($user) && $user->isAdmin())
+        {{-- Saving any change to an Administrator account requires the
+             ACTING admin to re-enter their own current password — a
+             step-up check enforced again server-side in
+             UserController::update(), not just by requiring this field. --}}
+        <div class="form-group full-width">
+            <label class="form-label">Your Password <span class="required">*</span></label>
+            <input type="password" name="current_password" class="form-input" autocomplete="current-password" required>
+            <span class="form-hint" style="display:block; margin-top:6px; color: var(--text-secondary); font-size:0.85rem;">For security, confirm your own password to save changes to an Administrator account.</span>
+            <span class="form-error" id="error-current_password">@error('current_password'){{ $message }}@enderror</span>
+        </div>
     @elseif(!isset($user))
         <div class="form-group">
             <label class="form-label">Password <span class="required">*</span></label>
