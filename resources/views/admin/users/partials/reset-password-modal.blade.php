@@ -48,7 +48,7 @@
         <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="adminCredentialsCloseBtn">Close</button>
             <button type="button" class="btn btn-primary" id="adminCredentialsConfirmBtn">
-                <i class="fas fa-check"></i> Confirm
+                <i class="fas fa-check"></i> Confirm Password
             </button>
         </div>
     </div>
@@ -190,7 +190,7 @@
     function resetAdminCredentialsConfirmBtn() {
         const btn = document.getElementById('adminCredentialsConfirmBtn');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-check"></i> Confirm';
+        btn.innerHTML = '<i class="fas fa-check"></i> Confirm Password';
     }
 
     document.getElementById('adminCredentialsConfirmBtn').addEventListener('click', function () {

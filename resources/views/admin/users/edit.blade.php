@@ -101,6 +101,22 @@
             return;
         }
 
+        // Administrator target: clicking Update opens the "Enter Your
+        // Credentials" popup right away, before the generic "are you sure"
+        // dialog — only once that's confirmed does the normal save flow run.
+        if (form.querySelector('input[name="_requires_admin_credentials"]')) {
+            window.openAdminCredentialsGate(function (verifiedPassword) {
+                proceedWithUpdate(verifiedPassword);
+            }, {
+                hint: 'For security, confirm your own password before updating an Administrator account.',
+            });
+            return;
+        }
+
+        proceedWithUpdate(null);
+    }
+
+    function proceedWithUpdate(verifiedPassword) {
         Swal.fire({
             title: 'Confirm Update',
             text: 'Are you sure you want to save the changes made to this user?',
@@ -113,23 +129,15 @@
         }).then((result) => {
             if (!result.isConfirmed) return;
 
-            // Administrator target: gate the actual submit behind the
-            // "Enter Your Credentials" popup instead of submitting directly.
-            if (form.querySelector('input[name="_requires_admin_credentials"]')) {
-                window.openAdminCredentialsGate(function (verifiedPassword) {
-                    let hidden = form.querySelector('input[name="current_password"]');
-                    if (!hidden) {
-                        hidden = document.createElement('input');
-                        hidden.type = 'hidden';
-                        hidden.name = 'current_password';
-                        form.appendChild(hidden);
-                    }
-                    hidden.value = verifiedPassword;
-                    form.submit();
-                }, {
-                    hint: 'For security, confirm your own password to save changes to an Administrator account.',
-                });
-                return;
+            if (verifiedPassword) {
+                let hidden = form.querySelector('input[name="current_password"]');
+                if (!hidden) {
+                    hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'current_password';
+                    form.appendChild(hidden);
+                }
+                hidden.value = verifiedPassword;
             }
 
             form.submit();

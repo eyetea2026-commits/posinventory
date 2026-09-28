@@ -594,7 +594,7 @@
             <button class="btn btn-secondary" onclick="closeModal()">
                 <i class="fas fa-times"></i> Close
             </button>
-            <a id="updateUserBtn" href="#" class="btn btn-warning" onclick="openEditUserModal(event, this.dataset.userId)">
+            <a id="updateUserBtn" href="#" class="btn btn-warning" onclick="window.handleUpdateUserButtonClick(event, this)">
                 <i class="fas fa-edit"></i> Update User
             </a>
         </div>
@@ -816,6 +816,7 @@
             const updatedAt = new Date(user.updated_at).toLocaleString('en-PH');
 
             updateBtn.dataset.userId = userId;
+            updateBtn.dataset.isAdmin = user.role_name === 'admin' ? '1' : '0';
 
             const protectedNotice = user.role_name === 'admin' ?
                 '<div class="detail-item full-width" style="background: rgba(239,68,68,0.15);">' +
@@ -1147,6 +1148,32 @@
     let editUserLastFocused = null;
     let editUserFormHelper = null;
     let currentEditUserId = null;
+    // Set once, right after the admin confirms their password in
+    // handleUpdateUserButtonClick() below, and attached to every save this
+    // Edit User modal session makes — cleared whenever the modal closes, so
+    // a fresh "View Details -> Update" always re-prompts.
+    let verifiedAdminPasswordForEdit = null;
+
+    // View Details' "Update User" button — for an Administrator target, this
+    // is where the "Enter Your Credentials" gate belongs (before the edit
+    // form is even shown), not at Save time.
+    window.handleUpdateUserButtonClick = function (event, btn) {
+        if (event) event.preventDefault();
+        const userId = btn.dataset.userId;
+
+        if (btn.dataset.isAdmin !== '1') {
+            verifiedAdminPasswordForEdit = null;
+            window.openEditUserModal(null, userId);
+            return;
+        }
+
+        window.openAdminCredentialsGate(function (verifiedPassword) {
+            verifiedAdminPasswordForEdit = verifiedPassword;
+            window.openEditUserModal(null, userId);
+        }, {
+            hint: 'For security, confirm your own password before updating an Administrator account.',
+        });
+    };
 
     function editUserIsSubmitting() {
         const btn = document.getElementById('editUserSubmitBtn');
@@ -1294,21 +1321,12 @@
                     },
                     confirmButtonText: 'Yes, Save Changes',
                     submittingLabel: '<span class="spinner"></span> Saving...',
+                    // The Administrator-target credentials check already
+                    // happened before this form was even shown (see
+                    // handleUpdateUserButtonClick above) — submit directly,
+                    // attaching whichever password that gate verified.
                     onConfirmedSubmit: function (resetSubmitButton) {
-                        // Administrator target: gate the actual submit
-                        // behind the "Enter Your Credentials" popup instead
-                        // of sending the request directly.
-                        if (form.querySelector('input[name="_requires_admin_credentials"]')) {
-                            window.openAdminCredentialsGate(function (verifiedPassword) {
-                                submitEditUserForm(resetSubmitButton, verifiedPassword);
-                            }, {
-                                hint: 'For security, confirm your own password to save changes to an Administrator account.',
-                                onCancel: resetSubmitButton,
-                            });
-                            return;
-                        }
-
-                        submitEditUserForm(resetSubmitButton);
+                        submitEditUserForm(resetSubmitButton, verifiedAdminPasswordForEdit);
                     },
                     onCancel: function () { closeEditUserModal(); }
                 });
@@ -1327,6 +1345,7 @@
         document.removeEventListener('keydown', handleEditUserModalKeydown);
         setTimeout(function () { modal.style.display = 'none'; }, 250);
         document.body.style.overflow = '';
+        verifiedAdminPasswordForEdit = null;
         if (editUserLastFocused && typeof editUserLastFocused.focus === 'function') {
             editUserLastFocused.focus();
         }
