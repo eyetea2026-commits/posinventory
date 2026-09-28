@@ -312,6 +312,75 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame($inventoryAAfterFirst, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
     }
 
+    public function test_add_to_inventory_rejects_a_receipt_number_duplicated_within_the_same_submission(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
+
+        $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
+        $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
+
+        $response = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'items' => [
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50, 'receipt_number' => 'RCT-SAME'],
+                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20, 'receipt_number' => 'RCT-SAME'],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+
+        $batch->refresh();
+        $this->assertSame(StockReceivingBatch::STATUS_PENDING, $batch->Status);
+        $this->assertSame(0, $itemA->fresh()->ReceivedQuantity);
+        $this->assertNull($itemA->fresh()->ReceiptNumber);
+    }
+
+    public function test_add_to_inventory_rejects_a_receipt_number_already_used_by_another_delivery(): void
+    {
+        $po1 = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po1));
+        $batch1 = StockReceivingBatch::where('PurchaseOrderID', $po1->PurchaseOrderID)->firstOrFail();
+        $item1A = PurchaseOrderItem::where('PurchaseOrderID', $po1->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
+        $item1B = PurchaseOrderItem::where('PurchaseOrderID', $po1->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
+
+        $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch1), [
+            'items' => [
+                ['purchase_order_item_id' => $item1A->PurchaseOrderItemID, 'quantity_received' => 50, 'receipt_number' => 'RCT-DUPE'],
+                ['purchase_order_item_id' => $item1B->PurchaseOrderItemID, 'quantity_received' => 20],
+            ],
+        ]);
+
+        // A second, separate PO/batch tries to reuse the same receipt number.
+        $po2 = PurchaseOrder::create([
+            'PONumber' => 'PO-TEST-000002',
+            'PurchaseDate' => now()->format('Y-m-d'),
+            'Status' => PurchaseOrder::STATUS_DRAFT,
+            'SupplierID' => $this->supplier->SupplierID,
+            'CreatedBy' => $this->admin->id,
+        ]);
+        $item2A = PurchaseOrderItem::create([
+            'PurchaseOrderID' => $po2->PurchaseOrderID, 'ProductID' => $this->productA->ProductID,
+            'Quantity' => 10, 'CostPriceAtOrder' => 600,
+        ]);
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po2));
+        $batch2 = StockReceivingBatch::where('PurchaseOrderID', $po2->PurchaseOrderID)->firstOrFail();
+
+        $response = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch2), [
+            'items' => [
+                ['purchase_order_item_id' => $item2A->PurchaseOrderItemID, 'quantity_received' => 10, 'receipt_number' => 'RCT-DUPE'],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+
+        $batch2->refresh();
+        $this->assertSame(StockReceivingBatch::STATUS_PENDING, $batch2->Status);
+        $this->assertSame(0, $item2A->fresh()->ReceivedQuantity);
+    }
+
     public function test_view_details_shows_ordered_quantity_as_read_only_reference(): void
     {
         $po = $this->makeDraftOrder();

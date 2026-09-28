@@ -13,6 +13,7 @@ use App\Models\StockReceivingBatch;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Notifications\ProductReceived;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -91,6 +92,28 @@ class StockReceivingController extends Controller
             'items.*.receipt_number' => ['nullable', 'string', 'max:50'],
         ]);
 
+        // Receipt Number must be unique — both within this submission (two
+        // lines can't share one) and against every delivery ever recorded.
+        // Checked up front so a duplicate is reported before anything is
+        // written, matching the "validate everything, then one transaction"
+        // pattern used throughout this codebase.
+        $receiptNumbers = collect($data['items'])
+            ->pluck('receipt_number')
+            ->filter(fn ($value) => filled($value))
+            ->map(fn ($value) => trim($value));
+
+        $duplicateInSubmission = $receiptNumbers->duplicates()->first();
+        if ($duplicateInSubmission !== null) {
+            return back()->with('error', "Receipt Number \"{$duplicateInSubmission}\" is used more than once here — each line needs its own unique Receipt Number.");
+        }
+
+        if ($receiptNumbers->isNotEmpty()) {
+            $alreadyUsed = PurchaseOrderItem::whereIn('ReceiptNumber', $receiptNumbers->unique())->first();
+            if ($alreadyUsed) {
+                return back()->with('error', "Receipt Number \"{$alreadyUsed->ReceiptNumber}\" has already been used for another delivery.");
+            }
+        }
+
         try {
             DB::transaction(function () use ($data, $stockReceivingBatch) {
                 $lockedBatch = StockReceivingBatch::where('StockReceivingBatchID', $stockReceivingBatch->StockReceivingBatchID)
@@ -163,6 +186,21 @@ class StockReceivingController extends Controller
 
                 ActivityLog::record('stock_receiving_batch.completed', "Completed receiving for PO #{$purchaseOrder->PONumber}");
             });
+        } catch (QueryException $e) {
+            // DB-level backstop for the same duplicate-Receipt-Number case
+            // already checked above — catches a genuine race between two
+            // concurrent completions, not the normal path. Must be caught
+            // before \RuntimeException below, since QueryException extends it.
+            if ($e->getCode() === '23000') {
+                return back()->with('error', 'That Receipt Number has already been used for another delivery.');
+            }
+
+            Log::error('Failed to complete stock receiving batch', [
+                'batch_id' => $stockReceivingBatch->StockReceivingBatchID,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Failed to add received stock to Inventory. Please try again.');
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         } catch (Throwable $e) {
