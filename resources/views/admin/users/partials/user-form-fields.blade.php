@@ -12,6 +12,11 @@
     // a second admin account (if one exists) be managed like any other user.
     $isProtected = isset($user) && $user->isProtected();
     $roleDisabledAttr = $isProtected ? 'disabled' : '';
+
+    // Reset Password is only offered for non-Administrator accounts (Cashier
+    // today, any future role like Manager tomorrow) — an admin's own
+    // password is never resettable through this UI.
+    $canResetPassword = isset($user) && ! $user->isAdmin();
 @endphp
 <div class="form-grid">
     @if($isProtected)
@@ -91,7 +96,21 @@
         <span class="form-error" id="error-name">@error('name'){{ $message }}@enderror</span>
     </div>
 
-    @unless(isset($user))
+    @if($canResetPassword)
+        {{-- The actual password is never retrieved or shown — this is a
+             masked placeholder, not the real value. "Reset Password" opens
+             a separate small popup (reset-password-modal.blade.php) with
+             its own New/Confirm Password fields and Save action; this form
+             itself no longer carries any password field, so a normal
+             Update User save can never touch the password at all. --}}
+        <div class="form-group full-width">
+            <label class="form-label">Current Password</label>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input type="text" class="form-input" value="************" readonly disabled style="flex:1; letter-spacing:2px; max-width:220px;">
+                <button type="button" class="btn btn-secondary" onclick="window.openResetPasswordModal({{ $user->id }})">Reset Password</button>
+            </div>
+        </div>
+    @elseif(!isset($user))
         <div class="form-group">
             <label class="form-label">Password <span class="required">*</span></label>
             <input type="password" name="password" class="form-input" required>
@@ -102,5 +121,5 @@
             <label class="form-label">Confirm Password <span class="required">*</span></label>
             <input type="password" name="password_confirmation" class="form-input" required>
         </div>
-    @endunless
+    @endif
 </div>

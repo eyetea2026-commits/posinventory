@@ -375,11 +375,11 @@ class SecurityFixesTest extends TestCase
         // "Locked" assertions above already confirm.
     }
 
-    // The Edit User form has no password UI of its own at all — no masked
-    // placeholder, no Reset Password button, no New/Confirm Password
-    // inputs. The reset-password-modal.blade.php popup and its endpoint
-    // (tested below) are unreachable from this form now, by design.
-    public function test_edit_user_form_shows_no_password_ui(): void
+    // Editing an Administrator account shows no password UI at all —
+    // Administrator passwords are never resettable through this form (the
+    // reset-password-modal.blade.php popup and its endpoint, tested below,
+    // are unreachable for an admin target, both in the UI and server-side).
+    public function test_edit_user_form_shows_no_password_ui_for_an_admin_target(): void
     {
         $response = $this->actingAs($this->admin)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
@@ -393,6 +393,25 @@ class SecurityFixesTest extends TestCase
         $this->assertStringNotContainsString('openResetPasswordModal(', $html);
         $this->assertStringNotContainsString('name="password"', $html);
         $this->assertStringNotContainsString($this->admin->password, $html);
+    }
+
+    // Editing a Cashier (or any future non-admin role) still shows the
+    // masked placeholder + Reset Password button — only Administrator
+    // targets lose this UI.
+    public function test_edit_user_form_shows_masked_password_with_reset_button_for_a_non_admin_target(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->get(route('admin.users.edit', $this->cashier));
+
+        $response->assertOk();
+        $html = $response->json('html');
+
+        $this->assertStringContainsString('Current Password', $html);
+        $this->assertStringContainsString('************', $html);
+        $this->assertStringContainsString('Reset Password', $html);
+        $this->assertStringContainsString('openResetPasswordModal('.$this->cashier->id.')', $html);
+        $this->assertStringNotContainsString('name="password"', $html);
     }
 
     // "Enter Your Credentials" step, shown before the Reset Password form
@@ -449,6 +468,25 @@ class SecurityFixesTest extends TestCase
 
     public function test_reset_password_endpoint_rejects_a_mismatched_confirmation(): void
     {
+        $oldHash = $this->cashier->password;
+
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->patchJson(route('admin.users.reset-password', $this->cashier), [
+                'current_password' => 'password',
+                'password' => 'NewSecure!Pass123',
+                'password_confirmation' => 'DoesNotMatch',
+            ]);
+
+        $response->assertStatus(422);
+        $this->cashier->refresh();
+        $this->assertSame($oldHash, $this->cashier->password);
+    }
+
+    // The capability, not just the button, must be gone for an admin
+    // target -- a direct request must be blocked the same as a hidden UI.
+    public function test_reset_password_endpoint_rejects_an_admin_target(): void
+    {
         $oldHash = $this->admin->password;
 
         $response = $this->actingAs($this->admin)
@@ -456,10 +494,10 @@ class SecurityFixesTest extends TestCase
             ->patchJson(route('admin.users.reset-password', $this->admin), [
                 'current_password' => 'password',
                 'password' => 'NewSecure!Pass123',
-                'password_confirmation' => 'DoesNotMatch',
+                'password_confirmation' => 'NewSecure!Pass123',
             ]);
 
-        $response->assertStatus(422);
+        $response->assertForbidden();
         $this->admin->refresh();
         $this->assertSame($oldHash, $this->admin->password);
     }

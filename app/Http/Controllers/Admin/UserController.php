@@ -309,6 +309,13 @@ class UserController extends Controller
     // no separate password system.
     public function resetPassword(Request $request, User $user)
     {
+        // Administrator accounts are never resettable through this flow —
+        // enforced here too, not just by hiding the button, since the UI
+        // alone is never a real boundary against a direct request.
+        if ($user->isAdmin()) {
+            abort(403);
+        }
+
         $data = $request->validate([
             'current_password' => ['required', 'string'],
             'password' => ['required', 'confirmed', Password::defaults()],
