@@ -721,29 +721,25 @@
     }
 
     /* View Details Modal */
-    .detail-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 0;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-        gap: 16px;
-    }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-label {
+    .detail-table { width: 100%; border-collapse: collapse; }
+    .detail-table tr { border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
+    .detail-table tr:last-child { border-bottom: none; }
+    .detail-table th, .detail-table td { padding: 12px 8px; vertical-align: top; }
+    .detail-table th {
         color: #94a3b8;
         font-size: 0.8rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        flex: 0 0 150px;
+        text-align: left;
+        width: 150px;
+        white-space: nowrap;
     }
-    .detail-value {
+    .detail-table td {
         color: #f8fafc;
         font-size: 0.9rem;
         font-weight: 500;
         text-align: right;
-        flex: 1;
     }
 </style>
 

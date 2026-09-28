@@ -19,34 +19,37 @@
         margin: 0 auto;
     }
 
-    .detail-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 14px 0;
+    .detail-table { width: 100%; border-collapse: collapse; }
+
+    .detail-table tr {
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-        gap: 16px;
     }
 
-    .detail-row:last-child {
+    .detail-table tr:last-child {
         border-bottom: none;
     }
 
-    .detail-label {
+    .detail-table th, .detail-table td {
+        padding: 14px 8px;
+        vertical-align: top;
+    }
+
+    .detail-table th {
         color: #94a3b8;
         font-size: 0.85rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        flex: 0 0 180px;
+        text-align: left;
+        width: 180px;
+        white-space: nowrap;
     }
 
-    .detail-value {
+    .detail-table td {
         color: #f8fafc;
         font-size: 0.95rem;
         font-weight: 500;
         text-align: right;
-        flex: 1;
     }
 
     .badge {
