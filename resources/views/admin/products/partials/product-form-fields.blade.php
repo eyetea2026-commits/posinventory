@@ -111,3 +111,53 @@
         </div>
     </div>
 </div>
+
+@if(isset($product))
+    {{-- Suppliers for this product: who supplies it, at what cost, and which
+         one is preferred (used by the auto-reorder flow to pick a supplier
+         automatically). Only shown in Edit mode — a product must exist
+         before a supplier can be linked to it. Wired up by
+         window.initProductSuppliersPanel() in product-form-behavior.blade.php,
+         called once this markup is actually in the DOM (see that file and
+         the Edit Product modal's openEditProductModal). --}}
+    <div class="card glass-card" style="margin-top: 24px;">
+        <div class="content-header" style="margin-bottom: 16px;">
+            <h1 style="font-size: 1.25rem;">Suppliers for this Product</h1>
+        </div>
+
+        <table style="width:100%; border-collapse: collapse;" id="productSuppliersTable">
+            <thead>
+                <tr style="text-align:left; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">
+                    <th style="padding:8px;">Supplier</th>
+                    <th style="padding:8px;">Cost Price</th>
+                    <th style="padding:8px;">Preferred</th>
+                    <th style="padding:8px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="productSuppliersBody">
+                <tr><td colspan="4" style="padding:12px; color:#94a3b8;">Loading...</td></tr>
+            </tbody>
+        </table>
+
+        <div class="form-grid" style="margin-top:20px; align-items:end;">
+            <div class="form-group">
+                <label class="form-label" for="newSupplierId">Supplier</label>
+                <select id="newSupplierId" class="form-select">
+                    <option value="">Select Supplier</option>
+                    @foreach(\App\Models\Supplier::orderBy('SupplierName')->get() as $s)
+                        <option value="{{ $s->SupplierID }}">{{ $s->SupplierName }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="newSupplierCost">Cost Price</label>
+                <input type="number" id="newSupplierCost" class="form-input" min="0" step="0.01">
+            </div>
+            <div class="form-group">
+                <button type="button" class="btn btn-secondary" id="addProductSupplierBtn">
+                    <i class="fas fa-plus"></i> Add / Update Supplier
+                </button>
+            </div>
+        </div>
+    </div>
+@endif

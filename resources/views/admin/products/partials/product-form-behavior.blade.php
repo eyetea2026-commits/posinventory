@@ -304,4 +304,104 @@ window.initProductAddForm = function (formId, options) {
         resetSubmitButton: resetSubmitButton
     };
 };
+
+// Wires up the per-product suppliers panel (see the Edit-mode-only block in
+// product-form-fields.blade.php). Safe to call even when that panel
+// isn't in the DOM (Add mode) — it just no-ops. Called once the panel's
+// markup actually exists: directly on page load for the standalone Edit
+// Product page, and from openEditProductModal() after the modal's AJAX
+// fetch injects the form fields (see products/index.blade.php).
+window.initProductSuppliersPanel = function (productId) {
+    var body = document.getElementById('productSuppliersBody');
+    var addBtn = document.getElementById('addProductSupplierBtn');
+    if (!body || !addBtn) return;
+
+    function suppliersUrl() {
+        return '{{ url('admin/products') }}/' + productId + '/suppliers';
+    }
+
+    function escapeHtml(value) {
+        var div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    }
+
+    function renderSuppliers(suppliers) {
+        if (!suppliers.length) {
+            body.innerHTML = '<tr><td colspan="4" style="padding:12px; color:#94a3b8;">No suppliers linked yet.</td></tr>';
+            return;
+        }
+        body.innerHTML = suppliers.map(function (ps) {
+            return '<tr>' +
+                '<td style="padding:8px;">' + escapeHtml(ps.supplier ? ps.supplier.SupplierName : 'Unknown') + '</td>' +
+                '<td style="padding:8px;">₱' + parseFloat(ps.CostPrice).toFixed(2) + '</td>' +
+                '<td style="padding:8px;">' + (ps.IsPreferred
+                    ? '<span style="color:#10b981;">&#9733; Preferred</span>'
+                    : '<button type="button" class="btn btn-secondary" data-prefer-id="' + ps.ProductSupplierID + '">Make Preferred</button>') + '</td>' +
+                '<td style="padding:8px;"><button type="button" class="btn btn-secondary" data-remove-id="' + ps.ProductSupplierID + '"><i class="fas fa-trash"></i></button></td>' +
+            '</tr>';
+        }).join('');
+    }
+
+    function loadSuppliers() {
+        body.innerHTML = '<tr><td colspan="4" style="padding:12px; color:#94a3b8;">Loading...</td></tr>';
+        fetch(suppliersUrl(), { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { renderSuppliers(data.suppliers || []); })
+            .catch(function () {
+                body.innerHTML = '<tr><td colspan="4" style="padding:12px; color:#ef4444;">Failed to load suppliers.</td></tr>';
+            });
+    }
+
+    // Delegated (rather than rebound per row) since renderSuppliers()
+    // replaces body.innerHTML wholesale on every reload.
+    body.onclick = function (e) {
+        var preferBtn = e.target.closest('[data-prefer-id]');
+        if (preferBtn) {
+            fetch('{{ url('admin/product-suppliers') }}/' + preferBtn.dataset.preferId + '/prefer', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+            }).then(loadSuppliers);
+            return;
+        }
+        var removeBtn = e.target.closest('[data-remove-id]');
+        if (removeBtn) {
+            fetch('{{ url('admin/product-suppliers') }}/' + removeBtn.dataset.removeId, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+            }).then(loadSuppliers);
+            return;
+        }
+    };
+
+    addBtn.onclick = function () {
+        var supplierId = document.getElementById('newSupplierId').value;
+        var cost = document.getElementById('newSupplierCost').value;
+        if (!supplierId || !cost) {
+            Swal.fire({ title: 'Missing info', text: 'Select a supplier and enter a cost price.', icon: 'warning', confirmButtonColor: '#f59e0b' });
+            return;
+        }
+        fetch(suppliersUrl(), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ SupplierID: supplierId, CostPrice: cost }),
+        }).then(function (r) {
+            return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+        }).then(function (result) {
+            if (!result.ok) {
+                var message = (result.data && result.data.message) || 'Something went wrong. Please try again.';
+                if (result.data && result.data.errors) {
+                    var firstError = Object.values(result.data.errors)[0];
+                    if (firstError && firstError[0]) message = firstError[0];
+                }
+                Swal.fire({ title: 'Error', text: message, icon: 'error', confirmButtonColor: '#ef4444' });
+                return;
+            }
+            document.getElementById('newSupplierCost').value = '';
+            loadSuppliers();
+        });
+    };
+
+    loadSuppliers();
+};
 </script>

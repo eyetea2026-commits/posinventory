@@ -1464,6 +1464,7 @@
                     onConfirmedSubmit: submitEditProductForm,
                     onCancel: function () { closeEditProductModal(); }
                 });
+                window.initProductSuppliersPanel(productId);
                 const firstField = form.querySelector('input, select');
                 if (firstField) firstField.focus();
             })
