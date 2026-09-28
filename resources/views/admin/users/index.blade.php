@@ -1183,7 +1183,7 @@
         btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
     }
 
-    function submitEditUserForm(resetSubmitButton) {
+    function submitEditUserForm(resetSubmitButton, verifiedPassword) {
         const form = document.getElementById('editUserForm');
         const userId = currentEditUserId;
         hideEditUserGeneralError();
@@ -1193,6 +1193,9 @@
         // _method spoof instead, or every field comes back "required".
         const formData = new FormData(form);
         formData.append('_method', 'PUT');
+        if (verifiedPassword) {
+            formData.set('current_password', verifiedPassword);
+        }
 
         fetch('{{ url('admin/users') }}/' + userId, {
             method: 'POST',
@@ -1291,7 +1294,22 @@
                     },
                     confirmButtonText: 'Yes, Save Changes',
                     submittingLabel: '<span class="spinner"></span> Saving...',
-                    onConfirmedSubmit: submitEditUserForm,
+                    onConfirmedSubmit: function (resetSubmitButton) {
+                        // Administrator target: gate the actual submit
+                        // behind the "Enter Your Credentials" popup instead
+                        // of sending the request directly.
+                        if (form.querySelector('input[name="_requires_admin_credentials"]')) {
+                            window.openAdminCredentialsGate(function (verifiedPassword) {
+                                submitEditUserForm(resetSubmitButton, verifiedPassword);
+                            }, {
+                                hint: 'For security, confirm your own password to save changes to an Administrator account.',
+                                onCancel: resetSubmitButton,
+                            });
+                            return;
+                        }
+
+                        submitEditUserForm(resetSubmitButton);
+                    },
                     onCancel: function () { closeEditUserModal(); }
                 });
                 const firstField = form.querySelector('input, select');

@@ -111,9 +111,28 @@
             confirmButtonColor: '#10b981',
             cancelButtonColor: '#64748b'
         }).then((result) => {
-            if (result.isConfirmed) {
-                form.submit();
+            if (!result.isConfirmed) return;
+
+            // Administrator target: gate the actual submit behind the
+            // "Enter Your Credentials" popup instead of submitting directly.
+            if (form.querySelector('input[name="_requires_admin_credentials"]')) {
+                window.openAdminCredentialsGate(function (verifiedPassword) {
+                    let hidden = form.querySelector('input[name="current_password"]');
+                    if (!hidden) {
+                        hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = 'current_password';
+                        form.appendChild(hidden);
+                    }
+                    hidden.value = verifiedPassword;
+                    form.submit();
+                }, {
+                    hint: 'For security, confirm your own password to save changes to an Administrator account.',
+                });
+                return;
             }
+
+            form.submit();
         });
     }
 

@@ -111,16 +111,15 @@
             </div>
         </div>
     @elseif(isset($user) && $user->isAdmin())
-        {{-- Saving any change to an Administrator account requires the
-             ACTING admin to re-enter their own current password — a
-             step-up check enforced again server-side in
-             UserController::update(), not just by requiring this field. --}}
-        <div class="form-group full-width">
-            <label class="form-label">Your Password <span class="required">*</span></label>
-            <input type="password" name="current_password" class="form-input" autocomplete="current-password" required>
-            <span class="form-hint" style="display:block; margin-top:6px; color: var(--text-secondary); font-size:0.85rem;">For security, confirm your own password to save changes to an Administrator account.</span>
-            <span class="form-error" id="error-current_password">@error('current_password'){{ $message }}@enderror</span>
-        </div>
+        {{-- No inline password field — clicking Update/Save Changes for an
+             Administrator account instead opens a "Enter Your Credentials"
+             popup (see reset-password-modal.blade.php's generic
+             window.openAdminCredentialsGate) before the save request is
+             sent. This hidden marker is how the page's submit handler
+             recognizes an admin target and knows to gate the save;
+             UserController::update() still independently requires a valid
+             current_password server-side either way. --}}
+        <input type="hidden" name="_requires_admin_credentials" value="1">
     @elseif(!isset($user))
         <div class="form-group">
             <label class="form-label">Password <span class="required">*</span></label>

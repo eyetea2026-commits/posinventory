@@ -379,6 +379,8 @@ class SecurityFixesTest extends TestCase
     // Administrator passwords are never resettable through this form (the
     // reset-password-modal.blade.php popup and its endpoint, tested below,
     // are unreachable for an admin target, both in the UI and server-side).
+    // It does carry the hidden marker the page's submit handler uses to
+    // gate the save behind the "Enter Your Credentials" popup.
     public function test_edit_user_form_shows_no_password_ui_for_an_admin_target(): void
     {
         $response = $this->actingAs($this->admin)
@@ -393,11 +395,13 @@ class SecurityFixesTest extends TestCase
         $this->assertStringNotContainsString('openResetPasswordModal(', $html);
         $this->assertStringNotContainsString('name="password"', $html);
         $this->assertStringNotContainsString($this->admin->password, $html);
+        $this->assertStringContainsString('name="_requires_admin_credentials"', $html);
     }
 
     // Editing a Cashier (or any future non-admin role) still shows the
     // masked placeholder + Reset Password button — only Administrator
-    // targets lose this UI.
+    // targets lose this UI, and only Administrator targets carry the
+    // admin-credentials-gate marker.
     public function test_edit_user_form_shows_masked_password_with_reset_button_for_a_non_admin_target(): void
     {
         $response = $this->actingAs($this->admin)
@@ -412,6 +416,7 @@ class SecurityFixesTest extends TestCase
         $this->assertStringContainsString('Reset Password', $html);
         $this->assertStringContainsString('openResetPasswordModal('.$this->cashier->id.')', $html);
         $this->assertStringNotContainsString('name="password"', $html);
+        $this->assertStringNotContainsString('name="_requires_admin_credentials"', $html);
     }
 
     // "Enter Your Credentials" step, shown before the Reset Password form
