@@ -10,13 +10,20 @@
             </div>
         </td>
         <td>
-            <span class="badge badge-success">{{ $category->products->count() }} products</span>
+            <span class="badge badge-success">{{ $category->products_count }} products</span>
         </td>
         <td>
             <div class="actions-group">
                 <a href="{{ route('admin.categories.edit', $category->CategoryID) }}" class="btn btn-sm btn-edit" onclick="openEditCategoryModal(event, {{ $category->CategoryID }})">
                     <i class="fa-solid fa-edit"></i> Edit
                 </a>
+                <form method="POST" action="{{ route('admin.categories.destroy', $category->CategoryID) }}" style="display:inline;" id="deleteForm{{ $category->CategoryID }}">
+                    @csrf
+                    @method('DELETE')
+                    <button type="button" class="btn btn-sm btn-danger" title="Delete" onclick="confirmDelete({{ $category->CategoryID }})">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </form>
             </div>
         </td>
     </tr>

@@ -293,6 +293,51 @@ class ReturnProcessingTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'return.replacement_processed')->exists());
     }
 
+    // Real returns created through the item-based flow (SalesReturn::create
+    // in store()) never populate the legacy header Quantity/Reason columns —
+    // only makeReturn()'s test fixture does, to mirror an old backfill
+    // migration. A return built the way production actually builds one
+    // (items only, no header Quantity) must still let a replacement of the
+    // full item quantity through instead of comparing against a null header
+    // column.
+    public function test_process_replacement_succeeds_for_a_multi_item_return_with_no_legacy_header_quantity(): void
+    {
+        $return = SalesReturn::create([
+            'SalesTransactionID' => $this->transaction->SalesTransactionID,
+            'ReturnType' => 'replacement',
+            'ReturnDate' => now()->format('Y-m-d'),
+            'Status' => 'approved',
+            'StaffID' => $this->staff->StaffID,
+        ]);
+
+        SalesReturnItem::create([
+            'SalesReturnID' => $return->SalesReturnID,
+            'ProductID' => $this->product->ProductID,
+            'Quantity' => 1,
+            'UnitPrice' => 1000,
+            'Reason' => 'Factory Defect',
+        ]);
+        SalesReturnItem::create([
+            'SalesReturnID' => $return->SalesReturnID,
+            'ProductID' => $this->product->ProductID,
+            'Quantity' => 1,
+            'UnitPrice' => 1000,
+            'Reason' => 'Other',
+        ]);
+
+        $this->assertNull($return->Quantity);
+
+        $response = $this->actingAs($this->cashierUser)->postJson(
+            route('cashier.refunds.process-replacement', $return),
+            ['replacement_product_id' => $this->replacementProduct->ProductID, 'quantity' => 2]
+        );
+
+        $response->assertJson(['success' => true]);
+        $return->refresh();
+        $this->assertSame('processed', $return->Status);
+        $this->assertSame(1, Inventory::where('ProductID', $this->replacementProduct->ProductID)->first()->Quantity);
+    }
+
     public function test_process_replacement_fails_cleanly_on_insufficient_stock(): void
     {
         $return = $this->makeReturn(['Status' => 'approved', 'ReturnType' => 'replacement', 'Quantity' => 5]);

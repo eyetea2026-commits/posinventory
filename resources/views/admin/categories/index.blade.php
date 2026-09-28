@@ -675,6 +675,10 @@
         hideAddCategoryGeneralError();
         resetAddCategorySubmitButton();
         addCategoryFormChanged = false;
+        // Left set from a previous Edit Category session, this would make
+        // the live duplicate-name check exclude that category's ID here too
+        // — a name matching that category would wrongly report "available".
+        currentEditCategoryId = null;
 
         // form.reset() only reverts native input values — clear out any
         // pending brand chips left over from a previous open too.

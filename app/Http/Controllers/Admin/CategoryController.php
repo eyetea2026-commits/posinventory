@@ -34,9 +34,10 @@ class CategoryController extends Controller
     {
         $search = $request->get('search');
 
-        $categories = Category::when($search, function ($query) use ($search) {
-            return $query->where('CategoryName', 'like', "%{$search}%");
-        })->orderBy('CategoryID', 'desc')->paginate(15)->withQueryString();
+        $categories = Category::withCount('products')
+            ->when($search, function ($query) use ($search) {
+                return $query->where('CategoryName', 'like', "%{$search}%");
+            })->orderBy('CategoryID', 'desc')->paginate(15)->withQueryString();
 
         // Real-time search: matches the debounced-AJAX pattern used by
         // Products/Inventory — return just the rendered rows/pagination

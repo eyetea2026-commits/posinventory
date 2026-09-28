@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -14,6 +15,7 @@ class SalesReturn extends Model
     // separate DATE-only field used elsewhere (reports, return-window
     // calculations) and is left untouched.
     protected $table = 'SalesReturn';
+
     protected $primaryKey = 'SalesReturnID';
 
     protected $fillable = [
@@ -37,11 +39,15 @@ class SalesReturn extends Model
     ];
 
     const STATUS_PENDING = 'pending';
+
     const STATUS_APPROVED = 'approved';
+
     const STATUS_DECLINED = 'declined';
+
     const STATUS_PROCESSED = 'processed';
 
     const TYPE_REFUND = 'refund';
+
     const TYPE_REPLACEMENT = 'replacement';
 
     const REASON_CODES = [
@@ -120,6 +126,16 @@ class SalesReturn extends Model
         return $items->contains(fn (SalesReturnItem $item) => $item->is_unsalable);
     }
 
+    // Total quantity across all line items — the multi-item equivalent of
+    // the legacy header Quantity column, which is never populated by the
+    // item-based return flow.
+    public function getTotalQuantityAttribute(): int
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+
+        return (int) $items->sum('Quantity');
+    }
+
     // How many days elapsed between the original purchase and this return request.
     public function getDaysSincePurchaseAttribute(): ?int
     {
@@ -129,8 +145,8 @@ class SalesReturn extends Model
             return null;
         }
 
-        $purchaseDate = \Carbon\Carbon::parse($transaction->SalesTransactionDate)->startOfDay();
-        $requestDate = \Carbon\Carbon::parse($this->ReturnDate)->startOfDay();
+        $purchaseDate = Carbon::parse($transaction->SalesTransactionDate)->startOfDay();
+        $requestDate = Carbon::parse($this->ReturnDate)->startOfDay();
 
         return $purchaseDate->diffInDays($requestDate);
     }

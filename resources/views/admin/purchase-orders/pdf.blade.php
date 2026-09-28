@@ -46,7 +46,7 @@
                 </tr>
             @endforeach
             <tr class="total-row">
-                <td colspan="4">Total (received)</td>
+                <td colspan="4">Total Amount</td>
                 <td>{{ number_format($grandTotal, 2) }}</td>
             </tr>
         </tbody>

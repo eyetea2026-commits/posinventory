@@ -129,6 +129,16 @@ class StockReceivingController extends Controller
                     ->lockForUpdate()
                     ->first();
 
+                // A Purchase Order can be Cancelled after its batch was
+                // already created (the batch has no status of its own tied
+                // to the PO's) — re-verify under the same lock that the PO
+                // is still receivable, or a Cancelled order could be
+                // silently resurrected and stocked, mirroring the same
+                // guard store() already has for the legacy manual flow.
+                if (! $purchaseOrder || $purchaseOrder->Status !== PurchaseOrder::STATUS_PENDING) {
+                    throw new \RuntimeException('This purchase order is no longer pending receipt — it may have been cancelled.');
+                }
+
                 foreach ($data['items'] as $row) {
                     $item = PurchaseOrderItem::where('PurchaseOrderItemID', $row['purchase_order_item_id'])
                         ->where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)

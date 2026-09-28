@@ -61,8 +61,13 @@ class CashierReturnController extends Controller
         $refunds = SalesReturn::with(['staff', 'salesTransaction', 'product', 'items.product', 'replacement.product'])
             ->where('StaffID', $staff->StaffID ?? 0)
             ->when($search, function ($query) use ($search) {
-                return $query->where('CustomerName', 'like', "%{$search}%")
-                    ->orWhere('Reason', 'like', "%{$search}%");
+                // Grouped in its own closure -- an ungrouped orWhere() here
+                // would break out of the StaffID scope above and leak every
+                // cashier's returns whose Reason happens to match $search.
+                return $query->where(function ($inner) use ($search) {
+                    $inner->where('CustomerName', 'like', "%{$search}%")
+                        ->orWhere('Reason', 'like', "%{$search}%");
+                });
             })
             ->when($status, function ($query) use ($status) {
                 return $query->where('Status', $status);
@@ -516,7 +521,7 @@ class CashierReturnController extends Controller
             return response()->json(['success' => false, 'message' => 'Return must be an approved replacement-type request before processing.'], 400);
         }
 
-        if ($data['quantity'] > $salesReturn->Quantity) {
+        if ($data['quantity'] > $salesReturn->total_quantity) {
             return response()->json(['success' => false, 'message' => 'Replacement quantity cannot exceed the approved return quantity.'], 400);
         }
 
@@ -535,7 +540,7 @@ class CashierReturnController extends Controller
                     throw new \RuntimeException('This return has already been processed or is no longer approved.');
                 }
 
-                if ($data['quantity'] > $salesReturn->Quantity) {
+                if ($data['quantity'] > $salesReturn->total_quantity) {
                     throw new \RuntimeException('Replacement quantity cannot exceed the approved return quantity.');
                 }
 

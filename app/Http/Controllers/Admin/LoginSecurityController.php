@@ -9,8 +9,10 @@ use App\Models\User;
 use App\Notifications\UnauthorizedLoginReported;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
+use Throwable;
 
 // Deliberately reachable WITHOUT an authenticated session (routes live
 // outside the `auth` middleware group): the email's "Yes"/"No" buttons must
@@ -98,7 +100,14 @@ class LoginSecurityController extends Controller
 
             $this->terminateAffectedSession($loginSecurityEvent);
 
-            Notification::send(User::admins(), new UnauthorizedLoginReported($loginSecurityEvent));
+            try {
+                Notification::send(User::admins(), new UnauthorizedLoginReported($loginSecurityEvent));
+            } catch (Throwable $e) {
+                Log::error('Failed to dispatch UnauthorizedLoginReported notification', [
+                    'login_security_event_id' => $loginSecurityEvent->LoginSecurityEventID,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
         }
 
         if ($request->wantsJson()) {

@@ -158,8 +158,8 @@
                     <td>#{{ str_pad($refund->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
                     <td>{{ $refund->CustomerName ?? 'N/A' }}</td>
                     <td><span class="type-badge">{{ ucfirst($refund->ReturnType) }}</span></td>
-                    <td>{{ $refund->Quantity }}</td>
-                    <td>{{ Str::limit($refund->Reason, 30) }}</td>
+                    <td>{{ $refund->total_quantity }}</td>
+                    <td>{{ Str::limit($refund->items->pluck('Reason')->unique()->implode(', '), 30) }}</td>
                     <td>
                         <span class="status status-{{ strtolower($refund->Status) }}">
                             @if($refund->Status === 'processed')
@@ -178,7 +178,7 @@
                             <i class="fas fa-check"></i> Process Refund
                         </button>
                         @elseif($refund->Status === 'approved' && $refund->ReturnType === 'replacement')
-                        <button class="btn-process" onclick="showProcessReplacementModal({{ $refund->SalesReturnID }}, {{ $refund->Quantity }})">
+                        <button class="btn-process" onclick="showProcessReplacementModal({{ $refund->SalesReturnID }}, {{ $refund->total_quantity }})">
                             <i class="fas fa-exchange-alt"></i> Process Replacement
                         </button>
                         @elseif($refund->Status === 'processed' && $refund->ReturnType === 'replacement')

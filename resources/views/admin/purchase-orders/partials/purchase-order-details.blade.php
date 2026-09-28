@@ -73,4 +73,4 @@
         </tbody>
     </table>
 </div>
-<div class="items-total">Total (received): ₱{{ number_format($purchaseOrder->items->sum('line_total'), 2) }}</div>
+<div class="items-total">Total Amount: ₱{{ number_format($purchaseOrder->items->sum('line_total'), 2) }}</div>

@@ -12,6 +12,7 @@ use App\Notifications\UserAccountCreated;
 use App\Notifications\UserAccountDeactivated;
 use App\Notifications\UserAccountUpdated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -244,19 +245,6 @@ class UserController extends Controller
             }
         }
 
-        // Never rely on the Edit form disabling the Role field client-side —
-        // if this is the last active Administrator, reject any attempt to
-        // change their role away from admin server-side too, since that
-        // would leave the system with zero admins.
-        if ($user->isProtected() && (int) $data['role_id'] !== (int) $user->role_id) {
-            $message = 'This is the last active Administrator account — its role cannot be changed.';
-            if ($this->isAjaxRequest()) {
-                return response()->json(['error' => $message], 422);
-            }
-
-            return back()->withInput()->with('error', $message);
-        }
-
         $roleChanged = (int) $data['role_id'] !== (int) $user->role_id;
         $passwordChanged = ! empty($data['password']);
         $oldRoleName = $user->role?->role_name;
@@ -268,13 +256,43 @@ class UserController extends Controller
         // actually submitted.
         $updateData = $data;
         unset($updateData['password']);
-        $user->fill($updateData);
 
-        if ($passwordChanged) {
-            $user->password = Hash::make($data['password']);
+        $performUpdate = function (User $target) use ($updateData, $passwordChanged, $data) {
+            $target->fill($updateData);
+            if ($passwordChanged) {
+                $target->password = Hash::make($data['password']);
+            }
+            $target->save();
+        };
+
+        if ($roleChanged) {
+            // Never rely on the Edit form disabling the Role field
+            // client-side — if this is the last active Administrator,
+            // reject any attempt to change their role away from admin
+            // server-side too, since that would leave the system with zero
+            // admins. Locked (see withLastAdminGuard) so a concurrent
+            // role-change/deactivate/delete against a DIFFERENT admin can't
+            // race this same check.
+            $blocked = $this->withLastAdminGuard(
+                $user,
+                'This is the last active Administrator account — its role cannot be changed.',
+                function (User $lockedUser) use ($performUpdate) {
+                    $performUpdate($lockedUser);
+
+                    return null;
+                },
+                422,
+                true
+            );
+
+            if ($blocked !== null) {
+                return $blocked;
+            }
+
+            $user->refresh();
+        } else {
+            $performUpdate($user);
         }
-
-        $user->save();
 
         ActivityLog::record('user.updated', "Updated user \"{$user->name}\"".($passwordChanged ? ' (password changed)' : ''));
         if ($roleChanged) {
@@ -361,16 +379,21 @@ class UserController extends Controller
 
     public function deactivate(User $user)
     {
-        if ($user->isProtected()) {
-            $message = 'Cannot deactivate the last active Administrator account.';
-            if ($this->isAjaxRequest()) {
-                return response()->json(['error' => $message], 403);
-            }
+        $blocked = $this->withLastAdminGuard(
+            $user,
+            'Cannot deactivate the last active Administrator account.',
+            function (User $lockedUser) {
+                $lockedUser->update(['is_active' => false]);
 
-            return back()->with('error', $message);
+                return null;
+            }
+        );
+
+        if ($blocked !== null) {
+            return $blocked;
         }
 
-        $user->update(['is_active' => false]);
+        $user->refresh();
         ActivityLog::record('user.deactivated', "Deactivated user \"{$user->name}\"");
 
         try {
@@ -401,6 +424,42 @@ class UserController extends Controller
         return back()->with('status', 'User account activated.');
     }
 
+    // Closes the TOCTOU race on the "last active Administrator" guard: two
+    // concurrent requests against two DIFFERENT admins (e.g. both being
+    // deactivated, or one deactivated while another's role is changed) could
+    // each read isProtected() as false — since neither commit had landed
+    // yet, the count each sees is still >1 — and both proceed, leaving zero
+    // admins. Locks every currently-active admin row for the duration of one
+    // DB transaction (mirrors AuthController::login()'s lock-then-recheck
+    // pattern), re-fetches $user under that same lock, then re-evaluates
+    // isProtected() against the locked set before letting the callback run.
+    // Returns the callback's return value, or null if blocked.
+    private function withLastAdminGuard(User $user, string $blockedMessage, \Closure $callback, int $blockedStatus = 403, bool $withInput = false)
+    {
+        return DB::transaction(function () use ($user, $blockedMessage, $callback, $blockedStatus, $withInput) {
+            User::whereHas('role', function ($query) {
+                $query->whereRaw('LOWER(role_name) = ?', ['admin']);
+            })->where('is_active', true)->lockForUpdate()->get();
+
+            $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+
+            if ($lockedUser->isProtected()) {
+                if ($this->isAjaxRequest()) {
+                    return response()->json(['error' => $blockedMessage], $blockedStatus);
+                }
+
+                $redirect = back();
+                if ($withInput) {
+                    $redirect = $redirect->withInput();
+                }
+
+                return $redirect->with('error', $blockedMessage);
+            }
+
+            return $callback($lockedUser);
+        });
+    }
+
     /**
      * Check if the request is an AJAX request
      * Works with both traditional X-Requested-With header and Accept header
@@ -414,15 +473,6 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        if ($user->isProtected()) {
-            $message = 'Cannot delete the last active Administrator account.';
-            if ($this->isAjaxRequest()) {
-                return response()->json(['error' => $message], 403);
-            }
-
-            return back()->with('error', $message);
-        }
-
         $staff = Staff::where('UserID', $user->id)->first();
         if ($staff && SalesTransaction::where('StaffID', $staff->StaffID)->exists()) {
             $message = 'Cannot delete this cashier — they have recorded sales. Deactivate the account instead.';
@@ -434,7 +484,21 @@ class UserController extends Controller
         }
 
         $deletedName = $user->name;
-        $user->delete();
+
+        $blocked = $this->withLastAdminGuard(
+            $user,
+            'Cannot delete the last active Administrator account.',
+            function (User $lockedUser) {
+                $lockedUser->delete();
+
+                return null;
+            }
+        );
+
+        if ($blocked !== null) {
+            return $blocked;
+        }
+
         ActivityLog::record('user.deleted', "Deleted user \"{$deletedName}\"");
 
         if ($this->isAjaxRequest()) {

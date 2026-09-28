@@ -53,6 +53,19 @@
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </form>
+                @elseif($damage->Status === 'for_supplier_return')
+                    <form method="POST" action="{{ route('admin.damages.confirm-supplier-return', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Confirm Returned to Supplier" data-confirm-text="Confirm this item has been sent back to the supplier?">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-secondary" title="Confirm Returned to Supplier"><i class="fa-solid fa-truck"></i></button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.damages.cancel', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Cancel Supplier Return" data-confirm-text="Cancel the supplier return and restore this quantity to Inventory?">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-secondary" title="Cancel Supplier Return"><i class="fa-solid fa-rotate-left"></i></button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.damages.dispose', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Dispose" data-confirm-text="Mark this record as disposed?">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-secondary" title="Dispose"><i class="fa-solid fa-trash-can"></i></button>
+                    </form>
                 @elseif($damage->Status === 'returned_to_supplier')
                     <form method="POST" action="{{ route('admin.damages.receive-replacement', $damage->DamageID) }}" class="js-confirm-submit" data-confirm-title="Receive Replacement" data-confirm-text="Confirm the supplier sent a replacement and increase inventory?">
                         @csrf

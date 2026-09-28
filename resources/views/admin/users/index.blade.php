@@ -693,7 +693,7 @@
                 cancelButtonColor: '#64748b'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    toggleStatus(userId, true);
+                    toggleStatus(userId, true, checkbox);
                 } else {
                     checkbox.checked = false;
                 }
@@ -710,7 +710,7 @@
                 cancelButtonColor: '#64748b'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    toggleStatus(userId, false);
+                    toggleStatus(userId, false, checkbox);
                 } else {
                     checkbox.checked = true;
                 }
@@ -718,7 +718,7 @@
         }
     }
 
-    function toggleStatus(userId, isActive) {
+    function toggleStatus(userId, isActive, checkbox) {
         const url = isActive
             ? `/admin/users/${userId}/activate`
             : `/admin/users/${userId}/deactivate`;
@@ -749,7 +749,6 @@
                     icon: 'error',
                     confirmButtonColor: '#ef4444'
                 });
-                const checkbox = document.querySelector(`input[type="checkbox"][onchange*="${userId}"]`);
                 if (checkbox) checkbox.checked = !isActive;
             }
         })
@@ -760,7 +759,6 @@
                 icon: 'error',
                 confirmButtonColor: '#ef4444'
             });
-            const checkbox = document.querySelector(`input[type="checkbox"][onchange*="${userId}"]`);
             if (checkbox) checkbox.checked = !isActive;
         });
     }
@@ -1062,8 +1060,24 @@
     const addUserModalForm = window.initUserAddForm('addUserForm', {
         submitBtn: document.getElementById('addUserSubmitBtn'),
         onConfirmedSubmit: submitAddUserFormViaAjax,
-        onCancel: function () {
-            closeAddUserModal();
+        onCancel: function (changed) {
+            if (!changed) {
+                closeAddUserModal();
+                return;
+            }
+
+            Swal.fire({
+                title: 'Discard Changes',
+                text: 'You have unsaved changes. Are you sure you want to cancel? Any unsaved information will be lost.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes',
+                cancelButtonText: 'No',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b'
+            }).then((result) => {
+                if (result.isConfirmed) closeAddUserModal();
+            });
         }
     });
 
@@ -1235,7 +1249,28 @@
         }).then(async function (response) {
             if (response.status === 422) {
                 const data = await response.json();
-                showEditUserFieldErrors(data.errors || {});
+                const errors = data.errors || {};
+
+                // current_password has no matching input/error span in this
+                // form (the credentials gate collects it before the form is
+                // even shown) — showEditUserFieldErrors() would silently
+                // find nothing to fill in for it. Re-run the gate instead,
+                // same as reset-password-modal.blade.php does for this exact
+                // "verified password rejected on the authoritative re-check"
+                // case (e.g. it changed between gating and this submit).
+                if (errors.current_password) {
+                    showEditUserGeneralError(errors.current_password[0]);
+                    resetSubmitButton();
+                    window.openAdminCredentialsGate(function (verifiedPassword) {
+                        submitEditUserForm(resetSubmitButton, verifiedPassword);
+                    }, {
+                        hint: 'Your password could not be confirmed — please re-enter it to continue.',
+                        onCancel: resetSubmitButton,
+                    });
+                    return;
+                }
+
+                showEditUserFieldErrors(errors);
                 resetSubmitButton();
                 return;
             }
@@ -1328,7 +1363,25 @@
                     onConfirmedSubmit: function (resetSubmitButton) {
                         submitEditUserForm(resetSubmitButton, verifiedAdminPasswordForEdit);
                     },
-                    onCancel: function () { closeEditUserModal(); }
+                    onCancel: function (changed) {
+                        if (!changed) {
+                            closeEditUserModal();
+                            return;
+                        }
+
+                        Swal.fire({
+                            title: 'Discard Changes',
+                            text: 'You have unsaved changes. Are you sure you want to cancel? Any unsaved information will be lost.',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Yes',
+                            cancelButtonText: 'No',
+                            confirmButtonColor: '#ef4444',
+                            cancelButtonColor: '#64748b'
+                        }).then((result) => {
+                            if (result.isConfirmed) closeEditUserModal();
+                        });
+                    }
                 });
                 const firstField = form.querySelector('input, select');
                 if (firstField) firstField.focus();

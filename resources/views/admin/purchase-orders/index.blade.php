@@ -705,7 +705,17 @@
                         resetEditPurchaseOrderSubmitButton();
                     },
                     onSuccess: function (html, message) {
-                        refreshPurchaseOrdersTable(html);
+                        // Unlike the Add modal's own JSON response (rows-only
+                        // HTML, see refreshPurchaseOrdersTable's own comment),
+                        // window.submitAjaxForm's onSuccess here hands back
+                        // the FULL redirected index page — parse it and pull
+                        // out just the tbody before reusing that function,
+                        // or the whole page ends up nested inside a <tbody>.
+                        const parsed = new DOMParser().parseFromString(html, 'text/html');
+                        const newTbody = parsed.querySelector('#purchaseOrdersTbody');
+                        if (newTbody) {
+                            refreshPurchaseOrdersTable(newTbody.innerHTML);
+                        }
                         closeEditPurchaseOrderModal();
                         Swal.fire({
                             title: 'Success',
