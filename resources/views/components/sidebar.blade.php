@@ -61,7 +61,7 @@
                                     <x-icon name="chevron-down" class="h-4 w-4" />
                                 </span>
                             </button>
-                            <div x-show="open" x-transition class="mt-1 flex flex-col gap-1 pl-6">
+                            <div x-show="open" x-cloak x-transition class="mt-1 flex flex-col gap-1 pl-6">
                                 @foreach ($item['children'] as $child)
                                     @php $isChildItemActive = request()->routeIs($child['pattern']); @endphp
                                     <a
