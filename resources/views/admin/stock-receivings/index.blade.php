@@ -114,6 +114,7 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>No.</th>
                             <th>PO Number</th>
                             <th>Supplier</th>
                             <th>Items</th>
@@ -124,6 +125,7 @@
                     <tbody>
                         @forelse($pendingBatches as $batch)
                             <tr>
+                                <td>{{ $loop->iteration }}</td>
                                 <td><span class="badge badge-primary">{{ $batch->purchaseOrder->PONumber }}</span></td>
                                 <td><strong>{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
@@ -138,7 +140,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <div class="empty-state">
                                         <div class="empty-icon"><i class="fas fa-truck"></i></div>
                                         <p class="empty-title">No Pending Deliveries</p>
@@ -159,6 +161,7 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>No.</th>
                             <th>PO Number</th>
                             <th>Supplier</th>
                             <th>Items</th>
@@ -169,6 +172,7 @@
                     <tbody>
                         @forelse($completedBatches as $batch)
                             <tr>
+                                <td>{{ $loop->iteration }}</td>
                                 <td><span class="badge badge-primary">{{ $batch->purchaseOrder->PONumber }}</span></td>
                                 <td><strong>{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
@@ -183,7 +187,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <div class="empty-state">
                                         <div class="empty-icon"><i class="fas fa-box-open"></i></div>
                                         <p class="empty-title">No Completed Deliveries</p>
