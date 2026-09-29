@@ -541,11 +541,40 @@
             if (e.target === this) closeViewPurchaseOrderModal();
         });
         document.getElementById('viewPurchaseOrderCloseBtn').addEventListener('click', closeViewPurchaseOrderModal);
-        // Print opens the print page in a new tab (target="_blank") — that
+        // Print opens the print page in a new tab (target="_blank") — the
+        // browser handles that navigation natively and independently of
+        // everything below, so it's never blocked or delayed by it. That
         // navigation is what actually moves a Draft PO to Stock Receiving
-        // server-side (see PurchaseOrderController::printPreview()), so
-        // closing this modal here doesn't interrupt it, just tidies up.
-        document.getElementById('viewPurchaseOrderPrintBtn').addEventListener('click', closeViewPurchaseOrderModal);
+        // server-side (see PurchaseOrderController::printPreview()). Since
+        // this tab has no callback for what happens in that other tab, a
+        // second, parallel background request to the exact same URL is
+        // fired from here instead, purely as a "the transition has landed"
+        // signal — printPreview() is already idempotent (a duplicate call
+        // just re-renders the print view without creating a second batch),
+        // so this never double-triggers anything. Once it resolves, this
+        // PO is a Draft no longer, so the list — which already excludes any
+        // PO with a Stock Receiving batch — is refreshed to drop it
+        // immediately instead of leaving a stale row until the next reload.
+        document.getElementById('viewPurchaseOrderPrintBtn').addEventListener('click', function (event) {
+            closeViewPurchaseOrderModal();
+
+            const printUrl = event.currentTarget.href;
+            fetch(printUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function () {
+                    return fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                })
+                .then(function (r) { return r.text(); })
+                .then(function (html) {
+                    const parsed = new DOMParser().parseFromString(html, 'text/html');
+                    const newTbody = parsed.querySelector('#purchaseOrdersTbody');
+                    if (newTbody) refreshPurchaseOrdersTable(newTbody.innerHTML);
+                })
+                .catch(function () {
+                    // Non-fatal — the row just stays until the next manual
+                    // reload or search; the actual PO/Stock Receiving state
+                    // server-side is unaffected either way.
+                });
+        });
 
         // ---- Edit Purchase Order modal ----
         const EDIT_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate', 'Notes'];
