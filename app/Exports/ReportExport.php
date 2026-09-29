@@ -49,7 +49,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     public function headings(): array
     {
         return match ($this->type) {
-            'inventory' => ['Product', 'Barcode', 'Category', 'Supplier', 'Current Stock', 'Reorder Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Status'],
+            'inventory' => ['Product', 'SKU', 'Barcode', 'Category', 'Supplier', 'Current Stock', 'Reorder Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Status'],
             'stock_adjustment' => ['Reference', 'Date', 'Product', 'Adjustment', 'Reason'],
             'stock_receiving' => ['Reference', 'Date Received', 'Product', 'Supplier', 'Quantity', 'Receipt Number'],
             'orders' => ['PO Number', 'Date', 'Supplier', 'Product', 'Qty', 'Unit Price', 'Subtotal', 'Status'],
@@ -65,6 +65,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         return match ($this->type) {
             'inventory' => [
                 $row->product?->ProductName ?? 'N/A',
+                $row->product?->SKU ?: 'N/A',
                 $row->product?->Barcode ?: 'N/A',
                 $row->product?->category?->CategoryName ?? 'Uncategorized',
                 $row->product?->resolveReorderSupplier()?->supplier?->SupplierName ?? 'N/A',

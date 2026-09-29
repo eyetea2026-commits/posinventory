@@ -137,10 +137,10 @@ class CashierReturnController extends Controller
             })]);
         }
 
-        // barcode
-        $product = Product::where('Barcode', $query)->first();
+        // SKU or barcode
+        $product = Product::where('Barcode', $query)->orWhere('SKU', $query)->first();
         if (! $product) {
-            return response()->json(['success' => false, 'message' => 'No product found with that barcode.'], 404);
+            return response()->json(['success' => false, 'message' => 'No product found with that SKU or barcode.'], 404);
         }
 
         $transactionIds = SalesItem::where('ProductID', $product->ProductID)
@@ -153,7 +153,7 @@ class CashierReturnController extends Controller
             ->get();
 
         if ($transactions->isEmpty()) {
-            return response()->json(['success' => false, 'message' => 'No transactions found for that barcode.'], 404);
+            return response()->json(['success' => false, 'message' => 'No transactions found for that SKU or barcode.'], 404);
         }
 
         if ($transactions->count() === 1) {
@@ -201,6 +201,7 @@ class CashierReturnController extends Controller
             return [
                 'ProductID' => $item->ProductID,
                 'ProductName' => $item->product?->ProductName ?? 'Unknown',
+                'SKU' => $item->product?->SKU,
                 'Barcode' => $item->product?->Barcode,
                 'Category' => $item->product?->category?->CategoryName,
                 'CategoryID' => $item->product?->CategoryID,
@@ -474,6 +475,7 @@ class CashierReturnController extends Controller
             ->when($data['q'] ?? null, function ($query, $q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('ProductName', 'like', "%{$q}%")
+                        ->orWhere('SKU', $q)
                         ->orWhere('Barcode', $q);
                 });
             })
@@ -487,6 +489,7 @@ class CashierReturnController extends Controller
                 return [
                     'ProductID' => $product->ProductID,
                     'ProductName' => $product->ProductName,
+                    'SKU' => $product->SKU,
                     'Barcode' => $product->Barcode,
                     'Price' => $product->Price,
                     'Stock' => $product->inventory?->Quantity ?? 0,

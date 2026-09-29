@@ -2,19 +2,24 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\ReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Billing;
 use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\StockAdjustment;
 use App\Models\StockReceiving;
 use App\Models\Supplier;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
@@ -106,17 +111,17 @@ class ReportController extends Controller
 
     private function money($value): string
     {
-        return '₱' . number_format((float) $value, 2);
+        return '₱'.number_format((float) $value, 2);
     }
 
     private function fmtDateTime($value): string
     {
-        return $value ? \Illuminate\Support\Carbon::parse($value)->format('F j, Y g:i A') : 'N/A';
+        return $value ? Carbon::parse($value)->format('F j, Y g:i A') : 'N/A';
     }
 
     private function fmtDate($value): string
     {
-        return $value ? \Illuminate\Support\Carbon::parse($value)->format('F j, Y') : 'N/A';
+        return $value ? Carbon::parse($value)->format('F j, Y') : 'N/A';
     }
 
     private function salesDetail($id): ?array
@@ -130,7 +135,7 @@ class ReportController extends Controller
 
         $transaction = $billing->transaction;
         $cashierName = $transaction?->staff?->user?->full_name ?? 'Unknown User';
-        $reportNumber = 'SALE-' . str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT);
+        $reportNumber = 'SALE-'.str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT);
 
         // Per-item DiscountAmount is this line's own share of the sale's
         // promo discount (see SalesItem::getRefundableUnitPriceAttribute()
@@ -192,6 +197,7 @@ class ReportController extends Controller
                         ['label' => 'Category', 'value' => $product->category?->CategoryName ?? 'N/A'],
                         ['label' => 'Product Name', 'value' => $product->ProductName],
                         ['label' => 'Brand', 'value' => $product->brand?->BrandName ?? 'N/A'],
+                        ['label' => 'SKU', 'value' => $product->SKU ?? 'N/A'],
                         ['label' => 'Barcode', 'value' => $product->Barcode ?? 'N/A'],
                     ],
                 ],
@@ -285,7 +291,7 @@ class ReportController extends Controller
                 [
                     'heading' => 'Report Information',
                     'fields' => [
-                        ['label' => 'Return ID', 'value' => "RTN-" . str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT)],
+                        ['label' => 'Return ID', 'value' => 'RTN-'.str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT)],
                         ['label' => 'Receipt Number', 'value' => $receiptNumber],
                         ['label' => 'Date Requested', 'value' => $this->fmtDateTime($return->created_at ?? $return->ReturnDate)],
                         ['label' => 'Approved By', 'value' => $return->approvedByUser?->full_name ?? 'N/A'],
@@ -315,7 +321,7 @@ class ReportController extends Controller
         $damageTable = [
             'columns' => ['Damage ID', 'Category', 'Product Name', 'Quantity', 'Damage Type'],
             'rows' => [[
-                'DMG-' . str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
+                'DMG-'.str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
                 $damage->product?->category?->CategoryName ?? 'N/A',
                 $damage->product?->ProductName ?? 'N/A',
                 (string) $damage->Quantity,
@@ -428,11 +434,11 @@ class ReportController extends Controller
         $format = $request->get('format', 'csv');
         [, , $dateFrom, $dateTo] = $this->resolveDateRange($request);
 
-        $filenameBase = 'report-' . $type . '-' . now()->format('Ymd');
+        $filenameBase = 'report-'.$type.'-'.now()->format('Ymd');
 
         if ($format === 'pdf') {
             $rows = $this->rowsForType($type, $dateFrom, $dateTo);
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.reports.pdf', [
+            $pdf = Pdf::loadView('admin.reports.pdf', [
                 'type' => $type,
                 'rows' => $rows,
                 'dateFrom' => $dateFrom,
@@ -440,19 +446,19 @@ class ReportController extends Controller
                 'landscape' => $this->isLandscapeType($type),
             ])->setPaper('a4', $this->isLandscapeType($type) ? 'landscape' : 'portrait');
 
-            return $pdf->download($filenameBase . '.pdf');
+            return $pdf->download($filenameBase.'.pdf');
         }
 
         if ($format === 'excel') {
             $rows = $this->rowsForType($type, $dateFrom, $dateTo);
 
-            return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\ReportExport($type, $rows, $dateFrom, $dateTo),
-                $filenameBase . '.xlsx'
+            return Excel::download(
+                new ReportExport($type, $rows, $dateFrom, $dateTo),
+                $filenameBase.'.xlsx'
             );
         }
 
-        return $this->exportCSV($type, $dateFrom, $dateTo, $filenameBase . '.csv');
+        return $this->exportCSV($type, $dateFrom, $dateTo, $filenameBase.'.csv');
     }
 
     /**
@@ -597,10 +603,11 @@ class ReportController extends Controller
 
         foreach ($billings as $billing) {
             $items = $billing->transaction?->items ?? collect();
-            $receiptNumber = $billing->payment?->ReceiptNumber ?? ('BILL-' . str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT));
+            $receiptNumber = $billing->payment?->ReceiptNumber ?? ('BILL-'.str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT));
 
             if ($items->isEmpty()) {
                 $rows->push($this->salesItemRow($billing, $receiptNumber, null, true));
+
                 continue;
             }
 
@@ -741,7 +748,7 @@ class ReportController extends Controller
         });
     }
 
-    private function orderItemRow(PurchaseOrder $order, ?\App\Models\PurchaseOrderItem $item): object
+    private function orderItemRow(PurchaseOrder $order, ?PurchaseOrderItem $item): object
     {
         return (object) [
             'PONumber' => $order->PONumber,
@@ -765,7 +772,7 @@ class ReportController extends Controller
             ->orderByDesc('ReturnDate')
             ->get()
             ->flatMap(function (SalesReturn $return) {
-                $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? ('TXN-' . $return->SalesTransactionID);
+                $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? ('TXN-'.$return->SalesTransactionID);
                 // Only set once an admin actually finalizes the refund/replacement —
                 // falls back to whoever logged the request so pending rows aren't blank.
                 $processedBy = $return->processedByUser?->full_name ?? $return->staff?->user?->full_name ?? 'N/A';
@@ -790,7 +797,7 @@ class ReportController extends Controller
     private function csvSafe($value)
     {
         if (is_string($value) && preg_match('/^[=+\-@]/', $value)) {
-            return "'" . $value;
+            return "'".$value;
         }
 
         return $value;
@@ -829,7 +836,7 @@ class ReportController extends Controller
                         $item->AdjustmentID,
                         $item->Date,
                         $this->csvSafe($item->product?->ProductName ?? 'N/A'),
-                        ($item->QuantityAdjust >= 0 ? '+' : '') . $item->QuantityAdjust,
+                        ($item->QuantityAdjust >= 0 ? '+' : '').$item->QuantityAdjust,
                         $this->csvSafe($item->Reason),
                     ]);
                 }
@@ -878,7 +885,7 @@ class ReportController extends Controller
                         $this->csvSafe($item->product?->ProductName ?? 'N/A'),
                         $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
                         $item->Quantity,
-                        $this->csvSafe(\App\Models\DamagedProduct::DAMAGE_TYPES[$item->DamageType] ?? $item->DamageType),
+                        $this->csvSafe(DamagedProduct::DAMAGE_TYPES[$item->DamageType] ?? $item->DamageType),
                         $item->Status,
                     ]);
                 }

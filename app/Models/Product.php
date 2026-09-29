@@ -19,6 +19,7 @@ class Product extends Model
         'ProductName',
         'Model',
         'UnitOfMeasure',
+        'SKU',
         'Barcode',
         'Price',
         'CostPrice',
@@ -37,6 +38,14 @@ class Product extends Model
     public static function computeSellingPrice(float $costPrice): float
     {
         return round($costPrice / (1 - self::PROFIT_MARGIN), 2);
+    }
+
+    // SKU is system-assigned, never typed in by staff — it's derived from
+    // the product's own ProductID, which only exists after the row is
+    // inserted, so this is always called right after Product::create().
+    public static function generateSku(int $productId): string
+    {
+        return 'SKU-'.str_pad((string) $productId, 6, '0', STR_PAD_LEFT);
     }
 
     public function brand()

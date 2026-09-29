@@ -42,6 +42,7 @@ class ProductController extends Controller
                 $query->where(function ($inner) use ($search) {
                     $inner->where('ProductName', 'like', "%{$search}%")
                         ->orWhere('Model', 'like', "%{$search}%")
+                        ->orWhere('SKU', 'like', "%{$search}%")
                         ->orWhere('Barcode', 'like', "%{$search}%")
                         ->orWhereHas('category', function ($category) use ($search) {
                             $category->where('CategoryName', 'like', "%{$search}%");
@@ -263,6 +264,11 @@ class ProductController extends Controller
             'BrandID' => $brandId,
             'CategoryID' => $data['CategoryID'],
         ]);
+
+        // SKU is derived from the product's own ProductID, which only
+        // exists after the row above is inserted — set it in a follow-up
+        // update rather than the create() call.
+        $product->update(['SKU' => Product::generateSku($product->ProductID)]);
 
         Inventory::create([
             'ProductID' => $product->ProductID,

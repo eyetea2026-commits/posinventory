@@ -126,6 +126,7 @@ class SalesReturnController extends Controller
 
             return [
                 'ProductName' => $item->product?->ProductName,
+                'SKU' => $item->product?->SKU,
                 'Barcode' => $item->product?->Barcode,
                 'Category' => $item->product?->category?->CategoryName,
                 'UnitPrice' => $item->UnitPrice,

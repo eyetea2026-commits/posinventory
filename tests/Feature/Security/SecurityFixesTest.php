@@ -74,6 +74,21 @@ class SecurityFixesTest extends TestCase
         $response->assertJsonPath('product.Barcode', '1234567890');
     }
 
+    public function test_barcode_api_also_matches_on_sku(): void
+    {
+        $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
+        $product = Product::create([
+            'ProductName' => 'DVR Camera', 'Model' => 'CAM-01', 'Barcode' => '1234567890',
+            'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID,
+        ]);
+        $product->update(['SKU' => Product::generateSku($product->ProductID)]);
+
+        $response = $this->actingAs($this->cashier)->get('/api/products/barcode/'.$product->SKU);
+
+        $response->assertOk();
+        $response->assertJsonPath('product.ProductID', $product->ProductID);
+    }
+
     // ---- #6: Prevent username enumeration ----
 
     public function test_check_user_role_response_does_not_disclose_existence_or_role(): void

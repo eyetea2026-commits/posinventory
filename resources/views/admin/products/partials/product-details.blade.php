@@ -12,6 +12,10 @@
             <td>{{ $product->Model ?? 'N/A' }}</td>
         </tr>
         <tr>
+            <th>SKU</th>
+            <td><code>{{ $product->SKU ?? '-' }}</code></td>
+        </tr>
+        <tr>
             <th>Barcode</th>
             <td><code>{{ $product->Barcode ?? '-' }}</code></td>
         </tr>

@@ -174,7 +174,7 @@
 <div class="pos-grid">
     <div class="pos-products">
         <div class="barcode-scanner">
-            <input type="text" id="barcode-input" placeholder="Scan or enter barcode..." onkeypress="handleBarcode(event)">
+            <input type="text" id="barcode-input" placeholder="Scan or enter SKU / barcode..." onkeypress="handleBarcode(event)">
             <button onclick="scanBarcode()"><i class="fas fa-barcode"></i> Scan</button>
         </div>
 

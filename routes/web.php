@@ -74,6 +74,7 @@ Route::post('/check-user-role', function (Request $request) {
 Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     $product = Product::with('inventory')
         ->where('Barcode', $barcode)
+        ->orWhere('SKU', $barcode)
         ->first();
 
     if (! $product) {

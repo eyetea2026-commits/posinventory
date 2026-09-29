@@ -760,7 +760,7 @@
                 id="searchInput"
                 value="{{ $search }}"
                 class="search-input"
-                placeholder="Search by name, model, or barcode..."
+                placeholder="Search by name, model, SKU, or barcode..."
             />
             <input type="hidden" name="category_id" id="categoryIdInput" value="{{ $categoryId }}" />
         </form>

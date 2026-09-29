@@ -81,6 +81,13 @@
         <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
     </div>
 
+    @if(isset($product))
+        <div class="form-group">
+            <label class="form-label">SKU</label>
+            <input type="text" class="form-input" value="{{ $product->SKU }}" readonly disabled>
+        </div>
+    @endif
+
     <div class="form-group full-width">
         <label class="form-label">Product Barcode <span class="required">*</span></label>
         <div class="barcode-input-row">
