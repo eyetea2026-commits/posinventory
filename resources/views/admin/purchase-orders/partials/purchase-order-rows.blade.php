@@ -7,6 +7,7 @@
      supplier/items.product loaded). --}}
 @forelse($purchaseOrders as $order)
     <tr>
+        <td>{{ $purchaseOrders->firstItem() + $loop->index }}</td>
         <td>
             <span class="badge badge-primary">{{ $order->PONumber }}</span>
         </td>
@@ -35,7 +36,7 @@
     </tr>
 @empty
     <tr>
-        <td colspan="6">
+        <td colspan="7">
             <div class="empty-state">
                 <div class="empty-icon"><i class="fas fa-shopping-cart"></i></div>
                 <p class="empty-title">No Purchase Orders</p>

@@ -113,6 +113,7 @@
             <table class="table">
                 <thead>
                     <tr>
+                        <th>No.</th>
                         <th>Order Number</th>
                         <th>Supplier</th>
                         <!-- REQ054: Select existing supplier profile -->
