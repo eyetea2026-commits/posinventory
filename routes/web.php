@@ -21,7 +21,6 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
 use App\Http\Controllers\Cashier\CashierReturnController;
 use App\Http\Controllers\DashboardController;
-use App\Models\Customer;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -82,19 +81,6 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     }
 
     return response()->json(['product' => $product]);
-})->middleware(['auth', 'role:cashier', 'throttle:60,1']);
-
-// API route for getting customers (POS) — cashier-only; previously reachable
-// with no authentication at all.
-Route::get('/api/customers/search', function (Request $request) {
-    $search = $request->query('q', '');
-
-    $customers = Customer::where('CustomerName', 'like', "%{$search}%")
-        ->orWhere('Email', 'like', "%{$search}%")
-        ->limit(10)
-        ->get();
-
-    return response()->json(['customers' => $customers]);
 })->middleware(['auth', 'role:cashier', 'throttle:60,1']);
 
 // Smart post-login landing spot for the "dashboard" route name (nothing in

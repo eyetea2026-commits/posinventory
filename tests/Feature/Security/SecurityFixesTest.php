@@ -47,13 +47,12 @@ class SecurityFixesTest extends TestCase
 
     // ---- #1: Secure unauthenticated endpoints ----
 
-    public function test_barcode_and_customer_search_apis_reject_unauthenticated_requests(): void
+    public function test_barcode_api_rejects_unauthenticated_requests(): void
     {
         $this->get('/api/products/barcode/1234567890')->assertRedirect(route('welcome'));
-        $this->get('/api/customers/search?q=a')->assertRedirect(route('welcome'));
     }
 
-    public function test_barcode_and_customer_search_apis_reject_admin_role(): void
+    public function test_barcode_api_rejects_admin_role(): void
     {
         // Cashier-only endpoints — an authenticated admin session should not
         // be able to use them either.
