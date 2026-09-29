@@ -128,11 +128,6 @@
                 <option value="declined" {{ ($status ?? '') === 'declined' ? 'selected' : '' }}>Declined</option>
                 <option value="processed" {{ ($status ?? '') === 'processed' ? 'selected' : '' }}>Refunded/Completed</option>
             </select>
-            <select name="return_type" onchange="this.form.submit()">
-                <option value="">All Types</option>
-                <option value="refund" {{ ($returnType ?? '') === 'refund' ? 'selected' : '' }}>Refund</option>
-                <option value="replacement" {{ ($returnType ?? '') === 'replacement' ? 'selected' : '' }}>Replacement</option>
-            </select>
         </form>
     </div>
 
