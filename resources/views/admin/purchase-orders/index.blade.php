@@ -541,6 +541,11 @@
             if (e.target === this) closeViewPurchaseOrderModal();
         });
         document.getElementById('viewPurchaseOrderCloseBtn').addEventListener('click', closeViewPurchaseOrderModal);
+        // Print opens the print page in a new tab (target="_blank") — that
+        // navigation is what actually moves a Draft PO to Stock Receiving
+        // server-side (see PurchaseOrderController::printPreview()), so
+        // closing this modal here doesn't interrupt it, just tidies up.
+        document.getElementById('viewPurchaseOrderPrintBtn').addEventListener('click', closeViewPurchaseOrderModal);
 
         // ---- Edit Purchase Order modal ----
         const EDIT_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate', 'Notes'];
