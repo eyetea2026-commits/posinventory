@@ -82,4 +82,54 @@ class SupplierModuleUiTest extends TestCase
         $response->assertRedirect(route('admin.suppliers.index'));
         $this->assertDatabaseHas('Supplier', ['SupplierName' => 'Acme Cameras', 'Email' => 'acme@example.com']);
     }
+
+    // City/Province are additive structured fields alongside the existing
+    // free-text Address (see the migration for why Address wasn't replaced)
+    // — optional, and persisted when given.
+    public function test_storing_a_supplier_with_city_and_province_persists_them(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->post(route('admin.suppliers.store'), [
+                'SupplierName' => 'Tagum Traders',
+                'ContactNumber' => '09171234567',
+                'Email' => 'tagum@example.com',
+                'Address' => '123 Main St, Tagum, Davao Del Norte',
+                'City' => 'Tagum',
+                'Province' => 'Davao Del Norte',
+            ]);
+
+        $response->assertRedirect(route('admin.suppliers.index'));
+        $this->assertDatabaseHas('Supplier', [
+            'SupplierName' => 'Tagum Traders',
+            'City' => 'Tagum',
+            'Province' => 'Davao Del Norte',
+        ]);
+    }
+
+    public function test_storing_a_supplier_without_city_or_province_still_succeeds(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->post(route('admin.suppliers.store'), [
+                'SupplierName' => 'No City Supplies',
+                'ContactNumber' => '09171234568',
+                'Email' => 'nocity@example.com',
+                'Address' => 'Cebu-based supplier serving several cities',
+            ]);
+
+        $response->assertRedirect(route('admin.suppliers.index'));
+        $this->assertDatabaseHas('Supplier', ['SupplierName' => 'No City Supplies', 'City' => null, 'Province' => null]);
+    }
+
+    public function test_create_ajax_form_includes_city_and_province_fields(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->get(route('admin.suppliers.create'));
+
+        $html = $response->json('html');
+        $this->assertStringContainsString('name="City"', $html);
+        $this->assertStringContainsString('name="Province"', $html);
+    }
 }

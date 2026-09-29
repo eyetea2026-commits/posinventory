@@ -113,6 +113,8 @@ class SupplierController extends Controller
             'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email'],
             'Address' => ['required', 'string', 'max:255'],
+            'City' => ['nullable', 'string', 'max:100'],
+            'Province' => ['nullable', 'string', 'max:100'],
             'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
         ]);
 
@@ -277,6 +279,8 @@ class SupplierController extends Controller
             'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email,'.$supplier->SupplierID.',SupplierID'],
             'Address' => ['required', 'string', 'max:255'],
+            'City' => ['nullable', 'string', 'max:100'],
+            'Province' => ['nullable', 'string', 'max:100'],
             'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
         ]);
 

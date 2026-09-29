@@ -12,6 +12,7 @@ class Supplier extends Model
     public $timestamps = false;
 
     protected $table = 'Supplier';
+
     protected $primaryKey = 'SupplierID';
 
     protected $fillable = [
@@ -20,10 +21,13 @@ class Supplier extends Model
         'ContactNumber',
         'Email',
         'Address',
+        'City',
+        'Province',
         'Status',
     ];
 
     const STATUS_ACTIVE = 'active';
+
     const STATUS_INACTIVE = 'inactive';
 
     public function stockReceivings()

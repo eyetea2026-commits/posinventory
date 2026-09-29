@@ -7,6 +7,7 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -97,5 +98,20 @@ class InventoryModuleUiTest extends TestCase
         $response->assertSee('Inventory Details');
         $response->assertSee('DVR Camera');
         $response->assertSee('Back to Inventory');
+    }
+
+    // The application already treats Product<->Inventory as strictly 1:1
+    // (Product::inventory() is a hasOne) — this confirms the database now
+    // enforces it too, rather than only the application layer.
+    public function test_database_rejects_a_second_inventory_row_for_the_same_product(): void
+    {
+        $this->expectException(QueryException::class);
+
+        Inventory::create([
+            'ProductID' => $this->product->ProductID,
+            'Quantity' => 5,
+            'ReorderThreshold' => 10,
+            'Status' => 'Low Stock',
+        ]);
     }
 }

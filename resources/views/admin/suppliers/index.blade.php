@@ -175,7 +175,7 @@
         // Add form needs no data to load. Submits to the existing store()
         // route/validation/save exactly as the standalone Add Supplier page
         // already did — only the presentation moved from a page to a popup. ----
-        const ADD_SUPPLIER_FIELD_IDS = ['SupplierName', 'ContactPerson', 'ContactNumber', 'Email', 'Address'];
+        const ADD_SUPPLIER_FIELD_IDS = ['SupplierName', 'ContactPerson', 'ContactNumber', 'Email', 'Address', 'City', 'Province'];
         let addSupplierLastFocused = null;
 
         function addSupplierIsSubmitting() {
@@ -356,7 +356,7 @@
             });
         });
 
-        const EDIT_SUPPLIER_FIELD_IDS = ['SupplierName', 'ContactPerson', 'ContactNumber', 'Email', 'Address'];
+        const EDIT_SUPPLIER_FIELD_IDS = ['SupplierName', 'ContactPerson', 'ContactNumber', 'Email', 'Address', 'City', 'Province'];
         let editSupplierLastFocused = null;
         let currentEditSupplierId = null;
 
