@@ -52,8 +52,8 @@ class Sidebar extends Component
                 'label' => 'Supply Chain',
                 'items' => [
                     ['label' => 'Suppliers', 'route' => 'admin.suppliers.index', 'pattern' => 'admin.suppliers.*', 'icon' => 'truck'],
-                    ['label' => 'Stock Receiving', 'route' => 'admin.stock-receivings.index', 'pattern' => 'admin.stock-receivings.*', 'icon' => 'clipboard-check'],
                     ['label' => 'Purchase Orders', 'route' => 'admin.purchase-orders.index', 'pattern' => 'admin.purchase-orders.*', 'icon' => 'shopping-cart'],
+                    ['label' => 'Stock Receiving', 'route' => 'admin.stock-receivings.index', 'pattern' => 'admin.stock-receivings.*', 'icon' => 'clipboard-check'],
                     ['label' => 'Stock Adjustments', 'route' => 'admin.stock-adjustments.index', 'pattern' => 'admin.stock-adjustments.*', 'icon' => 'sliders-horizontal'],
                 ],
             ],
