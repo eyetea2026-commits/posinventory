@@ -12,6 +12,7 @@ class ProductCostHistory extends Model
     public $timestamps = false;
 
     protected $table = 'ProductCostHistory';
+
     protected $primaryKey = 'ProductCostHistoryID';
 
     protected $fillable = [
@@ -25,8 +26,12 @@ class ProductCostHistory extends Model
     ];
 
     const SOURCE_PRODUCT_UPDATE = 'product_update';
+
     const SOURCE_SUPPLIER_PIVOT_UPDATE = 'supplier_pivot_update';
+
     const SOURCE_PO_RECEIVING = 'po_receiving';
+
+    const SOURCE_BULK_BACKFILL = 'bulk_backfill';
 
     public function product()
     {
