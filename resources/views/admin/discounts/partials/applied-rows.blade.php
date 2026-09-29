@@ -4,18 +4,16 @@
      initial page load and the Tab 2 live-search/pagination AJAX response. --}}
 @forelse($appliedAssignments as $discount)
     @php
-        $today = \Illuminate\Support\Carbon::now()->startOfDay();
-        if ($discount->EndDate && $discount->EndDate->lt($today)) {
-            $statusLabel = 'Expired'; $statusClass = 'badge-secondary';
-        } elseif ($discount->StartDate && $discount->StartDate->gt($today)) {
-            // Displayed as "Scheduled" here (Apply tab only) rather than the
-            // "Inactive" label Discount::STATUS_LABELS uses elsewhere in the
-            // app — a promo that hasn't started yet reads more clearly as
-            // scheduled than inactive in this context.
-            $statusLabel = 'Scheduled'; $statusClass = 'badge-warning';
-        } else {
-            $statusLabel = 'Active'; $statusClass = 'badge-success';
-        }
+        // Discount::STATUS_LABELS is the single source of truth for this
+        // wording — every list/popup that shows a promo's status must go
+        // through effective_status_label so they can't disagree with each
+        // other the way this list and the View Details popup once did.
+        $statusLabel = $discount->effective_status_label;
+        $statusClass = match ($discount->effective_status) {
+            \App\Models\Discount::STATUS_ACTIVE => 'badge-success',
+            \App\Models\Discount::STATUS_EXPIRED => 'badge-secondary',
+            default => 'badge-warning',
+        };
     @endphp
     <tr>
         <td>{{ $discount->Name ?? '—' }} <code>({{ $discount->PromoCode }})</code></td>

@@ -192,12 +192,11 @@ class DiscountController extends Controller
                         : number_format($d->DiscountRate, 2).'%',
                     'start' => $d->StartDate?->format('M d, Y') ?? '—',
                     'end' => $d->EndDate?->format('M d, Y') ?? '—',
-                    // "Scheduled" here (Apply tab display only) rather than
-                    // the "Inactive" label Discount::STATUS_LABELS uses
-                    // elsewhere — a promo that hasn't started yet reads more
-                    // clearly as scheduled than inactive in this context.
-                    'statusLabel' => $d->effective_status === Discount::STATUS_EXPIRED ? 'Expired'
-                        : ($d->effective_status === Discount::STATUS_INACTIVE ? 'Scheduled' : 'Active'),
+                    // Discount::STATUS_LABELS is the single source of truth
+                    // for this wording — every list/popup that shows a
+                    // promo's status goes through effective_status_label so
+                    // they can't disagree with each other.
+                    'statusLabel' => $d->effective_status_label,
                     'statusClass' => $d->effective_status === Discount::STATUS_EXPIRED ? 'badge-secondary'
                         : ($d->effective_status === Discount::STATUS_INACTIVE ? 'badge-warning' : 'badge-success'),
                 ]];

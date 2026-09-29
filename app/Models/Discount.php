@@ -12,6 +12,7 @@ class Discount extends Model
     use HasFactory, SoftDeletes;
 
     protected $table = 'Discount';
+
     protected $primaryKey = 'DiscountID';
 
     protected $fillable = [
@@ -28,6 +29,7 @@ class Discount extends Model
     ];
 
     const TYPE_PERCENTAGE = 'percentage';
+
     const TYPE_FIXED = 'fixed';
 
     protected $casts = [
@@ -37,12 +39,21 @@ class Discount extends Model
     ];
 
     const STATUS_ACTIVE = 'active';
+
     const STATUS_INACTIVE = 'inactive';
+
     const STATUS_EXPIRED = 'expired';
 
+    // "Scheduled" rather than "Inactive" for STATUS_INACTIVE — a promo whose
+    // StartDate hasn't arrived yet reads more clearly as scheduled than
+    // inactive. Every display of a Discount's status must go through this
+    // one map (via effective_status_label) so the wording can't drift
+    // between the Promo Discounts list, the View Details popup, and the
+    // Apply tab — they used to disagree (list said "Inactive", the popup
+    // and Apply tab already said "Scheduled") until this was unified.
     const STATUS_LABELS = [
         self::STATUS_ACTIVE => 'Active',
-        self::STATUS_INACTIVE => 'Inactive',
+        self::STATUS_INACTIVE => 'Scheduled',
         self::STATUS_EXPIRED => 'Expired',
     ];
 
