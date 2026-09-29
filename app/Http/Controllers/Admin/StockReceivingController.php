@@ -225,6 +225,35 @@ class StockReceivingController extends Controller
         return redirect()->route('admin.stock-receivings.index')->with('success', 'Stock added to Inventory. This delivery is now marked Completed.');
     }
 
+    // Live duplicate-check used by both Receipt Number entry points: the
+    // manual "Record Receipt" form (checks as the admin types) and the
+    // "Add to Inventory" batch table (checks each line). Searches both
+    // tables a Receipt Number can actually land in — StockReceiving (the
+    // manual flow) and PurchaseOrderItem (the batch flow) — since those two
+    // uniqueness domains aren't otherwise cross-checked against each other,
+    // "already used" needs to mean used anywhere, not just in whichever
+    // table the calling form itself writes to.
+    public function checkReceiptNumber(Request $request)
+    {
+        $receiptNumber = trim((string) $request->input('receipt_number', ''));
+        $excludeItemId = $request->input('exclude_purchase_order_item_id');
+
+        $used = false;
+        if ($receiptNumber !== '') {
+            $used = StockReceiving::where('ReceiptNumber', $receiptNumber)->exists()
+                || PurchaseOrderItem::where('ReceiptNumber', $receiptNumber)
+                    ->when($excludeItemId, function ($query, $excludeItemId) {
+                        return $query->where('PurchaseOrderItemID', '!=', $excludeItemId);
+                    })
+                    ->exists();
+        }
+
+        return response()->json([
+            'used' => $used,
+            'receipt_number' => $receiptNumber,
+        ]);
+    }
+
     public function create(Request $request)
     {
         $purchaseOrder = null;

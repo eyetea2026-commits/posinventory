@@ -160,9 +160,63 @@
         input.addEventListener('input', () => formChanged = true);
     });
 
+    // Live "already used" check for Receipt Number — debounced so it fires
+    // once typing pauses, not on every keystroke.
+    const receiptNumberInput = document.getElementById('ReceiptNumber');
+    const receiptNumberError = document.getElementById('error-ReceiptNumber');
+    let receiptNumberUsed = false;
+    let receiptNumberCheckInFlight = 0;
+    let receiptNumberCheckTimer = null;
+
+    function setReceiptNumberError(message) {
+        receiptNumberError.textContent = message || '';
+        receiptNumberInput.classList.toggle('is-invalid', !!message);
+    }
+
+    receiptNumberInput.addEventListener('input', function () {
+        receiptNumberUsed = false;
+        setReceiptNumberError('');
+        const value = receiptNumberInput.value.trim();
+        clearTimeout(receiptNumberCheckTimer);
+        if (!value) return;
+
+        const requestId = ++receiptNumberCheckInFlight;
+        receiptNumberCheckTimer = setTimeout(function () {
+            fetch('{{ route('admin.stock-receivings.check-receipt-number') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ receipt_number: value })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (requestId !== receiptNumberCheckInFlight) return;
+                    receiptNumberUsed = !!(data && data.used);
+                    setReceiptNumberError(receiptNumberUsed ? 'This Receipt Number has already been used for another delivery.' : '');
+                })
+                .catch(function () {
+                    // Non-fatal — the server-side unique validation still
+                    // catches it on submit.
+                });
+        }, 350);
+    });
+
     function confirmSave() {
         if (!form.checkValidity()) {
             form.reportValidity();
+            return;
+        }
+
+        if (receiptNumberUsed) {
+            Swal.fire({
+                title: 'Duplicate Receipt Number',
+                text: 'This Receipt Number has already been used for another delivery. Please use a different one.',
+                icon: 'error',
+                confirmButtonColor: '#ef4444'
+            });
             return;
         }
 

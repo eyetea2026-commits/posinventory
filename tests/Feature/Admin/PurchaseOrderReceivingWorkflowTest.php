@@ -381,6 +381,65 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(0, $item2A->fresh()->ReceivedQuantity);
     }
 
+    // ---- Live "already used" check (check-receipt-number) ----
+
+    public function test_check_receipt_number_reports_unused_for_a_fresh_value(): void
+    {
+        $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
+            'receipt_number' => 'RCT-NEW',
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['used' => false]);
+    }
+
+    public function test_check_receipt_number_detects_one_already_used_on_a_purchase_order_item(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
+        $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
+        $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
+
+        $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'items' => [
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50, 'receipt_number' => 'RCT-TAKEN'],
+                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
+            ],
+        ]);
+
+        $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
+            'receipt_number' => 'RCT-TAKEN',
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['used' => true]);
+    }
+
+    public function test_check_receipt_number_excludes_the_items_own_current_value(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
+        $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
+
+        $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'items' => [
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 30, 'receipt_number' => 'RCT-SELF'],
+            ],
+        ]);
+
+        // Re-checking the value already saved on this exact line must not
+        // flag it as a duplicate of itself.
+        $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
+            'receipt_number' => 'RCT-SELF',
+            'exclude_purchase_order_item_id' => $itemA->PurchaseOrderItemID,
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['used' => false]);
+    }
+
     public function test_view_details_shows_ordered_quantity_as_read_only_reference(): void
     {
         $po = $this->makeDraftOrder();
@@ -395,5 +454,27 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertStringContainsString('Quantity Received', $html);
         $this->assertStringContainsString('Receipt Number', $html);
         $this->assertStringContainsString($this->productA->ProductName, $html);
+    }
+
+    public function test_check_receipt_number_detects_one_already_used_by_the_legacy_manual_record_receipt_flow(): void
+    {
+        $this->actingAs($this->admin)->post(route('admin.stock-receivings.store'), [
+            'ProductID' => $this->productA->ProductID,
+            'SupplierID' => $this->supplier->SupplierID,
+            'Quantity' => 5,
+            'ReceiptNumber' => 'RCT-MANUAL',
+            'DateReceived' => now()->format('Y-m-d'),
+        ]);
+
+        // The batch flow's own check must also catch a number already used
+        // by the separate manual flow — the two uniqueness domains
+        // (StockReceiving vs PurchaseOrderItem) aren't cross-validated on
+        // submit, so this live check is what actually closes that gap.
+        $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
+            'receipt_number' => 'RCT-MANUAL',
+        ]);
+
+        $response->assertOk();
+        $response->assertJson(['used' => true]);
     }
 }

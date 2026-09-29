@@ -62,7 +62,8 @@
                         </td>
                         <td>
                             @if($isPending)
-                                <input type="text" class="form-input" style="max-width:160px;" name="items[{{ $loop->index }}][receipt_number]" maxlength="50" value="{{ $item->ReceiptNumber }}">
+                                <input type="text" class="form-input receipt-number-input" style="max-width:160px;" name="items[{{ $loop->index }}][receipt_number]" data-purchase-order-item-id="{{ $item->PurchaseOrderItemID }}" maxlength="50" value="{{ $item->ReceiptNumber }}">
+                                <span class="form-error receipt-number-error"></span>
                             @else
                                 {{ $item->ReceiptNumber ?? 'N/A' }}
                             @endif
