@@ -60,7 +60,6 @@ class Sidebar extends Component
             [
                 'label' => 'Operations',
                 'items' => [
-                    ['label' => 'Reports', 'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*', 'icon' => 'bar-chart-3'],
                     [
                         'label' => 'Return',
                         'patterns' => ['admin.sales-returns.*', 'admin.damages.*'],
@@ -70,6 +69,7 @@ class Sidebar extends Component
                             ['label' => 'Damage', 'route' => 'admin.damages.index', 'pattern' => 'admin.damages.*'],
                         ],
                     ],
+                    ['label' => 'Reports', 'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*', 'icon' => 'bar-chart-3'],
                 ],
             ],
         ];
