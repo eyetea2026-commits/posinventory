@@ -32,7 +32,7 @@
         @endphp
         @foreach($tabs as $value => $tab)
             <a
-                href="{{ route('admin.sales-returns.index', array_filter(['status' => $value, 'search' => $search, 'return_type' => $returnType])) }}"
+                href="{{ route('admin.sales-returns.index', array_filter(['status' => $value, 'search' => $search])) }}"
                 class="btn {{ ($status ?? '') === $value ? 'btn-primary' : 'btn-secondary' }}"
                 style="text-decoration: none;"
             >
@@ -46,9 +46,9 @@
             {{-- Status filtering already lives in the tabs above (All/Pending/
                  Approved/Declined/Refunded) — the "All Statuses" dropdown was
                  a redundant second control for the same thing, so it's gone.
-                 The status tabs' links carry $search/$returnType forward via
-                 array_filter() above, so removing this control doesn't lose
-                 any filter state. --}}
+                 The Return Type filter dropdown has been removed too; the
+                 status tabs' links still carry $search forward via
+                 array_filter() above. --}}
             <form method="GET" action="{{ route('admin.sales-returns.index') }}" style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1;">
                 @if($status)
                     <input type="hidden" name="status" value="{{ $status }}">
@@ -57,15 +57,10 @@
                     <i class="search-icon fas fa-search"></i>
                     <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search returns..." />
                 </div>
-                <select name="return_type" class="form-select" style="max-width: 180px;" onchange="this.form.submit()">
-                    <option value="">All Types</option>
-                    <option value="refund" {{ $returnType === 'refund' ? 'selected' : '' }}>Refund</option>
-                    <option value="replacement" {{ $returnType === 'replacement' ? 'selected' : '' }}>Replacement</option>
-                </select>
-                {{-- No visible Filter button: Return Type already auto-submits on
-                     change, and the search box still submits on Enter via this
-                     visually hidden submit control (removing it entirely would
-                     also disable the browser's native Enter-to-submit behavior). --}}
+                {{-- No visible Search button: the search box still submits on
+                     Enter via this visually hidden submit control (removing
+                     it entirely would also disable the browser's native
+                     Enter-to-submit behavior). --}}
                 <button type="submit" aria-hidden="true" tabindex="-1" style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;">Search</button>
             </form>
         </div>

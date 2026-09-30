@@ -35,7 +35,6 @@ class SalesReturnController extends Controller
     {
         $search = $request->query('search');
         $status = $request->query('status');
-        $returnType = $request->query('return_type');
 
         $statusCounts = [
             'pending' => SalesReturn::where('Status', SalesReturn::STATUS_PENDING)->count(),
@@ -65,9 +64,6 @@ class SalesReturnController extends Controller
             ->when($status, function ($query, $status) {
                 $query->where('Status', $status);
             })
-            ->when($returnType, function ($query, $returnType) {
-                $query->where('ReturnType', $returnType);
-            })
             ->orderByDesc('ReturnDate')
             ->paginate(15)
             ->withQueryString();
@@ -76,7 +72,6 @@ class SalesReturnController extends Controller
             'returns' => $returns,
             'search' => $search,
             'status' => $status,
-            'returnType' => $returnType,
             'statusCounts' => $statusCounts,
         ]);
     }

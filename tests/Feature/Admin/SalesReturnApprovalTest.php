@@ -121,7 +121,7 @@ class SalesReturnApprovalTest extends TestCase
         return $return;
     }
 
-    public function test_index_has_no_all_statuses_dropdown_or_filter_button_but_filters_still_work(): void
+    public function test_index_has_no_all_statuses_dropdown_filter_button_or_return_type_filter_but_status_tabs_still_work(): void
     {
         $pending = $this->makeReturn(['Status' => 'pending']);
         $declined = $this->makeReturn(['Status' => 'declined', 'DeclineReason' => 'Not eligible']);
@@ -130,6 +130,8 @@ class SalesReturnApprovalTest extends TestCase
         $indexResponse->assertOk();
         $indexResponse->assertDontSee('All Statuses');
         $indexResponse->assertDontSee('<i class="fas fa-filter"></i> Filter', false);
+        $indexResponse->assertDontSee('name="return_type"', false);
+        $indexResponse->assertDontSee('All Types');
 
         // Status still filters correctly via the tabs' query param, even
         // without the dropdown.
@@ -137,11 +139,6 @@ class SalesReturnApprovalTest extends TestCase
         $pendingOnly->assertOk();
         $pendingOnly->assertSee('#'.$pending->SalesReturnID.'</td>', false);
         $pendingOnly->assertDontSee('#'.$declined->SalesReturnID.'</td>', false);
-
-        // Return-type filter still auto-applies without the Filter button.
-        $replacementOnly = $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['return_type' => 'replacement']));
-        $replacementOnly->assertOk();
-        $replacementOnly->assertDontSee('#'.$pending->SalesReturnID.'</td>', false);
     }
 
     public function test_approve_only_works_on_pending_requests(): void
