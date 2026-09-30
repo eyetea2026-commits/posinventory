@@ -12,7 +12,14 @@
         $assignedNames = $discount->products->pluck('ProductName');
     @endphp
     <tr>
-        <td>{{ $discount->Name ?? '—' }}</td>
+        <td>
+            <div class="promo-name-cell">
+                <strong>{{ $discount->Name ?? '—' }}</strong>
+                @if(!empty($discount->Description))
+                    <div class="promo-description">{{ $discount->Description }}</div>
+                @endif
+            </div>
+        </td>
         <td><code>{{ $discount->PromoCode ?? '—' }}</code></td>
         <td>{{ $discount->DiscountType === 'fixed' ? 'Fixed Amount' : 'Percentage' }}</td>
         <td class="rate-cell">{{ $discount->DiscountType === 'fixed' ? '₱' . number_format($discount->DiscountRate, 2) : number_format($discount->DiscountRate, 2) . '%' }}</td>

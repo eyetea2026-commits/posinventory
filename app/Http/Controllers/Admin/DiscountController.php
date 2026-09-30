@@ -171,7 +171,7 @@ class DiscountController extends Controller
         // categories) no matter how many discounts exist.
         $allDiscountsForDetails = Discount::with('products.category')
             ->orderByDesc('DiscountID')
-            ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
+            ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate', 'Description']);
 
         return [
             'allDiscounts' => $allDiscounts,
@@ -185,6 +185,7 @@ class DiscountController extends Controller
             'discountMeta' => $allDiscountsForDetails->mapWithKeys(function ($d) {
                 return [$d->DiscountID => [
                     'name' => $d->Name,
+                    'description' => $d->Description,
                     'code' => $d->PromoCode ?? '—',
                     'typeLabel' => $d->DiscountType === Discount::TYPE_FIXED ? 'Fixed Amount' : 'Percentage',
                     'valueLabel' => $d->DiscountType === Discount::TYPE_FIXED

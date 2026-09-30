@@ -112,6 +112,8 @@
     .badge-warning { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
     .badge-secondary { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
     .rate-cell { font-weight: 700; color: var(--text-primary); }
+    .promo-name-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .promo-description { font-size: 0.85rem; color: var(--text-muted); line-height: 1.45; word-break: break-word; white-space: normal; }
     .pagination { display: flex; gap: 6px; justify-content: center; padding: 20px; }
     .pagination-link { padding: 8px 14px; border-radius: 8px; background: rgba(148,163,184,0.1); color: var(--text-primary); text-decoration: none; cursor: pointer; }
     .pagination-link.active { background: linear-gradient(135deg, #3b82f6, #10b981); color: white; }
@@ -925,6 +927,7 @@
                     <span>${escapeHtmlLocal(meta.name)} (${escapeHtmlLocal(meta.code)})</span>
                     <span class="badge badge-dot ${meta.statusClass}">${escapeHtmlLocal(meta.statusLabel)}</span>
                 </h3>
+                ${meta.description ? '<p class="promo-description" style="margin:-8px 0 16px;">' + escapeHtmlLocal(meta.description) + '</p>' : ''}
                 <h3 class="section-title">Promo Details</h3>
                 <div class="apply-promo-detail-grid" style="margin-bottom:18px;">
                     <div class="detail-mini"><label>Discount Type</label><span>${escapeHtmlLocal(meta.typeLabel)}</span></div>

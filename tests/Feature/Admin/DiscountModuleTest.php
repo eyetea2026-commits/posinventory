@@ -336,6 +336,34 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('DISCOUNT_META', false);
     }
 
+    // The promo list (Tab 1), the Applied Discount/Promo List (Tab 2), and
+    // the View Details popup's JSON metadata all read from the same
+    // Discount::Description column — each one showing it independently
+    // means a promo's blurb can't be visible in one place and silently
+    // missing in another.
+    public function test_promo_description_appears_in_both_list_tabs_and_the_details_popup_metadata(): void
+    {
+        $discount = Discount::create($this->basePromoPayload(['Description' => 'Twenty percent off all cameras this summer.']));
+        $discount->products()->attach($this->product->ProductID);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertSee('Twenty percent off all cameras this summer.');
+        $response->assertSee('"description":"Twenty percent off all cameras this summer."', false);
+    }
+
+    public function test_promo_description_is_omitted_from_the_list_when_blank(): void
+    {
+        Discount::create($this->basePromoPayload(['Name' => 'No Blurb Promo', 'PromoCode' => 'NOBLURB', 'Description' => null]));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
+
+        $response->assertOk();
+        $response->assertSee('No Blurb Promo');
+        $response->assertDontSee('<div class="promo-description">', false);
+    }
+
     public function test_index_ajax_products_flag_returns_a_capped_json_product_list(): void
     {
         $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax_products' => 1]));

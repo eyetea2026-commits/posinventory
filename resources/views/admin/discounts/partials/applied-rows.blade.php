@@ -16,7 +16,14 @@
         };
     @endphp
     <tr>
-        <td>{{ $discount->Name ?? '—' }} <code>({{ $discount->PromoCode }})</code></td>
+        <td>
+            <div class="promo-name-cell">
+                <span><strong>{{ $discount->Name ?? '—' }}</strong> <code>({{ $discount->PromoCode }})</code></span>
+                @if(!empty($discount->Description))
+                    <div class="promo-description">{{ $discount->Description }}</div>
+                @endif
+            </div>
+        </td>
         <td>{{ $discount->products_count }}</td>
         <td>{{ $discount->DiscountType === 'fixed' ? 'Fixed Amount' : 'Percentage' }}</td>
         <td class="rate-cell">{{ $discount->DiscountType === 'fixed' ? '₱' . number_format($discount->DiscountRate, 2) : number_format($discount->DiscountRate, 2) . '%' }}</td>
