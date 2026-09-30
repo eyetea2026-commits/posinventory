@@ -57,17 +57,6 @@
                     @error('Address') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">City</label>
-                    <input type="text" name="City" class="form-input" value="{{ old('City') }}">
-                    @error('City') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Province</label>
-                    <input type="text" name="Province" class="form-input" value="{{ old('Province') }}">
-                    @error('Province') <span class="form-error">{{ $message }}</span> @enderror
-                </div>
             </div>
 
             <div class="modal-footer" style="border-top: 1px solid var(--border); margin-top: 8px;">

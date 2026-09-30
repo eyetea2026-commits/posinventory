@@ -31,18 +31,6 @@
         <span class="form-error" id="error-Address">@error('Address'){{ $message }}@enderror</span>
     </div>
 
-    <div class="form-group">
-        <label class="form-label">City</label>
-        <input type="text" name="City" class="form-input" value="{{ old('City', $supplier->City ?? null) }}" maxlength="100">
-        <span class="form-error" id="error-City">@error('City'){{ $message }}@enderror</span>
-    </div>
-
-    <div class="form-group">
-        <label class="form-label">Province</label>
-        <input type="text" name="Province" class="form-input" value="{{ old('Province', $supplier->Province ?? null) }}" maxlength="100">
-        <span class="form-error" id="error-Province">@error('Province'){{ $message }}@enderror</span>
-    </div>
-
     <div class="form-group full-width">
         <label class="form-label">Status</label>
         <select name="Status" class="form-select">

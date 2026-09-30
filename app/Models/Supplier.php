@@ -21,8 +21,6 @@ class Supplier extends Model
         'ContactNumber',
         'Email',
         'Address',
-        'City',
-        'Province',
         'Status',
     ];
 
