@@ -52,8 +52,13 @@
         <span class="form-error" id="error-age">@error('age'){{ $message }}@enderror</span>
     </div>
 
-    <div class="form-group full-width">
-        <span data-role="name-duplicate-error" class="form-error" style="display: none;"></span>
+    {{-- Scoped via data-role rather than an id since the Add and Edit forms
+         both render this same partial and exist in the DOM at the same
+         time. Hidden by default so this row doesn't reserve a full grid
+         row (and its gap) when there's no duplicate-name error to show —
+         the JS below toggles this wrapper's display, not just the span's. --}}
+    <div class="form-group full-width" data-role="name-duplicate-error-row" style="display: none;">
+        <span data-role="name-duplicate-error" class="form-error"></span>
     </div>
 
     <div class="form-group">

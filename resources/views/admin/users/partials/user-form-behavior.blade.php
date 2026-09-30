@@ -37,7 +37,14 @@ window.initUserAddForm = function (formId, options) {
         var errorEl = form.querySelector('[data-role="name-duplicate-error"]');
         if (errorEl) {
             errorEl.textContent = message || '';
-            errorEl.style.display = message ? 'block' : 'none';
+        }
+        // Toggle the wrapping row itself, not just the span inside it —
+        // otherwise the empty row still reserves a full grid row (and its
+        // gap) between Last Name/Age and Address/Contact Number even when
+        // there's nothing to show.
+        var errorRow = form.querySelector('[data-role="name-duplicate-error-row"]');
+        if (errorRow) {
+            errorRow.style.display = message ? 'block' : 'none';
         }
         [firstNameInput, middleNameInput, lastNameInput].forEach(function (el) {
             if (el) el.classList.toggle('error', !!message);
