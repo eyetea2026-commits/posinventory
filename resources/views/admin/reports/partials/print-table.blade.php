@@ -56,26 +56,28 @@
             @endforelse
         </tbody>
     </table>
-@elseif($type === 'stock_receiving')
+@elseif($type === 'reorder')
     <table>
         <thead>
             <tr>
-                <th>Reference</th><th class="col-date">Date Received</th><th>Product</th><th>Supplier</th>
-                <th class="col-qty">Quantity</th><th>Receipt Number</th>
+                <th>Product</th><th>Category</th>
+                <th class="col-qty">Current Stock</th><th class="col-qty">Reorder Threshold</th>
+                <th class="col-qty">Suggested Reorder Qty</th><th>Preferred Supplier</th>
             </tr>
         </thead>
         <tbody>
             @forelse($rows as $row)
+                @php($supplierName = $row->product?->resolveReorderSupplier()?->supplier?->SupplierName)
                 <tr>
-                    <td><code>REC-{{ str_pad($row->ReceivingID, 6, '0', STR_PAD_LEFT) }}</code></td>
-                    <td class="col-date">{{ \Illuminate\Support\Carbon::parse($row->DateReceived)->format('m/d/Y') }}</td>
                     <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                    <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
+                    <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
                     <td class="col-qty">{{ number_format($row->Quantity) }}</td>
-                    <td>{{ $row->ReceiptNumber ?? 'N/A' }}</td>
+                    <td class="col-qty">{{ number_format($row->ReorderThreshold ?? 0) }}</td>
+                    <td class="col-qty">{{ number_format(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity((int) $row->Quantity, (int) ($row->ReorderThreshold ?? 50))) }}</td>
+                    <td>{{ $supplierName ?? 'N/A' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="no-records"><strong>NO RECORDS FOUND</strong>No stock receiving records match the selected report criteria.</td></tr>
+                <tr><td colspan="6" class="no-records"><strong>NO RECORDS FOUND</strong>No products are currently at or below their reorder threshold.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -153,31 +155,6 @@
                 </tr>
             @empty
                 <tr><td colspan="8" class="no-records"><strong>NO RECORDS FOUND</strong>No damage records match the selected report criteria.</td></tr>
-            @endforelse
-        </tbody>
-    </table>
-@elseif($type === 'supplier')
-    <table>
-        <thead>
-            <tr>
-                <th>Supplier Name</th><th>Contact Person</th><th>Contact Number</th><th>Email</th><th>Address</th>
-                <th class="col-qty">Total POs</th><th class="col-money">Total Purchases</th><th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($rows as $row)
-                <tr>
-                    <td>{{ $row->SupplierName }}</td>
-                    <td>{{ $row->ContactPerson ?: '—' }}</td>
-                    <td>{{ $row->ContactNumber ?: '—' }}</td>
-                    <td>{{ $row->Email ?: '—' }}</td>
-                    <td>{{ $row->Address ?: '—' }}</td>
-                    <td class="col-qty">{{ number_format($row->TotalOrders) }}</td>
-                    <td class="col-money col-total">₱{{ number_format($row->TotalAmount, 2) }}</td>
-                    <td>{{ ucfirst($row->Status) }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="8" class="no-records"><strong>NO RECORDS FOUND</strong>No suppliers match the selected report criteria.</td></tr>
             @endforelse
         </tbody>
     </table>

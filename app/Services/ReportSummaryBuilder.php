@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\Admin\PurchaseOrderController;
 use Illuminate\Support\Collection;
 
 /**
@@ -23,12 +24,11 @@ class ReportSummaryBuilder
     {
         return match ($type) {
             'inventory' => self::inventory($rows),
+            'reorder' => self::reorder($rows),
             'stock_adjustment' => self::stockAdjustment($rows),
-            'stock_receiving' => self::stockReceiving($rows),
             'orders' => self::orders($rows),
             'returns' => self::returns($rows),
             'damage' => self::damage($rows),
-            'supplier' => self::supplier($rows),
             default => self::sales($rows),
         };
     }
@@ -72,11 +72,16 @@ class ReportSummaryBuilder
         ];
     }
 
-    private static function stockReceiving(Collection $rows): array
+    // Rows are Inventory records (ReportController::reorderRows()) already
+    // filtered to Quantity <= ReorderThreshold, so every row here IS a
+    // product that needs reordering — no further filtering needed.
+    private static function reorder(Collection $rows): array
     {
         return [
-            ['label' => 'Total Receipts', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Quantity Received', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Products Needing Reorder', 'value' => $rows->count(), 'money' => false],
+            ['label' => 'Total Suggested Reorder Quantity', 'value' => $rows->sum(
+                fn ($r) => PurchaseOrderController::suggestedReorderQuantity((int) $r->Quantity, (int) ($r->ReorderThreshold ?? 50))
+            ), 'money' => false],
         ];
     }
 
@@ -107,19 +112,8 @@ class ReportSummaryBuilder
         ];
     }
 
-    private static function supplier(Collection $rows): array
-    {
-        return [
-            ['label' => 'Total Suppliers', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Active Suppliers', 'value' => $rows->where('Status', \App\Models\Supplier::STATUS_ACTIVE)->count(), 'money' => false],
-            ['label' => 'Inactive Suppliers', 'value' => $rows->where('Status', \App\Models\Supplier::STATUS_INACTIVE)->count(), 'money' => false],
-            ['label' => 'Total Orders', 'value' => $rows->sum('TotalOrders'), 'money' => false],
-            ['label' => 'Total Amount', 'value' => round($rows->sum('TotalAmount'), 2), 'money' => true],
-        ];
-    }
-
     public static function formatValue(array $entry): string
     {
-        return $entry['money'] ? '₱' . number_format($entry['value'], 2) : number_format($entry['value']);
+        return $entry['money'] ? '₱'.number_format($entry['value'], 2) : number_format($entry['value']);
     }
 }

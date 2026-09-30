@@ -15,10 +15,10 @@ use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\StockAdjustment;
 use App\Models\StockReceiving;
-use App\Models\Supplier;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -98,7 +98,6 @@ class ReportController extends Controller
             'orders' => $this->orderDetail($id),
             'returns' => $this->returnDetail($id),
             'damage' => $this->damageDetail($id),
-            'supplier' => $this->supplierDetail($id),
             default => null,
         };
 
@@ -350,43 +349,6 @@ class ReportController extends Controller
         ];
     }
 
-    private function supplierDetail($id): ?array
-    {
-        $supplier = Supplier::with(['purchaseOrders.items'])->find($id);
-
-        if (! $supplier) {
-            return null;
-        }
-
-        $orders = $supplier->purchaseOrders;
-
-        $ordersTable = [
-            'columns' => ['PO Number', 'Date', 'Status', 'Total Cost'],
-            'rows' => $orders->sortByDesc('PurchaseDate')->map(fn (PurchaseOrder $po) => [
-                $po->PONumber,
-                $this->fmtDate($po->PurchaseDate),
-                PurchaseOrder::STATUS_LABELS[$po->Status] ?? $po->Status,
-                $this->money($po->items->sum(fn ($item) => $item->Quantity * $item->CostPriceAtOrder)),
-            ])->values()->all(),
-        ];
-
-        return [
-            'title' => "Supplier Report — {$supplier->SupplierName}",
-            'sections' => [
-                [
-                    'fields' => [
-                        ['label' => 'Supplier Name', 'value' => $supplier->SupplierName],
-                        ['label' => 'Contact Number', 'value' => $supplier->ContactNumber ?? 'N/A'],
-                        ['label' => 'Email', 'value' => $supplier->Email ?? 'N/A'],
-                        ['label' => 'Address', 'value' => $supplier->Address ?? 'N/A'],
-                        ['label' => 'Total Orders', 'value' => (string) $orders->count()],
-                    ],
-                ],
-                ['heading' => 'Purchase Order', 'table' => $ordersTable],
-            ],
-        ];
-    }
-
     // In-browser Print Preview (window.print()) for the currently filtered
     // report — distinct from export()'s dompdf download, reviewed on-screen
     // first. Shares admin.reports.partials.print-table with the PDF export
@@ -422,8 +384,10 @@ class ReportController extends Controller
     public static function typeLabel(string $type): string
     {
         return match ($type) {
+            'sales' => 'Sales and Revenue',
+            'orders' => 'Purchase Order',
+            'returns' => 'Refund',
             'stock_adjustment' => 'Stock Adjustment',
-            'stock_receiving' => 'Stock Receiving',
             default => ucfirst($type),
         };
     }
@@ -554,12 +518,11 @@ class ReportController extends Controller
             'pendingReturns' => $pendingReturns,
             'salesRows' => $reportType === 'sales' ? $this->salesBillingRows($dateFrom, $dateTo) : collect(),
             'inventoryRows' => $reportType === 'inventory' ? $this->inventoryRows($dateFrom, $dateTo) : collect(),
+            'reorderRows' => $reportType === 'reorder' ? $this->reorderRows() : collect(),
             'stockAdjustmentRows' => $reportType === 'stock_adjustment' ? $this->stockAdjustmentRows($dateFrom, $dateTo) : collect(),
-            'stockReceivingRows' => $reportType === 'stock_receiving' ? $this->stockReceivingRows($dateFrom, $dateTo) : collect(),
             'orderRows' => $reportType === 'orders' ? $this->orderRows($dateFrom, $dateTo) : collect(),
             'returnRows' => $reportType === 'returns' ? $this->returnRows($dateFrom, $dateTo) : collect(),
             'damageRows' => $reportType === 'damage' ? $this->damageRows($dateFrom, $dateTo) : collect(),
-            'supplierRows' => $reportType === 'supplier' ? $this->supplierRows($dateFrom, $dateTo) : collect(),
         ];
     }
 
@@ -567,12 +530,11 @@ class ReportController extends Controller
     {
         return match ($type) {
             'inventory' => $this->inventoryRows($dateFrom, $dateTo),
+            'reorder' => $this->reorderRows(),
             'stock_adjustment' => $this->stockAdjustmentRows($dateFrom, $dateTo),
-            'stock_receiving' => $this->stockReceivingRows($dateFrom, $dateTo),
             'orders' => $this->orderItemRows($dateFrom, $dateTo),
             'returns' => $this->returnRows($dateFrom, $dateTo),
             'damage' => $this->damageRows($dateFrom, $dateTo),
-            'supplier' => $this->supplierRows($dateFrom, $dateTo),
             default => $this->salesItemRows($dateFrom, $dateTo),
         };
     }
@@ -672,14 +634,16 @@ class ReportController extends Controller
             ->get();
     }
 
-    // Every unit physically received into stock in the selected range,
-    // whether ad-hoc or against a Purchase Order.
-    private function stockReceivingRows(?string $dateFrom, ?string $dateTo)
+    // Live snapshot (like inventoryRows()) rather than date-filtered: "needs
+    // reordering" is a fact about right-now stock levels, not a historical
+    // event, so it ignores the selected date range entirely. Reuses the
+    // exact same Quantity <= ReorderThreshold detection the dashboard's
+    // low-stock widget already uses, so the two can't disagree.
+    private function reorderRows()
     {
-        return StockReceiving::with(['product', 'supplier'])
-            ->when($dateFrom, fn ($q) => $q->whereDate('DateReceived', '>=', $dateFrom))
-            ->when($dateTo, fn ($q) => $q->whereDate('DateReceived', '<=', $dateTo))
-            ->orderByDesc('DateReceived')
+        return Inventory::with(['product.category', 'product.suppliers.supplier'])
+            ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
+            ->orderBy('Quantity')
             ->get();
     }
 
@@ -690,37 +654,6 @@ class ReportController extends Controller
             ->when($dateTo, fn ($q) => $q->whereDate('DateRecorded', '<=', $dateTo))
             ->orderByDesc('DateRecorded')
             ->get();
-    }
-
-    // One row per supplier: how many POs were placed against them and how
-    // much was actually spent (received qty × cost) within the date range.
-    // Eager-loads every supplier's filtered purchase orders (+ items) in one
-    // pair of queries instead of running a separate query per supplier row.
-    private function supplierRows(?string $dateFrom, ?string $dateTo)
-    {
-        $suppliers = Supplier::with(['purchaseOrders' => function ($query) use ($dateFrom, $dateTo) {
-            $query->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
-                ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
-                ->with('items');
-        }])
-            ->orderBy('SupplierName')
-            ->get();
-
-        return $suppliers->map(function (Supplier $supplier) {
-            $orders = $supplier->purchaseOrders;
-
-            return (object) [
-                'SupplierID' => $supplier->SupplierID,
-                'SupplierName' => $supplier->SupplierName,
-                'ContactPerson' => $supplier->ContactPerson,
-                'ContactNumber' => $supplier->ContactNumber,
-                'Email' => $supplier->Email,
-                'Address' => $supplier->Address,
-                'Status' => $supplier->Status,
-                'TotalOrders' => $orders->count(),
-                'TotalAmount' => $orders->flatMap->items->sum(fn ($item) => $item->ReceivedQuantity * $item->CostPriceAtOrder),
-            ];
-        });
     }
 
     private function orderRows(?string $dateFrom, ?string $dateTo)
@@ -840,16 +773,16 @@ class ReportController extends Controller
                         $this->csvSafe($item->Reason),
                     ]);
                 }
-            } elseif ($type === 'stock_receiving') {
-                fputcsv($handle, ['ID', 'Date Received', 'Product', 'Supplier', 'Quantity', 'Receipt Number']);
-                foreach ($this->stockReceivingRows($dateFrom, $dateTo) as $item) {
+            } elseif ($type === 'reorder') {
+                fputcsv($handle, ['Product', 'Category', 'Current Stock', 'Reorder Threshold', 'Suggested Reorder Qty', 'Preferred Supplier']);
+                foreach ($this->reorderRows() as $item) {
                     fputcsv($handle, [
-                        $item->ReceivingID,
-                        $item->DateReceived,
                         $this->csvSafe($item->product?->ProductName ?? 'N/A'),
-                        $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
+                        $this->csvSafe($item->product?->category?->CategoryName ?? 'Uncategorized'),
                         $item->Quantity,
-                        $this->csvSafe($item->ReceiptNumber ?? 'N/A'),
+                        $item->ReorderThreshold ?? 0,
+                        PurchaseOrderController::suggestedReorderQuantity((int) $item->Quantity, (int) ($item->ReorderThreshold ?? 50)),
+                        $this->csvSafe($item->product?->resolveReorderSupplier()?->supplier?->SupplierName ?? 'N/A'),
                     ]);
                 }
             } elseif ($type === 'orders') {
@@ -887,17 +820,6 @@ class ReportController extends Controller
                         $item->Quantity,
                         $this->csvSafe(DamagedProduct::DAMAGE_TYPES[$item->DamageType] ?? $item->DamageType),
                         $item->Status,
-                    ]);
-                }
-            } elseif ($type === 'supplier') {
-                fputcsv($handle, ['ID', 'Supplier', 'Status', 'Total Orders', 'Total Amount']);
-                foreach ($this->supplierRows($dateFrom, $dateTo) as $item) {
-                    fputcsv($handle, [
-                        $item->SupplierID,
-                        $this->csvSafe($item->SupplierName),
-                        $item->Status,
-                        $item->TotalOrders,
-                        $item->TotalAmount,
                     ]);
                 }
             }

@@ -23,14 +23,13 @@
             <div class="form-group">
                 <label class="form-label">Report Type</label>
                 <select id="reportTypeSelect" class="form-select">
-                    <option value="sales" {{ $reportType === 'sales' ? 'selected' : '' }}>Sales Report</option>
+                    <option value="sales" {{ $reportType === 'sales' ? 'selected' : '' }}>Sales and Revenue Report</option>
                     <option value="inventory" {{ $reportType === 'inventory' ? 'selected' : '' }}>Inventory Report</option>
-                    <option value="stock_adjustment" {{ $reportType === 'stock_adjustment' ? 'selected' : '' }}>Stock Adjustment Report</option>
-                    <option value="stock_receiving" {{ $reportType === 'stock_receiving' ? 'selected' : '' }}>Stock Receiving Report</option>
-                    <option value="orders" {{ $reportType === 'orders' ? 'selected' : '' }}>Purchase Report</option>
+                    <option value="reorder" {{ $reportType === 'reorder' ? 'selected' : '' }}>Reorder Report</option>
                     <option value="damage" {{ $reportType === 'damage' ? 'selected' : '' }}>Damage Report</option>
-                    <option value="returns" {{ $reportType === 'returns' ? 'selected' : '' }}>Return Report</option>
-                    <option value="supplier" {{ $reportType === 'supplier' ? 'selected' : '' }}>Supplier Report</option>
+                    <option value="returns" {{ $reportType === 'returns' ? 'selected' : '' }}>Refund Report</option>
+                    <option value="stock_adjustment" {{ $reportType === 'stock_adjustment' ? 'selected' : '' }}>Stock Adjustment Report</option>
+                    <option value="orders" {{ $reportType === 'orders' ? 'selected' : '' }}>Purchase Order Report</option>
                 </select>
             </div>
             <div class="form-group">
@@ -77,12 +76,11 @@
             'reportType' => $reportType,
             'salesRows' => $salesRows,
             'inventoryRows' => $inventoryRows,
+            'reorderRows' => $reorderRows,
             'stockAdjustmentRows' => $stockAdjustmentRows,
-            'stockReceivingRows' => $stockReceivingRows,
             'orderRows' => $orderRows,
             'returnRows' => $returnRows,
             'damageRows' => $damageRows,
-            'supplierRows' => $supplierRows,
         ])
     </div>
 

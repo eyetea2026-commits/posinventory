@@ -187,28 +187,13 @@ class ReportDetailsTest extends TestCase
         ]);
     }
 
-    public function test_supplier_report_details_returns_orders_table(): void
-    {
-        $po = PurchaseOrder::create([
-            'PONumber' => 'PO-TEST-000002', 'PurchaseDate' => now()->format('Y-m-d'),
-            'Status' => PurchaseOrder::STATUS_FULLY_RECEIVED, 'SupplierID' => $this->supplier->SupplierID,
-        ]);
-        PurchaseOrderItem::create([
-            'PurchaseOrderID' => $po->PurchaseOrderID, 'ProductID' => $this->product->ProductID,
-            'Quantity' => 5, 'ReceivedQuantity' => 5, 'CostPriceAtOrder' => 600,
-        ]);
-
-        $response = $this->fetchDetails('supplier', $this->supplier->SupplierID);
-
-        $response->assertOk();
-        $response->assertJsonFragment(['label' => 'Supplier Name', 'value' => 'Acme Supplies']);
-        $this->assertStringContainsString('PO-TEST-000002', $response->getContent());
-    }
-
     public function test_unknown_type_or_missing_id_returns_404(): void
     {
         $this->fetchDetails('sales', 999999)->assertNotFound();
         $this->fetchDetails('not-a-real-type', 1)->assertNotFound();
+        // 'supplier' and 'stock_receiving' details were dropped along with
+        // their report types — no dispatch arm matches them anymore.
+        $this->fetchDetails('supplier', $this->supplier->SupplierID)->assertNotFound();
     }
 
     public function test_non_admin_cannot_view_report_details(): void
@@ -216,7 +201,7 @@ class ReportDetailsTest extends TestCase
         $cashierRole = Role::where('role_name', 'cashier')->first();
         $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
 
-        $response = $this->actingAs($cashier)->getJson(route('admin.reports.details', ['type' => 'supplier', 'id' => $this->supplier->SupplierID]));
+        $response = $this->actingAs($cashier)->getJson(route('admin.reports.details', ['type' => 'damage', 'id' => $this->product->ProductID]));
 
         $response->assertForbidden();
     }
@@ -264,7 +249,6 @@ class ReportDetailsTest extends TestCase
             'orders' => "viewReportDetails('orders'",
             'returns' => "viewReportDetails('returns'",
             'damage' => "viewReportDetails('damage'",
-            'supplier' => "viewReportDetails('supplier'",
         ];
 
         foreach ($expectedOnclick as $type => $needle) {

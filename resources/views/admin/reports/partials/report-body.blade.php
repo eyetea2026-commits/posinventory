@@ -63,31 +63,39 @@
             </table>
         </div>
     </div>
-@elseif($reportType === 'stock_receiving')
+@elseif($reportType === 'reorder')
     <div class="card mt-4">
         <div class="card-header">
             <div>
-                <h2 class="card-title">Stock Receiving</h2>
-                <p class="card-subtitle">Stock received into inventory within the selected date range</p>
+                <h2 class="card-title">Products Needing Reorder</h2>
+                <p class="card-subtitle">Live snapshot of products at or below their reorder threshold</p>
             </div>
         </div>
         <div class="table-container" style="max-height: 480px; overflow-y: auto;">
             <table class="table">
                 <thead>
-                    <tr><th>ID</th><th>Date Received</th><th>Product</th><th>Supplier</th><th>Quantity</th><th>Receipt Number</th></tr>
+                    <tr><th>Product</th><th>Category</th><th>Current Stock</th><th>Reorder Threshold</th><th>Suggested Qty</th><th>Preferred Supplier</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
-                    @forelse($stockReceivingRows as $row)
+                    @forelse($reorderRows as $row)
+                        @php($supplierName = $row->product?->resolveReorderSupplier()?->supplier?->SupplierName)
                         <tr>
-                            <td>{{ $row->ReceivingID }}</td>
-                            <td>{{ $row->DateReceived }}</td>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                            <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
+                            <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
                             <td>{{ number_format($row->Quantity) }}</td>
-                            <td>{{ $row->ReceiptNumber ?? 'N/A' }}</td>
+                            <td>{{ number_format($row->ReorderThreshold ?? 0) }}</td>
+                            <td>{{ number_format(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity((int) $row->Quantity, (int) ($row->ReorderThreshold ?? 50))) }}</td>
+                            <td>{{ $supplierName ?? 'N/A' }}</td>
+                            <td>
+                                @if($row->product)
+                                    <a href="{{ route('admin.purchase-orders.create-from-reorder', $row->product->ProductID) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-cart-plus"></i> Create PO
+                                    </a>
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted">No products are currently at or below their reorder threshold.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -227,39 +235,6 @@
                         </tr>
                     @empty
                         <tr><td colspan="8" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-@elseif($reportType === 'supplier')
-    <div class="card mt-4">
-        <div class="card-header">
-            <div>
-                <h2 class="card-title">Suppliers</h2>
-                <p class="card-subtitle">Orders and spend per supplier within the selected date range</p>
-            </div>
-        </div>
-        <div class="table-container">
-            <table class="table">
-                <thead>
-                    <tr><th>Supplier</th><th>Status</th><th>Total Orders</th><th>Total Amount</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                    @forelse($supplierRows as $row)
-                        <tr>
-                            <td><a href="{{ route('admin.suppliers.show', $row->SupplierID) }}">{{ $row->SupplierName }}</a></td>
-                            <td><span class="badge {{ $row->Status === 'inactive' ? 'badge-secondary' : 'badge-success' }}">{{ ucfirst($row->Status ?? 'active') }}</span></td>
-                            <td>{{ $row->TotalOrders }}</td>
-                            <td>₱{{ number_format($row->TotalAmount, 2) }}</td>
-                            <td>
-                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('supplier', {{ $row->SupplierID }})">
-                                    <i class="fas fa-eye"></i> View Details
-                                </button>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="5" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>

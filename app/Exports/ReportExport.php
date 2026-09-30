@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Models\DamagedProduct;
 use App\Models\PurchaseOrder;
@@ -50,12 +51,11 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     {
         return match ($this->type) {
             'inventory' => ['Product', 'SKU', 'Barcode', 'Category', 'Supplier', 'Current Stock', 'Reorder Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Status'],
+            'reorder' => ['Product', 'Category', 'Current Stock', 'Reorder Threshold', 'Suggested Reorder Qty', 'Preferred Supplier'],
             'stock_adjustment' => ['Reference', 'Date', 'Product', 'Adjustment', 'Reason'],
-            'stock_receiving' => ['Reference', 'Date Received', 'Product', 'Supplier', 'Quantity', 'Receipt Number'],
             'orders' => ['PO Number', 'Date', 'Supplier', 'Product', 'Qty', 'Unit Price', 'Subtotal', 'Status'],
             'returns' => ['Return Ref.', 'Date', 'Invoice', 'Customer', 'Product', 'Qty', 'Reason', 'Type', 'Status', 'Processed By'],
             'damage' => ['Reference', 'Date', 'Product', 'Supplier', 'Qty', 'Damage Type', 'Reason', 'Status'],
-            'supplier' => ['Supplier Name', 'Contact Person', 'Contact Number', 'Email', 'Address', 'Total POs', 'Total Purchases', 'Status'],
             default => ['Invoice No', 'Date', 'Customer', 'Payment Method', 'Product', 'Qty', 'Unit Price', 'Discount', 'VAT', 'Total'],
         };
     }
@@ -83,13 +83,13 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 ($row->QuantityAdjust >= 0 ? '+' : '').$row->QuantityAdjust,
                 $row->Reason,
             ],
-            'stock_receiving' => [
-                'REC-'.str_pad((string) $row->ReceivingID, 6, '0', STR_PAD_LEFT),
-                $row->DateReceived,
+            'reorder' => [
                 $row->product?->ProductName ?? 'N/A',
-                $row->supplier?->SupplierName ?? 'N/A',
+                $row->product?->category?->CategoryName ?? 'Uncategorized',
                 $row->Quantity,
-                $row->ReceiptNumber ?? 'N/A',
+                $row->ReorderThreshold ?? 0,
+                PurchaseOrderController::suggestedReorderQuantity((int) $row->Quantity, (int) ($row->ReorderThreshold ?? 50)),
+                $row->product?->resolveReorderSupplier()?->supplier?->SupplierName ?? 'N/A',
             ],
             'orders' => [
                 $row->PONumber,
@@ -123,16 +123,6 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $row->Description ?: 'N/A',
                 ucfirst(str_replace('_', ' ', $row->Status)),
             ],
-            'supplier' => [
-                $row->SupplierName,
-                $row->ContactPerson ?: 'N/A',
-                $row->ContactNumber ?: 'N/A',
-                $row->Email ?: 'N/A',
-                $row->Address ?: 'N/A',
-                $row->TotalOrders,
-                round((float) $row->TotalAmount, 2),
-                ucfirst($row->Status),
-            ],
             default => [
                 $row->ReceiptNumber,
                 $row->BillingDate,
@@ -162,8 +152,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         return match ($this->type) {
             'inventory' => [7, 8, 9],
             'orders' => [6, 7],
-            'supplier' => [7],
-            'returns', 'damage', 'stock_adjustment', 'stock_receiving' => [],
+            'returns', 'damage', 'stock_adjustment', 'reorder' => [],
             default => [7, 8, 9, 10],
         };
     }
@@ -171,7 +160,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     private function dateColumns(): array
     {
         return match ($this->type) {
-            'sales', 'orders', 'damage', 'returns', 'stock_adjustment', 'stock_receiving' => [2],
+            'sales', 'orders', 'damage', 'returns', 'stock_adjustment' => [2],
             default => [],
         };
     }
@@ -189,8 +178,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         return match ($this->type) {
             'inventory' => ['Total Inventory Value' => 9],
             'orders' => ['Total Amount' => 7],
-            'supplier' => ['Total Amount' => 7],
-            'stock_adjustment', 'stock_receiving' => [],
+            'stock_adjustment', 'reorder' => [],
             default => ['Net Sales' => 10, 'Discount' => 8, 'VAT' => 9],
         };
     }
