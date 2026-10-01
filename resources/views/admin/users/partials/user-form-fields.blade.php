@@ -74,6 +74,12 @@
     </div>
 
     <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-input" value="{{ old('email', $user->email ?? null) }}">
+        <span class="form-error" id="error-email">@error('email'){{ $message }}@enderror</span>
+    </div>
+
+    <div class="form-group">
         <label class="form-label">Gender</label>
         <select name="gender" class="form-select">
             <option value="">Select Gender</option>

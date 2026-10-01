@@ -87,6 +87,46 @@ class UserManagementTest extends TestCase
         ]);
     }
 
+    // The Email field's validation/uniqueness check and JS error-handling
+    // wiring all already existed, but the <input> itself was missing from
+    // the shared form partial — so an email could never actually be
+    // entered anywhere in the UI. Covers both that it now renders and that
+    // a submitted value actually persists.
+    public function test_add_user_form_renders_an_email_field(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->get(route('admin.users.create'));
+
+        $response->assertOk();
+        $response->assertSee('name="email"', false);
+    }
+
+    public function test_admin_can_create_a_cashier_with_an_email(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(route('admin.users.store'), [
+            'first_name' => 'Maria',
+            'last_name' => 'Santos',
+            'contact_number' => '09171234999',
+            'email' => 'maria.santos@example.com',
+            'name' => 'mariasantos',
+            'role_id' => $cashierRole->id,
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ]);
+
+        $response->assertRedirect(route('admin.users.index'));
+        $this->assertDatabaseHas('users', [
+            'name' => 'mariasantos',
+            'email' => 'maria.santos@example.com',
+        ]);
+    }
+
     public function test_user_management_index_renders_view_details_trigger(): void
     {
         $role = Role::create(['role_name' => 'admin']);
