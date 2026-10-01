@@ -58,6 +58,35 @@ class UserManagementTest extends TestCase
         $response->assertJsonPath('user.id', $targetUser->id);
     }
 
+    // Regression: the Add New User form has no Email field at all (it's
+    // optional and collected nowhere in the UI), so $data['email'] was
+    // undefined rather than null and store() threw on every real-world
+    // submission — "Something Went Wrong" with no useful detail on screen.
+    public function test_admin_can_create_a_cashier_without_providing_an_email(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(route('admin.users.store'), [
+            'first_name' => 'Juan',
+            'last_name' => 'Dela Cruz',
+            'contact_number' => '09171234567',
+            'name' => 'juandelacruz',
+            'role_id' => $cashierRole->id,
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ]);
+
+        $response->assertRedirect(route('admin.users.index'));
+        $this->assertDatabaseHas('users', [
+            'name' => 'juandelacruz',
+            'first_name' => 'Juan',
+            'last_name' => 'Dela Cruz',
+            'email' => null,
+        ]);
+    }
+
     public function test_user_management_index_renders_view_details_trigger(): void
     {
         $role = Role::create(['role_name' => 'admin']);
@@ -77,7 +106,7 @@ class UserManagementTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('view-user-btn', false);
-        $response->assertSee('data-user-id="' . $targetUser->id . '"', false);
+        $response->assertSee('data-user-id="'.$targetUser->id.'"', false);
         $response->assertSee('id="viewModal"', false);
     }
 }

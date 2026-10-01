@@ -172,7 +172,7 @@ class UserController extends Controller
             'address' => $data['address'] ?? null,
             'contact_number' => $data['contact_number'],
             'gender' => $data['gender'] ?? null,
-            'email' => $data['email'],
+            'email' => $data['email'] ?? null,
             'role_id' => $data['role_id'],
             'password' => Hash::make($data['password']),
             'is_active' => true,
