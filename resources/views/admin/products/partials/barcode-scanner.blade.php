@@ -30,6 +30,20 @@
             }
         });
 
+        // A scanner's trailing Enter would otherwise submit this form early
+        // (native browser behavior for Enter in a text input), before the
+        // rest of the product's details are filled in — swallow it here and
+        // just trim the value immediately, same as the blur handler above.
+        barcodeInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === 'NumpadEnter') {
+                event.preventDefault();
+                var trimmed = barcodeInput.value.trim();
+                if (trimmed !== barcodeInput.value) {
+                    barcodeInput.value = trimmed;
+                }
+            }
+        });
+
         scanBtn.addEventListener('click', function () {
             barcodeInput.focus();
         });

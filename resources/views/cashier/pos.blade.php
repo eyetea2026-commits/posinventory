@@ -174,7 +174,7 @@
 <div class="pos-grid">
     <div class="pos-products">
         <div class="barcode-scanner">
-            <input type="text" id="barcode-input" placeholder="Scan or enter SKU / barcode..." onkeypress="handleBarcode(event)">
+            <input type="text" id="barcode-input" placeholder="Scan or enter SKU / barcode..." onkeydown="handleBarcode(event)" autofocus>
             <button onclick="scanBarcode()"><i class="fas fa-barcode"></i> Scan</button>
         </div>
 
@@ -499,34 +499,69 @@
     // no such gate — this stays true/irrelevant for them.
     let paymentDetailsConfirmed = false;
 
+    // HID barcode scanner support (Bluetooth, USB wired, or USB/2.4GHz
+    // dongle — all three present to the browser as a plain keyboard, so no
+    // scanner-specific API is needed: the device "types" the barcode into
+    // whichever field has focus, then sends a trailing Enter).
+    let barcodeScanInFlight = false;
+    let lastScannedBarcode = '';
+    let lastScanTime = 0;
+    // Guards against the exact same scan firing twice in quick succession
+    // (a double-read some scanners/triggers are prone to, or a cashier
+    // double-tapping Enter) adding an unintended extra unit to the cart.
+    // A different item scanned moments later is never blocked by this.
+    const SCAN_DUPLICATE_COOLDOWN_MS = 1200;
+
     function handleBarcode(event) {
-        if (event.key === 'Enter') {
+        // Most scanners send a plain Enter as their trailing terminator,
+        // but some configurations send the numeric-keypad Enter instead —
+        // handle both so a scan is never silently dropped. preventDefault
+        // stops that Enter from doing anything else (e.g. submitting an
+        // enclosing form) besides triggering the lookup.
+        if (event.key === 'Enter' || event.key === 'NumpadEnter') {
+            event.preventDefault();
             scanBarcode();
         }
     }
 
     function scanBarcode() {
-        const barcode = document.getElementById('barcode-input').value.trim();
-        if (barcode) {
-            fetch(`/api/products/barcode/${barcode}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.product) {
-                        const stock = data.product.inventory?.Quantity || 0;
-                        if (stock > 0) {
-                            addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock);
-                        } else {
-                            toastWarning('Product out of stock!');
-                        }
-                    } else {
-                        toastError('Product not found!');
-                    }
-                })
-                .catch(() => {
-                    toastError('Product not found!');
-                });
-            document.getElementById('barcode-input').value = '';
+        const input = document.getElementById('barcode-input');
+        const barcode = input.value.trim();
+        input.value = '';
+        if (!barcode || barcodeScanInFlight) return;
+
+        const now = Date.now();
+        if (barcode === lastScannedBarcode && (now - lastScanTime) < SCAN_DUPLICATE_COOLDOWN_MS) {
+            return;
         }
+        lastScannedBarcode = barcode;
+        lastScanTime = now;
+        barcodeScanInFlight = true;
+
+        fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.product) {
+                    const stock = data.product.inventory?.Quantity || 0;
+                    if (stock > 0) {
+                        addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock);
+                    } else {
+                        toastWarning('Product out of stock!');
+                    }
+                } else {
+                    toastError('Product not found!');
+                }
+            })
+            .catch(() => {
+                toastError('Could not reach the server. Please try again.');
+            })
+            .finally(() => {
+                barcodeScanInFlight = false;
+                // Return focus to the scan field so the next scan (manual
+                // click-away aside) is picked up immediately — matters most
+                // for scanning several items back-to-back.
+                input.focus();
+            });
     }
 
     function searchProducts() {
