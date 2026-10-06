@@ -26,5 +26,8 @@ Thumbs.db
 # Local debug script - hardcodes local DB name and dumps user data
 /scripts/check_user.php
 
+# Generated local exports (e.g. the product barcode catalog) - not source
+/output
+
 # Claude Code local permission settings (machine-specific)
 /.claude/settings.local.json
