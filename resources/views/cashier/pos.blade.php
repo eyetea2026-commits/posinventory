@@ -503,14 +503,18 @@
     // dongle — all three present to the browser as a plain keyboard, so no
     // scanner-specific API is needed: the device "types" the barcode into
     // whichever field has focus, then sends a trailing Enter).
-    let barcodeScanInFlight = false;
     let lastScannedBarcode = '';
     let lastScanTime = 0;
-    // Guards against the exact same scan firing twice in quick succession
-    // (a double-read some scanners/triggers are prone to, or a cashier
-    // double-tapping Enter) adding an unintended extra unit to the cart.
-    // A different item scanned moments later is never blocked by this.
-    const SCAN_DUPLICATE_COOLDOWN_MS = 1200;
+    // Catches only a single physical scan firing twice almost
+    // instantaneously (a known quirk of some scanners/triggers, or a
+    // double-tapped Enter) — this is NOT a cooldown on intentionally
+    // rescanning the same product. Scanning the same barcode again after
+    // this window must increase its quantity again (each scan = +1), and
+    // a different barcode scanned in the meantime is never affected by
+    // this check at all — there is deliberately no "request in flight"
+    // lock here, since that would incorrectly delay two different items
+    // scanned back-to-back.
+    const SCAN_DUPLICATE_WINDOW_MS = 400;
 
     function handleBarcode(event) {
         // Most scanners send a plain Enter as their trailing terminator,
@@ -527,16 +531,14 @@
     function scanBarcode() {
         const input = document.getElementById('barcode-input');
         const barcode = input.value.trim();
-        input.value = '';
-        if (!barcode || barcodeScanInFlight) return;
+        if (!barcode) return;
 
         const now = Date.now();
-        if (barcode === lastScannedBarcode && (now - lastScanTime) < SCAN_DUPLICATE_COOLDOWN_MS) {
+        if (barcode === lastScannedBarcode && (now - lastScanTime) < SCAN_DUPLICATE_WINDOW_MS) {
             return;
         }
         lastScannedBarcode = barcode;
         lastScanTime = now;
-        barcodeScanInFlight = true;
 
         fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`)
             .then(response => response.json())
@@ -544,19 +546,31 @@
                 if (data && data.product) {
                     const stock = data.product.inventory?.Quantity || 0;
                     if (stock > 0) {
+                        // Found and in stock: addToCart() already finds the
+                        // existing cart line for this product and increments
+                        // its qty instead of pushing a new one, so repeated
+                        // scans of the same item just keep adding +1 — clear
+                        // the field so it's ready for the next scan.
                         addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock);
+                        input.value = '';
                     } else {
                         toastWarning('Product out of stock!');
+                        input.select();
                     }
                 } else {
-                    toastError('Product not found!');
+                    // Nothing is added to the cart. Leave the scanned value
+                    // in the field (selected, not cleared) so the cashier
+                    // can read/correct it — the next scan's keystrokes
+                    // replace the selected text automatically.
+                    toastError('Product Not Found. This barcode is not registered in the system.');
+                    input.select();
                 }
             })
             .catch(() => {
                 toastError('Could not reach the server. Please try again.');
+                input.select();
             })
             .finally(() => {
-                barcodeScanInFlight = false;
                 // Return focus to the scan field so the next scan (manual
                 // click-away aside) is picked up immediately — matters most
                 // for scanning several items back-to-back.
