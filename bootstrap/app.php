@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\PreventBackHistory;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,13 +15,19 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+            'role' => EnsureUserHasRole::class,
         ]);
 
         // One login page for the whole system (see AuthController) — every
         // unauthenticated guest lands there regardless of which area they
         // were trying to reach.
         $middleware->redirectGuestsTo(fn () => route('welcome'));
+
+        // No page is ever kept in the browser's cache, so Back after logout
+        // can't redisplay a signed-in page (see PreventBackHistory).
+        $middleware->web(append: [
+            PreventBackHistory::class,
+        ]);
 
         // The "Was this you?" security email's Yes/No buttons must work for
         // a signed-out visitor (no CSRF token available at all), so these

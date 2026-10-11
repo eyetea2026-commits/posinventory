@@ -700,5 +700,6 @@
             .lv2-heading h1 { font-size: 1.4rem; }
         }
     </style>
+@include('partials.session-guard')
 </body>
 </html>

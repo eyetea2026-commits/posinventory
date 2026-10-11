@@ -854,7 +854,14 @@ class DiscountModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
 
         $response->assertOk();
-        $response->assertDontSee('window.location.reload();', false);
+        // Scoped to the Save Promo handler itself: the page-wide session
+        // guard legitimately reloads a page restored by the Back button.
+        $html = $response->getContent();
+        $start = strpos($html, "document.getElementById('addDiscountSubmitBtn').addEventListener");
+        $this->assertNotFalse($start, 'Save Promo handler not found');
+        $end = strpos($html, '// ---- Edit', $start) ?: strpos($html, 'editDiscountModal', $start);
+        $handler = substr($html, $start, ($end ?: $start + 4000) - $start);
+        $this->assertStringNotContainsString('location.reload', $handler);
     }
 
     // A promo not yet assigned to any product doesn't count as "currently

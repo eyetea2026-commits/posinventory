@@ -24,12 +24,24 @@ use App\Http\Controllers\Cashier\CashierReturnController;
 use App\Http\Controllers\DashboardController;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 // The one sign-in entry point for the whole system — see AuthController for
 // why this replaced separate admin/cashier login forms and a portal-picker
 // landing page.
 Route::get('/', [AuthController::class, 'showLogin'])->name('welcome');
+
+// Polled by every page only when it's shown again (tab refocused, restored
+// from Back, or another tab signed in/out) -- never on a timer, so an
+// unattended screen still times out normally. Says only whether this browser
+// is signed in, and as which user id, so a page can leave if that changed.
+Route::get('/session/status', function () {
+    return response()->json([
+        'authenticated' => Auth::check(),
+        'user_id' => Auth::id(),
+    ]);
+})->name('session.status')->middleware('throttle:120,1');
 // throttle:15,1 is an outer safety net only — the real brute-force defense is
 // AuthController's own per-username RateLimiter (5 attempts/60s, with a
 // friendly "too many attempts" message). This route limit used to be 6/min,
@@ -37,16 +49,6 @@ Route::get('/', [AuthController::class, 'showLogin'])->name('welcome');
 // couple of wrong-password attempts) could trip Laravel's raw, unstyled 429
 // page before the friendly per-account lockout ever kicked in.
 Route::post('/login', [AuthController::class, 'login'])->name('login.post')->middleware('throttle:15,1');
-
-// Live role badge on the login form — an explicit, informed tradeoff: it
-// discloses whether a typed username is a recognized Admin/Cashier account,
-// re-opening a small username-enumeration surface the rest of the auth
-// hardening otherwise closes. Rate limited to keep bulk probing slow, but
-// generous enough that normal typing (including corrections) of a single
-// username doesn't trip it — the client also only queries at 3+ characters
-// and debounces, so legitimate use stays well under this. Do not reuse this
-// for the forgot-password flow — /check-user-role below stays deliberately
-// generic for that purpose.
 
 // AJAX route to check user role for password reset eligibility. Deliberately
 // unauthenticated — it's called from the pre-login "forgot password" screen,
