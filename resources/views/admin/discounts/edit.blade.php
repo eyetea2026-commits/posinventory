@@ -70,6 +70,7 @@
 
 <script>
     const form = document.getElementById('discountForm');
+    window.attachPromoDuplicateCheck(form, {{ $discount->DiscountID }});
     const submitBtn = document.getElementById('submitBtn');
     let formChanged = false;
 

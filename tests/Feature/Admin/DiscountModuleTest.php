@@ -96,6 +96,86 @@ class DiscountModuleTest extends TestCase
         $response->assertSessionHasErrors('EndDate');
     }
 
+    // ---- Promo names must be unique too (case-insensitive) ----
+
+    public function test_store_rejects_a_duplicate_promo_name_ignoring_case_and_spaces(): void
+    {
+        Discount::create($this->basePromoPayload(['Name' => 'Summer Sale', 'PromoCode' => 'SUMMER20']));
+
+        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
+            'Name' => '  summer SALE ', 'PromoCode' => 'OTHERCODE',
+        ]));
+
+        $response->assertSessionHasErrors(['Name' => 'This promo name is already in use.']);
+        $this->assertSame(1, Discount::count());
+    }
+
+    public function test_updating_a_promo_without_changing_its_name_is_allowed(): void
+    {
+        $discount = Discount::create($this->basePromoPayload(['Name' => 'Summer Sale']));
+
+        $response = $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload([
+            'Name' => 'Summer Sale', 'DiscountRate' => 30,
+        ]));
+
+        $response->assertRedirect(route('admin.discounts.index'));
+        $this->assertEquals(30, (float) $discount->fresh()->DiscountRate);
+    }
+
+    public function test_renaming_a_promo_to_another_promos_name_is_rejected(): void
+    {
+        Discount::create($this->basePromoPayload(['Name' => 'Summer Sale', 'PromoCode' => 'SUMMER20']));
+        $other = Discount::create($this->basePromoPayload(['Name' => 'Rainy Days', 'PromoCode' => 'RAIN10']));
+
+        $response = $this->actingAs($this->admin)->put(route('admin.discounts.update', $other), $this->basePromoPayload([
+            'Name' => 'Summer Sale', 'PromoCode' => 'RAIN10',
+        ]));
+
+        $response->assertSessionHasErrors('Name');
+        $this->assertSame('Rainy Days', $other->fresh()->Name);
+    }
+
+    public function test_a_deleted_promos_name_can_be_reused(): void
+    {
+        Discount::create($this->basePromoPayload(['Name' => 'Summer Sale', 'PromoCode' => 'OLD20']))->delete();
+
+        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
+            'Name' => 'Summer Sale', 'PromoCode' => 'NEW20',
+        ]));
+
+        $response->assertRedirect(route('admin.discounts.index'));
+        $this->assertDatabaseHas('Discount', ['PromoCode' => 'NEW20', 'deleted_at' => null]);
+    }
+
+    public function test_live_check_reports_a_taken_name_but_not_the_promos_own(): void
+    {
+        $discount = Discount::create($this->basePromoPayload(['Name' => 'Summer Sale']));
+
+        $this->actingAs($this->admin)->postJson(route('admin.discounts.check-promo-code'), ['Name' => 'SUMMER sale'])
+            ->assertOk()->assertJson(['name' => true]);
+
+        $this->actingAs($this->admin)->postJson(route('admin.discounts.check-promo-code'), [
+            'Name' => 'Summer Sale', 'exclude_id' => $discount->DiscountID,
+        ])->assertOk()->assertJson(['name' => false]);
+
+        $this->actingAs($this->admin)->postJson(route('admin.discounts.check-promo-code'), ['Name' => 'Brand New Promo'])
+            ->assertOk()->assertJson(['name' => false]);
+    }
+
+    public function test_every_promo_form_wires_up_the_live_duplicate_check(): void
+    {
+        $discount = Discount::create($this->basePromoPayload());
+
+        $index = $this->actingAs($this->admin)->get(route('admin.discounts.index'))->assertOk();
+        $index->assertSee("window.attachPromoDuplicateCheck(document.getElementById('addDiscountForm'), null);", false);
+        $index->assertSee('window.attachPromoDuplicateCheck(form, discountId);', false);
+
+        $this->actingAs($this->admin)->get(route('admin.discounts.create'))
+            ->assertOk()->assertSee('window.attachPromoDuplicateCheck(form, null);', false);
+        $this->actingAs($this->admin)->get(route('admin.discounts.edit', $discount))
+            ->assertOk()->assertSee('window.attachPromoDuplicateCheck(form, '.$discount->DiscountID.');', false);
+    }
+
     // 100% is allowed (the item becomes free) -- the form warns before
     // saving it, but the server must still accept it.
     public function test_a_100_percent_promo_can_be_saved(): void

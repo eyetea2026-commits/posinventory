@@ -92,4 +92,61 @@
             return baseOptions;
         };
     }
+
+    // Live "already in use" check for Promo Name and Promo Code while
+    // typing. Purely a heads-up: DiscountController::validatePromo() is the
+    // real enforcement on save. Call once per form after its fields exist
+    // (the Edit modal's fields arrive by AJAX, so it calls this after
+    // injecting them); pass the promo's own ID when editing so it doesn't
+    // flag itself.
+    if (!window.attachPromoDuplicateCheck) {
+        window.attachPromoDuplicateCheck = function (form, excludeId) {
+            if (!form) return;
+            var checks = [
+                { field: 'Name', key: 'name', message: 'This promo name is already in use.' },
+                { field: 'PromoCode', key: 'promo_code', message: 'This promo code is already in use.' },
+            ];
+
+            checks.forEach(function (check) {
+                var input = form.querySelector('[name="' + check.field + '"]');
+                var errorEl = form.querySelector('#error-' + check.field);
+                if (!input || !errorEl) return;
+                var timer = null;
+
+                input.addEventListener('input', function () {
+                    clearTimeout(timer);
+                    var value = input.value.trim();
+                    // Only ever clear a message this check set itself, never
+                    // a server validation error shown after a save attempt.
+                    if (errorEl.dataset.liveDuplicate === '1') {
+                        errorEl.textContent = '';
+                        errorEl.dataset.liveDuplicate = '';
+                    }
+                    if (!value) return;
+
+                    timer = setTimeout(function () {
+                        var body = new FormData();
+                        body.append(check.field, value);
+                        if (excludeId) body.append('exclude_id', excludeId);
+
+                        fetch('{{ route('admin.discounts.check-promo-code') }}', {
+                            method: 'POST',
+                            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            body: body,
+                        })
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                // Ignore a stale reply if the field changed meanwhile.
+                                if (input.value.trim() !== value) return;
+                                if (data[check.key]) {
+                                    errorEl.textContent = check.message;
+                                    errorEl.dataset.liveDuplicate = '1';
+                                }
+                            })
+                            .catch(function () { /* non-fatal: save-time validation still applies */ });
+                    }, 350);
+                });
+            });
+        };
+    }
 </script>

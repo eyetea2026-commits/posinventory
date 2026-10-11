@@ -215,13 +215,36 @@ class DiscountController extends Controller
     public function checkPromoCode(Request $request)
     {
         $code = strtoupper(trim((string) $request->input('PromoCode', '')));
+        $name = (string) $request->input('Name', '');
         $excludeId = $request->input('exclude_id');
 
         $taken = $code !== '' && Discount::where('PromoCode', $code)
             ->when($excludeId, fn ($q) => $q->where('DiscountID', '!=', $excludeId))
             ->exists();
 
-        return response()->json(['promo_code' => $taken, 'promo_code_value' => $request->input('PromoCode', '')]);
+        return response()->json([
+            'promo_code' => $taken,
+            'promo_code_value' => $request->input('PromoCode', ''),
+            'name' => self::promoNameTaken($name, $excludeId ? (int) $excludeId : null),
+            'name_value' => $name,
+        ]);
+    }
+
+    /**
+     * Case-insensitive, whitespace-trimmed name match against every promo
+     * that hasn't been deleted (soft-deleted promos are excluded by the
+     * model), optionally ignoring the promo being edited.
+     */
+    private static function promoNameTaken(string $name, ?int $excludeDiscountId = null): bool
+    {
+        $normalized = mb_strtolower(trim($name));
+        if ($normalized === '') {
+            return false;
+        }
+
+        return Discount::whereRaw('LOWER(TRIM(Name)) = ?', [$normalized])
+            ->when($excludeDiscountId, fn ($q) => $q->where('DiscountID', '!=', $excludeDiscountId))
+            ->exists();
     }
 
     // Store new promo code — Tab 1 only defines the promo itself, no
@@ -517,7 +540,14 @@ class DiscountController extends Controller
         return $request->validate([
             'DiscountRate' => ['required', 'numeric', 'min:1', 'max:100'],
             'DiscountType' => ['required', Rule::in([Discount::TYPE_PERCENTAGE])],
-            'Name' => ['required', 'string', 'max:100'],
+            'Name' => [
+                'required', 'string', 'max:100',
+                function (string $attribute, mixed $value, \Closure $fail) use ($discountId) {
+                    if (self::promoNameTaken((string) $value, $discountId)) {
+                        $fail('This promo name is already in use.');
+                    }
+                },
+            ],
             'PromoCode' => [
                 'required', 'string', 'max:30', 'regex:/^[A-Z0-9\-]+$/',
                 Rule::unique('Discount', 'PromoCode')->ignore($discountId, 'DiscountID')->whereNull('deleted_at'),

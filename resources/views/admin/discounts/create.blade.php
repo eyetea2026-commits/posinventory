@@ -69,6 +69,7 @@
 
 <script>
     const form = document.getElementById('discountForm');
+    window.attachPromoDuplicateCheck(form, null);
     const submitBtn = document.getElementById('submitBtn');
     let formChanged = false;
 

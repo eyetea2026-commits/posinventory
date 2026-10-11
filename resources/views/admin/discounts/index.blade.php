@@ -1135,6 +1135,7 @@
         if (e.target === this && !addDiscountIsSubmitting()) closeAddDiscountModal();
     });
     document.getElementById('addDiscountForm').addEventListener('submit', function (e) { e.preventDefault(); });
+    window.attachPromoDuplicateCheck(document.getElementById('addDiscountForm'), null);
     document.getElementById('addDiscountCancelBtn').addEventListener('click', function () { closeAddDiscountModal(); });
 
     document.getElementById('addDiscountSubmitBtn').addEventListener('click', function () {
@@ -1258,6 +1259,7 @@
             .then(function (data) {
                 form.innerHTML = data.html;
                 form.insertAdjacentHTML('beforeend', '<input type="hidden" name="_method" value="PUT">');
+                window.attachPromoDuplicateCheck(form, discountId);
                 const firstField = form.querySelector('input, textarea, select');
                 if (firstField) firstField.focus();
             })
