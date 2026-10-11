@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DamageController;
@@ -144,6 +145,10 @@ Route::prefix('admin')->group(function () {
         ->middleware(['auth', 'role:admin']);
     Route::get('users/{user}', [UserController::class, 'show'])
         ->name('admin.users.show')
+        ->middleware(['auth', 'role:admin']);
+
+    Route::get('activity-logs', [ActivityLogController::class, 'index'])
+        ->name('admin.activity-logs.index')
         ->middleware(['auth', 'role:admin']);
 
     Route::get('products', [ProductController::class, 'index'])

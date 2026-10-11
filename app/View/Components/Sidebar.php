@@ -37,6 +37,7 @@ class Sidebar extends Component
                 'label' => 'User Management',
                 'items' => [
                     ['label' => 'User Management', 'route' => 'admin.users.index', 'pattern' => 'admin.users.*', 'icon' => 'users'],
+                    ['label' => 'Activity Log', 'route' => 'admin.activity-logs.index', 'pattern' => 'admin.activity-logs.*', 'icon' => 'history'],
                 ],
             ],
             [
