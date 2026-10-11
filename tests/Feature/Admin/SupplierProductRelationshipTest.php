@@ -122,6 +122,86 @@ class SupplierProductRelationshipTest extends TestCase
         $this->assertDatabaseCount('ProductSupplier', 1);
     }
 
+    public function test_storing_a_product_with_suppliers_links_them_and_logs_cost_history(): void
+    {
+        $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.products.store'), [
+            'ProductName' => 'New Switch', 'Model' => 'SW-001', 'Barcode' => 'BARCODE-SW-001',
+            'CostPrice' => 500, 'CategoryID' => $category->CategoryID,
+            'Suppliers' => [
+                ['SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 480],
+                ['SupplierID' => $this->supplierB->SupplierID, 'CostPrice' => 495],
+            ],
+        ]);
+
+        $response->assertRedirect(route('admin.products.index'));
+        $product = Product::where('ProductName', 'New Switch')->first();
+
+        $this->assertDatabaseHas('ProductSupplier', [
+            'ProductID' => $product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 480,
+        ]);
+        $this->assertDatabaseHas('ProductSupplier', [
+            'ProductID' => $product->ProductID, 'SupplierID' => $this->supplierB->SupplierID, 'CostPrice' => 495,
+        ]);
+        $this->assertDatabaseHas('ProductCostHistory', [
+            'ProductID' => $product->ProductID, 'SupplierID' => $this->supplierA->SupplierID,
+            'NewCostPrice' => 480, 'Source' => ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE,
+        ]);
+    }
+
+    public function test_storing_a_product_deduplicates_repeated_supplier_entries(): void
+    {
+        $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.products.store'), [
+            'ProductName' => 'Dup Switch', 'Model' => 'SW-002', 'Barcode' => 'BARCODE-SW-002',
+            'CostPrice' => 500, 'CategoryID' => $category->CategoryID,
+            'Suppliers' => [
+                ['SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 480],
+                ['SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 490],
+            ],
+        ]);
+
+        $response->assertRedirect(route('admin.products.index'));
+        $product = Product::where('ProductName', 'Dup Switch')->first();
+
+        $this->assertDatabaseCount('ProductSupplier', 1);
+        $this->assertDatabaseHas('ProductSupplier', [
+            'ProductID' => $product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 480,
+        ]);
+    }
+
+    public function test_storing_a_product_rejects_an_invalid_supplier_id(): void
+    {
+        $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.products.store'), [
+            'ProductName' => 'Bad Supplier Switch', 'Model' => 'SW-003', 'Barcode' => 'BARCODE-SW-003',
+            'CostPrice' => 500, 'CategoryID' => $category->CategoryID,
+            'Suppliers' => [
+                ['SupplierID' => 999999, 'CostPrice' => 480],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('Suppliers.0.SupplierID');
+        $this->assertDatabaseMissing('Product', ['ProductName' => 'Bad Supplier Switch']);
+    }
+
+    public function test_storing_a_product_without_suppliers_still_succeeds(): void
+    {
+        $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.products.store'), [
+            'ProductName' => 'No Supplier Switch', 'Model' => 'SW-004', 'Barcode' => 'BARCODE-SW-004',
+            'CostPrice' => 500, 'CategoryID' => $category->CategoryID,
+        ]);
+
+        $response->assertRedirect(route('admin.products.index'));
+        $product = Product::where('ProductName', 'No Supplier Switch')->first();
+        $this->assertDatabaseMissing('ProductSupplier', ['ProductID' => $product->ProductID]);
+    }
+
     public function test_supplier_history_page_renders_transaction_history_only(): void
     {
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 500]);

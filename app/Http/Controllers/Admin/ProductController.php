@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductCostHistory;
+use App\Models\ProductSupplier;
 use App\Models\User;
 use App\Notifications\ProductUpdated;
 use Illuminate\Http\Request;
@@ -200,6 +201,15 @@ class ProductController extends Controller
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
+            // A supplier can't be linked before the Product exists, so the
+            // Add Product form's "Suppliers for this Product" panel just
+            // collects {SupplierID, CostPrice} pairs client-side and submits
+            // them alongside the product — linked here in the same request
+            // instead of the immediate per-supplier AJAX calls the Edit form
+            // uses (ProductSupplierController::store()).
+            'Suppliers' => ['nullable', 'array'],
+            'Suppliers.*.SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
+            'Suppliers.*.CostPrice' => ['required', 'numeric', 'min:0'],
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
@@ -254,28 +264,53 @@ class ProductController extends Controller
             (int) ($data['ReorderThreshold'] ?? 50)
         )['label'];
 
-        $product = Product::create([
-            'ProductName' => $data['ProductName'],
-            'Model' => $data['Model'],
-            'Description' => $data['Description'] ?? null,
-            'Barcode' => $data['Barcode'] ?? null,
-            'CostPrice' => $data['CostPrice'],
-            'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
-            'BrandID' => $brandId,
-            'CategoryID' => $data['CategoryID'],
-        ]);
+        $product = DB::transaction(function () use ($data, $brandId, $status) {
+            $product = Product::create([
+                'ProductName' => $data['ProductName'],
+                'Model' => $data['Model'],
+                'Description' => $data['Description'] ?? null,
+                'Barcode' => $data['Barcode'] ?? null,
+                'CostPrice' => $data['CostPrice'],
+                'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
+                'BrandID' => $brandId,
+                'CategoryID' => $data['CategoryID'],
+            ]);
 
-        // SKU is derived from the product's own ProductID, which only
-        // exists after the row above is inserted — set it in a follow-up
-        // update rather than the create() call.
-        $product->update(['SKU' => Product::generateSku($product->ProductID)]);
+            // SKU is derived from the product's own ProductID, which only
+            // exists after the row above is inserted — set it in a follow-up
+            // update rather than the create() call.
+            $product->update(['SKU' => Product::generateSku($product->ProductID)]);
 
-        Inventory::create([
-            'ProductID' => $product->ProductID,
-            'Quantity' => 0,
-            'ReorderThreshold' => $data['ReorderThreshold'] ?? 50,
-            'Status' => $status,
-        ]);
+            Inventory::create([
+                'ProductID' => $product->ProductID,
+                'Quantity' => 0,
+                'ReorderThreshold' => $data['ReorderThreshold'] ?? 50,
+                'Status' => $status,
+            ]);
+
+            // De-duplicate by SupplierID — the client already blocks adding
+            // the same supplier twice, but never trust that alone, and the
+            // (ProductID, SupplierID) unique index would otherwise reject a
+            // crafted duplicate mid-loop.
+            $seenSuppliers = [];
+            foreach ($data['Suppliers'] ?? [] as $supplierEntry) {
+                $supplierId = $supplierEntry['SupplierID'];
+                if (isset($seenSuppliers[$supplierId])) {
+                    continue;
+                }
+                $seenSuppliers[$supplierId] = true;
+
+                $productSupplier = ProductSupplier::create([
+                    'ProductID' => $product->ProductID,
+                    'SupplierID' => $supplierId,
+                    'CostPrice' => $supplierEntry['CostPrice'],
+                ]);
+
+                ProductCostHistory::log($product, $productSupplier->supplier, null, (float) $supplierEntry['CostPrice'], ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE);
+            }
+
+            return $product;
+        });
 
         ActivityLog::record('product.created', "Added product \"{$product->ProductName}\"");
 

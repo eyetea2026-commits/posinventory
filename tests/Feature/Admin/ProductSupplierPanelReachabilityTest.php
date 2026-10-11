@@ -15,9 +15,10 @@ use Tests\TestCase;
 // product-form-fields partial — the "Suppliers for this Product" panel used
 // to live only on the separate standalone edit page nothing links to
 // anymore, making it permanently unreachable. The panel now lives inside
-// product-form-fields.blade.php itself (gated to Edit mode), so both the
-// modal's AJAX response and the standalone page render it from the same
-// place.
+// product-form-fields.blade.php itself, rendering an AJAX (Edit mode) or
+// pending/client-side-only (Add mode) variant depending on whether a
+// product exists yet, so both the modal's AJAX response and the standalone
+// page render it from the same place.
 class ProductSupplierPanelReachabilityTest extends TestCase
 {
     use RefreshDatabase;
@@ -68,12 +69,21 @@ class ProductSupplierPanelReachabilityTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'id="productSuppliersBody"'));
     }
 
-    public function test_add_product_form_never_renders_the_suppliers_panel(): void
+    // The Add Product form now renders its own pending (client-side-only)
+    // variant of this panel, since a supplier can be chosen before the
+    // product exists — see the "Suppliers[][SupplierID]" handling in
+    // ProductController::store() and the matching JS in
+    // product-form-behavior.blade.php. It must never render the AJAX
+    // (Edit-mode) panel markup, since no ProductID exists yet to poll.
+    public function test_add_product_form_renders_the_pending_suppliers_panel_not_the_ajax_one(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.products.create'));
 
         $response->assertOk();
+        $response->assertSee('Suppliers for this Product');
+        $response->assertSee('id="pendingProductSuppliersBody"', false);
+        $response->assertSee('id="addProductSupplierBtn"', false);
+        $response->assertSee('Acme Supplies');
         $response->assertDontSee('id="productSuppliersBody"', false);
-        $response->assertDontSee('id="addProductSupplierBtn"', false);
     }
 }

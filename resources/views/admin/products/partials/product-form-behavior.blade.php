@@ -195,6 +195,103 @@ window.initProductAddForm = function (formId, options) {
         }
     }
 
+    // Add mode only: lets the admin attach suppliers (with a per-supplier
+    // Cost Price) to a product that doesn't exist yet. Held client-side as
+    // Suppliers[][SupplierID]/Suppliers[][CostPrice] hidden inputs and only
+    // actually linked once the whole Add Product form is submitted — see
+    // ProductController::store() and the matching Add Category "Brands[]"
+    // pattern this mirrors. No-ops entirely in Edit mode, where the
+    // #pendingProductSuppliersBody element this checks for doesn't exist —
+    // the AJAX supplier panel (window.initProductSuppliersPanel) takes over
+    // there instead.
+    var pendingSuppliersBody = form.querySelector('#pendingProductSuppliersBody');
+    var pendingSupplierError = form.querySelector('#pendingSupplierError');
+    var addSupplierBtn = form.querySelector('#addProductSupplierBtn');
+    var newSupplierIdSelect = form.querySelector('#newSupplierId');
+    var newSupplierCostInput = form.querySelector('#newSupplierCost');
+
+    if (pendingSuppliersBody && pendingSupplierError && addSupplierBtn && newSupplierIdSelect && newSupplierCostInput) {
+        var pendingSuppliers = [];
+
+        function renderPendingSuppliers() {
+            if (!pendingSuppliers.length) {
+                pendingSuppliersBody.innerHTML = '<tr class="pending-suppliers-empty-row"><td colspan="3" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>';
+                return;
+            }
+
+            pendingSuppliersBody.innerHTML = '';
+            pendingSuppliers.forEach(function (entry, index) {
+                var row = document.createElement('tr');
+
+                var supplierCell = document.createElement('td');
+                supplierCell.style.padding = '8px';
+                supplierCell.textContent = entry.name;
+                row.appendChild(supplierCell);
+
+                var costCell = document.createElement('td');
+                costCell.style.padding = '8px';
+                costCell.textContent = '₱' + parseFloat(entry.cost).toFixed(2);
+                row.appendChild(costCell);
+
+                var actionsCell = document.createElement('td');
+                actionsCell.style.padding = '8px';
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn btn-secondary';
+                removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                removeBtn.addEventListener('click', function () {
+                    pendingSuppliers.splice(index, 1);
+                    renderPendingSuppliers();
+                });
+                actionsCell.appendChild(removeBtn);
+                row.appendChild(actionsCell);
+
+                var supplierIdInput = document.createElement('input');
+                supplierIdInput.type = 'hidden';
+                supplierIdInput.name = 'Suppliers[][SupplierID]';
+                supplierIdInput.value = entry.supplierId;
+                row.appendChild(supplierIdInput);
+
+                var costInput = document.createElement('input');
+                costInput.type = 'hidden';
+                costInput.name = 'Suppliers[][CostPrice]';
+                costInput.value = entry.cost;
+                row.appendChild(costInput);
+
+                pendingSuppliersBody.appendChild(row);
+            });
+        }
+
+        addSupplierBtn.addEventListener('click', function () {
+            pendingSupplierError.style.display = 'none';
+
+            var supplierId = newSupplierIdSelect.value;
+            var selectedOption = newSupplierIdSelect.options[newSupplierIdSelect.selectedIndex];
+            var supplierName = selectedOption ? selectedOption.textContent : '';
+            var cost = newSupplierCostInput.value;
+
+            if (!supplierId || !cost) {
+                pendingSupplierError.textContent = 'Select a supplier and enter a cost price.';
+                pendingSupplierError.style.display = '';
+                return;
+            }
+
+            var existingEntry = pendingSuppliers.find(function (entry) {
+                return String(entry.supplierId) === String(supplierId);
+            });
+
+            if (existingEntry) {
+                existingEntry.cost = cost;
+            } else {
+                pendingSuppliers.push({ supplierId: supplierId, name: supplierName, cost: cost });
+            }
+
+            newSupplierIdSelect.value = '';
+            newSupplierCostInput.value = '';
+            renderPendingSuppliers();
+        });
+    }
+
     function currentMarginFraction() {
         var margin = parseFloat(profitMarginInput.value);
         return isNaN(margin) ? DEFAULT_PROFIT_MARGIN : (margin / 100);

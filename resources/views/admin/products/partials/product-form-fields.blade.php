@@ -132,19 +132,25 @@
     </div>
 </div>
 
-@if(isset($product))
-    {{-- Suppliers for this product: who supplies it, at what cost, and which
-         one is preferred (used by the auto-reorder flow to pick a supplier
-         automatically). Only shown in Edit mode — a product must exist
-         before a supplier can be linked to it. Wired up by
-         window.initProductSuppliersPanel() in product-form-behavior.blade.php,
-         called once this markup is actually in the DOM (see that file and
-         the Edit Product modal's openEditProductModal). --}}
-    <div class="card glass-card" style="margin-top: 24px;">
-        <div class="content-header" style="margin-bottom: 16px;">
-            <h1 style="font-size: 1.25rem;">Suppliers for this Product</h1>
-        </div>
+{{-- Suppliers for this product: who supplies it, at what cost, and which
+     one is preferred (used by the auto-reorder flow to pick a supplier
+     automatically).
+     Edit mode (a real ProductID exists): add/remove is an immediate AJAX
+     call, wired up by window.initProductSuppliersPanel() in
+     product-form-behavior.blade.php, called once this markup is actually in
+     the DOM (see that file and the Edit Product modal's openEditProductModal).
+     Add mode (no ProductID yet): a supplier can't be linked to a product
+     that doesn't exist, so chosen suppliers are held client-side as
+     "Suppliers[][SupplierID]"/"Suppliers[][CostPrice]" hidden inputs and are
+     only actually linked once the whole Add Product form is submitted (see
+     ProductController::store()) — same pattern as the Add Category form's
+     pending "Brands[]" list. --}}
+<div class="card glass-card" style="margin-top: 24px;">
+    <div class="content-header" style="margin-bottom: 16px;">
+        <h1 style="font-size: 1.25rem;">Suppliers for this Product</h1>
+    </div>
 
+    @if(isset($product))
         <table style="width:100%; border-collapse: collapse;" id="productSuppliersTable">
             <thead>
                 <tr style="text-align:left; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">
@@ -158,6 +164,21 @@
                 <tr><td colspan="4" style="padding:12px; color:#94a3b8;">Loading...</td></tr>
             </tbody>
         </table>
+    @else
+        <table style="width:100%; border-collapse: collapse;" id="pendingProductSuppliersTable">
+            <thead>
+                <tr style="text-align:left; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">
+                    <th style="padding:8px;">Supplier</th>
+                    <th style="padding:8px;">Cost Price</th>
+                    <th style="padding:8px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="pendingProductSuppliersBody">
+                <tr class="pending-suppliers-empty-row"><td colspan="3" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>
+            </tbody>
+        </table>
+        <span class="form-error" id="pendingSupplierError" style="display:none;"></span>
+    @endif
 
         <div class="form-grid" style="margin-top:20px; align-items:end;">
             <div class="form-group">
@@ -180,4 +201,3 @@
             </div>
         </div>
     </div>
-@endif
