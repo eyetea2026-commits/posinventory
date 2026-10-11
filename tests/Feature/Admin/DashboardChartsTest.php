@@ -14,6 +14,7 @@ use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 // Note: the dashboard's index() route can't be exercised end-to-end in this
@@ -181,6 +182,109 @@ class DashboardChartsTest extends TestCase
     // be exercised end-to-end here (see class-level note) — it's the same
     // private-method-under-test pattern, just without a live-polling route
     // to go through like buildInventoryQuantityChart()/buildCategorySalesChart() have.
+    // ---- Sales Analytics header: each toggle shows its CURRENT period ----
+
+    private function callPeriodStats(string $granularity): array
+    {
+        $controller = new DashboardController;
+        $method = new \ReflectionMethod($controller, 'periodStats');
+        $method->setAccessible(true);
+
+        return $method->invoke($controller, $granularity);
+    }
+
+    private function billOn(string $date, float $amount): void
+    {
+        Billing::create([
+            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => $amount,
+            'BillingDate' => $date,
+            'SalesTransactionID' => SalesTransaction::create([
+                'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => $date,
+                'StaffID' => $this->staffForBills()->StaffID,
+            ])->SalesTransactionID,
+        ]);
+    }
+
+    private ?Staff $billsStaff = null;
+
+    private function staffForBills(): Staff
+    {
+        if (! $this->billsStaff) {
+            $cashier = User::factory()->create(['role_id' => Role::firstOrCreate(['role_name' => 'cashier'])->id]);
+            $this->billsStaff = Staff::create([
+                'FirstName' => 'Test', 'MiddleName' => '-', 'LastName' => 'Cashier',
+                'ContactNumber' => '0000', 'Email' => 'bills@example.com', 'Age' => 30, 'Gender' => 'F',
+                'UserID' => $cashier->id,
+            ]);
+        }
+
+        return $this->billsStaff;
+    }
+
+    public function test_each_trend_toggle_reports_its_own_current_period(): void
+    {
+        // Wednesday, 2026-10-14. Week starts Monday 2026-10-12.
+        Carbon::setTestNow('2026-10-14 15:00:00');
+
+        $this->billOn('2026-10-14', 100);   // today
+        $this->billOn('2026-10-13', 200);   // this week, not today
+        $this->billOn('2026-10-02', 400);   // this month, not this week
+        $this->billOn('2026-03-10', 800);   // this year, not this month
+        $this->billOn('2025-12-31', 1600);  // last year only
+
+        $daily = $this->callPeriodStats('daily');
+        $weekly = $this->callPeriodStats('weekly');
+        $monthly = $this->callPeriodStats('monthly');
+        $yearly = $this->callPeriodStats('yearly');
+
+        $this->assertSame([1, 100.0], [$daily['invoiceCount'], $daily['revenueTotal']]);
+        $this->assertSame([2, 300.0], [$weekly['invoiceCount'], $weekly['revenueTotal']]);
+        $this->assertSame([3, 700.0], [$monthly['invoiceCount'], $monthly['revenueTotal']]);
+        $this->assertSame([4, 1500.0], [$yearly['invoiceCount'], $yearly['revenueTotal']]);
+
+        $this->assertSame('Today · Oct 14, 2026', $daily['periodLabel']);
+        $this->assertSame('This Week · Oct 12 – Oct 14, 2026', $weekly['periodLabel']);
+        $this->assertSame('This Month · October 2026', $monthly['periodLabel']);
+        $this->assertSame('This Year · 2026', $yearly['periodLabel']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_trend_change_badge_compares_against_the_previous_period(): void
+    {
+        Carbon::setTestNow('2026-10-14 15:00:00');
+
+        $this->billOn('2026-10-14', 150);   // today
+        $this->billOn('2026-10-13', 100);   // yesterday
+        $this->billOn('2025-06-01', 3000);  // last year
+
+        $this->assertSame(50.0, $this->callPeriodStats('daily')['changePct']);
+        $this->assertSame('vs yesterday', $this->callPeriodStats('daily')['compareLabel']);
+        $this->assertSame(-91.7, $this->callPeriodStats('yearly')['changePct']);
+        // No sales at all last month -> nothing to compare against.
+        $this->assertNull($this->callPeriodStats('monthly')['changePct']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_dashboard_renders_the_period_caption_and_updates_it_on_toggle(): void
+    {
+        $data = $this->baseViewData([
+            'salesTrend' => array_map(fn ($stats) => array_merge(['labels' => [], 'data' => [], 'compareLabels' => [], 'compareData' => []], $stats), [
+                'daily' => ['invoiceCount' => 1, 'revenueTotal' => 100, 'changePct' => null, 'periodLabel' => 'Today · Oct 14, 2026', 'compareLabel' => 'vs yesterday'],
+                'weekly' => ['invoiceCount' => 2, 'revenueTotal' => 300, 'changePct' => null, 'periodLabel' => 'This Week · Oct 12 – Oct 14, 2026', 'compareLabel' => 'vs last week'],
+                'monthly' => ['invoiceCount' => 3, 'revenueTotal' => 700, 'changePct' => null, 'periodLabel' => 'This Month · October 2026', 'compareLabel' => 'vs last month'],
+                'yearly' => ['invoiceCount' => 4, 'revenueTotal' => 1500, 'changePct' => null, 'periodLabel' => 'This Year · 2026', 'compareLabel' => 'vs last year'],
+            ]),
+        ]);
+
+        $this->actingAs($this->admin);
+        $html = view('admin.dashboard', $data)->render();
+
+        $this->assertStringContainsString('id="salesTrendPeriod">Today · Oct 14, 2026<', $html);
+        $this->assertStringContainsString('periodEl.textContent = range.periodLabel', $html);
+    }
+
     private function callBuildProductRankings(): array
     {
         $controller = new DashboardController;

@@ -230,6 +230,13 @@
             line-height: 1.1;
         }
 
+        .sales-trend-period {
+            margin-top: 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
         .sales-trend-stat-label {
             display: flex;
             align-items: center;
@@ -775,6 +782,7 @@
             @endphp
             <div class="chart-card sales-trend-card">
                 <div class="sales-trend-header">
+                    <div>
                     <div class="sales-trend-stats">
                         <div class="sales-trend-stat">
                             <div class="sales-trend-stat-value" id="salesTrendInvoices">{{ number_format($trendDaily['invoiceCount'] ?? 0) }}</div>
@@ -784,7 +792,7 @@
                             <div class="sales-trend-stat-value" id="salesTrendRevenue">₱{{ number_format($trendDaily['revenueTotal'] ?? 0, 2) }}</div>
                             <div class="sales-trend-stat-label">
                                 Revenue
-                                <span id="salesTrendChangeBadge" class="stat-trend {{ is_null($trendChangePct) ? 'new' : ($trendChangePct >= 0 ? 'up' : 'down') }}">
+                                <span id="salesTrendChangeBadge" class="stat-trend {{ is_null($trendChangePct) ? 'new' : ($trendChangePct >= 0 ? 'up' : 'down') }}" title="{{ $trendDaily['compareLabel'] ?? '' }}">
                                     @if(is_null($trendChangePct))
                                         <i class="fas fa-sparkles"></i> New
                                     @elseif($trendChangePct >= 0)
@@ -795,6 +803,10 @@
                                 </span>
                             </div>
                         </div>
+                    </div>
+                    {{-- Which period the two numbers above cover; updated by
+                         the Daily/Weekly/Monthly/Yearly toggle. --}}
+                    <div class="sales-trend-period" id="salesTrendPeriod">{{ $trendDaily['periodLabel'] ?? '' }}</div>
                     </div>
                     <div class="chart-toggle-group sales-trend-toggle" data-toggle="trend">
                         <button type="button" class="chart-toggle-btn active" data-range="daily">Daily</button>
@@ -1072,9 +1084,12 @@
             const invoicesEl = document.getElementById('salesTrendInvoices');
             const revenueEl = document.getElementById('salesTrendRevenue');
             const changeEl = document.getElementById('salesTrendChangeBadge');
+            const periodEl = document.getElementById('salesTrendPeriod');
 
             if (invoicesEl) invoicesEl.textContent = (range.invoiceCount ?? 0).toLocaleString('en-US');
             if (revenueEl) revenueEl.textContent = window.formatPeso(range.revenueTotal ?? 0);
+            if (periodEl) periodEl.textContent = range.periodLabel ?? '';
+            if (changeEl) changeEl.title = range.compareLabel ?? '';
 
             if (changeEl) {
                 const pct = range.changePct;

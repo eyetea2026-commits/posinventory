@@ -49,10 +49,10 @@ class DashboardController extends Controller
         // Sales trend — all four granularities pre-computed, gap-filled, so
         // the client can switch datasets with no server round-trip.
         $salesTrend = [
-            'daily' => $this->dailyTrend(14),
-            'weekly' => $this->weeklyTrend(8),
-            'monthly' => $this->monthlyTrend(12),
-            'yearly' => $this->yearlyTrend(5),
+            'daily' => array_merge($this->dailyTrend(14), $this->periodStats('daily')),
+            'weekly' => array_merge($this->weeklyTrend(8), $this->periodStats('weekly')),
+            'monthly' => array_merge($this->monthlyTrend(12), $this->periodStats('monthly')),
+            'yearly' => array_merge($this->yearlyTrend(5), $this->periodStats('yearly')),
         ];
 
         // Sales by category — top 6 by revenue, remainder folded into "Others"
@@ -446,20 +446,74 @@ class DashboardController extends Controller
      */
     private function assembleTrend(array $labels, array $data, array $compareLabels, array $compareData, $start, $end, $compareStart, $compareEnd): array
     {
-        $invoiceCount = Billing::whereBetween('BillingDate', [$start->toDateString(), $end->toDateString()])->count();
-        $revenueTotal = round(array_sum($data), 2);
-        $compareRevenueTotal = round(array_sum($compareData), 2);
-
         return [
             'labels' => $labels,
             'data' => $data,
             'compareLabels' => $compareLabels,
             'compareData' => $compareData,
-            'invoiceCount' => $invoiceCount,
-            'revenueTotal' => $revenueTotal,
-            'changePct' => $compareRevenueTotal > 0 ? round((($revenueTotal - $compareRevenueTotal) / $compareRevenueTotal) * 100, 1) : null,
             'currentRangeLabel' => $start->format('M j, Y').' - '.$end->format('M j, Y'),
             'compareRangeLabel' => $compareStart->format('M j, Y').' - '.$compareEnd->format('M j, Y'),
+        ];
+    }
+
+    /**
+     * The Transactions / Revenue numbers above the Sales Trend chart, for the
+     * CURRENT period of the selected toggle: Daily = today, Weekly = this
+     * week (Monday to today), Monthly = this month, Yearly = this year. The
+     * % badge compares against the whole previous period.
+     *
+     * These used to be totals over the chart's entire multi-period window
+     * (14 days / 8 weeks / 12 months / 5 years), so while every sale was
+     * recent all four toggles showed identical numbers.
+     *
+     * @return array{invoiceCount: int, revenueTotal: float, changePct: float|null, periodLabel: string, compareLabel: string}
+     */
+    private function periodStats(string $granularity): array
+    {
+        $today = today();
+
+        [$start, $previousStart, $previousEnd, $periodLabel, $compareLabel] = match ($granularity) {
+            'weekly' => [
+                $today->copy()->startOfWeek(),
+                $today->copy()->subWeek()->startOfWeek(),
+                $today->copy()->subWeek()->endOfWeek(),
+                'This Week · '.$today->copy()->startOfWeek()->format('M j').' – '.$today->format('M j, Y'),
+                'vs last week',
+            ],
+            'monthly' => [
+                $today->copy()->startOfMonth(),
+                $today->copy()->subMonthNoOverflow()->startOfMonth(),
+                $today->copy()->subMonthNoOverflow()->endOfMonth(),
+                'This Month · '.$today->format('F Y'),
+                'vs last month',
+            ],
+            'yearly' => [
+                $today->copy()->startOfYear(),
+                $today->copy()->subYear()->startOfYear(),
+                $today->copy()->subYear()->endOfYear(),
+                'This Year · '.$today->format('Y'),
+                'vs last year',
+            ],
+            default => [
+                $today->copy(),
+                $today->copy()->subDay(),
+                $today->copy()->subDay(),
+                'Today · '.$today->format('M j, Y'),
+                'vs yesterday',
+            ],
+        };
+
+        $current = Billing::whereBetween('BillingDate', [$start->toDateString(), $today->toDateString()]);
+        $invoiceCount = (clone $current)->count();
+        $revenueTotal = round((float) $current->sum('BillingAmount'), 2);
+        $previousRevenue = round((float) Billing::whereBetween('BillingDate', [$previousStart->toDateString(), $previousEnd->toDateString()])->sum('BillingAmount'), 2);
+
+        return [
+            'invoiceCount' => $invoiceCount,
+            'revenueTotal' => $revenueTotal,
+            'changePct' => $previousRevenue > 0 ? round((($revenueTotal - $previousRevenue) / $previousRevenue) * 100, 1) : null,
+            'periodLabel' => $periodLabel,
+            'compareLabel' => $compareLabel,
         ];
     }
 }
