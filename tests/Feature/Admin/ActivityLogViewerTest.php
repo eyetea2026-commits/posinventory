@@ -6,8 +6,12 @@ use App\Models\ActivityLog;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Tests\TestCase;
 
+// The Activity Log lives as a card in the dashboard's Operational Activity
+// section, below Recent Transactions. The card loads its rows over AJAX from
+// admin.activity-logs.index, with log_-prefixed filters.
 class ActivityLogViewerTest extends TestCase
 {
     use RefreshDatabase;
@@ -36,25 +40,33 @@ class ActivityLogViewerTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_view_the_activity_log_with_readable_labels(): void
+    private function cardHtml(array $filters = []): string
+    {
+        return $this->actingAs($this->admin)->getJson(route('admin.activity-logs.index', $filters))->assertOk()->json('html');
+    }
+
+    public function test_card_shows_entries_with_readable_labels_and_filter_options(): void
     {
         $this->log('purchase_order.approved', 'Approved PO-0001', $this->admin);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index'));
+        $response = $this->actingAs($this->admin)->getJson(route('admin.activity-logs.index'));
 
         $response->assertOk();
-        $response->assertSee('Approved PO-0001');
-        $response->assertSee('Purchase Orders');
-        $response->assertSee('Approved');
-        $response->assertSee('Ana Admin');
+        $html = $response->json('html');
+        $this->assertStringContainsString('Approved PO-0001', $html);
+        $this->assertStringContainsString('Purchase Orders', $html);
+        $this->assertStringContainsString('Approved', $html);
+        $this->assertStringContainsString('Ana Admin', $html);
+        $response->assertJsonPath('modules.purchase_order', 'Purchase Orders');
+        $response->assertJsonFragment(['id' => $this->admin->id, 'name' => 'Ana Admin']);
     }
 
-    public function test_cashier_cannot_view_the_activity_log(): void
+    public function test_cashier_cannot_read_the_activity_log(): void
     {
-        $response = $this->actingAs($this->cashier)->get(route('admin.activity-logs.index'));
+        $response = $this->actingAs($this->cashier)->getJson(route('admin.activity-logs.index'));
 
         $this->assertContains($response->status(), [302, 403]);
-        $response->assertDontSee('Activity Log');
+        $this->assertStringNotContainsString('Activity Log', (string) $response->getContent());
     }
 
     public function test_guest_is_redirected_away(): void
@@ -62,15 +74,21 @@ class ActivityLogViewerTest extends TestCase
         $this->get(route('admin.activity-logs.index'))->assertRedirect();
     }
 
+    public function test_the_old_page_address_now_opens_the_dashboard_card(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.activity-logs.index'))
+            ->assertRedirect(route('admin.dashboard').'#activity-log');
+    }
+
     public function test_search_filters_by_description(): void
     {
         $this->log('product.created', 'Added product "Dome Camera"', $this->admin);
         $this->log('product.created', 'Added product "Bullet Camera"', $this->admin);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index', ['search' => 'Dome']));
+        $html = $this->cardHtml(['log_search' => 'Dome']);
 
-        $response->assertSee('Dome Camera');
-        $response->assertDontSee('Bullet Camera');
+        $this->assertStringContainsString('Dome Camera', $html);
+        $this->assertStringNotContainsString('Bullet Camera', $html);
     }
 
     public function test_module_filter_matches_the_action_prefix_only(): void
@@ -78,10 +96,10 @@ class ActivityLogViewerTest extends TestCase
         $this->log('stock.adjusted', 'Adjusted stock row', $this->admin);
         $this->log('stock_receiving_batch.completed', 'Completed receiving batch', $this->admin);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index', ['module' => 'stock']));
+        $html = $this->cardHtml(['log_module' => 'stock']);
 
-        $response->assertSee('Adjusted stock row');
-        $response->assertDontSee('Completed receiving batch');
+        $this->assertStringContainsString('Adjusted stock row', $html);
+        $this->assertStringNotContainsString('Completed receiving batch', $html);
     }
 
     public function test_role_filter_isolates_admin_activity(): void
@@ -89,10 +107,10 @@ class ActivityLogViewerTest extends TestCase
         $this->log('user.updated', 'Admin edited a user', $this->admin);
         $this->log('return.requested', 'Cashier requested a refund', $this->cashier);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index', ['role' => 'admin']));
+        $html = $this->cardHtml(['log_role' => 'admin']);
 
-        $response->assertSee('Admin edited a user');
-        $response->assertDontSee('Cashier requested a refund');
+        $this->assertStringContainsString('Admin edited a user', $html);
+        $this->assertStringNotContainsString('Cashier requested a refund', $html);
     }
 
     public function test_user_filter_shows_only_that_users_actions(): void
@@ -100,10 +118,10 @@ class ActivityLogViewerTest extends TestCase
         $this->log('user.updated', 'Admin edited a user', $this->admin);
         $this->log('return.requested', 'Cashier requested a refund', $this->cashier);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index', ['user_id' => $this->cashier->id]));
+        $html = $this->cardHtml(['log_user' => $this->cashier->id]);
 
-        $response->assertSee('Cashier requested a refund');
-        $response->assertDontSee('Admin edited a user');
+        $this->assertStringContainsString('Cashier requested a refund', $html);
+        $this->assertStringNotContainsString('Admin edited a user', $html);
     }
 
     public function test_date_range_filter_is_inclusive(): void
@@ -111,55 +129,74 @@ class ActivityLogViewerTest extends TestCase
         $this->log('auth.login', 'Old login', $this->admin, '-10 days');
         $this->log('auth.login', 'Recent login', $this->admin, '-1 day');
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index', [
-            'date_from' => now()->subDays(2)->toDateString(),
-            'date_to' => now()->toDateString(),
-        ]));
+        $html = $this->cardHtml(['log_from' => now()->subDays(2)->toDateString(), 'log_to' => now()->toDateString()]);
 
-        $response->assertSee('Recent login');
-        $response->assertDontSee('Old login');
+        $this->assertStringContainsString('Recent login', $html);
+        $this->assertStringNotContainsString('Old login', $html);
     }
 
-    // A bad range must not 302 back to itself (a redirect loop when the bad
-    // query string IS the page) -- it renders, drops the bad bound, and says why.
-    public function test_inverted_date_range_renders_with_an_error_instead_of_redirecting(): void
+    public function test_inverted_date_range_drops_the_bad_bound_and_explains(): void
     {
         $this->log('auth.login', 'Some login', $this->admin);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index', [
-            'date_from' => now()->toDateString(),
-            'date_to' => now()->subDays(5)->toDateString(),
+        $response = $this->actingAs($this->admin)->getJson(route('admin.activity-logs.index', [
+            'log_from' => now()->toDateString(),
+            'log_to' => now()->subDays(5)->toDateString(),
         ]));
 
         $response->assertOk();
-        $response->assertSee('cannot be earlier than', false);
-        $response->assertSee('Some login');
+        $this->assertStringContainsString('cannot be earlier than', $response->json('filterError'));
+        $this->assertStringContainsString('Some login', $response->json('html'));
     }
 
     public function test_entries_without_a_user_show_as_system(): void
     {
         $this->log('auth.login_failed', 'Failed login for unknown username', null);
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index'));
-
-        $response->assertSee('System / Unknown');
+        $this->assertStringContainsString('System / Unknown', $this->cardHtml());
     }
 
-    public function test_newest_entries_are_listed_first(): void
+    public function test_newest_entries_are_listed_first_and_pages_use_log_page(): void
     {
         $this->log('auth.login', 'First entry', $this->admin, '-2 hours');
         $this->log('auth.login', 'Second entry', $this->admin, '-1 hour');
+        foreach (range(1, 10) as $i) {
+            $this->log('auth.login', "Filler {$i}", $this->admin, "-{$i} days");
+        }
 
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index'));
+        $html = $this->cardHtml();
 
-        $response->assertSeeInOrder(['Second entry', 'First entry']);
+        $this->assertLessThan(strpos($html, 'First entry'), strpos($html, 'Second entry'));
+        // Page links use their own parameter so they can't move the Recent
+        // Transactions table's pages on the same dashboard, and always point
+        // back at this endpoint.
+        $this->assertStringContainsString(route('admin.activity-logs.index').'?log_page=2', $html);
+        // Active filters are carried into the page links.
+        $this->assertStringContainsString('log_module=auth', $this->cardHtml(['log_module' => 'auth']));
     }
 
-    public function test_sidebar_links_to_the_activity_log(): void
+    public function test_dashboard_has_the_card_below_recent_transactions_and_no_sidebar_item(): void
     {
-        $response = $this->actingAs($this->admin)->get(route('admin.activity-logs.index'));
+        $this->actingAs($this->admin);
+        $html = view('admin.dashboard', [
+            'salesToday' => 0, 'salesChangePct' => null, 'transactionsToday' => 0,
+            'totalProducts' => 0, 'totalSuppliers' => 0,
+            'inventoryStatusChart' => ['byCategory' => ['labels' => [], 'data' => []], 'byProduct' => ['labels' => [], 'data' => []]],
+            'stockAlerts' => collect(),
+            'salesTrend' => ['daily' => ['labels' => [], 'data' => []], 'weekly' => ['labels' => [], 'data' => []], 'monthly' => ['labels' => [], 'data' => []], 'yearly' => ['labels' => [], 'data' => []]],
+            'categoryChart' => ['labels' => [], 'data' => []],
+            'topSelling' => collect(), 'leastSelling' => collect(),
+            'recentTransactions' => new LengthAwarePaginator(collect(), 0, 10),
+            'txnSearch' => null, 'txnSort' => 'date_desc',
+        ])->render();
 
-        $response->assertSee(route('admin.activity-logs.index'), false);
-        $response->assertSee('Activity Log');
+        $recent = strpos($html, '<h2 class="card-title">Recent Transactions</h2>');
+        $activity = strpos($html, '<h2 class="card-title">Activity Log</h2>');
+        $this->assertNotFalse($activity);
+        $this->assertGreaterThan($recent, $activity);
+        $this->assertStringContainsString('id="activityLogContainer"', $html);
+        $this->assertStringContainsString(route('admin.activity-logs.index'), $html);
+        // No longer a separate sidebar page.
+        $this->assertStringNotContainsString('<span>Activity Log</span>', $html);
     }
 }

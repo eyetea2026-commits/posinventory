@@ -402,6 +402,24 @@
         .card-body { padding: 24px; }
 
         .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 24px 0; flex-wrap: wrap; }
+        .activity-log-toolbar { justify-content: flex-start; gap: 10px; }
+        .activity-log-toolbar .search-box { flex: 1 1 260px; max-width: 340px; }
+        /* Explicit colors (matching the search box beside them): the shared
+           form-select/form-input styles get overridden to a light look on
+           this page. color-scheme: dark gives the date pickers a dark
+           calendar and a visible icon. */
+        .activity-log-toolbar .form-select,
+        .activity-log-toolbar .form-input {
+            width: auto; min-width: 140px; padding: 11px 14px; font-size: 0.85rem;
+            background-color: rgba(9, 16, 33, 0.88); color: #e2e8f0;
+            border: 1px solid rgba(148, 163, 184, 0.12); border-radius: 12px;
+            color-scheme: dark; outline: none;
+        }
+        .activity-log-toolbar .form-select:focus,
+        .activity-log-toolbar .form-input:focus { border-color: #3b82f6; }
+        .activity-log-toolbar .form-select { padding-right: 38px; }
+        .activity-log-toolbar .form-select option { background: #0f172a; color: #e2e8f0; }
+        .activity-log-error { margin: 12px 24px 0; color: #fca5a5; font-size: 0.85rem; }
 
         .table-container { overflow-x: auto; }
         .table { width: 100%; border-collapse: collapse; }
@@ -923,6 +941,39 @@
             </div>
             <div id="recentTransactionsContainer">
                 @include('admin.dashboard.partials.recent-transactions', ['recentTransactions' => $recentTransactions, 'txnSort' => $txnSort])
+            </div>
+        </div>
+    </div>
+
+    {{-- Activity Log: its own row so it sits below Recent Transactions
+         rather than beside it. Rows load over AJAX from
+         ActivityLogController::index(). --}}
+    <div class="charts-grid mt-4" id="activity-log">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">Activity Log</h2>
+                    <p class="card-subtitle">Monitor what admins and cashiers did across the system, and when</p>
+                </div>
+            </div>
+            <form class="toolbar activity-log-toolbar" id="activityLogFilters" autocomplete="off">
+                <div class="search-box">
+                    <i class="search-icon fas fa-search"></i>
+                    <input type="text" name="log_search" class="search-input" placeholder="Search activity descriptions..." maxlength="100">
+                </div>
+                <select name="log_module" class="form-select" aria-label="Module"><option value="">All Modules</option></select>
+                <select name="log_role" class="form-select" aria-label="Role">
+                    <option value="">All Roles</option>
+                    <option value="admin">Admin</option>
+                    <option value="cashier">Cashier</option>
+                </select>
+                <select name="log_user" class="form-select" aria-label="User"><option value="">All Users</option></select>
+                <input type="date" name="log_from" class="form-input" aria-label="From date" title="From date" max="{{ now()->toDateString() }}">
+                <input type="date" name="log_to" class="form-input" aria-label="To date" title="To date" max="{{ now()->toDateString() }}">
+            </form>
+            <p class="activity-log-error" id="activityLogError" style="display:none;"></p>
+            <div id="activityLogContainer">
+                <p class="text-center text-muted" style="padding: 24px;">Loading activity&hellip;</p>
             </div>
         </div>
     </div>
@@ -1640,6 +1691,85 @@
 
         bindRecentTransactionsLinks();
         initRecentTransactionsSearch();
+
+        // Activity Log card: loads after the page, then every filter change
+        // or page link re-fetches just this table (no page reload, no jump
+        // back to the top). The module/user dropdowns are filled from the
+        // first response.
+        (function () {
+            const form = document.getElementById('activityLogFilters');
+            const container = document.getElementById('activityLogContainer');
+            const errorEl = document.getElementById('activityLogError');
+            if (!form || !container) return;
+
+            const endpoint = '{{ route('admin.activity-logs.index') }}';
+            let optionsFilled = false;
+            let requestSeq = 0;
+
+            function fillSelect(select, options) {
+                const current = select.value;
+                options.forEach(function (opt) {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    select.appendChild(option);
+                });
+                select.value = current;
+            }
+
+            function load(url) {
+                const seq = ++requestSeq;
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (seq !== requestSeq) return; // a newer filter change won
+                        container.innerHTML = data.html;
+                        errorEl.textContent = data.filterError || '';
+                        errorEl.style.display = data.filterError ? '' : 'none';
+
+                        if (!optionsFilled) {
+                            optionsFilled = true;
+                            fillSelect(form.elements.log_module, Object.keys(data.modules || {}).map(function (key) {
+                                return { value: key, label: data.modules[key] };
+                            }));
+                            fillSelect(form.elements.log_user, (data.users || []).map(function (u) {
+                                return { value: u.id, label: u.name };
+                            }));
+                        }
+
+                        container.querySelectorAll('a.pagination-link[href]').forEach(function (link) {
+                            link.addEventListener('click', function (e) {
+                                e.preventDefault();
+                                load(this.getAttribute('href'));
+                            });
+                        });
+                    })
+                    .catch(function () {
+                        if (seq !== requestSeq) return;
+                        container.innerHTML = '<p class="text-center text-muted" style="padding: 24px;">Could not load the activity log. Please refresh the page.</p>';
+                    });
+            }
+
+            function applyFilters() {
+                const params = new URLSearchParams();
+                new FormData(form).forEach(function (value, key) {
+                    if (String(value).trim() !== '') params.set(key, String(value).trim());
+                });
+                load(endpoint + (params.toString() ? '?' + params.toString() : ''));
+            }
+
+            let debounceTimer = null;
+            form.addEventListener('submit', function (e) { e.preventDefault(); });
+            form.elements.log_search.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(applyFilters, 300);
+            });
+            form.querySelectorAll('select, input[type="date"]').forEach(function (field) {
+                field.addEventListener('change', applyFilters);
+            });
+
+            applyFilters();
+        })();
     })();
     </script>
 @endpush
