@@ -4,7 +4,11 @@
      made "Save Order" slow: fetch() used to follow the create redirect and
      scrape a full page render for this exact markup). Expects
      $purchaseOrders (a paginator or any Collection of PurchaseOrder with
-     supplier/items.product loaded). --}}
+     supplier/items.product loaded). Optional $isHistory switches the
+     actions/empty state for the History tab. --}}
+@php
+    $isHistory = $isHistory ?? false;
+@endphp
 @forelse($purchaseOrders as $order)
     <tr>
         <td>{{ $purchaseOrders->firstItem() + $loop->index }}</td>
@@ -31,6 +35,14 @@
                 <a href="#" class="action-btn view" title="View Details" onclick="openViewPurchaseOrderModal(event, {{ $order->PurchaseOrderID }})">
                     <i class="fas fa-eye"></i>
                 </a>
+                @if($isHistory)
+                    {{-- Safe to repeat: printPreview() only changes anything
+                         while a PO is still a Draft; for an already-printed PO
+                         it just re-renders the document. --}}
+                    <a href="{{ route('admin.purchase-orders.print', $order) }}" target="_blank" class="action-btn print" title="Reprint">
+                        <i class="fas fa-print"></i>
+                    </a>
+                @endif
             </div>
         </td>
     </tr>
@@ -38,9 +50,9 @@
     <tr>
         <td colspan="7">
             <div class="empty-state">
-                <div class="empty-icon"><i class="fas fa-shopping-cart"></i></div>
-                <p class="empty-title">No Purchase Orders</p>
-                <p class="empty-text">Purchase orders you create will appear here.</p>
+                <div class="empty-icon"><i class="fas {{ $isHistory ? 'fa-clock-rotate-left' : 'fa-shopping-cart' }}"></i></div>
+                <p class="empty-title">{{ $isHistory ? 'No Printed Orders Yet' : 'No Purchase Orders' }}</p>
+                <p class="empty-text">{{ $isHistory ? 'Purchase orders appear here once they have been printed and sent to Stock Receiving.' : 'Purchase orders you create will appear here.' }}</p>
             </div>
         </td>
     </tr>

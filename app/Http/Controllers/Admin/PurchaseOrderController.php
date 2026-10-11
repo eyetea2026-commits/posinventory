@@ -45,18 +45,26 @@ class PurchaseOrderController extends Controller
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
         $categoryId = $request->query('category_id');
+        // "history" = every PO that has been printed (sent to Stock
+        // Receiving), kept here read-only so it can still be viewed and
+        // reprinted. Anything else is the normal active list.
+        $isHistory = $request->query('view') === 'history';
 
-        $purchaseOrders = PurchaseOrder::with(['supplier', 'items.product'])
+        $purchaseOrders = PurchaseOrder::with(['supplier', 'items.product', 'stockReceivingBatch'])
             // Once a PO has been printed it's been sent into the Stock
-            // Receiving queue (see printPreview()) and belongs in that
-            // module's Pending/Completed tabs instead of here.
-            ->whereDoesntHave('stockReceivingBatch')
+            // Receiving queue (see printPreview()) and leaves the active
+            // list for the History tab.
+            ->when($isHistory, fn ($q) => $q->whereHas('stockReceivingBatch'), fn ($q) => $q->whereDoesntHave('stockReceivingBatch'))
             ->when($search, function ($query, $search) {
-                $query->where('PONumber', 'like', "%{$search}%")
-                    ->orWhere('Status', 'like', "%{$search}%")
-                    ->orWhereHas('supplier', function ($supplier) use ($search) {
-                        $supplier->where('SupplierName', 'like', "%{$search}%");
-                    });
+                // Grouped so the OR conditions can't escape the active/history
+                // scope above.
+                $query->where(function ($inner) use ($search) {
+                    $inner->where('PONumber', 'like', "%{$search}%")
+                        ->orWhere('Status', 'like', "%{$search}%")
+                        ->orWhereHas('supplier', function ($supplier) use ($search) {
+                            $supplier->where('SupplierName', 'like', "%{$search}%");
+                        });
+                });
             })
             ->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
@@ -75,6 +83,9 @@ class PurchaseOrderController extends Controller
 
         return view('admin.purchase-orders.index', [
             'purchaseOrders' => $purchaseOrders,
+            'isHistory' => $isHistory,
+            'activeCount' => PurchaseOrder::whereDoesntHave('stockReceivingBatch')->count(),
+            'historyCount' => PurchaseOrder::whereHas('stockReceivingBatch')->count(),
             'search' => $search,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,

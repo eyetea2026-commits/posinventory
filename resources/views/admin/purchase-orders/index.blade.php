@@ -68,9 +68,27 @@
         .items-total { text-align: right; margin-top: 14px; color: #f8fafc; font-size: 1rem; font-weight: 700; }
     </style>
 
+    {{-- Active = not yet printed. History = printed (sent to Stock
+         Receiving) orders, kept here read-only so they can still be viewed
+         and reprinted. Tab links carry the current filters across. --}}
+    @php
+        $tabFilters = array_filter(['search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'category_id' => $categoryId]);
+    @endphp
+    <div class="status-tabs" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+        <a href="{{ route('admin.purchase-orders.index', $tabFilters) }}" class="btn {{ $isHistory ? 'btn-secondary' : 'btn-primary' }}" style="text-decoration: none;">
+            <i class="fas fa-list"></i> Active Orders <span style="opacity: 0.75;">({{ $activeCount }})</span>
+        </a>
+        <a href="{{ route('admin.purchase-orders.index', array_merge($tabFilters, ['view' => 'history'])) }}" class="btn {{ $isHistory ? 'btn-primary' : 'btn-secondary' }}" style="text-decoration: none;">
+            <i class="fas fa-clock-rotate-left"></i> History <span style="opacity: 0.75;">({{ $historyCount }})</span>
+        </a>
+    </div>
+
     <div class="card">
         <div class="toolbar">
             <form method="GET" action="{{ route('admin.purchase-orders.index') }}" id="purchaseOrderFilterForm" style="display:flex; gap:10px; flex-wrap:wrap; flex:1;">
+                @if($isHistory)
+                    <input type="hidden" name="view" value="history">
+                @endif
                 <div class="search-box">
                     <i class="search-icon fas fa-search"></i>
                     <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search by PO number or keyword..." />

@@ -128,6 +128,78 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertSee($this->supplier->SupplierName);
     }
 
+    // ---- PO History tab: printed POs stay viewable and reprintable ----
+
+    private function makeSecondDraftOrder(): PurchaseOrder
+    {
+        $po = PurchaseOrder::create([
+            'PONumber' => 'PO-TEST-000002', 'PurchaseDate' => now()->format('Y-m-d'),
+            'Status' => PurchaseOrder::STATUS_DRAFT, 'SupplierID' => $this->supplier->SupplierID,
+            'CreatedBy' => $this->admin->id,
+        ]);
+        PurchaseOrderItem::create([
+            'PurchaseOrderID' => $po->PurchaseOrderID, 'ProductID' => $this->productA->ProductID,
+            'Quantity' => 5, 'CostPriceAtOrder' => 600,
+        ]);
+
+        return $po;
+    }
+
+    public function test_history_tab_lists_printed_pos_with_a_reprint_button(): void
+    {
+        $printed = $this->makeDraftOrder();
+        $draft = $this->makeSecondDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $printed));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['view' => 'history']));
+
+        $response->assertOk();
+        $response->assertSee($printed->PONumber);
+        $response->assertDontSee($draft->PONumber);
+        $response->assertSee(route('admin.purchase-orders.print', $printed), false);
+        $response->assertSee('title="Reprint"', false);
+    }
+
+    public function test_active_tab_has_no_reprint_button_and_shows_both_counts(): void
+    {
+        $printed = $this->makeDraftOrder();
+        $this->makeSecondDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $printed));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'));
+
+        $response->assertOk();
+        $response->assertDontSee('title="Reprint"', false);
+        $response->assertSee('Active Orders <span style="opacity: 0.75;">(1)</span>', false);
+        $response->assertSee('History <span style="opacity: 0.75;">(1)</span>', false);
+    }
+
+    public function test_reprinting_from_history_changes_nothing(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $statusAfterFirstPrint = $po->fresh()->Status;
+
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po))->assertOk();
+
+        $this->assertSame($statusAfterFirstPrint, $po->fresh()->Status);
+        $this->assertSame(1, StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->count());
+    }
+
+    // Regression: the search's OR conditions used to be ungrouped, so a
+    // supplier-name search could pull already-printed POs back into the
+    // active list.
+    public function test_searching_the_active_list_never_surfaces_a_printed_po(): void
+    {
+        $printed = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $printed));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['search' => $this->supplier->SupplierName]));
+
+        $response->assertOk();
+        $response->assertDontSee($printed->PONumber);
+    }
+
     public function test_printing_twice_does_not_create_a_second_batch(): void
     {
         $po = $this->makeDraftOrder();
