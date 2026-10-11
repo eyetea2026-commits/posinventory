@@ -144,6 +144,59 @@ class CashierScopingAndSearchTest extends TestCase
         $this->assertStringContainsString('View only', $rows);
     }
 
+    public function test_walk_in_customer_is_listed_as_na_like_the_receipt(): void
+    {
+        $this->makeTransactionFor($this->staff1, 'Walk-in Customer');
+        $this->makeTransactionFor($this->staff1, 'Narvaiz');
+
+        $rows = $this->actingAs($this->cashier1)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->get(route('cashier.transactions'))->json('rows');
+
+        $this->assertStringContainsString('<td>N/A</td>', $rows);
+        $this->assertStringContainsString('<td>Narvaiz</td>', $rows);
+        $this->assertStringNotContainsString('Walk-in Customer', $rows);
+    }
+
+    public function test_search_finds_a_receipt_number_in_any_common_format(): void
+    {
+        $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
+        $target = $this->makeTransactionFor($this->staff1, 'Maria Santos');
+        $receipt = 'RCT-'.str_pad($target->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        foreach ([$receipt, strtolower($receipt), 'rct-'.$target->SalesTransactionID, str_pad($target->SalesTransactionID, 6, '0', STR_PAD_LEFT), (string) $target->SalesTransactionID] as $term) {
+            $rows = $this->actingAs($this->cashier1)
+                ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+                ->get(route('cashier.transactions', ['search' => $term]))->json('rows');
+
+            $this->assertStringContainsString($receipt, $rows, "Search \"{$term}\" should find {$receipt}");
+            $this->assertStringNotContainsString('Juan Dela Cruz', $rows, "Search \"{$term}\" should match only {$receipt}");
+        }
+    }
+
+    public function test_receipt_search_still_respects_the_today_only_rule(): void
+    {
+        $old = SalesTransaction::create([
+            'CustomerName' => 'Old Customer', 'SalesTransactionDate' => now()->subDays(3), 'StaffID' => $this->staff1->StaffID,
+        ]);
+        $receipt = 'RCT-'.str_pad($old->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions', ['search' => $receipt]));
+
+        $this->assertSame(0, $response->viewData('transactions')->total());
+    }
+
+    public function test_searching_na_finds_walk_in_sales(): void
+    {
+        $this->makeTransactionFor($this->staff1, 'Walk-in Customer');
+        $this->makeTransactionFor($this->staff1, 'Narvaiz');
+
+        $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions', ['search' => 'N/A']));
+
+        $this->assertSame(1, $response->viewData('transactions')->total());
+        $this->assertSame('Walk-in Customer', $response->viewData('transactions')->first()->CustomerName);
+    }
+
     public function test_transactions_page_has_no_search_button_and_wires_up_live_search(): void
     {
         $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));

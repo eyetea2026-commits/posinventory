@@ -8,7 +8,10 @@
     <tr>
         <td><span class="receipt-number">RCT-{{ str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</span></td>
         <td>{{ \Carbon\Carbon::parse($transaction->SalesTransactionDate)->format('M d, Y h:i A') }}</td>
-        <td>{{ $transaction->CustomerName ?? 'Walk-in Customer' }}</td>
+        {{-- Display only, matching the receipt: a sale with no customer name
+             entered is stored as "Walk-in Customer" (unchanged in the
+             database, reports, etc.) but listed here as N/A. --}}
+        <td>{{ in_array($transaction->CustomerName, [null, '', 'Walk-in Customer'], true) ? 'N/A' : $transaction->CustomerName }}</td>
         <td>
             {{ $cashierName }}
             @if($isOwnSale)

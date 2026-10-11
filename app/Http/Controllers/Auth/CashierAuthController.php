@@ -183,7 +183,22 @@ class CashierAuthController extends Controller
             ->where('SalesTransactionDate', '>=', $todayStart)
             ->where('SalesTransactionDate', '<', $tomorrowStart)
             ->when($search, function ($query) use ($search) {
-                return $query->where('CustomerName', 'like', "%{$search}%");
+                // Grouped so the OR can't escape the today-only date scope.
+                return $query->where(function ($inner) use ($search) {
+                    $inner->where('CustomerName', 'like', "%{$search}%");
+
+                    // Receipt # search: "RCT-000014", "rct-14", "000014" and
+                    // "14" all find receipt RCT-000014.
+                    if (preg_match('/^\s*(?:rct\s*-?\s*)?0*(\d+)\s*$/i', $search, $matches)) {
+                        $inner->orWhere('SalesTransactionID', (int) $matches[1]);
+                    }
+
+                    // The list shows walk-in sales as "N/A", so searching
+                    // for that finds them too.
+                    if (strcasecmp(trim($search), 'n/a') === 0) {
+                        $inner->orWhere('CustomerName', 'Walk-in Customer');
+                    }
+                });
             })
             ->orderBy('SalesTransactionID', 'desc')
             ->paginate(15)

@@ -54,7 +54,7 @@
 <div class="card">
     <div class="toolbar">
         <form method="GET" action="{{ route('cashier.transactions') }}" class="search-form" id="transactionsSearchForm">
-            <input type="text" name="search" id="transactionsSearchInput" placeholder="Search today's transactions by customer..." value="{{ $search ?? '' }}" autocomplete="off">
+            <input type="text" name="search" id="transactionsSearchInput" placeholder="Search by receipt # or customer..." value="{{ $search ?? '' }}" autocomplete="off">
         </form>
     </div>
 
