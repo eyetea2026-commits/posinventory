@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('partials.font-scale')
     <title>Admin Reset Password - CCTV Express TACURONG</title>
     <link rel="stylesheet" href="{{ asset('Administrator/Login.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

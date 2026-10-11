@@ -315,7 +315,9 @@ class CheckoutTest extends TestCase
         $response->assertSee('onclick="confirmRemoveFromCart(${item.id})"', false);
         $response->assertDontSee('onclick="removeFromCart(${item.id})"', false);
         // Current Sale list is sized to show 7 cart lines at once.
-        $response->assertSee('min-height: calc(7 * 79px)', false);
+        // Sized to show 7 cart lines at the enlarged base font size.
+        $response->assertSee('min-height: calc(7 * 82px)', false);
+        $response->assertSee('html { font-size: 112.5%; }', false);
     }
 
     // A 100% promo is allowed (with an admin-side warning when saving it), so

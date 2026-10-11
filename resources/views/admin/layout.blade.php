@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('partials.font-scale')
     <title>@yield('title', 'Admin - ' . config('app.name'))</title>
     <link rel="stylesheet" href="{{ asset('Administrator/Dashboard.css') }}">
     <link rel="stylesheet" href="{{ asset('Administrator/AdminModules.css') }}">
