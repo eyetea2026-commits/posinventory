@@ -51,15 +51,18 @@
     .clear-cart-btn { padding: 8px 16px; background: #ef4444; border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
     .clear-cart-btn:hover { background: #dc2626; }
 
-    .cart-items { flex: 1 1 auto; min-height: 140px; overflow-y: auto; margin-bottom: 16px; padding-right: 8px; }
+    /* Tall enough to show 7 cart lines at once (each compact row below is
+       ~54px plus a 6px gap). The panel itself scrolls, so the totals,
+       payment and Complete Sale stay reachable underneath. */
+    .cart-items { flex: 1 0 auto; min-height: calc(7 * 60px); max-height: calc(7 * 60px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; }
     .cart-items::-webkit-scrollbar { width: 6px; }
     .cart-items::-webkit-scrollbar-track { background: #1a1d2d; }
     .cart-items::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
 
-    .cart-item { display: flex; align-items: center; padding: 14px; background: #2d3748; border-radius: 12px; margin-bottom: 10px; gap: 12px; }
+    .cart-item { display: flex; flex-wrap: wrap; align-items: center; padding: 8px 12px; background: #2d3748; border-radius: 10px; margin-bottom: 6px; gap: 10px; min-height: 54px; box-sizing: border-box; }
     .cart-item-info { flex: 1; min-width: 0; }
-    .cart-item-info h4 { margin: 0; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cart-item-info p { margin: 4px 0 0; color: #94a3b8; font-size: 0.8rem; }
+    .cart-item-info h4 { margin: 0; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cart-item-info p { margin: 2px 0 0; color: #94a3b8; font-size: 0.78rem; }
     .cart-item-qty { display: flex; align-items: center; gap: 8px; background: #1a1d2d; border-radius: 8px; padding: 4px; }
     .qty-btn { width: 28px; height: 28px; background: #4a5568; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
     .qty-btn:hover { background: #3b82f6; }
@@ -139,7 +142,7 @@
     .btn-checkout:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3); }
     .btn-checkout:disabled { background: #4a5568; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    .empty-cart { text-align: center; padding: 40px; color: #64748b; }
+    .empty-cart { text-align: center; padding: 120px 40px 40px; color: #64748b; }
     .empty-cart i { font-size: 3rem; margin-bottom: 16px; }
 
     @media (max-width: 1200px) {
