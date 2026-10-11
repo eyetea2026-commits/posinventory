@@ -47,8 +47,12 @@
 <div class="form-grid-2">
     <div class="form-group">
         <label for="StartDate">Start Date <span class="required">*</span></label>
+        {{-- min is only enforced for a brand-new promo — editing an existing
+             one must still allow its real, possibly-already-past Start Date
+             (see DiscountController::validatePromo()). --}}
         <input type="date" id="StartDate" name="StartDate" class="form-control"
-               value="{{ old('StartDate', isset($discount) && $discount->StartDate ? $discount->StartDate->format('Y-m-d') : null) }}" required>
+               value="{{ old('StartDate', isset($discount) && $discount->StartDate ? $discount->StartDate->format('Y-m-d') : null) }}"
+               @if(!isset($discount)) min="{{ now()->toDateString() }}" @endif required>
         <span class="error" id="error-StartDate">@error('StartDate'){{ $message }}@enderror</span>
     </div>
 

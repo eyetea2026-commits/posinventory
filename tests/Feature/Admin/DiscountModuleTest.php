@@ -96,6 +96,43 @@ class DiscountModuleTest extends TestCase
         $response->assertSessionHasErrors('EndDate');
     }
 
+    public function test_store_rejects_a_start_date_in_the_past(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
+            'StartDate' => now()->subDay()->format('Y-m-d'), 'EndDate' => now()->addDays(30)->format('Y-m-d'),
+        ]));
+
+        $response->assertSessionHasErrors('StartDate');
+        $this->assertDatabaseMissing('Discount', ['PromoCode' => 'SUMMER20']);
+    }
+
+    public function test_store_accepts_a_start_date_of_today(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
+            'StartDate' => now()->format('Y-m-d'),
+        ]));
+
+        $response->assertRedirect(route('admin.discounts.index'));
+        $this->assertDatabaseHas('Discount', ['PromoCode' => 'SUMMER20']);
+    }
+
+    // Editing an existing promo must not be forced to bump its Start Date
+    // forward — a promo that's already active legitimately has a past one.
+    public function test_update_does_not_reject_an_already_past_start_date(): void
+    {
+        $discount = Discount::create(array_merge($this->basePromoPayload(), [
+            'StartDate' => now()->subDays(10)->format('Y-m-d'), 'EndDate' => now()->addDays(10)->format('Y-m-d'),
+        ]));
+
+        $response = $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload([
+            'PromoCode' => 'SUMMER20', 'DiscountRate' => 25,
+            'StartDate' => now()->subDays(10)->format('Y-m-d'), 'EndDate' => now()->addDays(10)->format('Y-m-d'),
+        ]));
+
+        $response->assertRedirect(route('admin.discounts.index'));
+        $this->assertDatabaseHas('Discount', ['DiscountID' => $discount->DiscountID, 'DiscountRate' => 25]);
+    }
+
     public function test_discount_type_must_be_percentage(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload(['DiscountType' => 'fixed']));

@@ -505,6 +505,15 @@ class DiscountController extends Controller
         // case-insensitive, but the test suite runs on SQLite, which isn't).
         $request->merge(['PromoCode' => strtoupper(trim((string) $request->input('PromoCode', '')))]);
 
+        // Only a brand-new promo's Start Date is restricted to today or
+        // later — an existing promo already has a real, historical Start
+        // Date (it may already be active), and forcing that forward on
+        // every unrelated edit would corrupt it.
+        $startDateRules = ['required', 'date'];
+        if (! $discount) {
+            $startDateRules[] = 'after_or_equal:today';
+        }
+
         return $request->validate([
             'DiscountRate' => ['required', 'numeric', 'min:1', 'max:100'],
             'DiscountType' => ['required', Rule::in([Discount::TYPE_PERCENTAGE])],
@@ -514,7 +523,7 @@ class DiscountController extends Controller
                 Rule::unique('Discount', 'PromoCode')->ignore($discountId, 'DiscountID')->whereNull('deleted_at'),
             ],
             'Description' => ['nullable', 'string', 'max:1000'],
-            'StartDate' => ['required', 'date'],
+            'StartDate' => $startDateRules,
             'EndDate' => ['required', 'date', 'after_or_equal:StartDate'],
         ], [
             'DiscountRate.min' => 'Discount percentage must be at least 1%.',
@@ -522,6 +531,7 @@ class DiscountController extends Controller
             'DiscountType.in' => 'Only Percentage promos are supported right now.',
             'PromoCode.regex' => 'Promo code may only contain letters, numbers, and hyphens.',
             'PromoCode.unique' => 'This promo code is already in use.',
+            'StartDate.after_or_equal' => 'Start Date cannot be in the past.',
             'EndDate.after_or_equal' => 'End Date cannot be earlier than Start Date.',
         ]);
     }
