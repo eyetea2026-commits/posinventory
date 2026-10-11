@@ -179,18 +179,18 @@ class CashierAuthController extends Controller
         $todayStart = now()->startOfDay();
         $tomorrowStart = $todayStart->copy()->addDay();
 
+        $receiptMatchIds = $search ? $this->todaysReceiptIdsMatching($search, $todayStart, $tomorrowStart) : [];
+
         $transactions = SalesTransaction::with(['staff.user', 'billing', 'items.product'])
             ->where('SalesTransactionDate', '>=', $todayStart)
             ->where('SalesTransactionDate', '<', $tomorrowStart)
-            ->when($search, function ($query) use ($search) {
+            ->when($search, function ($query) use ($search, $receiptMatchIds) {
                 // Grouped so the OR can't escape the today-only date scope.
-                return $query->where(function ($inner) use ($search) {
+                return $query->where(function ($inner) use ($search, $receiptMatchIds) {
                     $inner->where('CustomerName', 'like', "%{$search}%");
 
-                    // Receipt # search: "RCT-000014", "rct-14", "000014" and
-                    // "14" all find receipt RCT-000014.
-                    if (preg_match('/^\s*(?:rct\s*-?\s*)?0*(\d+)\s*$/i', $search, $matches)) {
-                        $inner->orWhere('SalesTransactionID', (int) $matches[1]);
+                    if ($receiptMatchIds !== []) {
+                        $inner->orWhereIn('SalesTransactionID', $receiptMatchIds);
                     }
 
                     // The list shows walk-in sales as "N/A", so searching
@@ -215,6 +215,43 @@ class CashierAuthController extends Controller
         }
 
         return view('cashier.transactions', compact('transactions', 'search', 'currentStaffId'));
+    }
+
+    /**
+     * Receipt # search that works while the cashier is still typing (the
+     * list searches live on every keystroke): "R", "RCT", "RCT-" match every
+     * receipt, "RCT-0000" narrows down, and "RCT-000014", "rct-14",
+     * "000014" or "14" find RCT-000014. Matched against today's receipt
+     * numbers exactly as the list displays them (RCT- plus 6 digits), so it
+     * behaves the same on any database.
+     *
+     * @return list<int>
+     */
+    private function todaysReceiptIdsMatching(string $search, $todayStart, $tomorrowStart): array
+    {
+        $term = strtoupper(preg_replace('/\s+/', '', $search));
+
+        // Optional leading part of "RCT-", then optional digits.
+        if (! preg_match('/^(R|RC|RCT|RCT-)?(\d*)$/', $term, $matches) || $term === '') {
+            return [];
+        }
+        $digits = $matches[2];
+
+        return SalesTransaction::where('SalesTransactionDate', '>=', $todayStart)
+            ->where('SalesTransactionDate', '<', $tomorrowStart)
+            ->pluck('SalesTransactionID')
+            ->filter(function ($id) use ($digits) {
+                if ($digits === '') {
+                    return true;
+                }
+                $padded = str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+
+                // Typed with leading zeros ("000014") or as a plain number ("14").
+                return str_contains($padded, $digits) || (string) $id === ltrim($digits, '0');
+            })
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 
     public function processSale(Request $request)

@@ -174,6 +174,25 @@ class CashierScopingAndSearchTest extends TestCase
         }
     }
 
+    // The list searches live on every keystroke, so a partly-typed receipt
+    // number must already match, not only the complete one.
+    public function test_partly_typed_receipt_numbers_match_while_typing(): void
+    {
+        $a = $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
+        $b = $this->makeTransactionFor($this->staff1, 'Maria Santos');
+        $receiptB = 'RCT-'.str_pad($b->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        $count = fn (string $term) => $this->actingAs($this->cashier1)
+            ->get(route('cashier.transactions', ['search' => $term]))
+            ->viewData('transactions')->total();
+
+        foreach (['R', 'RCT', 'rct', 'RCT-', 'RCT-0000'] as $term) {
+            $this->assertSame(2, $count($term), "\"{$term}\" should list both of today's receipts");
+        }
+        $this->assertSame(1, $count($receiptB));
+        $this->assertSame(0, $count('RCX'));
+    }
+
     public function test_receipt_search_still_respects_the_today_only_rule(): void
     {
         $old = SalesTransaction::create([
