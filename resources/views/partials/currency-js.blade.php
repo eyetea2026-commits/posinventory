@@ -22,15 +22,21 @@
 
     // Binds live comma-formatting to a text <input> representing a money
     // amount. Read the raw number back with parseMoney(input.value).
-    window.attachMoneyInput = function (input) {
+    // options.maxIntegerDigits (optional) caps the whole-peso part, e.g. 7
+    // allows up to 9,999,999.99; extra digits are simply not accepted.
+    window.attachMoneyInput = function (input, options) {
         if (!input || input.dataset.moneyBound) return;
         input.dataset.moneyBound = '1';
         input.setAttribute('inputmode', 'decimal');
         input.setAttribute('autocomplete', 'off');
+        var maxIntegerDigits = options && options.maxIntegerDigits ? options.maxIntegerDigits : null;
 
         function group(raw) {
             var dot = raw.indexOf('.');
             var intPart = (dot === -1 ? raw : raw.slice(0, dot)).replace(/^0+(?=\d)/, '');
+            if (maxIntegerDigits && intPart.length > maxIntegerDigits) {
+                intPart = intPart.slice(0, maxIntegerDigits);
+            }
             var decPart = dot === -1 ? '' : '.' + raw.slice(dot + 1).slice(0, 2);
             return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + decPart;
         }

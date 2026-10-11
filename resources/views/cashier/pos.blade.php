@@ -108,6 +108,8 @@
     .form-group input, .form-group select { width: 100%; padding: 8px 10px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 8px; font-size: 0.85rem; }
     .form-group input:focus { outline: none; border-color: #3b82f6; }
     .change-display { padding: 8px 10px; background: #1a1d2d; border: 1px solid #4a5568; color: #34d399; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
+    #payment-amount.auto-filled { color: #34d399; cursor: not-allowed; opacity: 0.9; }
+    .payment-amount-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.72rem; }
 
     .payment-details-panel { background: #1a1d2d; border: 1px solid #4a5568; border-radius: 10px; padding: 12px; margin-bottom: 14px; }
     .payment-details-panel.confirmed { border-color: #34d399; }
@@ -357,11 +359,17 @@
         </div>
 
         <div class="form-group">
-            <label>Payment Amount</label>
-            <input type="text" id="payment-amount" placeholder="0.00" oninput="calculateChange()">
+            <label for="payment-amount">Payment Amount</label>
+            <input type="text" id="payment-amount" placeholder="0.00">
+            {{-- Cash/GCash only: optional, off by default. Cheque/Bank Transfer
+                 always auto-fill (see syncPaymentAmountMode()). --}}
+            <label class="verify-checkbox-label" id="auto-fill-payment-group">
+                <input type="checkbox" id="auto-fill-payment"> Auto-fill exact amount
+            </label>
+            <small class="payment-amount-hint" id="payment-amount-hint" style="display:none;">Set to the exact total for this payment method.</small>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" id="change-group">
             <label>Change</label>
             <div class="change-display" id="change-amount">₱0.00</div>
         </div>
@@ -395,7 +403,12 @@
 </div>
 
 <script>
-    window.attachMoneyInput(document.getElementById('payment-amount'));
+    // Capped at 7 whole-peso digits (₱9,999,999.99), matching processSale()'s
+    // own server-side limit. calculateChange is bound AFTER the formatter so
+    // it always reads the already-capped value.
+    window.attachMoneyInput(document.getElementById('payment-amount'), { maxIntegerDigits: 7 });
+    document.getElementById('payment-amount').addEventListener('input', function () { calculateChange(); });
+    document.getElementById('auto-fill-payment').addEventListener('change', function () { syncPaymentAmountMode(); });
 
     // Live clock — ticks every second so the header date/time never goes
     // stale while the POS panel is left open, without needing a reload.
@@ -879,7 +892,9 @@
         document.getElementById('discount-summary-row').style.display = discountAmount > 0 ? 'flex' : 'none';
         document.getElementById('total').textContent = window.formatPeso(currentTotal);
 
-        calculateChange();
+        // Re-applies auto-fill (if active) against the new total, then
+        // recalculates Change.
+        syncPaymentAmountMode();
     }
 
     function togglePaymentDropdown() {
@@ -910,6 +925,8 @@
         if (method === 'bank' && !document.getElementById('bank-date').value) {
             document.getElementById('bank-date').value = today;
         }
+
+        syncPaymentAmountMode();
     }
 
     function resetPaymentDetailsConfirmation() {
@@ -1001,6 +1018,37 @@
         const payment = window.parseMoney(document.getElementById('payment-amount').value);
         const change = Math.max(0, payment - currentTotal);
         document.getElementById('change-amount').textContent = window.formatPeso(change);
+    }
+
+    // Payment Amount behavior per method:
+    //  - Cheque / Bank Transfer: always exactly the total, locked, and the
+    //    Change field is hidden (there's never change on these).
+    //  - Cash / GCash: cashier types the amount, unless "Auto-fill exact
+    //    amount" is ticked, in which case it tracks the total and locks.
+    // Called whenever the method, the checkbox, or the cart total changes.
+    function syncPaymentAmountMode() {
+        const input = document.getElementById('payment-amount');
+        const checkbox = document.getElementById('auto-fill-payment');
+        const isExactOnly = selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank';
+        const wasAutoFilled = input.readOnly;
+        const autoFill = isExactOnly || checkbox.checked;
+
+        document.getElementById('auto-fill-payment-group').style.display = isExactOnly ? 'none' : '';
+        document.getElementById('payment-amount-hint').style.display = isExactOnly ? '' : 'none';
+        document.getElementById('change-group').style.display = isExactOnly ? 'none' : '';
+
+        if (autoFill) {
+            input.value = window.formatMoneyPlain(currentTotal);
+            input.readOnly = true;
+        } else {
+            input.readOnly = false;
+            // Leaving auto-fill mode: clear the auto-filled figure so the
+            // cashier enters what was actually handed over.
+            if (wasAutoFilled) input.value = '';
+        }
+        input.classList.toggle('auto-filled', autoFill);
+
+        calculateChange();
     }
 
     function showReceiptFallback(receiptUrl) {

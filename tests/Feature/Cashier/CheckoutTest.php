@@ -263,6 +263,50 @@ class CheckoutTest extends TestCase
         $response->assertJsonPath('success', true);
     }
 
+    // ---- Payment Amount is capped at 7 whole-peso digits ----
+
+    public function test_payment_amount_above_seven_digits_is_rejected(): void
+    {
+        $product = $this->makeProduct(500);
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => 10000000,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('payment_amount');
+        $this->assertSame(0, SalesTransaction::count());
+    }
+
+    public function test_payment_amount_at_the_seven_digit_maximum_is_accepted(): void
+    {
+        $product = $this->makeProduct(500);
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => 9999999.99,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+    }
+
+    public function test_pos_screen_wires_up_the_payment_amount_modes(): void
+    {
+        $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
+
+        $response->assertOk();
+        $response->assertSee('id="auto-fill-payment"', false);
+        $response->assertSee('id="change-group"', false);
+        $response->assertSee('maxIntegerDigits: 7', false);
+        $response->assertSee('function syncPaymentAmountMode()', false);
+        // The old inline handler ran before the formatter capped the value.
+        $response->assertDontSee('oninput="calculateChange()"', false);
+    }
+
     // A 100% promo is allowed (with an admin-side warning when saving it), so
     // a sale whose total is exactly ₱0.00 must still go through.
     public function test_a_fully_discounted_sale_with_a_zero_total_completes(): void

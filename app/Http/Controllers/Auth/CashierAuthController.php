@@ -219,7 +219,10 @@ class CashierAuthController extends Controller
             'payment_date' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'date'],
             'payment_time' => [Rule::requiredIf(fn () => $request->input('payment_method') === 'bank'), 'nullable', 'date_format:H:i'],
             'remarks' => 'nullable|string|max:500',
+            // 7 whole-peso digits max, matching the POS input's own cap.
+            'payment_amount' => 'nullable|numeric|min:0|max:9999999.99',
         ], [
+            'payment_amount.max' => 'Payment amount cannot exceed ₱9,999,999.99.',
             'reference_number.required' => 'Please enter the reference/cheque number.',
             'bank_name.required' => 'Please enter the bank name.',
             'account_name.required' => 'Please enter the account name.',
