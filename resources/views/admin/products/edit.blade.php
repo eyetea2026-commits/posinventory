@@ -53,6 +53,42 @@
         margin-bottom: 0;
     }
 
+    .brand-select-row { display: flex; gap: 10px; align-items: stretch; }
+    .brand-select-row .form-select { flex: 1; min-width: 0; }
+    .btn-add-brand {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        border-radius: 12px;
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        background: rgba(139, 92, 246, 0.15);
+        color: #c4b5fd;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .btn-add-brand:hover {
+        background: rgba(139, 92, 246, 0.28);
+        border-color: rgba(139, 92, 246, 0.55);
+        transform: translateY(-1px);
+    }
+    .btn-add-brand:active { transform: translateY(0); }
+    .brand-add-row { display: flex; gap: 10px; align-items: stretch; margin-top: 10px; }
+    .brand-add-row .form-input { flex: 1; min-width: 0; }
+    .btn-cancel-add-brand {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(148, 163, 184, 0.1);
+        color: #cbd5e1;
+        font-size: 0.85rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
     .form-group.full-width {
         grid-column: 1 / -1;
     }

@@ -46,6 +46,16 @@ class ProductBrandTest extends TestCase
         $response->assertSee('data-category="'.$this->category->CategoryID.'"', false);
     }
 
+    public function test_create_page_renders_an_inline_add_brand_control(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.products.create'));
+
+        $response->assertOk();
+        $response->assertSee('id="addBrandBtn"', false);
+        $response->assertSee('id="brandAddRow"', false);
+        $response->assertSee('id="newBrandNameInput"', false);
+    }
+
     public function test_storing_a_product_with_a_brand_belonging_to_the_selected_category_persists_it(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.products.store'), [

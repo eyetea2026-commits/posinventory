@@ -45,19 +45,32 @@
         <label class="form-label">Brand</label>
         {{-- Populated client-side (see product-form-behavior.blade.php) from
              every option below, filtered down to whichever ones carry the
-             currently-selected Category's data-category id. Brands are
-             managed exclusively through Brand Management (Category module)
-             now — this form only ever selects an existing Brand, it never
-             creates one. --}}
-        <select name="BrandID" id="BrandID" class="form-select @error('BrandID') is-invalid @enderror">
-            <option value="">No Brand</option>
-            @foreach($brands as $brandOption)
-                <option value="{{ $brandOption->BrandID }}" data-category="{{ $brandOption->CategoryID }}"
-                    {{ old('BrandID', $product->BrandID ?? null) == $brandOption->BrandID ? 'selected' : '' }}>
-                    {{ $brandOption->BrandName }}
-                </option>
-            @endforeach
-        </select>
+             currently-selected Category's data-category id. The "+" button
+             lets the user type a new Brand name and create it on the fly
+             (scoped to the currently-selected Category), reusing the same
+             admin.categories.brands.store endpoint the Category module's
+             Brand Management panel already uses — see
+             category-brands-behavior.blade.php for that original pattern. --}}
+        <div class="brand-select-row">
+            <select name="BrandID" id="BrandID" class="form-select @error('BrandID') is-invalid @enderror">
+                <option value="">No Brand</option>
+                @foreach($brands as $brandOption)
+                    <option value="{{ $brandOption->BrandID }}" data-category="{{ $brandOption->CategoryID }}"
+                        {{ old('BrandID', $product->BrandID ?? null) == $brandOption->BrandID ? 'selected' : '' }}>
+                        {{ $brandOption->BrandName }}
+                    </option>
+                @endforeach
+            </select>
+            <button type="button" class="btn-add-brand" id="addBrandBtn" title="Add a new brand">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+        <div class="brand-add-row" id="brandAddRow" style="display:none;">
+            <input type="text" class="form-input brand-name-input-inline" id="newBrandNameInput" placeholder="New brand name" maxlength="100">
+            <button type="button" class="btn btn-secondary" id="confirmAddBrandBtn">Add</button>
+            <button type="button" class="btn-cancel-add-brand" id="cancelAddBrandBtn">Cancel</button>
+        </div>
+        <span class="form-error" id="brandAddError" style="display:none;"></span>
         <span class="form-error" id="error-BrandID">@error('BrandID'){{ $message }}@enderror</span>
     </div>
 

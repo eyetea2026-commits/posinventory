@@ -100,6 +100,99 @@ window.initProductAddForm = function (formId, options) {
         // hidden behind "Select a category first"; Edit mode: filter down
         // to the product's own category and keep its current brand selected).
         filterBrandOptionsByCategory(initialBrandId);
+
+        // Inline "+Add Brand": lets the user type a new Brand name without
+        // leaving this form, scoped to whichever Category is currently
+        // selected. Reuses the same admin.categories.brands.store endpoint
+        // the Category module's own Brand Management panel calls (see
+        // category-brands-behavior.blade.php) so duplicate-name validation
+        // stays identical in both places.
+        var addBrandBtn = form.querySelector('#addBrandBtn');
+        var brandAddRow = form.querySelector('#brandAddRow');
+        var newBrandNameInput = form.querySelector('#newBrandNameInput');
+        var confirmAddBrandBtn = form.querySelector('#confirmAddBrandBtn');
+        var cancelAddBrandBtn = form.querySelector('#cancelAddBrandBtn');
+        var brandAddError = form.querySelector('#brandAddError');
+
+        if (addBrandBtn && brandAddRow && newBrandNameInput && confirmAddBrandBtn && cancelAddBrandBtn && brandAddError) {
+            addBrandBtn.addEventListener('click', function () {
+                if (!categorySelect.value) {
+                    brandAddError.textContent = 'Please select a Category first.';
+                    brandAddError.style.display = '';
+                    return;
+                }
+                brandAddError.style.display = 'none';
+                brandAddRow.style.display = 'flex';
+                newBrandNameInput.value = '';
+                newBrandNameInput.focus();
+            });
+
+            cancelAddBrandBtn.addEventListener('click', function () {
+                brandAddRow.style.display = 'none';
+                brandAddError.style.display = 'none';
+            });
+
+            function submitNewBrand() {
+                var brandName = newBrandNameInput.value.trim();
+                brandAddError.style.display = 'none';
+                if (!brandName) {
+                    brandAddError.textContent = 'Please enter a brand name.';
+                    brandAddError.style.display = '';
+                    return;
+                }
+
+                confirmAddBrandBtn.disabled = true;
+
+                fetch('{{ url('admin/categories') }}/' + categorySelect.value + '/brands', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ BrandName: brandName }),
+                })
+                    .then(async function (response) {
+                        var data = await response.json();
+                        if (!response.ok) {
+                            brandAddError.textContent = (data.errors && data.errors.BrandName && data.errors.BrandName[0]) || 'Unable to add this brand.';
+                            brandAddError.style.display = '';
+                            return;
+                        }
+
+                        var option = document.createElement('option');
+                        option.value = data.brand.BrandID;
+                        option.textContent = data.brand.BrandName;
+                        option.dataset.category = categorySelect.value;
+
+                        // Persist into the cached full option list too, so a
+                        // later Category change-and-change-back still finds
+                        // this brand instead of losing it.
+                        allBrandOptions.push(option.cloneNode(true));
+                        brandSelect.appendChild(option);
+                        filterBrandOptionsByCategory(String(data.brand.BrandID));
+
+                        brandAddRow.style.display = 'none';
+                        newBrandNameInput.value = '';
+                    })
+                    .catch(function () {
+                        brandAddError.textContent = 'A network error occurred. Please try again.';
+                        brandAddError.style.display = '';
+                    })
+                    .finally(function () {
+                        confirmAddBrandBtn.disabled = false;
+                    });
+            }
+
+            confirmAddBrandBtn.addEventListener('click', submitNewBrand);
+            newBrandNameInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitNewBrand();
+                }
+            });
+        }
     }
 
     function currentMarginFraction() {

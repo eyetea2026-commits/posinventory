@@ -604,6 +604,42 @@
     }
     .btn-scan-barcode:active { transform: translateY(0); }
 
+    .brand-select-row { display: flex; gap: 8px; align-items: stretch; }
+    .brand-select-row .form-select { flex: 1; min-width: 0; }
+    .btn-add-brand {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        border-radius: 9px;
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        background: rgba(139, 92, 246, 0.15);
+        color: #c4b5fd;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .btn-add-brand:hover {
+        background: rgba(139, 92, 246, 0.28);
+        border-color: rgba(139, 92, 246, 0.55);
+        transform: translateY(-1px);
+    }
+    .btn-add-brand:active { transform: translateY(0); }
+    .brand-add-row { display: flex; gap: 8px; align-items: stretch; margin-top: 8px; }
+    .brand-add-row .form-input { flex: 1; min-width: 0; }
+    .btn-cancel-add-brand {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 14px;
+        border-radius: 9px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(148, 163, 184, 0.1);
+        color: #cbd5e1;
+        font-size: 0.8rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
     .computed-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
     .computed-field {
         padding: 10px;
