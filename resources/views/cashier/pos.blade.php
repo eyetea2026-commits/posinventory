@@ -1051,6 +1051,31 @@
         calculateChange();
     }
 
+    // Local-only direct printing to the 58mm thermal printer (see
+    // App\Services\ThermalReceiptPrinter); false unless POS_PRINTER_ENABLED
+    // is set in this machine's .env.
+    const THERMAL_PRINTING = @json(\App\Services\ThermalReceiptPrinter::isEnabled());
+
+    // Resolves when the printer accepted the receipt; rejects with a
+    // human-readable message otherwise.
+    function printReceiptToThermal(receiptNumber, isNewSale) {
+        return fetch('{{ url('cashier/receipt') }}/' + encodeURIComponent(receiptNumber) + '/thermal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            },
+            body: JSON.stringify({ new_sale: !!isNewSale }),
+        })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (result) {
+                if (!result.success) throw (result.message || 'Receipt printer not reachable.');
+            }, function () {
+                throw 'Receipt printer not reachable.';
+            });
+    }
+
     function showReceiptFallback(receiptUrl) {
         document.getElementById('receiptFallbackFrame').src = receiptUrl;
         document.getElementById('receiptFallbackOverlay').style.display = 'flex';
@@ -1161,7 +1186,9 @@
             // that and get silently blocked. If the popup still doesn't open
             // (blocked by a stricter blocker or extension), the receipt
             // falls back to the in-page viewer once the sale finishes.
-            const receiptWindow = window.open('', '_blank', 'width=400,height=600');
+            // With direct thermal printing on, the receipt goes straight to the
+            // printer instead, so no popup is opened at all.
+            const receiptWindow = THERMAL_PRINTING ? null : window.open('', '_blank', 'width=400,height=600');
             if (receiptWindow) {
                 // No <head> tag here on purpose — some local dev tooling scans
                 // outgoing HTML for literal "<head>" text to inject a logger
@@ -1182,7 +1209,21 @@
                 if (data.success) {
                     const receiptUrl = '{{ url('cashier/receipt') }}/' + data.receipt_number;
 
-                    if (receiptWindow && !receiptWindow.closed) {
+                    if (THERMAL_PRINTING) {
+                        printReceiptToThermal(data.receipt_number, true)
+                            .then(function () {
+                                toastSuccess('Sale complete. Receipt printed.').then(function () {
+                                    window.location.reload();
+                                });
+                            })
+                            .catch(function (message) {
+                                // The sale itself already went through -- only
+                                // the printout failed, so show the receipt on
+                                // screen (it can still be browser-printed).
+                                toastWarning(message || 'Receipt printer not reachable.');
+                                showReceiptFallback(receiptUrl);
+                            });
+                    } else if (receiptWindow && !receiptWindow.closed) {
                         receiptWindow.location.href = receiptUrl;
                         receiptWindow.focus();
 

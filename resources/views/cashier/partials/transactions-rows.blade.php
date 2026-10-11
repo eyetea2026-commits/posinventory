@@ -22,7 +22,9 @@
                  CashierAuthController::viewReceipt() enforces the same rule
                  server-side. --}}
             @if($isOwnSale)
-                <a href="{{ route('cashier.receipt', 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT)) }}" class="btn btn-primary btn-sm" target="_blank">
+                @php($receiptNo = 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT))
+                <a href="{{ route('cashier.receipt', $receiptNo) }}" class="btn btn-primary btn-sm" target="_blank"
+                   @if(\App\Services\ThermalReceiptPrinter::isEnabled()) onclick="return reprintToThermal(event, '{{ $receiptNo }}', this.href);" @endif>
                     <i class="fas fa-print"></i> Print
                 </a>
             @else

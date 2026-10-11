@@ -402,4 +402,5 @@ Route::prefix('cashier')->group(function () {
 
     // Receipt route (REQ102)
     Route::get('receipt/{receiptNumber}', [CashierAuthController::class, 'viewReceipt'])->name('cashier.receipt')->middleware(['auth', 'role:cashier']);
+    Route::post('receipt/{receiptNumber}/thermal', [CashierAuthController::class, 'printThermalReceipt'])->name('cashier.receipt.thermal')->middleware(['auth', 'role:cashier']);
 });

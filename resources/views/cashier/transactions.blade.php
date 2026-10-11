@@ -81,6 +81,43 @@
 </div>
 
 <script>
+    // Reprint straight to the local thermal printer (only wired up when
+    // POS_PRINTER_ENABLED is on); if it can't be reached, open the normal
+    // on-screen receipt instead so the cashier is never stuck.
+    window.reprintToThermal = function (event, receiptNumber, receiptUrl) {
+        event.preventDefault();
+        const button = event.currentTarget;
+        if (button.dataset.printing === '1') return false;
+        button.dataset.printing = '1';
+        const idleLabel = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Printing...';
+
+        fetch('{{ url('cashier/receipt') }}/' + encodeURIComponent(receiptNumber) + '/thermal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ new_sale: false }),
+        })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (result) {
+                if (result.success) {
+                    toastSuccess('Receipt sent to the printer.');
+                } else {
+                    toastWarning((result.message || 'Receipt printer not reachable.') + ' Opening the on-screen receipt instead.');
+                    window.open(receiptUrl, '_blank');
+                }
+            })
+            .catch(function () {
+                toastWarning('Receipt printer not reachable. Opening the on-screen receipt instead.');
+                window.open(receiptUrl, '_blank');
+            })
+            .finally(function () {
+                button.dataset.printing = '';
+                button.innerHTML = idleLabel;
+            });
+
+        return false;
+    };
+
     (function () {
         const searchInput = document.getElementById('transactionsSearchInput');
         const tbody = document.getElementById('transactionsTbody');

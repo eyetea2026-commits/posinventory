@@ -13,6 +13,7 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\SaleCompleted;
+use App\Services\ThermalReceiptPrinter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -514,6 +515,52 @@ class CashierAuthController extends Controller
      */
     public function viewReceipt($receiptNumber)
     {
+        return view('cashier.receipt', $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber));
+    }
+
+    /**
+     * Prints the receipt straight to the local thermal printer (no browser
+     * dialog). Same ownership rule as viewReceipt(). Responds with JSON so
+     * the POS can fall back to the on-screen receipt if printing fails.
+     */
+    public function printThermalReceipt(Request $request, $receiptNumber, ThermalReceiptPrinter $printer)
+    {
+        if (! ThermalReceiptPrinter::isEnabled()) {
+            return response()->json(['success' => false, 'message' => 'Direct thermal printing is turned off.'], 409);
+        }
+
+        $receipt = $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber);
+
+        // The cash drawer only opens for a fresh cash sale (opt-in via
+        // POS_PRINTER_OPEN_DRAWER), never on a reprint.
+        $openDrawer = config('services.receipt_printer.open_drawer')
+            && $request->boolean('new_sale')
+            && $receipt['paymentMethod'] === 'cash';
+
+        try {
+            $printer->printReceipt($receipt, $openDrawer);
+        } catch (Throwable $e) {
+            Log::warning('Thermal receipt printing failed', ['receipt' => $receiptNumber, 'exception' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not reach the receipt printer. Check that it is on, has paper, and is connected.',
+            ], 503);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Scoped to the logged-in cashier's own sales -- reached from the
+     * Transaction History "Print" button, so it must be denied the same way
+     * a transaction outside that list would be. A 404 (not 403) is used
+     * deliberately: it reads identically whether the receipt number doesn't
+     * exist or simply isn't this cashier's, so guessing another cashier's ID
+     * can't be used to confirm it exists.
+     */
+    private function findOwnTransaction(string $receiptNumber): SalesTransaction
+    {
         // Extract transaction ID from receipt number (RCT-000001 -> 1)
         $transactionId = (int) str_replace('RCT-', '', $receiptNumber);
 
@@ -521,13 +568,6 @@ class CashierAuthController extends Controller
 
         $transaction = SalesTransaction::with(['items.product', 'billing'])
             ->where('SalesTransactionID', $transactionId)
-            // Scoped to the logged-in cashier's own sales -- reached from the
-            // Transaction History "Print" button, so it must be denied the
-            // same way a transaction outside that list would be. A 404
-            // (not 403) is used deliberately: it reads identically whether
-            // the receipt number doesn't exist or simply isn't this
-            // cashier's, so guessing another cashier's ID can't be used to
-            // confirm it exists.
             ->where('StaffID', $staff->StaffID ?? 0)
             ->first();
 
@@ -535,6 +575,17 @@ class CashierAuthController extends Controller
             abort(404, 'Receipt not found');
         }
 
+        return $transaction;
+    }
+
+    /**
+     * Everything a receipt shows, shared by the on-screen receipt and the
+     * thermal printer so the two can never disagree.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildReceiptData(SalesTransaction $transaction, string $receiptNumber): array
+    {
         $billing = $transaction->billing;
         $items = $transaction->items->map(function ($item) {
             return [
@@ -602,7 +653,7 @@ class CashierAuthController extends Controller
 
         $cashierName = Auth::user()->full_name;
 
-        return view('cashier.receipt', [
+        return [
             'receiptNumber' => $receiptNumber,
             'date' => $transaction->SalesTransactionDate->format('M d, Y h:i A'),
             'cashierName' => $cashierName,
@@ -623,6 +674,6 @@ class CashierAuthController extends Controller
             'bankName' => $payment?->BankName,
             'accountName' => $payment?->AccountName,
             'paymentDate' => $payment?->PaymentDate,
-        ]);
+        ];
     }
 }

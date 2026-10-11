@@ -32,5 +32,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="POS_PRINTER_ENABLED" value="false"/>
+        <env name="POS_PRINTER_OPEN_DRAWER" value="false"/>
     </php>
 </phpunit>
