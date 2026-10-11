@@ -180,6 +180,28 @@ class ReportsModuleTest extends TestCase
         $pdf->assertOk();
     }
 
+    public function test_csv_export_starts_with_a_utf8_byte_order_mark(): void
+    {
+        $csv = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'inventory', 'format' => 'csv']));
+
+        $csv->assertOk();
+        // Excel needs the BOM to read the file as UTF-8 instead of ANSI.
+        $this->assertStringStartsWith("\xEF\xBB\xBFID,Product,", $csv->streamedContent());
+    }
+
+    public function test_pdf_export_embeds_a_font_that_has_the_peso_sign(): void
+    {
+        $pdf = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'inventory', 'format' => 'pdf']));
+
+        $pdf->assertOk();
+        $content = (string) $pdf->getContent();
+        // Helvetica (the old sans-serif fallback) has no ₱ glyph and printed "?".
+        $this->assertStringContainsString('DejaVuSans', $content);
+        $this->assertStringNotContainsString('/BaseFont /Helvetica', $content);
+        // Subsetting keeps the embedded font small (the full font is ~700KB).
+        $this->assertLessThan(400 * 1024, strlen($content));
+    }
+
     public function test_report_summary_builder_computes_stock_adjustment_aggregates(): void
     {
         $adjustments = collect([

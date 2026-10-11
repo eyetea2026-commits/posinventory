@@ -419,7 +419,10 @@ class ReportController extends Controller
 
         if ($format === 'pdf') {
             $rows = $this->rowsForType($type, $dateFrom, $dateTo);
-            $pdf = Pdf::loadView('admin.reports.pdf', [
+            // The template uses DejaVu Sans for its ₱ glyph; subsetting
+            // embeds only the characters used instead of the whole ~700KB
+            // font file in every PDF.
+            $pdf = Pdf::setOption('isFontSubsettingEnabled', true)->loadView('admin.reports.pdf', [
                 'type' => $type,
                 'rows' => $rows,
                 'dateFrom' => $dateFrom,
@@ -757,6 +760,9 @@ class ReportController extends Controller
     {
         return new StreamedResponse(function () use ($type, $dateFrom, $dateTo) {
             $handle = fopen('php://output', 'w');
+            // UTF-8 byte order mark: without it Excel opens the CSV as ANSI
+            // and garbles non-ASCII text (₱, ñ, —) in names and reasons.
+            fwrite($handle, "\xEF\xBB\xBF");
 
             if ($type === 'sales') {
                 fputcsv($handle, ['ID', 'Date', 'Amount', 'Customer', 'Payment Method']);
