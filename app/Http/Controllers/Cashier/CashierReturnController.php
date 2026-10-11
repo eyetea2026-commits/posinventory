@@ -17,6 +17,7 @@ use App\Notifications\NewRefundRequest;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -262,6 +263,23 @@ class CashierReturnController extends Controller
             ], 400);
         }
 
+        // Guards against duplicate submissions the disabled-submit-button
+        // client-side guard can't catch on its own (a second browser tab, a
+        // fast double-tap before the button disables, a replayed request) —
+        // only one return-request submission per cashier can be in flight
+        // at a time. Same pattern as processSale()'s per-cashier checkout
+        // lock; the per-item lockForUpdate() below only stops two DIFFERENT
+        // requests from jointly over-requesting past what was sold, not two
+        // identical duplicate requests that each individually have enough
+        // quantity headroom to pass on their own.
+        $lock = Cache::lock("return-request:user:{$user->id}", 10);
+        if (! $lock->get()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A return request is already being submitted for your account. Please wait a moment and try again.',
+            ], 409);
+        }
+
         try {
             [$salesReturn, $refundAmount, $productNames] = DB::transaction(function () use ($data, $staff, $transaction) {
                 $lines = [];
@@ -335,6 +353,8 @@ class CashierReturnController extends Controller
             });
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        } finally {
+            $lock->release();
         }
 
         ActivityLog::record('return.requested', "Requested {$data['return_type']} #{$salesReturn->SalesReturnID} for ".implode(', ', $productNames)." (Txn #{$data['transaction_id']})");

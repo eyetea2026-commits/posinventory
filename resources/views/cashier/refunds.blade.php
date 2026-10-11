@@ -243,7 +243,7 @@
                     <textarea id="reason-remarks" rows="2" placeholder="Add any additional details..."></textarea>
                 </div>
 
-                <button type="submit" class="btn-submit">
+                <button type="submit" class="btn-submit" id="submitRefundRequestBtn">
                     <i class="fas fa-paper-plane"></i> Submit Return Request
                 </button>
             </div>
@@ -580,6 +580,17 @@ function updateRefundAmount() {
 document.getElementById('create-refund-form').addEventListener('submit', function(e) {
     e.preventDefault();
 
+    const submitBtn = document.getElementById('submitRefundRequestBtn');
+
+    // Guard against double-submit (double-click / double-tap): the disabled
+    // button catches the common case client-side; the server also holds a
+    // per-cashier Cache::lock for the rare cases this can't (a second
+    // browser tab, a fast double-tap before disable() takes effect) — same
+    // pattern as the POS checkout's processCheckout() guard.
+    if (submitBtn.disabled) {
+        return;
+    }
+
     const items = Object.entries(selectedItems).map(([productId, entry]) => ({
         product_id: Number(productId),
         quantity: entry.quantity,
@@ -593,6 +604,10 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
 
     const transactionId = this.dataset.transactionId;
     const returnType = document.querySelector('input[name="return_type"]').value;
+
+    const idleLabel = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
 
     fetch('{{ route("cashier.refunds.create") }}', {
         method: 'POST',
@@ -614,9 +629,15 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
             });
         } else {
             toastError(data.message, 'Error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = idleLabel;
         }
     })
-    .catch(() => toastError('Error submitting return request'));
+    .catch(() => {
+        toastError('Error submitting return request');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = idleLabel;
+    });
 });
 
 function viewRefundDetails(refundId) {

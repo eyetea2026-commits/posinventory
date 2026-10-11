@@ -18,6 +18,7 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class ReturnProcessingTest extends TestCase
@@ -438,6 +439,48 @@ class ReturnProcessingTest extends TestCase
         $second->assertStatus(400);
         $second->assertJsonPath('success', false);
         $this->assertSame(1, SalesReturn::where('SalesTransactionID', $this->transaction->SalesTransactionID)->count());
+    }
+
+    // ---- A second return request for the same cashier while the first is
+    // still in flight is rejected (409), not recorded twice — even when
+    // there's enough sold quantity left for both to pass on their own ----
+
+    public function test_a_second_return_request_for_the_same_cashier_while_one_is_in_flight_is_rejected(): void
+    {
+        Cache::lock("return-request:user:{$this->cashierUser->id}", 10)->get();
+
+        $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertJsonPath('success', false);
+        $this->assertDatabaseMissing('SalesReturn', ['SalesTransactionID' => $this->transaction->SalesTransactionID]);
+    }
+
+    public function test_return_request_lock_is_released_so_a_later_request_still_succeeds(): void
+    {
+        $first = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+        $first->assertJson(['success' => true]);
+
+        $second = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+        $second->assertJson(['success' => true]);
     }
 
     // ---- Ownership scoping on the read/process endpoints (audit finding
