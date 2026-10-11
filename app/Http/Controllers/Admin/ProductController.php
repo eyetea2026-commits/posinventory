@@ -453,34 +453,23 @@ class ProductController extends Controller
         return redirect()->route('admin.products.index')->with('status', 'Product updated successfully.');
     }
 
-    public function destroy(Product $product)
+    /**
+     * Products are retired instead of deleted: deleting would cascade away
+     * their sales, stock and PO history. An inactive product is hidden from
+     * the POS and from new Purchase Orders, and can be reactivated anytime.
+     */
+    public function toggleStatus(Product $product)
     {
-        // Check if product has related records. All of these tables have an
-        // ON DELETE CASCADE foreign key to Product, so skipping any of them
-        // here would let a "delete" silently wipe that history instead of
-        // blocking it with a friendly message.
-        if ($product->salesItems()->count() > 0
-            || $product->stockReceivings()->count() > 0
-            || $product->stockAdjustments()->count() > 0
-            || $product->purchaseItems()->count() > 0
-            || $product->damagedProducts()->count() > 0
-            || $product->salesReturns()->count() > 0
-            || $product->suppliers()->count() > 0
-            || $product->costHistory()->count() > 0
-            || DB::table('discountproduct')->where('ProductID', $product->ProductID)->exists()) {
-            return redirect()->route('admin.products.index')->with('error', 'Cannot delete product with existing sales, stock, purchase order, damage, return, supplier, cost history, or discount records.');
+        $product->update(['IsActive' => ! $product->IsActive]);
+
+        if ($product->IsActive) {
+            ActivityLog::record('product.activated', "Activated product \"{$product->ProductName}\"");
+            $message = "\"{$product->ProductName}\" is active again.";
+        } else {
+            ActivityLog::record('product.deactivated', "Deactivated product \"{$product->ProductName}\"");
+            $message = "\"{$product->ProductName}\" has been deactivated.";
         }
 
-        // Delete inventory first
-        if ($product->inventory) {
-            $product->inventory->delete();
-        }
-
-        $productName = $product->ProductName;
-        $product->delete();
-
-        ActivityLog::record('product.deleted', "Deleted product \"{$productName}\"");
-
-        return redirect()->route('admin.products.index')->with('status', 'Product deleted successfully.');
+        return redirect()->route('admin.products.index')->with('status', $message);
     }
 }

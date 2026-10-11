@@ -367,13 +367,40 @@
         transform: scale(1.05);
     }
 
-    .action-btn.delete {
+    .action-btn.deactivate {
+        background: rgba(16, 185, 129, 0.15);
+        color: #6ee7b7;
+    }
+    .action-btn.deactivate:hover {
+        background: rgba(16, 185, 129, 0.3);
+        transform: scale(1.05);
+    }
+    .action-btn.activate {
+        background: rgba(148, 163, 184, 0.15);
+        color: #94a3b8;
+    }
+    .action-btn.activate:hover {
+        background: rgba(148, 163, 184, 0.3);
+        transform: scale(1.05);
+    }
+
+    /* Inactive products stay listed (history is kept) but read as retired. */
+    tr.is-inactive .product-info,
+    tr.is-inactive .col-category,
+    tr.is-inactive .col-pricing { opacity: 0.55; }
+    .product-status-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        vertical-align: middle;
         background: rgba(239, 68, 68, 0.15);
         color: #fca5a5;
-    }
-    .action-btn.delete:hover {
-        background: rgba(239, 68, 68, 0.3);
-        transform: scale(1.05);
+        border: 1px solid rgba(239, 68, 68, 0.3);
     }
 
     /* Empty state */
@@ -991,20 +1018,24 @@
             applyFilters(1);
         };
 
-        // Confirm delete (SweetAlert2)
-        window.confirmDelete = function (productId) {
+        // Products are never deleted (that would erase sales/stock/PO
+        // history) -- they're deactivated instead, which hides them from the
+        // POS and from new Purchase Orders, and can be reversed anytime.
+        window.confirmToggleProductStatus = function (productId, isActive) {
             Swal.fire({
-                title: 'Confirm Delete',
-                text: 'Are you sure you want to delete this product? This action cannot be undone.',
-                icon: 'warning',
+                title: isActive ? 'Deactivate Product' : 'Activate Product',
+                text: isActive
+                    ? 'This product will be hidden from the POS and from new Purchase Orders. Its sales and stock history is kept, and you can reactivate it anytime.'
+                    : 'This product will be available again on the POS and for new Purchase Orders.',
+                icon: isActive ? 'warning' : 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Delete',
+                confirmButtonText: isActive ? 'Deactivate' : 'Activate',
                 cancelButtonText: 'Cancel',
-                confirmButtonColor: '#ef4444',
+                confirmButtonColor: isActive ? '#ef4444' : '#10b981',
                 cancelButtonColor: '#64748b'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    document.getElementById('deleteForm' + productId).submit();
+                    document.getElementById('statusForm' + productId).submit();
                 }
             });
         };

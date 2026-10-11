@@ -17,10 +17,12 @@ use App\Notifications\PurchaseOrderApproved;
 use App\Notifications\PurchaseOrderCancelled;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class PurchaseOrderController extends Controller
@@ -79,7 +81,7 @@ class PurchaseOrderController extends Controller
             'categoryId' => $categoryId,
             'categories' => Category::orderBy('CategoryName')->get(),
             'suppliers' => Supplier::orderBy('SupplierName')->get(),
-            'products' => Product::with('category')->orderBy('ProductName')->get(),
+            'products' => Product::active()->with('category')->orderBy('ProductName')->get(),
         ]);
     }
 
@@ -108,7 +110,7 @@ class PurchaseOrderController extends Controller
     {
         return view('admin.purchase-orders.create', [
             'suppliers' => Supplier::orderBy('SupplierName')->get(),
-            'products' => Product::with('category')->orderBy('ProductName')->get(),
+            'products' => Product::active()->with('category')->orderBy('ProductName')->get(),
             'categories' => Category::orderBy('CategoryName')->get(),
         ]);
     }
@@ -124,6 +126,14 @@ class PurchaseOrderController extends Controller
     // assigns it to the product as a side effect of submitting).
     public function createFromReorder(Request $request, Product $product)
     {
+        if (! $product->IsActive) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['message' => 'This product is inactive and can no longer be ordered.'], 422);
+            }
+
+            return redirect()->route('admin.inventory.index')->with('error', 'This product is inactive and can no longer be ordered.');
+        }
+
         $product->load(['category', 'brand', 'inventory', 'suppliers.supplier']);
 
         $quantity = (int) ($product->inventory?->Quantity ?? 0);
@@ -175,10 +185,11 @@ class PurchaseOrderController extends Controller
             'ExpectedDeliveryDate' => ['nullable', 'date', 'after_or_equal:PurchaseDate'],
             'Notes' => ['nullable', 'string', 'max:1000'],
             'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'integer', 'exists:Product,ProductID'],
+            'products.*.product_id' => ['required', 'integer', Rule::exists('Product', 'ProductID')->where('IsActive', true)],
             'products.*.quantity' => ['required', 'integer', 'min:1'],
             'products.*.cost_price' => ['required', 'numeric', 'min:0.01'],
         ], [
+            'products.*.product_id.exists' => 'One of the selected products is inactive and can no longer be ordered.',
             'products.*.cost_price.required' => 'Current Price is required for every product.',
             'products.*.cost_price.numeric' => 'Current Price must be a valid number.',
             'products.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
@@ -201,9 +212,9 @@ class PurchaseOrderController extends Controller
             // The PO number is derived from the now-known auto-increment PK,
             // which already guarantees uniqueness under concurrency — no
             // separate counter/locking scheme needed.
-            $year = \Illuminate\Support\Carbon::parse($data['PurchaseDate'])->format('Y');
+            $year = Carbon::parse($data['PurchaseDate'])->format('Y');
             $purchaseOrder->update([
-                'PONumber' => "PO-{$year}-" . str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
+                'PONumber' => "PO-{$year}-".str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
             ]);
 
             foreach ($data['products'] as $item) {
@@ -262,6 +273,12 @@ class PurchaseOrderController extends Controller
     // page had already resolved — never trusted from hidden form fields.
     public function storeFromReorder(Request $request, Product $product)
     {
+        if (! $product->IsActive) {
+            throw ValidationException::withMessages([
+                'OrderQuantity' => 'This product is inactive and can no longer be ordered.',
+            ]);
+        }
+
         // A product with known suppliers must order from one of them; a
         // product with none can be assigned any supplier system-wide, which
         // also creates the missing ProductSupplier link below.
@@ -307,7 +324,7 @@ class PurchaseOrderController extends Controller
             ]);
 
             $purchaseOrder->update([
-                'PONumber' => 'PO-' . now()->format('Y') . '-' . str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
+                'PONumber' => 'PO-'.now()->format('Y').'-'.str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
             ]);
 
             // The admin's entered Current Price — never re-derived from the
@@ -364,7 +381,9 @@ class PurchaseOrderController extends Controller
 
         foreach ($inventories as $inventory) {
             $product = $inventory->product;
-            if (! $product) {
+            // An inactive product is never auto-reordered, however low its
+            // stock gets.
+            if (! $product || ! $product->IsActive) {
                 continue;
             }
 
@@ -383,6 +402,7 @@ class PurchaseOrderController extends Controller
                         'LastRestockPurchaseOrderId' => PurchaseOrder::max('PurchaseOrderID') ?? 0,
                     ]);
                 }
+
                 continue;
             }
 
@@ -448,7 +468,7 @@ class PurchaseOrderController extends Controller
                 ]);
 
                 $purchaseOrder->update([
-                    'PONumber' => 'PO-' . now()->format('Y') . '-' . str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
+                    'PONumber' => 'PO-'.now()->format('Y').'-'.str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
                 ]);
 
                 PurchaseOrderItem::create([

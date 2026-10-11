@@ -26,7 +26,22 @@ class Product extends Model
         'Description',
         'BrandID',
         'CategoryID',
+        'IsActive',
     ];
+
+    protected $casts = [
+        'IsActive' => 'boolean',
+    ];
+
+    /**
+     * Only products that can still be sold or ordered. Inactive products
+     * stay in the database (and in history/reports) but are hidden from the
+     * POS and from new Purchase Orders.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('IsActive', true);
+    }
 
     // Store policy: every product's selling price defaults to a fixed 45%
     // profit margin derived from its cost -- (Price - Cost) / Price = 0.45,

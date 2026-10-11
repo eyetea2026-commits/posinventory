@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
-use App\Models\Inventory;
-use App\Models\SalesTransaction;
-use App\Models\SalesItem;
 use App\Models\Billing;
-use App\Models\Payment;
 use App\Models\Discount;
+use App\Models\Inventory;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Models\SalesItem;
+use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\SaleCompleted;
@@ -59,7 +59,7 @@ class CashierAuthController extends Controller
 
     public function pos()
     {
-        $products = Product::with('inventory')->get()->filter(function($product) {
+        $products = Product::active()->with('inventory')->get()->filter(function ($product) {
             return $product->inventory && $product->inventory->Quantity > 0;
         });
 
@@ -143,6 +143,7 @@ class CashierAuthController extends Controller
 
         if ($discount->effective_status !== Discount::STATUS_ACTIVE) {
             $reason = $discount->effective_status === Discount::STATUS_EXPIRED ? 'has expired' : 'is not currently active';
+
             return response()->json(['success' => false, 'message' => "This promo code {$reason}."], 422);
         }
 
@@ -184,7 +185,7 @@ class CashierAuthController extends Controller
             ->where('StaffID', $staff->StaffID ?? 0)
             ->where('SalesTransactionDate', '>=', $todayStart)
             ->where('SalesTransactionDate', '<', $tomorrowStart)
-            ->when($search, function($query) use ($search) {
+            ->when($search, function ($query) use ($search) {
                 return $query->where('CustomerName', 'like', "%{$search}%");
             })
             ->orderBy('SalesTransactionID', 'desc')
@@ -292,11 +293,19 @@ class CashierAuthController extends Controller
                     ->get()
                     ->keyBy('ProductID');
 
+                // The POS screen only lists active products, but a tab left
+                // open since before a product was deactivated could still
+                // submit one — enforce it here too.
+                $inactive = $products->first(fn (Product $product) => ! $product->IsActive);
+                if ($inactive) {
+                    throw new \RuntimeException("\"{$inactive->ProductName}\" is no longer available for sale. Please remove it from the cart.");
+                }
+
                 foreach ($quantitiesByProduct as $productId => $qty) {
                     $inventory = $inventories->get($productId);
-                    if (!$inventory || $inventory->Quantity < $qty) {
+                    if (! $inventory || $inventory->Quantity < $qty) {
                         $product = $products->get($productId);
-                        throw new \RuntimeException('Insufficient stock for ' . ($product?->ProductName ?? 'product') . '. Available: ' . ($inventory?->Quantity ?? 0));
+                        throw new \RuntimeException('Insufficient stock for '.($product?->ProductName ?? 'product').'. Available: '.($inventory?->Quantity ?? 0));
                     }
                 }
 
@@ -372,7 +381,7 @@ class CashierAuthController extends Controller
                 // line. Total is computed first, before VAT, so rounding
                 // can't drift the two apart.
 
-                //FORMULA COMPUTATIONS
+                // FORMULA COMPUTATIONS
                 $subtotal = round($subtotal, 2);
                 $total = round($subtotal - $discountAmount, 2);
                 $vatAmount = round($total * 0.12, 2);
@@ -387,7 +396,7 @@ class CashierAuthController extends Controller
 
                 // Get or create staff record
                 $staff = Staff::where('UserID', $user->id)->first();
-                if (!$staff) {
+                if (! $staff) {
                     $staff = Staff::create([
                         'FirstName' => $user->first_name ?: explode(' ', $user->name)[0],
                         'MiddleName' => $user->middle_name ?: '-',
@@ -431,7 +440,7 @@ class CashierAuthController extends Controller
                     // this point, so it's always the right value to record.
                     'PaymentAmount' => $paymentAmount,
                     'PaymentMethod' => $paymentMethod,
-                    'ReceiptNumber' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+                    'ReceiptNumber' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'BillingID' => $billing->BillingID,
                     'ReferenceNumber' => $referenceNumber,
                     'BankName' => $bankName,
@@ -466,7 +475,7 @@ class CashierAuthController extends Controller
                 }
 
                 return [
-                    'receipt_number' => 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+                    'receipt_number' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'total' => $total,
                     'transaction_id' => $transaction->SalesTransactionID,
                 ];
@@ -523,7 +532,7 @@ class CashierAuthController extends Controller
             ->where('StaffID', $staff->StaffID ?? 0)
             ->first();
 
-        if (!$transaction) {
+        if (! $transaction) {
             abort(404, 'Receipt not found');
         }
 
@@ -587,7 +596,7 @@ class CashierAuthController extends Controller
         }
 
         // Get payment info
-        $payment = \App\Models\Payment::where('BillingID', $billing?->BillingID)->first();
+        $payment = Payment::where('BillingID', $billing?->BillingID)->first();
         $paymentAmount = $payment ? ($payment->PaymentAmount ?? $total) : $total;
         $change = max(0, $paymentAmount - $total);
         $paymentMethod = $payment?->PaymentMethod ?? 'cash';

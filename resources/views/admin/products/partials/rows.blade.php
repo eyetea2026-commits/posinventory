@@ -5,10 +5,15 @@
         $profit = $price - $cost;
         $margin = $price > 0 ? ($profit / $price) * 100 : 0;
     @endphp
-    <tr>
+    <tr class="{{ $product->IsActive ? '' : 'is-inactive' }}">
         <td class="col-product">
             <div class="product-info">
-                <span class="product-name">{{ $product->ProductName }}</span>
+                <span class="product-name">
+                    {{ $product->ProductName }}
+                    @unless($product->IsActive)
+                        <span class="product-status-badge">Inactive</span>
+                    @endunless
+                </span>
                 <span class="product-model">{{ $product->Model ?? 'N/A' }}</span>
                 @if(!empty($product->Description))
                     <span class="product-desc">{{ $product->Description }}</span>
@@ -54,23 +59,23 @@
                     <i class="fas fa-eye"></i>
                 </a>
                 <form
-                    action="{{ route('admin.products.destroy', $product) }}"
+                    action="{{ route('admin.products.toggle-status', $product) }}"
                     method="POST"
                     style="display:inline;"
-                    id="deleteForm{{ $product->ProductID }}"
+                    id="statusForm{{ $product->ProductID }}"
                 >
                     @csrf
-                    @method('DELETE')
+                    @method('PATCH')
                     <button
                         type="button"
-                        class="action-btn delete"
+                        class="action-btn {{ $product->IsActive ? 'deactivate' : 'activate' }}"
                         data-bs-toggle="tooltip"
                         data-bs-placement="top"
-                        title="Delete"
-                        aria-label="Delete"
-                        onclick="confirmDelete({{ $product->ProductID }})"
+                        title="{{ $product->IsActive ? 'Deactivate' : 'Activate' }}"
+                        aria-label="{{ $product->IsActive ? 'Deactivate' : 'Activate' }}"
+                        onclick="confirmToggleProductStatus({{ $product->ProductID }}, {{ $product->IsActive ? 'true' : 'false' }})"
                     >
-                        <i class="fas fa-trash"></i>
+                        <i class="fas {{ $product->IsActive ? 'fa-toggle-on' : 'fa-toggle-off' }}"></i>
                     </button>
                 </form>
             </div>
