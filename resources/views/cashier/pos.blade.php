@@ -1040,7 +1040,9 @@
         // was actually collected, so an under-amount GCash/bank/cheque entry
         // is just as wrong as an under-amount cash one.
         const payment = window.parseMoney(document.getElementById('payment-amount').value);
-        if (!payment || payment < currentTotal) {
+        // A 100% promo can bring the total to exactly ₱0.00 -- that sale
+        // needs no payment, so only demand one when something is owed.
+        if (currentTotal > 0 && (!payment || payment < currentTotal)) {
             toastWarning('Please enter sufficient payment amount!');
             return;
         }

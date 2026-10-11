@@ -68,3 +68,28 @@
      always computed from Start Date / End Date against today
      (Discount::getEffectiveStatusAttribute()), never admin-set. Products are
      assigned separately, in the "Apply Discount/Promo" tab. --}}
+
+{{-- A 100% promo makes the item free, which is allowed but must be a
+     deliberate choice -- every save button (both modals and both standalone
+     pages) builds its confirm dialog through this so the warning is the same
+     everywhere. Guarded because this partial can be included twice on one
+     page (the Add and Edit modals). --}}
+<script>
+    if (!window.promoSaveConfirmOptions) {
+        window.promoSaveConfirmOptions = function (form, baseOptions) {
+            var rateInput = form.querySelector('[name="DiscountRate"]');
+            var rate = rateInput ? parseFloat(rateInput.value) : NaN;
+            if (rate >= 100) {
+                return {
+                    title: 'This Promo Makes Items Free',
+                    text: 'A 100% discount means every product this promo is applied to will be sold for ₱0.00. Only continue if this is allowed by company policy.',
+                    icon: 'warning',
+                    confirmText: 'Yes, Save 100% Promo',
+                    cancelText: 'Go Back',
+                    confirmColor: '#f59e0b',
+                };
+            }
+            return baseOptions;
+        };
+    }
+</script>

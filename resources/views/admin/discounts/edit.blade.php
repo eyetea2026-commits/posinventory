@@ -81,7 +81,7 @@
     function confirmSave() {
         if (!form.checkValidity()) { form.reportValidity(); return; }
 
-        window.confirmAction({ title: 'Confirm Update', text: 'Save changes to this promo code?' }).then((result) => {
+        window.confirmAction(window.promoSaveConfirmOptions(form, { title: 'Confirm Update', text: 'Save changes to this promo code?' })).then((result) => {
             if (result.isConfirmed) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';

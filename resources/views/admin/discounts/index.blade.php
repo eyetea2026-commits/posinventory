@@ -1141,7 +1141,7 @@
         const form = document.getElementById('addDiscountForm');
         if (!form.checkValidity()) { form.reportValidity(); return; }
 
-        window.confirmAction({ title: 'Confirm Save', text: 'Create this promo code?' }).then(function (result) {
+        window.confirmAction(window.promoSaveConfirmOptions(form, { title: 'Confirm Save', text: 'Create this promo code?' })).then(function (result) {
             if (!result.isConfirmed) return;
 
             const submitBtn = document.getElementById('addDiscountSubmitBtn');
@@ -1284,7 +1284,7 @@
         const form = document.getElementById('editDiscountForm');
         if (!form.checkValidity()) { form.reportValidity(); return; }
 
-        window.confirmAction({ title: 'Confirm Update', text: 'Save changes to this promo code?' }).then(function (result) {
+        window.confirmAction(window.promoSaveConfirmOptions(form, { title: 'Confirm Update', text: 'Save changes to this promo code?' })).then(function (result) {
             if (!result.isConfirmed) return;
 
             const submitBtn = document.getElementById('editDiscountSubmitBtn');

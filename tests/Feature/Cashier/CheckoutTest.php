@@ -263,6 +263,29 @@ class CheckoutTest extends TestCase
         $response->assertJsonPath('success', true);
     }
 
+    // A 100% promo is allowed (with an admin-side warning when saving it), so
+    // a sale whose total is exactly ₱0.00 must still go through.
+    public function test_a_fully_discounted_sale_with_a_zero_total_completes(): void
+    {
+        $product = $this->makeProduct(500);
+        $discount = Discount::create([
+            'DiscountRate' => 100, 'Name' => 'Free Item',
+            'PromoCode' => 'FREE100', 'StartDate' => now()->subDay(), 'EndDate' => now()->addMonth(), 'Status' => 'active',
+        ]);
+        $discount->products()->attach($product->ProductID);
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash',
+            'payment_amount' => 0,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
+        $this->assertEquals(0.0, (float) Billing::latest('BillingID')->value('BillingAmount'));
+        $this->assertSame(49, Inventory::where('ProductID', $product->ProductID)->value('Quantity'));
+    }
+
     // ---- Receipt breakdown is stored at sale time and read back verbatim,
     // immune to the Discount's rate being edited afterward ----
 

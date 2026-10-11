@@ -96,6 +96,30 @@ class DiscountModuleTest extends TestCase
         $response->assertSessionHasErrors('EndDate');
     }
 
+    // 100% is allowed (the item becomes free) -- the form warns before
+    // saving it, but the server must still accept it.
+    public function test_a_100_percent_promo_can_be_saved(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
+            'DiscountRate' => 100, 'PromoCode' => 'FREE100',
+        ]));
+
+        $response->assertRedirect(route('admin.discounts.index'));
+        $this->assertDatabaseHas('Discount', ['PromoCode' => 'FREE100', 'DiscountRate' => 100]);
+    }
+
+    public function test_promo_forms_include_the_100_percent_warning(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.discounts.index'))
+            ->assertOk()
+            ->assertSee('promoSaveConfirmOptions', false)
+            ->assertSee('This Promo Makes Items Free');
+
+        $this->actingAs($this->admin)->get(route('admin.discounts.create'))
+            ->assertOk()
+            ->assertSee('promoSaveConfirmOptions', false);
+    }
+
     public function test_store_rejects_a_start_date_in_the_past(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
