@@ -67,12 +67,28 @@
             <div class="form-grid">
                 <div class="form-group full-width">
                     <label class="form-label">New Password <span class="required">*</span></label>
-                    <input type="password" id="resetPasswordNew" class="form-input" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="resetPasswordNew" class="form-input" required>
+                        <button type="button" class="password-toggle-btn" aria-label="Show password">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <ul class="password-requirements" id="reset-password-requirements">
+                        <li data-rule="length">At least 8 characters</li>
+                        <li data-rule="uppercase">At least one uppercase letter</li>
+                        <li data-rule="number">At least one number</li>
+                        <li data-rule="special">At least one special character (e.g. _ ! @ #)</li>
+                    </ul>
                     <span class="form-error" id="error-reset-password"></span>
                 </div>
                 <div class="form-group full-width">
                     <label class="form-label">Confirm Password <span class="required">*</span></label>
-                    <input type="password" id="resetPasswordConfirm" class="form-input" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="resetPasswordConfirm" class="form-input" required>
+                        <button type="button" class="password-toggle-btn" aria-label="Show password">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
@@ -267,6 +283,9 @@
         document.getElementById('resetPasswordNew').classList.remove('error');
         document.getElementById('resetPasswordConfirm').classList.remove('error');
         document.getElementById('error-reset-password').textContent = '';
+        document.querySelectorAll('#reset-password-requirements li').forEach(function (li) {
+            li.classList.remove('met');
+        });
         hideResetPasswordGeneralError();
         resetResetPasswordSaveBtn();
 

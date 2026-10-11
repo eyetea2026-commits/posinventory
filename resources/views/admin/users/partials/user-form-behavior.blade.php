@@ -182,4 +182,45 @@ window.initUserAddForm = function (formId, options) {
         resetSubmitButton: resetSubmitButton
     };
 };
+
+// Password show/hide toggle + live strength checklist. Wired generically
+// (every .password-toggle-btn on the page, not just one form) so this one
+// block covers both the Add User form's Password/Confirm fields AND the
+// separate Reset Password modal's New/Confirm fields — deferred to
+// DOMContentLoaded since this partial can be included before those modals'
+// own markup later in the page.
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.password-toggle-btn').forEach(function (btn) {
+        var input = btn.previousElementSibling;
+        if (!input) return;
+        btn.addEventListener('click', function () {
+            var showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            btn.innerHTML = showing ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+            btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        });
+    });
+
+    var passwordRules = {
+        length: function (v) { return v.length >= 8; },
+        uppercase: function (v) { return /[A-Z]/.test(v); },
+        number: function (v) { return /[0-9]/.test(v); },
+        special: function (v) { return /[^A-Za-z0-9]/.test(v); }
+    };
+
+    function wireRequirementsList(inputId, listId) {
+        var input = document.getElementById(inputId);
+        var list = document.getElementById(listId);
+        if (!input || !list) return;
+        input.addEventListener('input', function () {
+            Object.keys(passwordRules).forEach(function (rule) {
+                var li = list.querySelector('[data-rule="' + rule + '"]');
+                if (li) li.classList.toggle('met', passwordRules[rule](input.value));
+            });
+        });
+    }
+
+    wireRequirementsList('password', 'password-requirements');
+    wireRequirementsList('resetPasswordNew', 'reset-password-requirements');
+});
 </script>

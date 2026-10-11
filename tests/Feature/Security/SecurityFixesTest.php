@@ -118,8 +118,8 @@ class SecurityFixesTest extends TestCase
             'name' => 'sneakyadmin',
             'email' => 'sneaky@example.com',
             'role_id' => $this->adminRole->id, // attempting to self-assign admin
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
         ]);
 
         $response->assertSessionHasErrors('role_id');
@@ -134,8 +134,8 @@ class SecurityFixesTest extends TestCase
             'name' => 'newcashier',
             'email' => 'newcashier@example.com',
             'role_id' => $this->cashierRole->id,
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
         ]);
 
         $response->assertRedirect(route('admin.users.index'));
@@ -170,8 +170,8 @@ class SecurityFixesTest extends TestCase
             'name' => 'loggeduser',
             'email' => 'loggeduser@example.com',
             'role_id' => $this->cashierRole->id,
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
         ]);
         $this->assertTrue(ActivityLog::where('Action', 'user.created')->exists());
 

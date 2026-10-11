@@ -672,7 +672,15 @@
                 if (searchInput.value) {
                     url.searchParams.set('search', searchInput.value);
                 }
-                window.location.href = url.toString();
+                // Fetch and swap the table in place instead of a full page
+                // navigation — a real navigation was reloading the whole
+                // page on every pause while typing, which dropped focus out
+                // of the search box and forced re-clicking it to keep typing.
+                history.replaceState(null, '', url.toString());
+                fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (response) { return response.text(); })
+                    .then(function (html) { refreshUsersTable(html); })
+                    .catch(function () { /* non-fatal — the next keystroke retries */ });
             }, 300);
         });
     }

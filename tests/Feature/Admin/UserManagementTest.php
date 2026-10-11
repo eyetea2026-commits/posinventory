@@ -127,6 +127,122 @@ class UserManagementTest extends TestCase
         ]);
     }
 
+    private function baseCashierPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'first_name' => 'Test',
+            'last_name' => 'Cashier',
+            'contact_number' => '09171234567',
+            'name' => 'testcashier',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ], $overrides);
+    }
+
+    public function test_user_store_rejects_an_applicant_under_18(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(
+            route('admin.users.store'),
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'age' => 17])
+        );
+
+        $response->assertSessionHasErrors('age');
+        $this->assertDatabaseMissing('users', ['name' => 'testcashier']);
+    }
+
+    public function test_user_store_accepts_an_applicant_exactly_18(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(
+            route('admin.users.store'),
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'age' => 18])
+        );
+
+        $response->assertRedirect(route('admin.users.index'));
+        $this->assertDatabaseHas('users', ['name' => 'testcashier', 'age' => 18]);
+    }
+
+    public function test_user_store_rejects_a_contact_number_that_is_not_exactly_11_digits(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(
+            route('admin.users.store'),
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'contact_number' => '0917123456'])
+        );
+
+        $response->assertSessionHasErrors('contact_number');
+        $this->assertDatabaseMissing('users', ['name' => 'testcashier']);
+    }
+
+    public function test_user_store_rejects_a_contact_number_containing_letters(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(
+            route('admin.users.store'),
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'contact_number' => '0917abc4567'])
+        );
+
+        $response->assertSessionHasErrors('contact_number');
+        $this->assertDatabaseMissing('users', ['name' => 'testcashier']);
+    }
+
+    public function test_user_store_rejects_gender_other(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(
+            route('admin.users.store'),
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'gender' => 'Other'])
+        );
+
+        $response->assertSessionHasErrors('gender');
+        $this->assertDatabaseMissing('users', ['name' => 'testcashier']);
+    }
+
+    public function test_user_store_rejects_a_password_with_no_symbol(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(route('admin.users.store'), $this->baseCashierPayload([
+            'role_id' => $cashierRole->id,
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+        ]));
+
+        $response->assertSessionHasErrors('password');
+        $this->assertDatabaseMissing('users', ['name' => 'testcashier']);
+    }
+
+    public function test_add_user_form_renders_the_password_requirements_checklist_and_eye_toggle(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->get(route('admin.users.create'));
+
+        $response->assertOk();
+        $response->assertSee('id="password-requirements"', false);
+        $response->assertSee('password-toggle-btn', false);
+        $response->assertSee('maxlength="11"', false);
+    }
+
     public function test_user_management_index_renders_view_details_trigger(): void
     {
         $role = Role::create(['role_name' => 'admin']);

@@ -28,13 +28,14 @@ class AppServiceProvider extends ServiceProvider
 
         // Project-wide password policy — every Password::defaults() call in
         // the app (User creation/edit, admin password reset) now requires a
-        // minimum length plus mixed case and numbers, not just Laravel's bare
-        // 8-character default. The "have I been pwned" breach check only
-        // runs outside local/testing, since it requires a live network call
-        // to an external API that isn't available (and shouldn't be relied
-        // on) in a test run or offline dev environment.
+        // minimum length plus mixed case, numbers, and a special character,
+        // not just Laravel's bare 8-character default. The "have I been
+        // pwned" breach check only runs outside local/testing, since it
+        // requires a live network call to an external API that isn't
+        // available (and shouldn't be relied on) in a test run or offline
+        // dev environment.
         Password::defaults(function () {
-            $rule = Password::min(8)->mixedCase()->numbers();
+            $rule = Password::min(8)->mixedCase()->numbers()->symbols();
 
             return $this->app->environment('production') ? $rule->uncompromised() : $rule;
         });

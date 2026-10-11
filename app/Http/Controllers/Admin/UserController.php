@@ -123,10 +123,10 @@ class UserController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
-            'age' => ['nullable', 'integer', 'min:1', 'max:150'],
+            'age' => ['nullable', 'integer', 'min:18', 'max:150'],
             'address' => ['nullable', 'string', 'max:255'],
-            'contact_number' => ['required', 'string', 'max:50', 'unique:users,contact_number'],
-            'gender' => ['nullable', 'in:Male,Female,Other'],
+            'contact_number' => ['required', 'digits:11', 'unique:users,contact_number'],
+            'gender' => ['nullable', 'in:Male,Female'],
             'name' => ['required', 'string', 'max:255', 'unique:users,name'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'role_id' => ['required', 'integer', Rule::in(array_filter([$cashierRoleId]))],
@@ -136,7 +136,9 @@ class UserController extends Controller
             'name.required' => 'Username is required.',
             'name.unique' => 'This username is already taken.',
             'email.unique' => 'This email is already registered.',
+            'contact_number.digits' => 'Contact number must be exactly 11 digits.',
             'contact_number.unique' => 'This contact number is already registered.',
+            'age.min' => 'User must be at least 18 years old.',
             'password.confirmed' => 'Password and Confirm Password must match.',
         ]);
 
@@ -220,14 +222,17 @@ class UserController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
-            'age' => ['nullable', 'integer', 'min:1', 'max:150'],
+            'age' => ['nullable', 'integer', 'min:18', 'max:150'],
             'address' => ['nullable', 'string', 'max:255'],
-            'contact_number' => ['required', 'string', 'max:50', 'unique:users,contact_number,'.$user->id],
-            'gender' => ['nullable', 'in:Male,Female,Other'],
+            'contact_number' => ['required', 'digits:11', 'unique:users,contact_number,'.$user->id],
+            'gender' => ['nullable', 'in:Male,Female'],
             'name' => ['required', 'string', 'max:255', 'unique:users,name,'.$user->id],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'role_id' => ['required', 'integer', 'exists:roles,id'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
+        ], [
+            'contact_number.digits' => 'Contact number must be exactly 11 digits.',
+            'age.min' => 'User must be at least 18 years old.',
         ]);
 
         // Updating an Administrator account requires the ACTING admin to

@@ -60,6 +60,53 @@
         color: #fca5a5;
     }
 
+    .password-input-wrapper { position: relative; }
+    .password-input-wrapper .form-input { padding-right: 46px; }
+    .password-toggle-btn {
+        position: absolute;
+        top: 50%;
+        right: 12px;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 6px;
+        display: flex;
+        align-items: center;
+    }
+    .password-toggle-btn:hover { color: #cbd5e1; }
+
+    .password-requirements {
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.8rem;
+    }
+    .password-requirements li {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #94a3b8;
+    }
+    .password-requirements li::before {
+        content: '\f111';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        font-size: 0.5rem;
+        color: #64748b;
+    }
+    .password-requirements li.met {
+        color: #6ee7b7;
+    }
+    .password-requirements li.met::before {
+        content: '\f00c';
+        color: #10b981;
+    }
+
     .protected-notice {
         display: flex;
         align-items: center;

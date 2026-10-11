@@ -92,13 +92,13 @@ class AdminForgotPasswordTest extends TestCase
         // Step 3: set the new password.
         $resetResponse = $this->post(route('admin.password.reset'), [
             'email' => $admin->email,
-            'password' => 'NewPass1234',
-            'password_confirmation' => 'NewPass1234',
+            'password' => 'NewPass1234!',
+            'password_confirmation' => 'NewPass1234!',
         ]);
         $resetResponse->assertRedirect(route('welcome'));
 
         $admin->refresh();
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPass1234', $admin->password));
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPass1234!', $admin->password));
     }
 
     public function test_reset_is_rejected_for_an_unrelated_email_without_its_own_otp_verification(): void
@@ -116,13 +116,13 @@ class AdminForgotPasswordTest extends TestCase
         // session verified for $admin must be rejected.
         $response = $this->post(route('admin.password.reset'), [
             'email' => $otherAdmin->email,
-            'password' => 'NewPass1234',
-            'password_confirmation' => 'NewPass1234',
+            'password' => 'NewPass1234!',
+            'password_confirmation' => 'NewPass1234!',
         ]);
 
         $response->assertRedirect(route('admin.forgot'));
         $otherAdmin->refresh();
-        $this->assertFalse(\Illuminate\Support\Facades\Hash::check('NewPass1234', $otherAdmin->password));
+        $this->assertFalse(\Illuminate\Support\Facades\Hash::check('NewPass1234!', $otherAdmin->password));
     }
 
     // ---- A completed reset must force out whatever session was already
@@ -156,8 +156,8 @@ class AdminForgotPasswordTest extends TestCase
         $this->post(route('admin.otp.verify'), ['email' => $admin->email, 'otp' => $otp]);
         $resetResponse = $this->post(route('admin.password.reset'), [
             'email' => $admin->email,
-            'password' => 'NewPass1234',
-            'password_confirmation' => 'NewPass1234',
+            'password' => 'NewPass1234!',
+            'password_confirmation' => 'NewPass1234!',
         ]);
         $resetResponse->assertRedirect(route('welcome'));
 
@@ -182,11 +182,11 @@ class AdminForgotPasswordTest extends TestCase
         $this->post(route('admin.otp.verify'), ['email' => $admin->email, 'otp' => $otp]);
         $resetResponse = $this->post(route('admin.password.reset'), [
             'email' => $admin->email,
-            'password' => 'NewPass1234',
-            'password_confirmation' => 'NewPass1234',
+            'password' => 'NewPass1234!',
+            'password_confirmation' => 'NewPass1234!',
         ]);
 
         $resetResponse->assertRedirect(route('welcome'));
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPass1234', $admin->fresh()->password));
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPass1234!', $admin->fresh()->password));
     }
 }

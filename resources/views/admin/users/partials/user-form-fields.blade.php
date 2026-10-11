@@ -48,7 +48,7 @@
 
     <div class="form-group">
         <label class="form-label">Age</label>
-        <input type="number" name="age" class="form-input" value="{{ old('age', $user->age ?? null) }}" min="1" max="150">
+        <input type="number" name="age" class="form-input" value="{{ old('age', $user->age ?? null) }}" min="18" max="150">
         <span class="form-error" id="error-age">@error('age'){{ $message }}@enderror</span>
     </div>
 
@@ -69,7 +69,9 @@
 
     <div class="form-group">
         <label class="form-label">Contact Number <span class="required">*</span></label>
-        <input type="text" name="contact_number" class="form-input" value="{{ old('contact_number', $user->contact_number ?? null) }}" required>
+        <input type="text" name="contact_number" class="form-input" value="{{ old('contact_number', $user->contact_number ?? null) }}"
+               inputmode="numeric" maxlength="11" pattern="[0-9]{11}"
+               oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)" required>
         <span class="form-error" id="error-contact_number">@error('contact_number'){{ $message }}@enderror</span>
     </div>
 
@@ -85,7 +87,6 @@
             <option value="">Select Gender</option>
             <option value="Male" {{ old('gender', $user->gender ?? null) == 'Male' ? 'selected' : '' }}>Male</option>
             <option value="Female" {{ old('gender', $user->gender ?? null) == 'Female' ? 'selected' : '' }}>Female</option>
-            <option value="Other" {{ old('gender', $user->gender ?? null) == 'Other' ? 'selected' : '' }}>Other</option>
         </select>
         <span class="form-error" id="error-gender">@error('gender'){{ $message }}@enderror</span>
     </div>
@@ -134,13 +135,32 @@
     @elseif(!isset($user))
         <div class="form-group">
             <label class="form-label">Password <span class="required">*</span></label>
-            <input type="password" name="password" class="form-input" required>
+            <div class="password-input-wrapper">
+                <input type="password" name="password" id="password" class="form-input" required>
+                <button type="button" class="password-toggle-btn" aria-label="Show password">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
+            {{-- Live-updated by user-form-behavior.blade.php as the admin types;
+                 server-side enforcement is the single Password::defaults()
+                 policy in AppServiceProvider — this list just mirrors it. --}}
+            <ul class="password-requirements" id="password-requirements">
+                <li data-rule="length">At least 8 characters</li>
+                <li data-rule="uppercase">At least one uppercase letter</li>
+                <li data-rule="number">At least one number</li>
+                <li data-rule="special">At least one special character (e.g. _ ! @ #)</li>
+            </ul>
             <span class="form-error" id="error-password">@error('password'){{ $message }}@enderror</span>
         </div>
 
         <div class="form-group">
             <label class="form-label">Confirm Password <span class="required">*</span></label>
-            <input type="password" name="password_confirmation" class="form-input" required>
+            <div class="password-input-wrapper">
+                <input type="password" name="password_confirmation" id="password_confirmation" class="form-input" required>
+                <button type="button" class="password-toggle-btn" aria-label="Show password">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </div>
         </div>
     @endif
 </div>
