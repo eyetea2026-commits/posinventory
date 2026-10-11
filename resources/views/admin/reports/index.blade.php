@@ -112,6 +112,22 @@
         .report-section-heading { margin: 0 0 12px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #f8fafc); text-transform: uppercase; letter-spacing: 0.04em; }
         .report-section-divider { border: none; border-top: 1px solid var(--border, rgba(148, 163, 184, 0.25)); margin: 18px 0; }
 
+        {{-- A sale that was later refunded needs to stand out from the rest
+             of its own details — reuses the same amber warning treatment as
+             the Returns module's "Refunded" badge (admin/sales-returns). --}}
+        .report-detail-warning {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: rgba(148, 163, 184, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            color: #fcd34d;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
         {{-- Line-based report layout: each field is a plain "Label: Value"
              row, no card/box around it -- replaces the previous
              card-grid presentation for View Details. --}}
@@ -173,6 +189,7 @@
             body.printing-report-details .report-section-divider { border-top-color: #cbd5e1 !important; }
             body.printing-report-details table.table th,
             body.printing-report-details table.table td { color: #0f172a !important; border-color: #cbd5e1 !important; }
+            body.printing-report-details .report-detail-warning { color: #92400e !important; border-color: #f59e0b !important; background: #fffbeb !important; }
         }
     </style>
 
@@ -210,6 +227,10 @@
                         });
                         html += '</tbody></table></div>';
                     }
+                }
+
+                if (section.warning) {
+                    html += `<div class="report-detail-warning"><i class="fas fa-triangle-exclamation"></i> ${escapeReportDetailHtml(section.warning)}</div>`;
                 }
 
                 return html;

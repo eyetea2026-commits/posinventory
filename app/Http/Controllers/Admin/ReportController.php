@@ -153,21 +153,38 @@ class ReportController extends Controller
             ])->all(),
         ];
 
+        $sections = [
+            [
+                'heading' => 'Report Information',
+                'fields' => [
+                    ['label' => 'Report ID', 'value' => $reportNumber],
+                    ['label' => 'Cashier Name', 'value' => $cashierName],
+                    ['label' => 'Transaction Date & Time', 'value' => $this->fmtDateTime($transaction?->SalesTransactionDate)],
+                    ['label' => 'Customer Name', 'value' => $billing->CustomerName ?: 'Walk-in Customer'],
+                    ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ? ucfirst($billing->payment->PaymentMethod) : 'N/A'],
+                ],
+            ],
+            ['heading' => 'Products Sold', 'table' => $productsTable],
+        ];
+
+        // Flagged at the end rather than mixed into "Report Information" —
+        // a refund means cash actually left the business after this sale,
+        // so it needs to stand out rather than read as just another field.
+        // A sale can have more than one partial return (multi-item returns),
+        // so this checks for ANY processed refund against this transaction,
+        // not a 1:1 link.
+        $wasRefunded = $transaction && SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
+            ->where('ReturnType', 'refund')
+            ->where('Status', SalesReturn::STATUS_PROCESSED)
+            ->exists();
+
+        if ($wasRefunded) {
+            $sections[] = ['warning' => 'This sale has been refunded.'];
+        }
+
         return [
             'title' => "Sales Report — {$reportNumber}",
-            'sections' => [
-                [
-                    'heading' => 'Report Information',
-                    'fields' => [
-                        ['label' => 'Report ID', 'value' => $reportNumber],
-                        ['label' => 'Cashier Name', 'value' => $cashierName],
-                        ['label' => 'Transaction Date & Time', 'value' => $this->fmtDateTime($transaction?->SalesTransactionDate)],
-                        ['label' => 'Customer Name', 'value' => $billing->CustomerName ?: 'Walk-in Customer'],
-                        ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ? ucfirst($billing->payment->PaymentMethod) : 'N/A'],
-                    ],
-                ],
-                ['heading' => 'Products Sold', 'table' => $productsTable],
-            ],
+            'sections' => $sections,
         ];
     }
 

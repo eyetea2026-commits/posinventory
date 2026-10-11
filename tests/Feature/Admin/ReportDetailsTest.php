@@ -99,6 +99,93 @@ class ReportDetailsTest extends TestCase
         ]);
     }
 
+    public function test_sales_report_details_has_no_refund_warning_when_never_returned(): void
+    {
+        $transaction = SalesTransaction::create([
+            'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
+        ]);
+        SalesItem::create([
+            'Quantity' => 1, 'UnitPrice' => 1000,
+            'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+        $billing = Billing::create([
+            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1000,
+            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+
+        $response = $this->fetchDetails('sales', $billing->BillingID);
+
+        $response->assertOk();
+        $response->assertJsonMissing(['warning' => 'This sale has been refunded.']);
+    }
+
+    public function test_sales_report_details_shows_a_refund_warning_once_processed(): void
+    {
+        $transaction = SalesTransaction::create([
+            'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
+        ]);
+        SalesItem::create([
+            'Quantity' => 1, 'UnitPrice' => 1000,
+            'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+        $billing = Billing::create([
+            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1000,
+            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+
+        $return = SalesReturn::create([
+            'SalesTransactionID' => $transaction->SalesTransactionID,
+            'ProductID' => $this->product->ProductID, 'Quantity' => 1,
+            'Reason' => 'Factory Defect', 'ReturnType' => 'refund',
+            'ReturnDate' => now()->format('Y-m-d'), 'Status' => SalesReturn::STATUS_PROCESSED,
+        ]);
+        SalesReturnItem::create([
+            'SalesReturnID' => $return->SalesReturnID, 'ProductID' => $this->product->ProductID,
+            'Quantity' => 1, 'UnitPrice' => 1000, 'Reason' => 'Factory Defect',
+        ]);
+
+        $response = $this->fetchDetails('sales', $billing->BillingID);
+
+        $response->assertOk();
+        $response->assertJsonFragment(['warning' => 'This sale has been refunded.']);
+    }
+
+    // A pending/declined return (or a replacement, which isn't a cash
+    // refund) must not trigger the warning -- only a fully processed
+    // ReturnType=refund does.
+    public function test_sales_report_details_has_no_refund_warning_for_a_pending_or_replacement_return(): void
+    {
+        $transaction = SalesTransaction::create([
+            'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
+        ]);
+        SalesItem::create([
+            'Quantity' => 1, 'UnitPrice' => 1000,
+            'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+        $billing = Billing::create([
+            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1000,
+            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+
+        SalesReturn::create([
+            'SalesTransactionID' => $transaction->SalesTransactionID,
+            'ProductID' => $this->product->ProductID, 'Quantity' => 1,
+            'Reason' => 'Factory Defect', 'ReturnType' => 'refund',
+            'ReturnDate' => now()->format('Y-m-d'), 'Status' => SalesReturn::STATUS_PENDING,
+        ]);
+        SalesReturn::create([
+            'SalesTransactionID' => $transaction->SalesTransactionID,
+            'ProductID' => $this->product->ProductID, 'Quantity' => 1,
+            'Reason' => 'Factory Defect', 'ReturnType' => 'replacement',
+            'ReturnDate' => now()->format('Y-m-d'), 'Status' => SalesReturn::STATUS_PROCESSED,
+        ]);
+
+        $response = $this->fetchDetails('sales', $billing->BillingID);
+
+        $response->assertOk();
+        $response->assertJsonMissing(['warning' => 'This sale has been refunded.']);
+    }
+
     public function test_inventory_report_details_shows_product_identity_and_stock_table(): void
     {
         $response = $this->fetchDetails('inventory', $this->product->ProductID);
