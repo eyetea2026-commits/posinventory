@@ -306,7 +306,7 @@ class CheckoutTest extends TestCase
         // The old inline handler ran before the formatter capped the value.
         $response->assertDontSee('oninput="calculateChange()"', false);
         // Current Sale list is sized to show 7 cart lines at once.
-        $response->assertSee('min-height: calc(7 * 60px)', false);
+        $response->assertSee('min-height: calc(7 * 79px)', false);
     }
 
     // A 100% promo is allowed (with an admin-side warning when saving it), so

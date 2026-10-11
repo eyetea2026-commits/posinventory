@@ -51,26 +51,36 @@
     .clear-cart-btn { padding: 8px 16px; background: #ef4444; border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
     .clear-cart-btn:hover { background: #dc2626; }
 
-    /* Tall enough to show 7 cart lines at once (each compact row below is
-       ~54px plus a 6px gap). The panel itself scrolls, so the totals,
-       payment and Complete Sale stay reachable underneath. */
-    .cart-items { flex: 1 0 auto; min-height: calc(7 * 60px); max-height: calc(7 * 60px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; }
+    /* Tall enough to show 7 cart lines at once (each row is ~73px: the
+       product name on its own line, then price / qty / total below, plus a
+       6px gap; promo lines and 2-line names are taller). The panel itself
+       scrolls, so the totals, payment and Complete Sale stay reachable
+       underneath. */
+    .cart-items { flex: 1 0 auto; min-height: calc(7 * 79px); max-height: calc(7 * 79px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; }
     .cart-items::-webkit-scrollbar { width: 6px; }
     .cart-items::-webkit-scrollbar-track { background: #1a1d2d; }
     .cart-items::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
 
-    .cart-item { display: flex; flex-wrap: wrap; align-items: center; padding: 8px 12px; background: #2d3748; border-radius: 10px; margin-bottom: 6px; gap: 10px; min-height: 54px; box-sizing: border-box; }
+    .cart-item { display: flex; flex-wrap: wrap; align-items: center; padding: 7px 12px; background: #2d3748; border-radius: 10px; margin-bottom: 6px; gap: 4px 10px; box-sizing: border-box; }
+    /* The product name gets the full row width (up to 2 lines) instead of
+       sharing one line with the qty buttons and price, which squeezed it
+       down to a few letters in the narrow cart panel. */
+    .cart-item-head { flex-basis: 100%; display: flex; align-items: flex-start; gap: 8px; }
+    .cart-item-head .remove-btn { margin-left: auto; padding: 0 2px; flex-shrink: 0; }
+    .cart-item-name {
+        flex: 1; min-width: 0; margin: 0; font-size: 0.9rem; font-weight: 600; line-height: 1.25;
+        overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word;
+    }
     .cart-item-info { flex: 1; min-width: 0; }
-    .cart-item-info h4 { margin: 0; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cart-item-info p { margin: 2px 0 0; color: #94a3b8; font-size: 0.78rem; }
-    .cart-item-qty { display: flex; align-items: center; gap: 8px; background: #1a1d2d; border-radius: 8px; padding: 4px; }
-    .qty-btn { width: 28px; height: 28px; background: #4a5568; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+    .cart-item-info p { margin: 0; color: #94a3b8; font-size: 0.78rem; }
+    .cart-item-qty { display: flex; align-items: center; gap: 6px; background: #1a1d2d; border-radius: 8px; padding: 3px; }
+    .qty-btn { width: 26px; height: 26px; background: #4a5568; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
     .qty-btn:hover { background: #3b82f6; }
     .qty-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .qty-btn.long-pressing { background: #3b82f6; }
     .qty-input {
         width: 40px;
-        height: 28px;
+        height: 26px;
         background: #0f1420;
         border: 1px solid #4a5568;
         color: #f1f5f9;
@@ -840,9 +850,14 @@
             }
 
             container.innerHTML += `
-                <div class="cart-item" style="flex-wrap: wrap;">
+                <div class="cart-item">
+                    <div class="cart-item-head">
+                        <h4 class="cart-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
+                        <button class="remove-btn" onclick="removeFromCart(${item.id})" title="Remove">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                     <div class="cart-item-info">
-                        <h4>${escapeHtml(item.name)}</h4>
                         ${priceLineHtml}
                     </div>
                     <div class="cart-item-qty">
@@ -854,9 +869,6 @@
                     </div>
                     <div class="cart-item-price">
                         <div class="item-total">${window.formatPeso(roundMoney(lineTotal))}</div>
-                        <button class="remove-btn" onclick="removeFromCart(${item.id})" title="Remove">
-                            <i class="fas fa-trash"></i>
-                        </button>
                     </div>
                     ${promoRowHtml}
                 </div>
