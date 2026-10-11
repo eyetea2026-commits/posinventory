@@ -176,7 +176,7 @@
 <div class="pos-grid">
     <div class="pos-products">
         <div class="barcode-scanner">
-            <input type="text" id="barcode-input" placeholder="Scan or enter SKU / barcode..." onkeydown="handleBarcode(event)" autofocus>
+            <input type="text" id="barcode-input" placeholder="Just scan — items add automatically (or type a barcode + Enter)" onkeydown="handleBarcode(event)" autofocus>
             <button onclick="scanBarcode()"><i class="fas fa-barcode"></i> Scan</button>
         </div>
 
@@ -541,11 +541,16 @@
         }
     }
 
+    // Scan button / Enter typed by hand in the barcode field.
     function scanBarcode() {
-        const input = document.getElementById('barcode-input');
-        const barcode = input.value.trim();
+        const barcode = document.getElementById('barcode-input').value.trim();
         if (!barcode) return;
+        lookupAndAddBarcode(barcode);
+    }
 
+    // Shared by manual entry and the automatic scanner detection below.
+    function lookupAndAddBarcode(barcode) {
+        const input = document.getElementById('barcode-input');
         const now = Date.now();
         if (barcode === lastScannedBarcode && (now - lastScanTime) < SCAN_DUPLICATE_WINDOW_MS) {
             return;
@@ -553,7 +558,7 @@
         lastScannedBarcode = barcode;
         lastScanTime = now;
 
-        fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`)
+        fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`, { headers: { 'Accept': 'application/json' } })
             .then(response => response.json())
             .then(data => {
                 if (data && data.product) {
@@ -568,6 +573,7 @@
                         input.value = '';
                     } else {
                         toastWarning('Product out of stock!');
+                        input.value = barcode;
                         input.select();
                     }
                 } else {
@@ -575,7 +581,8 @@
                     // in the field (selected, not cleared) so the cashier
                     // can read/correct it — the next scan's keystrokes
                     // replace the selected text automatically.
-                    toastError('Product Not Found. This barcode is not registered in the system.');
+                    toastError((data && data.message) || 'Product Not Found. This barcode is not registered in the system.');
+                    input.value = barcode;
                     input.select();
                 }
             })
@@ -590,6 +597,116 @@
                 input.focus();
             });
     }
+
+    // Hands-free scanning: a scan adds the item to Current Sale wherever the
+    // cursor is -- no clicking the scan field, no Scan button. A HID scanner
+    // "types" a whole barcode within a few milliseconds per character, far
+    // faster than a person, so a burst of SCAN_MIN_LENGTH+ characters with
+    // every gap under SCAN_MAX_KEY_GAP_MS is treated as a scan. It ends on
+    // the scanner's Enter/Tab suffix, or on a short pause for scanners
+    // configured without one. Any characters the burst typed into another
+    // field (customer name, search, payment, a qty box) are put back.
+    // Ordinary typing never forms such a burst, so it behaves as before.
+    (function () {
+        const SCAN_MIN_LENGTH = 6;        // shortest product barcode is 8
+        const SCAN_MAX_KEY_GAP_MS = 60;   // scanners: ~2-30ms; people: 100ms+
+        const SCAN_IDLE_SUBMIT_MS = 150;  // for scanners that send no Enter
+
+        let buffer = '';
+        let lastKeyAt = 0;
+        let burstField = null;
+        let burstFieldValue = null;
+        let idleTimer = null;
+
+        function isTextField(el) {
+            if (!el) return false;
+            if (el.tagName === 'TEXTAREA') return true;
+            return el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'date', 'time'].includes(el.type);
+        }
+
+        // While a confirmation/alert is open a scan is swallowed, never
+        // processed: the scanner's Enter would otherwise click its
+        // confirm button (e.g. "Yes, Complete Sale").
+        function scanningBlocked() {
+            const fallback = document.getElementById('receiptFallbackOverlay');
+            return (window.Swal && Swal.isVisible()) || (fallback && fallback.style.display !== 'none');
+        }
+
+        function reset() {
+            buffer = '';
+            burstField = null;
+            burstFieldValue = null;
+            clearTimeout(idleTimer);
+        }
+
+        function completeScan() {
+            const code = buffer.trim();
+            const field = burstField;
+            const originalValue = burstFieldValue;
+            reset();
+
+            if (code.length < SCAN_MIN_LENGTH || scanningBlocked()) return;
+
+            // Undo whatever the scanner typed into a field that wasn't the
+            // barcode box, and let that field's own handlers resync.
+            const barcodeInput = document.getElementById('barcode-input');
+            if (field && field !== barcodeInput && originalValue !== null) {
+                field.value = originalValue;
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                field.dispatchEvent(new Event('keyup', { bubbles: true }));
+            }
+            barcodeInput.value = '';
+            lookupAndAddBarcode(code);
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Shift') return; // part of typing capital letters
+
+            const now = performance.now();
+            const gap = now - lastKeyAt;
+            const isBurst = buffer.length >= SCAN_MIN_LENGTH && gap <= SCAN_MAX_KEY_GAP_MS;
+
+            if (e.key === 'Enter' || e.key === 'NumpadEnter' || e.key === 'Tab') {
+                if (isBurst) {
+                    // Captured before any field/dialog sees it, so the scanner's
+                    // Enter never submits, blurs, or confirms anything else.
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    completeScan();
+                } else {
+                    reset();
+                }
+                lastKeyAt = now;
+                return;
+            }
+
+            if (e.key.length !== 1 || e.ctrlKey || e.altKey || e.metaKey) {
+                reset();
+                lastKeyAt = now;
+                return;
+            }
+
+            if (gap > SCAN_MAX_KEY_GAP_MS) {
+                // Possible start of a new burst: remember the field's value
+                // BEFORE this first character lands in it (keydown runs first).
+                buffer = '';
+                burstField = isTextField(e.target) ? e.target : null;
+                burstFieldValue = burstField ? burstField.value : null;
+            }
+
+            buffer += e.key;
+            lastKeyAt = now;
+
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(function () {
+                if (buffer.length >= SCAN_MIN_LENGTH) {
+                    completeScan();
+                } else {
+                    reset();
+                }
+            }, SCAN_IDLE_SUBMIT_MS);
+        }, true);
+    })();
 
     function searchProducts() {
         const search = document.getElementById('search-input').value.toLowerCase();

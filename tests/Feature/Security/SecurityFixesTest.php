@@ -74,6 +74,54 @@ class SecurityFixesTest extends TestCase
         $response->assertJsonPath('product.Barcode', '1234567890');
     }
 
+    public function test_barcode_api_refuses_an_inactive_product(): void
+    {
+        $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
+        Product::create([
+            'ProductName' => 'Retired Camera', 'Model' => 'CAM-OLD', 'Barcode' => '9990001112',
+            'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID, 'IsActive' => false,
+        ]);
+
+        $response = $this->actingAs($this->cashier)->getJson('/api/products/barcode/9990001112');
+
+        $response->assertNotFound();
+        $response->assertJsonPath('product', null);
+        $response->assertJsonPath('message', '"Retired Camera" is no longer available for sale.');
+    }
+
+    public function test_barcode_api_explains_an_unknown_barcode(): void
+    {
+        $this->actingAs($this->cashier)->getJson('/api/products/barcode/0000000000')
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Product Not Found. This barcode is not registered in the system.');
+    }
+
+    // Hands-free scanning sends one request per unit scanned; the old
+    // 60/minute limit could block a cashier scanning a stack of items.
+    public function test_barcode_api_allows_rapid_scanning_beyond_sixty_a_minute(): void
+    {
+        $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
+        Product::create([
+            'ProductName' => 'Cable', 'Model' => 'CBL-01', 'Barcode' => '5550001112',
+            'Price' => 50, 'CostPrice' => 20, 'CategoryID' => $category->CategoryID,
+        ]);
+
+        for ($i = 0; $i < 80; $i++) {
+            $status = $this->actingAs($this->cashier)->getJson('/api/products/barcode/5550001112')->status();
+            $this->assertSame(200, $status, 'Scan #'.($i + 1).' was rejected');
+        }
+    }
+
+    public function test_pos_has_hands_free_scan_detection(): void
+    {
+        $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
+
+        $response->assertOk();
+        $response->assertSee('const SCAN_MIN_LENGTH = 6;', false);
+        $response->assertSee('function lookupAndAddBarcode(barcode)', false);
+        $response->assertSee('Just scan', false);
+    }
+
     public function test_barcode_api_also_matches_on_sku(): void
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);

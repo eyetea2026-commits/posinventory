@@ -70,18 +70,27 @@ Route::post('/check-user-role', function (Request $request) {
 
 // API route for barcode scanning (POS) — cashier-only, mirrors every other
 // data-bearing route's auth requirement instead of being publicly reachable.
+// Throttle sized for hands-free scanning: every unit scanned is one request,
+// so a cashier scanning a stack of items one by one easily exceeds 60/min.
 Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     $product = Product::with('inventory')
-        ->where('Barcode', $barcode)
-        ->orWhere('SKU', $barcode)
+        ->where(function ($query) use ($barcode) {
+            $query->where('Barcode', $barcode)->orWhere('SKU', $barcode);
+        })
         ->first();
 
     if (! $product) {
-        return response()->json(['product' => null], 404);
+        return response()->json(['product' => null, 'message' => 'Product Not Found. This barcode is not registered in the system.'], 404);
+    }
+
+    // Deactivated products are hidden from the POS; scanning one must not
+    // sneak it into the cart only for checkout to reject it later.
+    if (! $product->IsActive) {
+        return response()->json(['product' => null, 'message' => "\"{$product->ProductName}\" is no longer available for sale."], 404);
     }
 
     return response()->json(['product' => $product]);
-})->middleware(['auth', 'role:cashier', 'throttle:60,1']);
+})->middleware(['auth', 'role:cashier', 'throttle:300,1']);
 
 // Smart post-login landing spot for the "dashboard" route name (nothing in
 // this app links here directly anymore — admin/cashier logins redirect
