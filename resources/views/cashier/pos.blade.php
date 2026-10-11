@@ -56,7 +56,9 @@
        6px gap; promo lines and 2-line names are taller). The panel itself
        scrolls, so the totals, payment and Complete Sale stay reachable
        underneath. */
-    .cart-items { flex: 1 0 auto; min-height: calc(7 * 79px); max-height: calc(7 * 79px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; }
+    .cart-items { flex: 1 0 auto; min-height: calc(7 * 79px); max-height: calc(7 * 79px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; position: relative; }
+    .cart-item { transition: box-shadow 0.25s ease, background-color 0.25s ease; }
+    .cart-item.cart-item-flash { background: #34445e; box-shadow: 0 0 0 2px #3b82f6 inset; }
     .cart-items::-webkit-scrollbar { width: 6px; }
     .cart-items::-webkit-scrollbar-track { background: #1a1d2d; }
     .cart-items::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
@@ -738,6 +740,9 @@
         } else {
             cart.push({ id, name, price, qty: 1, stock });
         }
+        // Bring this line into view once the cart re-renders -- matters once
+        // the cart holds more than the ~7 lines visible at a time.
+        cartFocusItemId = id;
         renderCart();
     }
 
@@ -796,8 +801,17 @@
         });
     }
 
+    // Set by addToCart(): the line to scroll to after the next render.
+    let cartFocusItemId = null;
+
     function renderCart() {
         const container = document.getElementById('cart-items');
+        // Rebuilding innerHTML resets the scroll to the top, which would
+        // jump the list away from whatever line the cashier was working on
+        // (e.g. pressing + on the 9th item).
+        const previousScrollTop = container.scrollTop;
+        const focusItemId = cartFocusItemId;
+        cartFocusItemId = null;
 
         if (cart.length === 0) {
             container.innerHTML = `
@@ -850,7 +864,7 @@
             }
 
             container.innerHTML += `
-                <div class="cart-item">
+                <div class="cart-item" data-cart-item-id="${item.id}">
                     <div class="cart-item-head">
                         <h4 class="cart-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
                         <button class="remove-btn" onclick="removeFromCart(${item.id})" title="Remove">
@@ -875,7 +889,36 @@
             `;
         });
 
+        container.scrollTop = previousScrollTop;
+        if (focusItemId !== null) {
+            scrollCartLineIntoView(container, focusItemId);
+        }
+
         updateTotals();
+    }
+
+    // Scrolls only the cart list (never the panel or the page) just enough to
+    // show the given line, and flashes it so the cashier sees which line the
+    // scan/click changed -- a brand-new product lands at the bottom, a repeat
+    // scan bumps the qty on its existing line wherever that is.
+    function scrollCartLineIntoView(container, itemId) {
+        const row = container.querySelector('.cart-item[data-cart-item-id="' + itemId + '"]');
+        if (!row) return;
+
+        const rowTop = row.offsetTop;
+        const rowBottom = rowTop + row.offsetHeight;
+        let target = container.scrollTop;
+        if (rowBottom > container.scrollTop + container.clientHeight) {
+            target = rowBottom - container.clientHeight;
+        } else if (rowTop < container.scrollTop) {
+            target = rowTop;
+        }
+        // Instant, not smooth: every add re-renders the cart, which would cut
+        // a smooth animation off mid-way during rapid back-to-back scans.
+        container.scrollTop = target;
+
+        row.classList.add('cart-item-flash');
+        setTimeout(function () { row.classList.remove('cart-item-flash'); }, 900);
     }
 
     // Keeps an already-open POS tab in sync with the Discount Module

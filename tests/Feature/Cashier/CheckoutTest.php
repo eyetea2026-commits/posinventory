@@ -305,6 +305,11 @@ class CheckoutTest extends TestCase
         $response->assertSee('function syncPaymentAmountMode()', false);
         // The old inline handler ran before the formatter capped the value.
         $response->assertDontSee('oninput="calculateChange()"', false);
+        // Adding/scanning an item scrolls the cart to that line, and every
+        // other re-render keeps the cashier's scroll position.
+        $response->assertSee('function scrollCartLineIntoView(container, itemId)', false);
+        $response->assertSee('container.scrollTop = previousScrollTop;', false);
+        $response->assertSee('data-cart-item-id="${item.id}"', false);
         // Current Sale list is sized to show 7 cart lines at once.
         $response->assertSee('min-height: calc(7 * 79px)', false);
     }
