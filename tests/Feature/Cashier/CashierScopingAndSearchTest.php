@@ -3,7 +3,6 @@
 namespace Tests\Feature\Cashier;
 
 use App\Models\Category;
-use App\Models\Product;
 use App\Models\Role;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
@@ -16,8 +15,11 @@ class CashierScopingAndSearchTest extends TestCase
     use RefreshDatabase;
 
     private User $cashier1;
+
     private User $cashier2;
+
     private Staff $staff1;
+
     private Staff $staff2;
 
     protected function setUp(): void
@@ -53,7 +55,8 @@ class CashierScopingAndSearchTest extends TestCase
 
     // --- Ownership scoping (item 2/3/4) ---------------------------------
 
-    public function test_cashier_sees_only_their_own_transactions(): void
+    // Every cashier sees all of today's sales, but can only reprint their own.
+    public function test_cashier_sees_every_cashiers_transactions_from_today(): void
     {
         for ($i = 0; $i < 5; $i++) {
             $this->makeTransactionFor($this->staff1);
@@ -64,18 +67,35 @@ class CashierScopingAndSearchTest extends TestCase
 
         $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));
         $response->assertOk();
-        $this->assertSame(5, $response->viewData('transactions')->total());
+        $this->assertSame(13, $response->viewData('transactions')->total());
 
         $response2 = $this->actingAs($this->cashier2)->get(route('cashier.transactions'));
         $response2->assertOk();
-        $this->assertSame(8, $response2->viewData('transactions')->total());
+        $this->assertSame(13, $response2->viewData('transactions')->total());
     }
 
-    public function test_a_cashier_with_no_sales_yet_sees_zero_transactions_not_everyone_elses(): void
+    public function test_print_is_only_offered_on_the_cashiers_own_sales(): void
     {
-        // Cashier 2 has sold plenty; Cashier 1 has never processed a sale,
-        // so no Staff row exists for them yet at all.
-        for ($i = 0; $i < 8; $i++) {
+        $own = $this->makeTransactionFor($this->staff1, 'Own Customer');
+        $other = $this->makeTransactionFor($this->staff2, 'Other Customer');
+        $ownReceipt = 'RCT-'.str_pad($own->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $otherReceipt = 'RCT-'.str_pad($other->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));
+
+        $response->assertOk();
+        $response->assertSee('Other Customer');
+        $response->assertSee($this->cashier2->full_name);
+        $response->assertSee('View only');
+        $response->assertSee(route('cashier.receipt', $ownReceipt), false);
+        $response->assertDontSee(route('cashier.receipt', $otherReceipt), false);
+    }
+
+    public function test_a_cashier_with_no_sales_yet_sees_others_sales_as_view_only(): void
+    {
+        // Cashier 2 has sold plenty; this cashier has never processed a
+        // sale, so no Staff row exists for them yet at all.
+        for ($i = 0; $i < 3; $i++) {
             $this->makeTransactionFor($this->staff2);
         }
 
@@ -83,8 +103,9 @@ class CashierScopingAndSearchTest extends TestCase
 
         $response = $this->actingAs($brandNewCashier)->get(route('cashier.transactions'));
         $response->assertOk();
-        $this->assertSame(0, $response->viewData('transactions')->total());
-        $response->assertDontSee('RCT-');
+        $this->assertSame(3, $response->viewData('transactions')->total());
+        $response->assertDontSee('fa-print', false);
+        $response->assertSee('View only');
     }
 
     // --- Live search AJAX branch (item 5) -------------------------------
@@ -104,7 +125,7 @@ class CashierScopingAndSearchTest extends TestCase
         $this->assertStringContainsString('Maria Santos', $response->json('rows'));
     }
 
-    public function test_ajax_search_filters_by_customer_name_and_stays_scoped_to_the_cashier(): void
+    public function test_ajax_search_filters_by_customer_name_across_all_cashiers(): void
     {
         $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
         $this->makeTransactionFor($this->staff1, 'Maria Santos');
@@ -116,8 +137,11 @@ class CashierScopingAndSearchTest extends TestCase
 
         $response->assertOk();
         $rows = $response->json('rows');
-        $this->assertStringContainsString('Juan Dela Cruz', $rows);
+        $this->assertSame(2, substr_count($rows, 'Juan Dela Cruz'));
         $this->assertStringNotContainsString('Maria Santos', $rows);
+        // The AJAX-rendered rows apply the same own-vs-others action rule.
+        $this->assertSame(1, substr_count($rows, 'fa-print'));
+        $this->assertStringContainsString('View only', $rows);
     }
 
     public function test_transactions_page_has_no_search_button_and_wires_up_live_search(): void
@@ -137,13 +161,13 @@ class CashierScopingAndSearchTest extends TestCase
     public function test_print_action_links_to_the_actual_receipt_not_a_duplicate_of_the_list(): void
     {
         $transaction = $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
-        $receiptNumber = 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $receiptNumber = 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));
 
         $response->assertOk();
         $response->assertSee(route('cashier.receipt', $receiptNumber), false);
-        $response->assertDontSee(route('cashier.transactions') . '?print=', false);
+        $response->assertDontSee(route('cashier.transactions').'?print=', false);
     }
 
     // --- Refund Requests: no blue button, live filter, no Invoice # -----

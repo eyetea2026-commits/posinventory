@@ -19,8 +19,11 @@ class TransactionHistoryDailyScopeTest extends TestCase
     use RefreshDatabase;
 
     private User $cashier1;
+
     private User $cashier2;
+
     private Staff $staff1;
+
     private Staff $staff2;
 
     protected function setUp(): void
@@ -86,16 +89,20 @@ class TransactionHistoryDailyScopeTest extends TestCase
         $this->assertSame(1, $response->viewData('transactions')->total());
     }
 
-    // --- Test 3: cross-cashier isolation, combined with the date rule ---
+    // --- Test 3: other cashiers' sales are visible (view-only), but the
+    // today-only date rule still applies to them too ---
 
-    public function test_cashier_cannot_see_another_cashiers_transaction_even_from_today(): void
+    public function test_cashier_sees_another_cashiers_transaction_from_today_but_not_older(): void
     {
         $this->makeTransactionFor($this->staff2, now(), 'Other Cashier Customer');
+        $this->makeTransactionFor($this->staff2, now()->subDay(), 'Other Cashier Yesterday');
 
         $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));
 
-        $this->assertSame(0, $response->viewData('transactions')->total());
-        $response->assertDontSee('Other Cashier Customer');
+        $this->assertSame(1, $response->viewData('transactions')->total());
+        $response->assertSee('Other Cashier Customer');
+        $response->assertDontSee('Other Cashier Yesterday');
+        $response->assertSee('View only');
     }
 
     // --- Test 5 / §5-6: backend can't be bypassed via request params ----
@@ -117,7 +124,7 @@ class TransactionHistoryDailyScopeTest extends TestCase
     public function test_direct_receipt_url_for_another_cashiers_transaction_is_denied(): void
     {
         $otherTransaction = $this->makeTransactionFor($this->staff2, now(), 'Other Cashier Customer');
-        $receiptNumber = 'RCT-' . str_pad($otherTransaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $receiptNumber = 'RCT-'.str_pad($otherTransaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         $response = $this->actingAs($this->cashier1)->get(route('cashier.receipt', $receiptNumber));
 
@@ -132,7 +139,7 @@ class TransactionHistoryDailyScopeTest extends TestCase
         // still work even though it no longer shows up in "Recent
         // Transactions". Only ownership is enforced on the receipt itself.
         $ownOldTransaction = $this->makeTransactionFor($this->staff1, now()->subDays(3), 'Loyal Customer');
-        $receiptNumber = 'RCT-' . str_pad($ownOldTransaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $receiptNumber = 'RCT-'.str_pad($ownOldTransaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         $response = $this->actingAs($this->cashier1)->get(route('cashier.receipt', $receiptNumber));
 

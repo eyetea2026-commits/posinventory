@@ -160,29 +160,25 @@ class CashierAuthController extends Controller
         ]);
     }
 
-    // Daily shift-audit view: a Cashier may only ever see their OWN sales
-    // from TODAY -- never another cashier's, never a previous day's. Both
-    // boundaries are computed here, server-side, from the app's own clock
-    // (config('app.timezone') = Asia/Manila) and the authenticated user's
-    // own Staff record; neither is taken from the request, so no request
-    // parameter (a date, a search term, a replayed query string) can widen
-    // what comes back. Admin's full-history Sales Report (ReportController)
-    // is a separate, already-unrestricted query and is untouched by this.
+    // Daily shift view: a Cashier sees EVERY cashier's sales from TODAY, but
+    // view-only for anyone else's -- the Print/reprint action only renders on
+    // their own rows, and viewReceipt() independently refuses another
+    // cashier's receipt, so hiding the button isn't the only safeguard. The
+    // today-only boundary is computed here, server-side, from the app's own
+    // clock (config('app.timezone') = Asia/Manila), never taken from the
+    // request, so no request parameter can widen it. Admin's full-history
+    // Sales Report (ReportController) is separate and untouched by this.
     public function transactions(Request $request)
     {
         $user = Auth::user();
         $staff = Staff::where('UserID', $user->id)->first();
+        $currentStaffId = $staff?->StaffID;
 
         $search = $request->get('search');
         $todayStart = now()->startOfDay();
         $tomorrowStart = $todayStart->copy()->addDay();
 
-        // Unconditional (not ->when($staff, ...)): a cashier with no Staff
-        // record yet (never processed a sale) must see zero transactions,
-        // not the whole table -- StaffID 0 never matches a real row. Mirrors
-        // the same pattern already used by CashierReturnController::index().
-        $transactions = SalesTransaction::with(['staff', 'billing', 'items.product'])
-            ->where('StaffID', $staff->StaffID ?? 0)
+        $transactions = SalesTransaction::with(['staff.user', 'billing', 'items.product'])
             ->where('SalesTransactionDate', '>=', $todayStart)
             ->where('SalesTransactionDate', '<', $tomorrowStart)
             ->when($search, function ($query) use ($search) {
@@ -197,12 +193,12 @@ class CashierAuthController extends Controller
         // Inventory list's live search/poll.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
-                'rows' => view('cashier.partials.transactions-rows', ['transactions' => $transactions])->render(),
+                'rows' => view('cashier.partials.transactions-rows', ['transactions' => $transactions, 'currentStaffId' => $currentStaffId])->render(),
                 'pagination' => view('cashier.partials.transactions-pagination', ['transactions' => $transactions])->render(),
             ]);
         }
 
-        return view('cashier.transactions', compact('transactions', 'search'));
+        return view('cashier.transactions', compact('transactions', 'search', 'currentStaffId'));
     }
 
     public function processSale(Request $request)

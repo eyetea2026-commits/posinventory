@@ -21,6 +21,8 @@
     .btn-primary { background: #3b82f6; color: white; }
     .btn-primary:hover { background: #2563eb; }
     .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+    .cashier-you { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+    .view-only-note { color: #94a3b8; font-size: 0.8rem; font-style: italic; }
     .alert { padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; }
     .alert-success { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
     .empty-state { text-align: center; padding: 40px; color: #64748b; }
@@ -62,6 +64,7 @@
                 <th>Receipt #</th>
                 <th>Date</th>
                 <th>Customer</th>
+                <th>Cashier</th>
                 <th>Items</th>
                 <th>Total</th>
                 <th>Actions</th>
