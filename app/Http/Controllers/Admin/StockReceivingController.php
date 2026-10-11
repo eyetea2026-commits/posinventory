@@ -12,6 +12,8 @@ use App\Models\StockReceiving;
 use App\Models\StockReceivingBatch;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Notifications\DeliveryDue;
+use App\Notifications\DeliveryReceived;
 use App\Notifications\ProductReceived;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -227,7 +229,72 @@ class StockReceivingController extends Controller
             return back()->with('error', 'Failed to add received stock to Inventory. Please try again.');
         }
 
+        // Dispatched only after the transaction has committed — a
+        // notification failure must never roll back a completed delivery.
+        try {
+            $purchaseOrder = PurchaseOrder::with(['supplier', 'items'])->find($stockReceivingBatch->PurchaseOrderID);
+            if ($purchaseOrder) {
+                Notification::send(User::admins(), new DeliveryReceived(
+                    $purchaseOrder,
+                    (int) $purchaseOrder->items->sum('ReceivedQuantity'),
+                    (int) $purchaseOrder->items->sum('Quantity'),
+                ));
+            }
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch DeliveryReceived notification', [
+                'batch_id' => $stockReceivingBatch->StockReceivingBatchID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
         return redirect()->route('admin.stock-receivings.index')->with('success', 'Stock added to Inventory. This delivery is now marked Completed.');
+    }
+
+    /**
+     * Sends a one-time "delivery due / overdue" notification for every
+     * pending delivery whose Expected Delivery Date is today or earlier.
+     * This hosting has no cron/scheduler, so it's triggered from admin page
+     * loads (throttled in AppServiceProvider) instead of a scheduled job —
+     * the same approach the automatic reorder drafts already use.
+     */
+    public static function notifyDueDeliveries(): void
+    {
+        $dueBatches = StockReceivingBatch::with('purchaseOrder.supplier')
+            ->where('Status', StockReceivingBatch::STATUS_PENDING)
+            ->whereNull('DueNotifiedAt')
+            ->whereHas('purchaseOrder', function ($query) {
+                $query->whereNotNull('ExpectedDeliveryDate')
+                    ->whereDate('ExpectedDeliveryDate', '<=', today())
+                    ->where('Status', PurchaseOrder::STATUS_PENDING);
+            })
+            ->get();
+
+        if ($dueBatches->isEmpty()) {
+            return;
+        }
+
+        $admins = User::admins();
+
+        foreach ($dueBatches as $batch) {
+            // Claim the batch first (conditional update) so two overlapping
+            // page loads can't both send the same notice.
+            $claimed = StockReceivingBatch::where('StockReceivingBatchID', $batch->StockReceivingBatchID)
+                ->whereNull('DueNotifiedAt')
+                ->update(['DueNotifiedAt' => now()]);
+
+            if (! $claimed) {
+                continue;
+            }
+
+            try {
+                Notification::send($admins, new DeliveryDue($batch->purchaseOrder));
+            } catch (Throwable $e) {
+                Log::error('Failed to dispatch DeliveryDue notification', [
+                    'batch_id' => $batch->StockReceivingBatchID,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     // Live duplicate-check used by both Receipt Number entry points: the

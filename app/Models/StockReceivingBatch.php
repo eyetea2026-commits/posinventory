@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class StockReceivingBatch extends Model
 {
     protected $table = 'StockReceivingBatch';
+
     protected $primaryKey = 'StockReceivingBatchID';
 
     protected $fillable = [
@@ -14,13 +15,16 @@ class StockReceivingBatch extends Model
         'Status',
         'ReceivedBy',
         'CompletedAt',
+        'DueNotifiedAt',
     ];
 
     protected $casts = [
         'CompletedAt' => 'datetime',
+        'DueNotifiedAt' => 'datetime',
     ];
 
     const STATUS_PENDING = 'pending';
+
     const STATUS_COMPLETED = 'completed';
 
     public function purchaseOrder()

@@ -281,6 +281,7 @@
                                             'clipboard-check' => 'fa-clipboard-check',
                                             'rotate-ccw' => 'fa-rotate-left',
                                             'shield-alert' => 'fa-shield-halved',
+                                            'truck' => 'fa-truck',
                                         ];
                                         $__notifColors = [
                                             'danger' => '#f87171',

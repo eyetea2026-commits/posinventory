@@ -2,12 +2,15 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Admin\StockReceivingController;
 use App\Models\Inventory;
 use App\Observers\InventoryObserver;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -50,6 +53,18 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('admin.layout', function ($view) {
             $user = auth()->user();
+
+            // No cron on this hosting, so "delivery due" notices are checked
+            // on admin page loads instead — at most once every 10 minutes
+            // (Cache::add only succeeds when the key is absent), and never
+            // allowed to break the page if something goes wrong.
+            if ($user && Cache::add('delivery-due-check', true, 600)) {
+                try {
+                    StockReceivingController::notifyDueDeliveries();
+                } catch (Throwable $e) {
+                    Log::error('Delivery due check failed', ['exception' => $e->getMessage()]);
+                }
+            }
 
             $view->with([
                 'headerUnreadNotifications' => $user
