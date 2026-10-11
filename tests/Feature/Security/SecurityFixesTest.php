@@ -119,7 +119,9 @@ class SecurityFixesTest extends TestCase
         $response->assertOk();
         $response->assertSee('const SCAN_MIN_LENGTH = 6;', false);
         $response->assertSee('function lookupAndAddBarcode(barcode)', false);
-        $response->assertSee('Just scan', false);
+        $response->assertSee('placeholder="Enter Barcode"', false);
+        // Scans add automatically, so there's no Scan button to click.
+        $response->assertDontSee('onclick="scanBarcode()"', false);
     }
 
     public function test_barcode_api_also_matches_on_sku(): void

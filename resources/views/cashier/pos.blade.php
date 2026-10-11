@@ -21,8 +21,6 @@
     .barcode-scanner { display: flex; gap: 10px; margin-bottom: 16px; }
     .barcode-scanner input { flex: 1; padding: 14px 18px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 10px; }
     .barcode-scanner input:focus { outline: none; border-color: #8b5cf6; }
-    .barcode-scanner button { padding: 14px 20px; background: #8b5cf6; border: none; color: white; border-radius: 10px; cursor: pointer; font-weight: 600; }
-    .barcode-scanner button:hover { background: #7c3aed; }
 
     .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(154px, 1fr)); gap: 10px; flex: 1; overflow-y: auto; padding-right: 8px; align-content: start; }
     .products-grid::-webkit-scrollbar { width: 6px; }
@@ -176,8 +174,7 @@
 <div class="pos-grid">
     <div class="pos-products">
         <div class="barcode-scanner">
-            <input type="text" id="barcode-input" placeholder="Just scan — items add automatically (or type a barcode + Enter)" onkeydown="handleBarcode(event)" autofocus>
-            <button onclick="scanBarcode()"><i class="fas fa-barcode"></i> Scan</button>
+            <input type="text" id="barcode-input" placeholder="Enter Barcode" onkeydown="handleBarcode(event)" autofocus>
         </div>
 
         <div class="search-bar">
@@ -541,7 +538,7 @@
         }
     }
 
-    // Scan button / Enter typed by hand in the barcode field.
+    // Enter pressed after typing a barcode by hand in the barcode field.
     function scanBarcode() {
         const barcode = document.getElementById('barcode-input').value.trim();
         if (!barcode) return;
