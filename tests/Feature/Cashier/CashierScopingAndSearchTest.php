@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Cashier;
 
+use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Role;
 use App\Models\SalesTransaction;
@@ -191,6 +192,25 @@ class CashierScopingAndSearchTest extends TestCase
         }
         $this->assertSame(1, $count($receiptB));
         $this->assertSame(0, $count('RCX'));
+    }
+
+    public function test_transactions_list_does_not_show_sale_totals(): void
+    {
+        $transaction = $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
+        Billing::create([
+            'CustomerName' => 'Juan Dela Cruz', 'VatApplied' => '12%', 'BillingAmount' => 129610.86,
+            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+
+        $page = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));
+        $rows = $this->actingAs($this->cashier1)
+            ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
+            ->get(route('cashier.transactions'))->json('rows');
+
+        $page->assertDontSee('<th>Total</th>', false);
+        $page->assertDontSee('129,610.86');
+        $this->assertStringNotContainsString('129,610.86', $rows);
+        $this->assertStringContainsString('Juan Dela Cruz', $rows);
     }
 
     public function test_receipt_search_still_respects_the_today_only_rule(): void

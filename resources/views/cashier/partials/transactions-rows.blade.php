@@ -19,7 +19,6 @@
             @endif
         </td>
         <td>{{ $transaction->items->sum('Quantity') ?? 0 }} items</td>
-        <td class="amount">₱{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
         <td>
             {{-- Reprinting is only offered on the cashier's own sales;
                  CashierAuthController::viewReceipt() enforces the same rule
@@ -37,7 +36,7 @@
     </tr>
 @empty
     <tr>
-        <td colspan="7">
+        <td colspan="6">
             <div class="empty-state">
                 <i class="fas fa-receipt"></i>
                 <p>No transactions found for today.</p>

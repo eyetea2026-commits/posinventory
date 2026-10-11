@@ -16,7 +16,6 @@
     .table th { color: #94a3b8; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
     .table tbody tr:hover { background: #2d3748; }
     .receipt-number { font-family: monospace; font-weight: 600; color: #60a5fa; }
-    .amount { font-weight: 600; color: #10b981; }
     .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; }
     .btn-primary { background: #3b82f6; color: white; }
     .btn-primary:hover { background: #2563eb; }
@@ -66,7 +65,6 @@
                 <th>Customer</th>
                 <th>Cashier</th>
                 <th>Items</th>
-                <th>Total</th>
                 <th>Actions</th>
             </tr>
         </thead>
