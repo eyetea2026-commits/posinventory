@@ -74,7 +74,7 @@ class DashboardChartsTest extends TestCase
     {
         return array_merge([
             'salesToday' => 0, 'salesChangePct' => null, 'transactionsToday' => 0,
-            'totalProducts' => 0, 'inventoryValue' => 0, 'totalSuppliers' => 0,
+            'totalProducts' => 0, 'totalSuppliers' => 0,
             'inventoryStatusChart' => ['byCategory' => ['labels' => [], 'data' => []], 'byProduct' => ['labels' => [], 'data' => []]],
             'stockAlerts' => collect(),
             'salesTrend' => ['daily' => ['labels' => [], 'data' => []], 'weekly' => ['labels' => [], 'data' => []], 'monthly' => ['labels' => [], 'data' => []], 'yearly' => ['labels' => [], 'data' => []]],
@@ -129,10 +129,18 @@ class DashboardChartsTest extends TestCase
 
         $this->assertStringContainsString('href="'.route('admin.reports.index', ['type' => 'sales']).'" class="stat-card"', $html);
         $this->assertStringContainsString('href="'.route('admin.products.index').'" class="stat-card"', $html);
-        $this->assertStringContainsString('href="'.route('admin.inventory.index').'" class="stat-card"', $html);
         $this->assertStringContainsString('href="'.route('admin.suppliers.index').'" class="stat-card"', $html);
         // Every stat card is now an <a>, not a plain non-interactive <div>.
         $this->assertStringNotContainsString('<div class="stat-card"', $html);
+    }
+
+    public function test_dashboard_no_longer_shows_the_inventory_value_card(): void
+    {
+        $this->actingAs($this->admin);
+        $html = view('admin.dashboard', $this->baseViewData())->render();
+
+        $this->assertStringNotContainsString('Inventory Value', $html);
+        $this->assertStringNotContainsString('id="statInventoryValue"', $html);
     }
 
     public function test_live_inventory_endpoint_groups_quantities_by_category_and_product(): void
@@ -162,10 +170,11 @@ class DashboardChartsTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonStructure([
-            'totalProducts', 'inventoryValue', 'stockAlertsHtml',
+            'totalProducts', 'stockAlertsHtml',
             'inventoryStatusChart' => ['byCategory' => ['labels', 'data'], 'byProduct' => ['labels', 'data']],
             'categoryChart' => ['labels', 'data'],
         ]);
+        $response->assertJsonMissingPath('inventoryValue');
     }
 
     // buildProductRankings() is invoked via reflection because index() can't

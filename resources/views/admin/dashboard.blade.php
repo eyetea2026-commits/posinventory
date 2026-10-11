@@ -755,14 +755,6 @@
                 <div class="stat-subtitle">Total registered</div>
             </div>
         </a>
-        <a href="{{ route('admin.inventory.index') }}" class="stat-card" style="animation-delay: 0.14s" title="View Inventory">
-            <div class="stat-icon cyan"><i class="fas fa-warehouse"></i></div>
-            <div class="stat-content">
-                <div class="stat-label">Inventory Value</div>
-                <div class="stat-value" id="statInventoryValue" data-counter data-value="{{ $inventoryValue }}" data-prefix="₱" data-decimals="2">₱0.00</div>
-                <div class="stat-subtitle">At cost price</div>
-            </div>
-        </a>
         <a href="{{ route('admin.suppliers.index') }}" class="stat-card" style="animation-delay: 0.18s" title="View Suppliers">
             <div class="stat-icon orange"><i class="fas fa-truck"></i></div>
             <div class="stat-content">
@@ -1477,14 +1469,14 @@
             });
         }
 
-        // Poll dashboard-wide widgets (Products, Inventory Value, Inventory
-        // Status chart, Stock Alerts, Sales Today, Transactions, Recent
-        // Transactions, Product Rankings) so sales/refunds/receiving/
-        // adjustments/damage recording made elsewhere — including a sale
-        // completed by a Cashier in another tab — show up here without a
-        // page reload. Pauses while the tab is hidden to avoid pointless
-        // requests. Forwards the current URL's query string so an active
-        // Recent Transactions search/sort/page is preserved across polls.
+        // Poll dashboard-wide widgets (Products, Inventory Status chart,
+        // Stock Alerts, Sales Today, Transactions, Recent Transactions,
+        // Product Rankings) so sales/refunds/receiving/adjustments/damage
+        // recording made elsewhere — including a sale completed by a
+        // Cashier in another tab — show up here without a page reload.
+        // Pauses while the tab is hidden to avoid pointless requests.
+        // Forwards the current URL's query string so an active Recent
+        // Transactions search/sort/page is preserved across polls.
         function refreshInventoryWidgets() {
             if (document.hidden) return;
 
@@ -1493,9 +1485,6 @@
                 .then((data) => {
                     const productsEl = document.getElementById('statTotalProducts');
                     if (productsEl) productsEl.textContent = Number(data.totalProducts).toLocaleString('en-US');
-
-                    const valueEl = document.getElementById('statInventoryValue');
-                    if (valueEl) valueEl.textContent = window.formatPeso(data.inventoryValue);
 
                     if (inventoryStatusChartInstance && data.inventoryStatusChart) {
                         inventoryViewData.category = data.inventoryStatusChart.byCategory;

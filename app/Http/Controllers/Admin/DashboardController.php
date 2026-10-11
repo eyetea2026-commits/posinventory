@@ -43,7 +43,6 @@ class DashboardController extends Controller
 
         $inventorySnapshot = $this->buildInventorySnapshot();
         $totalProducts = $inventorySnapshot['totalProducts'];
-        $inventoryValue = $inventorySnapshot['inventoryValue'];
         $inventoryStatusChart = $inventorySnapshot['inventoryStatusChart'];
         $stockAlerts = $inventorySnapshot['stockAlerts'];
 
@@ -76,7 +75,6 @@ class DashboardController extends Controller
             'salesChangePct' => $salesChangePct,
             'transactionsToday' => $transactionsToday,
             'totalProducts' => $totalProducts,
-            'inventoryValue' => $inventoryValue,
             'totalSuppliers' => $totalSuppliers,
             'inventoryStatusChart' => $inventoryStatusChart,
             'stockAlerts' => $stockAlerts,
@@ -92,13 +90,13 @@ class DashboardController extends Controller
 
     /**
      * Polled by the dashboard so inventory- and sales-derived widgets
-     * (Products count, Inventory Value, Inventory Status chart, Stock
-     * Alerts, Sales Today, Transactions, Recent Transactions, Product
-     * Rankings) update without a page reload whenever a sale/refund/
-     * receiving/adjustment/damage record changes elsewhere — including from
-     * another cashier's tab. The Sales Trend chart is deliberately excluded
-     * (historical/comparative view, not "right now", and would multiply
-     * this poll's query cost by 4 for no visible benefit).
+     * (Products count, Inventory Status chart, Stock Alerts, Sales Today,
+     * Transactions, Recent Transactions, Product Rankings) update without a
+     * page reload whenever a sale/refund/receiving/adjustment/damage record
+     * changes elsewhere — including from another cashier's tab. The Sales
+     * Trend chart is deliberately excluded (historical/comparative view,
+     * not "right now", and would multiply this poll's query cost by 4 for
+     * no visible benefit).
      */
     public function liveInventory(Request $request)
     {
@@ -117,7 +115,6 @@ class DashboardController extends Controller
 
         return response()->json([
             'totalProducts' => $snapshot['totalProducts'],
-            'inventoryValue' => $snapshot['inventoryValue'],
             'inventoryStatusChart' => $snapshot['inventoryStatusChart'],
             'stockAlertsHtml' => view('admin.dashboard.partials.stock-alerts', ['stockAlerts' => $snapshot['stockAlerts']])->render(),
             'categoryChart' => $this->buildCategorySalesChart(),
@@ -293,9 +290,6 @@ class DashboardController extends Controller
     private function buildInventorySnapshot(): array
     {
         $totalProducts = Product::count();
-        $inventoryValue = (float) Inventory::join('Product', 'Inventory.ProductID', '=', 'Product.ProductID')
-            ->sum(DB::raw('Inventory.Quantity * Product.CostPrice'));
-
         $inventoryStatusChart = $this->buildInventoryQuantityChart();
 
         $stockAlerts = Inventory::with('product')
@@ -311,7 +305,7 @@ class DashboardController extends Controller
                 ];
             });
 
-        return compact('totalProducts', 'inventoryValue', 'inventoryStatusChart', 'stockAlerts');
+        return compact('totalProducts', 'inventoryStatusChart', 'stockAlerts');
     }
 
     private function dailyTrend(int $days): array
@@ -356,7 +350,7 @@ class DashboardController extends Controller
         for ($i = $weeks - 1; $i >= 0; $i--) {
             $weekStart = today()->subWeeks($i)->startOfWeek();
             $key = (int) $weekStart->format('oW');
-            $labels[] = 'Wk of ' . $weekStart->format('M d');
+            $labels[] = 'Wk of '.$weekStart->format('M d');
             $data[] = (float) ($rows[$key] ?? 0);
         }
 
@@ -365,7 +359,7 @@ class DashboardController extends Controller
         for ($i = 0; $i < $weeks; $i++) {
             $weekStart = $compareStart->copy()->addWeeks($i);
             $key = (int) $weekStart->format('oW');
-            $compareLabels[] = 'Wk of ' . $weekStart->format('M d');
+            $compareLabels[] = 'Wk of '.$weekStart->format('M d');
             $compareData[] = (float) ($compareRows[$key] ?? 0);
         }
 
@@ -464,8 +458,8 @@ class DashboardController extends Controller
             'invoiceCount' => $invoiceCount,
             'revenueTotal' => $revenueTotal,
             'changePct' => $compareRevenueTotal > 0 ? round((($revenueTotal - $compareRevenueTotal) / $compareRevenueTotal) * 100, 1) : null,
-            'currentRangeLabel' => $start->format('M j, Y') . ' - ' . $end->format('M j, Y'),
-            'compareRangeLabel' => $compareStart->format('M j, Y') . ' - ' . $compareEnd->format('M j, Y'),
+            'currentRangeLabel' => $start->format('M j, Y').' - '.$end->format('M j, Y'),
+            'compareRangeLabel' => $compareStart->format('M j, Y').' - '.$compareEnd->format('M j, Y'),
         ];
     }
 }
