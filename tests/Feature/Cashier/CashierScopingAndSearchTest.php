@@ -168,6 +168,9 @@ class CashierScopingAndSearchTest extends TestCase
         $response->assertOk();
         $response->assertSee(route('cashier.receipt', $receiptNumber), false);
         $response->assertDontSee(route('cashier.transactions').'?print=', false);
+        // Print asks for confirmation before printing.
+        $response->assertSee("confirmPrintReceipt(event, '{$receiptNumber}', this.href)", false);
+        $response->assertSee("title: 'Print Receipt'", false);
     }
 
     // --- Refund Requests: no blue button, live filter, no Invoice # -----

@@ -310,6 +310,10 @@ class CheckoutTest extends TestCase
         $response->assertSee('function scrollCartLineIntoView(container, itemId)', false);
         $response->assertSee('container.scrollTop = previousScrollTop;', false);
         $response->assertSee('data-cart-item-id="${item.id}"', false);
+        // Removing a single cart line asks for confirmation first.
+        $response->assertSee('function confirmRemoveFromCart(id)', false);
+        $response->assertSee('onclick="confirmRemoveFromCart(${item.id})"', false);
+        $response->assertDontSee('onclick="removeFromCart(${item.id})"', false);
         // Current Sale list is sized to show 7 cart lines at once.
         $response->assertSee('min-height: calc(7 * 79px)', false);
     }

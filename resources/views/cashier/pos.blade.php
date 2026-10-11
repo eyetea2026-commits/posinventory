@@ -784,6 +784,24 @@
         renderCart();
     }
 
+    // Trash icon on a cart line: asks first, naming the product, so a
+    // mis-tap doesn't silently drop an item from the sale.
+    function confirmRemoveFromCart(id) {
+        const item = cart.find(line => line.id === id);
+        if (!item) return;
+
+        window.confirmAction({
+            title: 'Remove Product',
+            text: 'Remove "' + item.name + '" (x' + item.qty + ') from the current sale?',
+            icon: 'warning',
+            confirmText: 'Remove',
+            cancelText: 'Keep',
+            confirmColor: '#ef4444',
+        }).then(function (result) {
+            if (result.isConfirmed) removeFromCart(id);
+        });
+    }
+
     function clearCart() {
         if (cart.length === 0) return;
 
@@ -867,7 +885,7 @@
                 <div class="cart-item" data-cart-item-id="${item.id}">
                     <div class="cart-item-head">
                         <h4 class="cart-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
-                        <button class="remove-btn" onclick="removeFromCart(${item.id})" title="Remove">
+                        <button class="remove-btn" onclick="confirmRemoveFromCart(${item.id})" title="Remove">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>

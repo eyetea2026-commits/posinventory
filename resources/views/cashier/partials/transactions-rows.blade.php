@@ -24,7 +24,7 @@
             @if($isOwnSale)
                 @php($receiptNo = 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT))
                 <a href="{{ route('cashier.receipt', $receiptNo) }}" class="btn btn-primary btn-sm" target="_blank"
-                   @if(\App\Services\ThermalReceiptPrinter::isEnabled()) onclick="return reprintToThermal(event, '{{ $receiptNo }}', this.href);" @endif>
+                   onclick="return confirmPrintReceipt(event, '{{ $receiptNo }}', this.href);">
                     <i class="fas fa-print"></i> Print
                 </a>
             @else

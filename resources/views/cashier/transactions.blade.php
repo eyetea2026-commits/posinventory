@@ -81,13 +81,40 @@
 </div>
 
 <script>
-    // Reprint straight to the local thermal printer (only wired up when
-    // POS_PRINTER_ENABLED is on); if it can't be reached, open the normal
-    // on-screen receipt instead so the cashier is never stuck.
-    window.reprintToThermal = function (event, receiptNumber, receiptUrl) {
+    // Local-only direct printing (see App\Services\ThermalReceiptPrinter).
+    const RECEIPT_THERMAL_PRINTING = @json(\App\Services\ThermalReceiptPrinter::isEnabled());
+
+    // Print button: always asks first, then prints to the thermal printer
+    // (when enabled locally) or opens the on-screen receipt. window.open runs
+    // inside the confirm button's own click, so it isn't popup-blocked.
+    window.confirmPrintReceipt = function (event, receiptNumber, receiptUrl) {
         event.preventDefault();
         const button = event.currentTarget;
         if (button.dataset.printing === '1') return false;
+
+        window.confirmAction({
+            title: 'Print Receipt',
+            text: 'Print receipt ' + receiptNumber + '?',
+            icon: 'question',
+            confirmText: 'Print',
+            cancelText: 'Cancel',
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            if (RECEIPT_THERMAL_PRINTING) {
+                reprintToThermal(button, receiptNumber, receiptUrl);
+            } else {
+                window.open(receiptUrl, '_blank');
+            }
+        });
+
+        return false;
+    };
+
+    // Reprint straight to the local thermal printer; if it can't be
+    // reached, open the normal on-screen receipt instead so the cashier is
+    // never stuck.
+    function reprintToThermal(button, receiptNumber, receiptUrl) {
+        if (button.dataset.printing === '1') return;
         button.dataset.printing = '1';
         const idleLabel = button.innerHTML;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Printing...';
@@ -114,9 +141,7 @@
                 button.dataset.printing = '';
                 button.innerHTML = idleLabel;
             });
-
-        return false;
-    };
+    }
 
     (function () {
         const searchInput = document.getElementById('transactionsSearchInput');

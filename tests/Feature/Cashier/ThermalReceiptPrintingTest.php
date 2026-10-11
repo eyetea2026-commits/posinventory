@@ -188,11 +188,13 @@ class ThermalReceiptPrintingTest extends TestCase
         $receipt = $this->sellAndGetReceipt();
 
         $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertSee('const THERMAL_PRINTING = false;', false);
-        $this->actingAs($this->cashier)->get(route('cashier.transactions'))->assertDontSee('reprintToThermal(event', false);
+        $this->actingAs($this->cashier)->get(route('cashier.transactions'))->assertSee('const RECEIPT_THERMAL_PRINTING = false;', false);
 
         config(['services.receipt_printer.enabled' => true]);
 
         $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertSee('const THERMAL_PRINTING = true;', false);
-        $this->actingAs($this->cashier)->get(route('cashier.transactions'))->assertSee("reprintToThermal(event, '{$receipt}'", false);
+        $this->actingAs($this->cashier)->get(route('cashier.transactions'))
+            ->assertSee('const RECEIPT_THERMAL_PRINTING = true;', false)
+            ->assertSee("confirmPrintReceipt(event, '{$receipt}'", false);
     }
 }
