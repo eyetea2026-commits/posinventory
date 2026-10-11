@@ -333,10 +333,12 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'));
 
         $response->assertOk();
-        // Present once (Completed tab) rather than twice (it must have
-        // disappeared from the Pending tab's table).
+        // Listed in exactly one table row (Completed tab) rather than two (it
+        // must have disappeared from the Pending tab's table). Counted by
+        // row cell, not the whole page: the admin bell's "Delivery Received"
+        // notice legitimately mentions the PO number too.
         $response->assertSeeInOrder([$po->PONumber]);
-        $this->assertSame(1, substr_count($response->getContent(), $po->PONumber));
+        $this->assertSame(1, substr_count($response->getContent(), 'po-number-cell">'.$po->PONumber.'<'));
     }
 
     public function test_add_to_inventory_rejects_a_quantity_above_what_was_ordered_and_changes_nothing(): void
