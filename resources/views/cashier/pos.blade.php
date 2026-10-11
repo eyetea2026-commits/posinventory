@@ -56,7 +56,7 @@
        6px gap; promo lines and 2-line names are taller). The panel itself
        scrolls, so the totals, payment and Complete Sale stay reachable
        underneath. */
-    .cart-items { flex: 1 0 auto; min-height: calc(7 * 78px); max-height: calc(7 * 78px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; position: relative; }
+    .cart-items { flex: 1 0 auto; min-height: calc(7 * 79px); max-height: calc(7 * 79px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; position: relative; }
     .cart-item { transition: box-shadow 0.25s ease, background-color 0.25s ease; }
     .cart-item.cart-item-flash { background: #34445e; box-shadow: 0 0 0 2px #3b82f6 inset; }
     .cart-items::-webkit-scrollbar { width: 6px; }

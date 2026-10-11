@@ -7,28 +7,28 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Every on-screen page sets the base text size to 15px (partials/font-scale);
-// almost all text is sized in rem, so it all scales together.
+// Only the admin pages get the bigger base text size (partials/font-scale);
+// the cashier side and the login pages keep the original size.
 class FontScaleTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const FONT_SCALE_RULE = 'html { font-size: 93.75%; }';
+    private const FONT_SCALE_RULE = 'html { font-size: 112.5%; }';
 
-    public function test_login_page_uses_the_15px_base_font(): void
-    {
-        $this->get(route('welcome'))->assertOk()->assertSee(self::FONT_SCALE_RULE, false);
-    }
-
-    public function test_forgot_password_page_uses_the_15px_base_font(): void
-    {
-        $this->get(route('admin.forgot'))->assertOk()->assertSee(self::FONT_SCALE_RULE, false);
-    }
-
-    public function test_admin_pages_use_the_15px_base_font(): void
+    public function test_admin_pages_use_the_bigger_base_font(): void
     {
         $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
 
         $this->actingAs($admin)->get(route('admin.suppliers.index'))->assertOk()->assertSee(self::FONT_SCALE_RULE, false);
+    }
+
+    public function test_login_page_keeps_the_original_font_size(): void
+    {
+        $this->get(route('welcome'))->assertOk()->assertDontSee(self::FONT_SCALE_RULE, false);
+    }
+
+    public function test_forgot_password_page_keeps_the_original_font_size(): void
+    {
+        $this->get(route('admin.forgot'))->assertOk()->assertDontSee(self::FONT_SCALE_RULE, false);
     }
 }
