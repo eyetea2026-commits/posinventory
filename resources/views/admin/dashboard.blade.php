@@ -280,15 +280,16 @@
         .perf-list {
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 8px;
             flex: 1;
             overflow-y: auto;
         }
 
         .perf-item {
             position: relative;
-            height: 52px;
-            border-radius: 14px;
+            flex-shrink: 0;
+            height: 38px;
+            border-radius: 12px;
             background: rgba(148, 163, 184, 0.08);
             box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 3px 8px rgba(0, 0, 0, 0.2);
             overflow: hidden;
@@ -304,7 +305,7 @@
             position: absolute;
             inset: 0;
             width: 0;
-            border-radius: 14px;
+            border-radius: 12px;
             background: linear-gradient(90deg, #3b82f6, #60a5fa);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(59, 130, 246, 0.45);
             transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);

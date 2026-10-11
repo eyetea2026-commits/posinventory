@@ -144,6 +144,17 @@ class DashboardChartsTest extends TestCase
         $this->assertStringNotContainsString('id="statInventoryValue"', $html);
     }
 
+    public function test_product_ranking_bars_use_the_compact_size(): void
+    {
+        $this->actingAs($this->admin);
+        $html = view('admin.dashboard', $this->baseViewData())->render();
+
+        // Slim bars keep the Product Performance card, and the Sales Trend
+        // chart stretched beside it, compact.
+        $this->assertMatchesRegularExpression('/\.perf-list \{[^}]*gap: 8px;/', $html);
+        $this->assertMatchesRegularExpression('/\.perf-item \{[^}]*height: 38px;/', $html);
+    }
+
     public function test_live_inventory_endpoint_groups_quantities_by_category_and_product(): void
     {
         $this->makeProductWithStock('CCTV', 'Dome Camera', 20);
