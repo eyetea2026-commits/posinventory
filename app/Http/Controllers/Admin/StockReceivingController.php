@@ -55,6 +55,11 @@ class StockReceivingController extends Controller
         return view('admin.stock-receivings.index', [
             'pendingBatches' => $pendingBatches,
             'completedBatches' => $completedBatches,
+            // Both tables render every batch up front (no pagination), so
+            // search/supplier filtering is applied client-side over this
+            // same data rather than round-tripping to the server — see the
+            // JS in the view for the actual filter logic.
+            'suppliers' => Supplier::orderBy('SupplierName')->get(),
         ]);
     }
 

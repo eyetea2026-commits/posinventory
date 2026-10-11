@@ -91,6 +91,28 @@
         </div>
     @endif
 
+    {{-- Search by PO number or supplier name, plus an exact Supplier
+         filter. Both tables below render every batch up front (no
+         pagination), so this filters the already-rendered rows client-side
+         — see applyReceivingFilters() — rather than adding a server round
+         trip for what's a small, non-paginated list. --}}
+    <div class="card glass-card" style="margin-bottom: 20px;">
+        <div class="toolbar">
+            <div class="search-box">
+                <i class="search-icon fas fa-search"></i>
+                <input type="text" id="receivingSearchInput" class="search-input" placeholder="Search by PO number or supplier...">
+            </div>
+            <div class="filter-group">
+                <select id="receivingSupplierFilter" class="form-select">
+                    <option value="">All Suppliers</option>
+                    @foreach($suppliers as $supplier)
+                        <option value="{{ $supplier->SupplierID }}">{{ $supplier->SupplierName }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+    </div>
+
     {{-- Purchase Orders sent to receiving via Print (see
          PurchaseOrderController::printPreview()) land here, split by their
          StockReceivingBatch's own Status — both tabs are rendered up front
@@ -124,10 +146,10 @@
                     </thead>
                     <tbody>
                         @forelse($pendingBatches as $batch)
-                            <tr>
+                            <tr data-supplier-id="{{ $batch->purchaseOrder->supplier?->SupplierID ?? '' }}">
                                 <td>{{ $loop->iteration }}</td>
-                                <td><span class="badge badge-primary">{{ $batch->purchaseOrder->PONumber }}</span></td>
-                                <td><strong>{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
+                                <td><span class="badge badge-primary po-number-cell">{{ $batch->purchaseOrder->PONumber }}</span></td>
+                                <td><strong class="supplier-name-cell">{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
                                 <td>{{ $batch->purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($batch->purchaseOrder->ExpectedDeliveryDate)->format('M d, Y') : 'Not set' }}</td>
                                 <td>
@@ -149,6 +171,15 @@
                                 </td>
                             </tr>
                         @endforelse
+                        <tr class="no-results-row" style="display:none;">
+                            <td colspan="6">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="fas fa-search"></i></div>
+                                    <p class="empty-title">No Matching Deliveries</p>
+                                    <p class="empty-text">Try a different search term or supplier.</p>
+                                </div>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -171,10 +202,10 @@
                     </thead>
                     <tbody>
                         @forelse($completedBatches as $batch)
-                            <tr>
+                            <tr data-supplier-id="{{ $batch->purchaseOrder->supplier?->SupplierID ?? '' }}">
                                 <td>{{ $loop->iteration }}</td>
-                                <td><span class="badge badge-primary">{{ $batch->purchaseOrder->PONumber }}</span></td>
-                                <td><strong>{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
+                                <td><span class="badge badge-primary po-number-cell">{{ $batch->purchaseOrder->PONumber }}</span></td>
+                                <td><strong class="supplier-name-cell">{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
                                 <td>{{ $batch->CompletedAt?->format('M d, Y g:i A') ?? 'N/A' }}</td>
                                 <td>
@@ -196,6 +227,15 @@
                                 </td>
                             </tr>
                         @endforelse
+                        <tr class="no-results-row" style="display:none;">
+                            <td colspan="6">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="fas fa-search"></i></div>
+                                    <p class="empty-title">No Matching Deliveries</p>
+                                    <p class="empty-text">Try a different search term or supplier.</p>
+                                </div>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -258,6 +298,51 @@
             document.getElementById('tab-pending').classList.toggle('active', tab === 'pending');
             document.getElementById('tab-completed').classList.toggle('active', tab === 'completed');
         };
+
+        // ---- Search (PO number / supplier name) + Supplier filter ----
+        // Both tables render every batch up front with no pagination, so
+        // this filters rows already in the DOM instead of a server round
+        // trip. Applied to both tabs' rows every time regardless of which
+        // is currently visible, so switching tabs doesn't need to re-apply
+        // anything.
+        (function () {
+            var searchInput = document.getElementById('receivingSearchInput');
+            var supplierFilter = document.getElementById('receivingSupplierFilter');
+            if (!searchInput || !supplierFilter) return;
+
+            function applyReceivingFilters() {
+                var query = searchInput.value.trim().toLowerCase();
+                var supplierId = supplierFilter.value;
+
+                ['tab-pending', 'tab-completed'].forEach(function (tabId) {
+                    var rows = Array.prototype.slice.call(document.querySelectorAll('#' + tabId + ' tbody tr[data-supplier-id]'));
+                    var visibleCount = 0;
+
+                    rows.forEach(function (row) {
+                        var poNumberEl = row.querySelector('.po-number-cell');
+                        var supplierNameEl = row.querySelector('.supplier-name-cell');
+                        var poNumber = poNumberEl ? poNumberEl.textContent.toLowerCase() : '';
+                        var supplierName = supplierNameEl ? supplierNameEl.textContent.toLowerCase() : '';
+
+                        var matchesQuery = !query
+                            || poNumber.indexOf(query) !== -1
+                            || supplierName.indexOf(query) !== -1;
+                        var matchesSupplier = !supplierId || row.dataset.supplierId === supplierId;
+                        var visible = matchesQuery && matchesSupplier;
+                        row.style.display = visible ? '' : 'none';
+                        if (visible) visibleCount++;
+                    });
+
+                    var noResultsRow = document.querySelector('#' + tabId + ' .no-results-row');
+                    if (noResultsRow) {
+                        noResultsRow.style.display = (rows.length > 0 && visibleCount === 0) ? '' : 'none';
+                    }
+                });
+            }
+
+            searchInput.addEventListener('input', applyReceivingFilters);
+            supplierFilter.addEventListener('change', applyReceivingFilters);
+        })();
 
         // ---- Purchase Order Delivery — View Details modal ----
         let batchDetailsLastFocused = null;

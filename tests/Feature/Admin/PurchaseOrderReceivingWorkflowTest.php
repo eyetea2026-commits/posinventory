@@ -115,6 +115,19 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertSee('Pending / Expected Delivery');
     }
 
+    public function test_stock_receiving_index_renders_search_and_supplier_filter(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+
+        $response = $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'));
+
+        $response->assertOk();
+        $response->assertSee('id="receivingSearchInput"', false);
+        $response->assertSee('id="receivingSupplierFilter"', false);
+        $response->assertSee($this->supplier->SupplierName);
+    }
+
     public function test_printing_twice_does_not_create_a_second_batch(): void
     {
         $po = $this->makeDraftOrder();
