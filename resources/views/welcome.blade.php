@@ -34,10 +34,6 @@
                             <label for="username" class="sr-only">Username</label>
                             <input id="username" type="text" name="username" value="{{ old('username') }}" placeholder="Username" required autofocus autocomplete="off">
                         </div>
-                        <div id="role-badge" class="role-badge" hidden>
-                            <i class="fa-solid fa-user-check"></i>
-                            <span id="role-badge-text"></span>
-                        </div>
                         @error('username') <span class="lv2-field-error">{{ $message }}</span> @enderror
 
                         <div class="lv2-field">
@@ -61,8 +57,11 @@
                         <button type="submit" class="lv2-submit">Log in</button>
 
                         <div class="lv2-footer">
-                            <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}" hidden>Forgot Password?</a>
-                            <span id="cashier-note" class="lv2-cashier-note" hidden>
+                            {{-- Both shown unconditionally: deciding which to show
+                                 used to require looking up the typed username's
+                                 role, which also revealed which accounts exist. --}}
+                            <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password? (Administrator)</a>
+                            <span id="cashier-note" class="lv2-cashier-note">
                                 <i class="fa-solid fa-lock"></i>
                                 Cashiers: please contact your Administrator for a password reset
                             </span>
@@ -90,65 +89,6 @@
     </div>
 
     <script>
-        (function () {
-            const usernameField = document.getElementById('username');
-            const badge = document.getElementById('role-badge');
-            const badgeText = document.getElementById('role-badge-text');
-            const forgotLink = document.getElementById('forgot-link');
-            const cashierNote = document.getElementById('cashier-note');
-            const lookupUrl = @json(route('login.role-lookup'));
-
-            let debounceTimer = null;
-            let currentController = null;
-
-            function applyRole(role) {
-                if (role === 'admin') {
-                    badge.hidden = false;
-                    badge.className = 'role-badge role-badge--admin';
-                    badgeText.textContent = 'Administrator';
-                    forgotLink.hidden = false;
-                    cashierNote.hidden = true;
-                } else if (role === 'cashier') {
-                    badge.hidden = false;
-                    badge.className = 'role-badge role-badge--cashier';
-                    badgeText.textContent = 'Cashier';
-                    forgotLink.hidden = true;
-                    cashierNote.hidden = false;
-                } else {
-                    badge.hidden = true;
-                    forgotLink.hidden = true;
-                    cashierNote.hidden = true;
-                }
-            }
-
-            function checkRole(username) {
-                if (username.length < 3) {
-                    applyRole(null);
-                    return;
-                }
-
-                if (currentController) {
-                    currentController.abort();
-                }
-                currentController = new AbortController();
-
-                fetch(`${lookupUrl}?username=${encodeURIComponent(username)}`, { signal: currentController.signal })
-                    .then((response) => response.json())
-                    .then((data) => applyRole(data.role))
-                    .catch(() => {});
-            }
-
-            usernameField.addEventListener('input', () => {
-                clearTimeout(debounceTimer);
-                const value = usernameField.value.trim();
-                debounceTimer = setTimeout(() => checkRole(value), 350);
-            });
-
-            if (usernameField.value.trim()) {
-                checkRole(usernameField.value.trim());
-            }
-        })();
-
         // Guard against a double-click/double-submit on Log in -- without
         // this, a slow response (or an impatient second click) can fire two
         // POST /login requests; the first succeeds and locks the account to
@@ -476,29 +416,6 @@
             color: #ef4444;
             font-size: 0.82rem;
             margin: -8px 0 14px 4px;
-        }
-        .role-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 12px;
-            border-radius: 9999px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            margin: -6px 0 14px 4px;
-        }
-        .role-badge.role-badge--admin[hidden],
-        .role-badge.role-badge--cashier[hidden],
-        .role-badge[hidden] {
-            display: none;
-        }
-        .role-badge--admin {
-            background: rgba(16, 185, 129, 0.15);
-            color: #10b981;
-        }
-        .role-badge--cashier {
-            background: rgba(59, 130, 246, 0.15);
-            color: #60a5fa;
         }
         .lv2-remember {
             display: flex;

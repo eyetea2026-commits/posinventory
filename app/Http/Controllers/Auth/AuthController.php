@@ -29,6 +29,7 @@ class AuthController extends Controller
     // keyed by username only now, since there's one login form for every
     // account regardless of role.
     private const MAX_LOGIN_ATTEMPTS = 5;
+
     private const LOGIN_LOCKOUT_SECONDS = 60;
 
     // Two things guard against the browser Back/Forward button showing a
@@ -80,7 +81,7 @@ class AuthController extends Controller
             'password' => ['required'],
         ]);
 
-        $throttleKey = 'login:' . strtolower($credentials['username']);
+        $throttleKey = 'login:'.strtolower($credentials['username']);
 
         if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_LOGIN_ATTEMPTS)) {
             $seconds = RateLimiter::availableIn($throttleKey);
@@ -99,8 +100,9 @@ class AuthController extends Controller
             $request->session()->regenerate();
             $user = Auth::user();
 
-            if (isset($user->is_active) && !$user->is_active) {
+            if (isset($user->is_active) && ! $user->is_active) {
                 Auth::logout();
+
                 return back()->withErrors(['username' => 'Your account has been deactivated. Please contact the administrator.']);
             }
 
@@ -146,16 +148,19 @@ class AuthController extends Controller
             if ($user->isAdmin()) {
                 ActivityLog::record('auth.login', "\"{$user->name}\" logged in (Admin) from {$request->ip()}", $user->id);
                 $this->recordLoginSecurityEvent($request, $user, $newSessionId);
+
                 return redirect()->intended('/admin/dashboard');
             }
 
             if ($user->isCashier()) {
                 ActivityLog::record('auth.login', "\"{$user->name}\" logged in (Cashier) from {$request->ip()}", $user->id);
+
                 return redirect()->intended('/cashier/pos');
             }
 
             // No recognized role assigned — nothing to route to.
             Auth::logout();
+
             return back()->withErrors(['username' => 'This account has no assigned role. Please contact an administrator.']);
         }
 
@@ -206,31 +211,5 @@ class AuthController extends Controller
                 'exception' => $e->getMessage(),
             ]);
         }
-    }
-
-    // Purely a UI hint (the "Administrator"/"Cashier" badge on the login
-    // form) — this is a deliberate, informed tradeoff: it re-opens a small
-    // username-enumeration surface that the rest of the auth hardening
-    // otherwise closes, but the badge only needs a role name back, never
-    // password/active-status/anything else, and the route is rate-limited
-    // (throttle:20,1) to keep bulk enumeration slow rather than free.
-    public function lookupRole(Request $request)
-    {
-        $username = trim((string) $request->query('username', ''));
-
-        if ($username === '') {
-            return response()->json(['role' => null]);
-        }
-
-        $user = User::where('name', $username)->first();
-
-        $role = null;
-        if ($user?->isAdmin()) {
-            $role = 'admin';
-        } elseif ($user?->isCashier()) {
-            $role = 'cashier';
-        }
-
-        return response()->json(['role' => $role]);
     }
 }

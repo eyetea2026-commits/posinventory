@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class SecurityFixesTest extends TestCase
@@ -253,40 +254,25 @@ class SecurityFixesTest extends TestCase
         $this->assertAuthenticatedAs($this->cashier);
     }
 
-    // ---- Login page live role badge (explicit, informed enumeration tradeoff) ----
+    // ---- Login page role badge removed (it doubled as a public
+    // username/role enumeration endpoint) ----
 
-    public function test_role_lookup_reports_admin_for_an_admin_username(): void
+    public function test_role_lookup_endpoint_no_longer_exists(): void
     {
-        $response = $this->get(route('login.role-lookup', ['username' => $this->admin->name]));
+        $this->assertFalse(Route::has('login.role-lookup'));
 
-        $response->assertOk();
-        $response->assertJson(['role' => 'admin']);
+        $this->get('/login/role-lookup?username='.$this->admin->name)->assertNotFound();
     }
 
-    public function test_role_lookup_reports_cashier_for_a_cashier_username(): void
+    public function test_login_page_has_no_role_badge_and_shows_reset_guidance_statically(): void
     {
-        $response = $this->get(route('login.role-lookup', ['username' => $this->cashier->name]));
+        $response = $this->get(route('welcome'));
 
         $response->assertOk();
-        $response->assertJson(['role' => 'cashier']);
-    }
-
-    public function test_role_lookup_reports_null_for_an_unknown_username(): void
-    {
-        $response = $this->get(route('login.role-lookup', ['username' => 'definitely-not-a-real-user']));
-
-        $response->assertOk();
-        $response->assertJson(['role' => null]);
-    }
-
-    public function test_role_lookup_never_discloses_anything_beyond_the_role_name(): void
-    {
-        $response = $this->get(route('login.role-lookup', ['username' => $this->admin->name]));
-
-        $response->assertJsonMissingPath('exists');
-        $response->assertJsonMissingPath('is_active');
-        $response->assertJsonMissingPath('email');
-        $response->assertExactJson(['role' => 'admin']);
+        $response->assertDontSee('id="role-badge"', false);
+        $response->assertDontSee('role-lookup', false);
+        $response->assertSee('Forgot Password?');
+        $response->assertSee('Cashiers: please contact your Administrator');
     }
 
     // ---- #9: File upload restrictions ----

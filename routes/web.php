@@ -47,7 +47,6 @@ Route::post('/login', [AuthController::class, 'login'])->name('login.post')->mid
 // and debounces, so legitimate use stays well under this. Do not reuse this
 // for the forgot-password flow — /check-user-role below stays deliberately
 // generic for that purpose.
-Route::get('/login/role-lookup', [AuthController::class, 'lookupRole'])->name('login.role-lookup')->middleware('throttle:40,1');
 
 // AJAX route to check user role for password reset eligibility. Deliberately
 // unauthenticated — it's called from the pre-login "forgot password" screen,
