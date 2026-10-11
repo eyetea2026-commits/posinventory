@@ -126,6 +126,8 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertSee('id="receivingSearchInput"', false);
         $response->assertSee('id="receivingSupplierFilter"', false);
         $response->assertSee($this->supplier->SupplierName);
+        // Search and filter share the tabs' row, right after the Completed tab.
+        $response->assertSeeInOrder(['class="tabs-header"', 'Completed (', 'class="toolbar receiving-filters"', 'id="receivingSearchInput"', 'id="tab-pending"'], false);
     }
 
     // ---- PO History tab: printed POs stay viewable and reprintable ----

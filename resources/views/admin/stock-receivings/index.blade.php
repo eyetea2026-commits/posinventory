@@ -74,6 +74,8 @@
             font-weight: 600; font-size: 0.88rem; cursor: pointer; transition: all 0.2s ease;
         }
         .chart-toggle-btn.active { background: linear-gradient(135deg, #3b82f6, #10b981); color: white; }
+        .receiving-filters { flex: 1; justify-content: flex-end; margin-bottom: 0; }
+        .receiving-filters .form-select { min-width: 220px; }
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
     </style>
@@ -91,13 +93,22 @@
         </div>
     @endif
 
-    {{-- Search by PO number or supplier name, plus an exact Supplier
-         filter. Both tables below render every batch up front (no
-         pagination), so this filters the already-rendered rows client-side
-         — see applyReceivingFilters() — rather than adding a server round
-         trip for what's a small, non-paginated list. --}}
-    <div class="card glass-card" style="margin-bottom: 20px;">
-        <div class="toolbar">
+    {{-- Purchase Orders sent to receiving via Print (see
+         PurchaseOrderController::printPreview()) land here, split by their
+         StockReceivingBatch's own Status — both tabs are rendered up front
+         and just toggled client-side. The tabs share one row with the
+         search/supplier filter, which filters the already-rendered rows
+         client-side — see applyReceivingFilters(). --}}
+    <div class="tabs-header">
+        <div class="chart-toggle-group">
+            <button type="button" class="chart-toggle-btn active" data-tab="pending" onclick="switchReceivingTab('pending')">
+                Pending / Expected Delivery ({{ $pendingBatches->count() }})
+            </button>
+            <button type="button" class="chart-toggle-btn" data-tab="completed" onclick="switchReceivingTab('completed')">
+                Completed ({{ $completedBatches->count() }})
+            </button>
+        </div>
+        <div class="toolbar receiving-filters">
             <div class="search-box">
                 <i class="search-icon fas fa-search"></i>
                 <input type="text" id="receivingSearchInput" class="search-input" placeholder="Search by PO number or supplier...">
@@ -110,23 +121,6 @@
                     @endforeach
                 </select>
             </div>
-        </div>
-    </div>
-
-    {{-- Purchase Orders sent to receiving via Print (see
-         PurchaseOrderController::printPreview()) land here, split by their
-         StockReceivingBatch's own Status — both tabs are rendered up front
-         and just toggled client-side. Tab button placement (above the
-         card, its own row) matches the Discount module's layout exactly:
-         admin/discounts/index.blade.php's own .tabs-header/.chart-toggle-group. --}}
-    <div class="tabs-header">
-        <div class="chart-toggle-group">
-            <button type="button" class="chart-toggle-btn active" data-tab="pending" onclick="switchReceivingTab('pending')">
-                Pending / Expected Delivery ({{ $pendingBatches->count() }})
-            </button>
-            <button type="button" class="chart-toggle-btn" data-tab="completed" onclick="switchReceivingTab('completed')">
-                Completed ({{ $completedBatches->count() }})
-            </button>
         </div>
     </div>
 
