@@ -252,9 +252,9 @@ class ProductController extends Controller
                 $messages['Model'] = 'A product with this model number already exists. Duplicate model numbers are not allowed.';
             }
 
-            return back()
-                ->withErrors($messages)
-                ->withInput();
+            // A 422 for the Add Product modal's AJAX submit; a normal form
+            // post is still redirected back with these errors and its input.
+            throw ValidationException::withMessages($messages);
         }
 
         // New products always start with zero stock — quantity is only ever
@@ -321,6 +321,16 @@ class ProductController extends Controller
                 'product_id' => $product->ProductID,
                 'exception' => $e->getMessage(),
             ]);
+        }
+
+        // The Add Product modal needs a plain "created" answer — following the
+        // redirect would hand it the index's AJAX rows instead.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Product added successfully.',
+                'productId' => $product->ProductID,
+            ], 201);
         }
 
         return redirect()->route('admin.products.index')->with('status', 'Product added successfully.');

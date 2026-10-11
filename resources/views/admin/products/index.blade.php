@@ -1187,22 +1187,16 @@
         banner.textContent = '';
     }
 
-    // Products' index() has its own AJAX branch that always returns
-    // {rows, pagination} JSON for any request carrying these headers —
-    // including the GET that `store()`'s redirect lands on. That means both
-    // a genuine save and the server-side duplicate name/model rejection
-    // (`back()->withErrors(...)`) end up producing the exact same JSON
-    // shape, so we can't tell them apart from the response alone. Instead we
-    // check whether the product we just submitted actually shows up in the
-    // freshly-rendered rows — reusing that same response directly (no extra
-    // round-trip) instead of the generic scrape-the-HTML helper the other
-    // "Add X" modals use.
+    // store() answers this AJAX submit directly: 201 JSON when the product
+    // was created, 422 with field errors for a duplicate name/model/barcode
+    // or any other invalid field. (It used to redirect, and the modal had
+    // to guess success by looking for the new name in the first page of
+    // rows — which reported a false "already exists" whenever the new
+    // product sorted onto a later page.)
     function submitAddProductForm(resetSubmitButton) {
         const form = document.getElementById('addProductForm');
         clearAddProductFieldErrors();
         hideAddProductGeneralError();
-
-        const submittedName = form.querySelector('#ProductName').value.trim();
 
         fetch('{{ route('admin.products.store') }}', {
             method: 'POST',
@@ -1220,29 +1214,23 @@
                 return;
             }
 
-            const data = await response.json();
-            const rowsHtml = data.rows || '';
-            const escapedName = submittedName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const created = submittedName.length > 0 && rowsHtml.includes(escapedName);
-
-            if (created) {
-                const tbody = document.getElementById('productTbody');
-                const paginationWrapper = document.getElementById('paginationWrapper');
-                if (tbody) tbody.innerHTML = rowsHtml;
-                if (paginationWrapper) paginationWrapper.innerHTML = data.pagination || '';
-                closeAddProductModal();
-                Swal.fire({
-                    title: 'Success',
-                    text: 'Product added successfully.',
-                    icon: 'success',
-                    confirmButtonColor: '#10b981',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            } else {
-                showAddProductGeneralError('A product with this name or model number already exists. Please use a different value.');
+            const data = response.ok ? await response.json().catch(() => ({})) : {};
+            if (!data.success) {
+                showAddProductGeneralError('Something went wrong. Please try again.');
                 resetSubmitButton();
+                return;
             }
+
+            closeAddProductModal();
+            if (window.refreshProductsTable) window.refreshProductsTable();
+            Swal.fire({
+                title: 'Success',
+                text: data.message || 'Product added successfully.',
+                icon: 'success',
+                confirmButtonColor: '#10b981',
+                timer: 2000,
+                showConfirmButton: false
+            });
         }).catch(function () {
             showAddProductGeneralError('A network error occurred. Please try again.');
             resetSubmitButton();
