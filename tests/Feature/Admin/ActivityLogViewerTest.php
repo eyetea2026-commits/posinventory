@@ -10,7 +10,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Tests\TestCase;
 
 // The Activity Log lives as a card in the dashboard's Operational Activity
-// section, below Recent Transactions. The card loads its rows over AJAX from
+// section, beside Recent Transactions. The card loads its rows over AJAX from
 // admin.activity-logs.index, with log_-prefixed filters.
 class ActivityLogViewerTest extends TestCase
 {
@@ -175,7 +175,7 @@ class ActivityLogViewerTest extends TestCase
         $this->assertStringContainsString('log_module=auth', $this->cardHtml(['log_module' => 'auth']));
     }
 
-    public function test_dashboard_has_the_card_below_recent_transactions_and_no_sidebar_item(): void
+    public function test_dashboard_has_the_card_beside_recent_transactions_and_no_sidebar_item(): void
     {
         $this->actingAs($this->admin);
         $html = view('admin.dashboard', [
@@ -194,6 +194,10 @@ class ActivityLogViewerTest extends TestCase
         $activity = strpos($html, '<h2 class="card-title">Activity Log</h2>');
         $this->assertNotFalse($activity);
         $this->assertGreaterThan($recent, $activity);
+        // Both cards share one two-column grid row, so they sit side by side.
+        $grid = strpos($html, '<div class="charts-grid operational-grid">');
+        $this->assertNotFalse($grid);
+        $this->assertLessThan($recent, $grid);
         $this->assertStringContainsString('id="activityLogContainer"', $html);
         $this->assertStringContainsString(route('admin.activity-logs.index'), $html);
         // No longer a separate sidebar page.

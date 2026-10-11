@@ -402,6 +402,12 @@
         .card-body { padding: 24px; }
 
         .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 24px 0; flex-wrap: wrap; }
+        /* Two equal columns; minmax(0, 1fr) lets each table scroll inside
+           its own card instead of stretching the grid wider than the page. */
+        .operational-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+        @media (max-width: 1280px) {
+            .operational-grid { grid-template-columns: minmax(0, 1fr); }
+        }
         .activity-log-toolbar { justify-content: flex-start; gap: 10px; }
         .activity-log-toolbar .search-box { flex: 1 1 260px; max-width: 340px; }
         /* Explicit colors (matching the search box beside them): the shared
@@ -922,7 +928,9 @@
 
     {{-- Section 5: Operational Activity --}}
     <h2 class="dashboard-section-title mt-4">Operational Activity</h2>
-    <div class="charts-grid">
+    {{-- Recent Transactions and Activity Log side by side (stacked on
+         narrower screens, where two 6-column tables can't both fit). --}}
+    <div class="charts-grid operational-grid">
         <div class="card">
             <div class="card-header">
                 <div>
@@ -943,13 +951,10 @@
                 @include('admin.dashboard.partials.recent-transactions', ['recentTransactions' => $recentTransactions, 'txnSort' => $txnSort])
             </div>
         </div>
-    </div>
 
-    {{-- Activity Log: its own row so it sits below Recent Transactions
-         rather than beside it. Rows load over AJAX from
-         ActivityLogController::index(). --}}
-    <div class="charts-grid mt-4" id="activity-log">
-        <div class="card">
+        {{-- Activity Log: rows load over AJAX from
+             ActivityLogController::index(). --}}
+        <div class="card" id="activity-log">
             <div class="card-header">
                 <div>
                     <h2 class="card-title">Activity Log</h2>
