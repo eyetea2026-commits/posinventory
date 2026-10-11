@@ -141,6 +141,23 @@ class SalesReturnApprovalTest extends TestCase
         $pendingOnly->assertDontSee('#'.$declined->SalesReturnID.'</td>', false);
     }
 
+    // A refund is cash actually leaving the business, so its badge must be
+    // visually flagged (warning icon + distinct styling) rather than the
+    // plain-gray badge a completed replacement (no cash out) gets.
+    public function test_refunded_status_badge_is_flagged_distinctly_from_a_completed_replacement(): void
+    {
+        $refunded = $this->makeReturn(['Status' => 'processed', 'ReturnType' => 'refund']);
+        $completed = $this->makeReturn(['Status' => 'processed', 'ReturnType' => 'replacement']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['status' => 'processed']));
+
+        $response->assertOk();
+        $response->assertSee('badge-refund', false);
+        $response->assertSee('fa-triangle-exclamation', false);
+        $response->assertSee('Refunded');
+        $response->assertSee('Completed');
+    }
+
     public function test_approve_only_works_on_pending_requests(): void
     {
         $return = $this->makeReturn(['Status' => 'approved']);

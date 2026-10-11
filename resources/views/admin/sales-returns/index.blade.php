@@ -105,7 +105,11 @@
                                 @elseif($return->Status === 'declined')
                                     <span class="badge badge-danger">Declined</span>
                                 @elseif($return->Status === 'processed')
-                                    <span class="badge badge-secondary">{{ $return->ReturnType === 'replacement' ? 'Completed' : 'Refunded' }}</span>
+                                    @if($return->ReturnType === 'replacement')
+                                        <span class="badge badge-secondary">Completed</span>
+                                    @else
+                                        <span class="badge badge-refund"><i class="fas fa-triangle-exclamation"></i> Refunded</span>
+                                    @endif
                                 @else
                                     <span class="badge badge-warning">Pending</span>
                                 @endif

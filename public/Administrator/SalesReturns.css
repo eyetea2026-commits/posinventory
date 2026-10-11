@@ -106,13 +106,17 @@ body { background: linear-gradient(180deg, #020617 0%, #090f1e 100%); }
 .filter-group { display: flex; gap: 12px; align-items: center; }
 .filter-select { padding: 12px 16px; padding-right: 40px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-secondary); font-size: 0.9rem; cursor: pointer; outline: none; }
 
-.badge { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
 .badge-success { background: var(--success-light); color: #6ee7b7; }
 .badge-warning { background: var(--warning-light); color: #fcd34d; }
 .badge-danger { background: var(--danger-light); color: #fca5a5; }
 .badge-info { background: var(--info-light); color: #67e8f9; }
 .badge-primary { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
 .badge-secondary { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+/* Refunded means cash actually left the business — kept visually distinct
+   from the plain-gray "Completed" (replacement, no cash out) and from the
+   solid-amber "Pending" badge, so it reads as its own flagged state. */
+.badge-refund { background: rgba(148, 163, 184, 0.15); color: #fcd34d; border: 1px solid rgba(251, 191, 36, 0.4); }
 
 .alert { padding: 16px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px; }
 .alert-success { background: var(--success-light); border: 1px solid rgba(16, 185, 129, 0.2); color: #a7f3d0; }
