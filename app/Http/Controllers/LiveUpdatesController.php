@@ -36,7 +36,7 @@ class LiveUpdatesController extends Controller
     }
 
     /**
-     * @return array{signatures: array<string, string>, unread: int, latest_title: string|null}
+     * @return array{signatures: array<string, string>, unread: int, latest_title: string|null, latest_description: string|null}
      */
     public static function stateFor(User $user): array
     {
@@ -56,9 +56,11 @@ class LiveUpdatesController extends Controller
         $returnState = $returns->selectRaw('COUNT(*) AS total, MAX(updated_at) AS changed')->first();
 
         $latestTitle = null;
+        $latestDescription = null;
         if ($unread > 0) {
             $latest = $user->unreadNotifications()->latest()->first();
             $latestTitle = $latest?->data['title'] ?? null;
+            $latestDescription = $latest?->data['description'] ?? null;
         }
 
         return [
@@ -76,6 +78,7 @@ class LiveUpdatesController extends Controller
             ] + LiveDataVersions::signatures(),
             'unread' => $unread,
             'latest_title' => $latestTitle,
+            'latest_description' => $latestDescription,
         ];
     }
 

@@ -109,6 +109,7 @@ class LiveUpdatesTest extends TestCase
         $this->assertNotSame($before['signatures']['notifications'], $after['signatures']['notifications']);
         $this->assertSame($before['unread'] + 1, $after['unread']);
         $this->assertSame('New Return Request', $after['latest_title']);
+        $this->assertSame('x', $after['latest_description']);
         // Unchanged state: same signature, so pages don't re-fetch.
         $this->assertSame($after['signatures'], $this->poll($session)->json('signatures'));
     }
@@ -276,5 +277,19 @@ class LiveUpdatesTest extends TestCase
         $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()
             ->assertSee('data-live-region="pos-products" data-live-topics="products,inventory"', false)
             ->assertSee("window.liveUpdates.watch(['discounts'], refreshPromoMap);", false);
+    }
+
+    // The "new notification" card is our own markup, not a SweetAlert toast
+    // (the site-wide SweetAlert sizing squashed that into a broken box).
+    public function test_new_notifications_show_in_the_sites_own_card_not_a_sweetalert_toast(): void
+    {
+        foreach ([[$this->admin, 'admin.suppliers.index'], [$this->cashier, 'cashier.transactions']] as [$user, $route]) {
+            $html = $this->actingAs($user)->get(route($route))->assertOk()->getContent();
+
+            $this->assertStringContainsString('.live-toast-stack {', $html);
+            $this->assertStringContainsString('function showToast(title, text)', $html);
+            $this->assertStringContainsString('showToast(state.latest_title, state.latest_description);', $html);
+            $this->assertStringNotContainsString('toast: true', $html);
+        }
     }
 }
