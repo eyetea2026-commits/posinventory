@@ -44,6 +44,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $search = $request->query('search');
+        $adminRoleId = Role::where('role_name', 'admin')->value('id');
 
         $users = User::with('role')
             ->when($search, function ($query, $search) {
@@ -54,7 +55,9 @@ class UserController extends Controller
                         ->orWhere('last_name', 'like', "%{$search}%");
                 });
             })
-            // Newest account first.
+            // Administrator accounts always stay on top; every other account
+            // follows, newest first.
+            ->orderByRaw('CASE WHEN role_id = ? THEN 0 ELSE 1 END', [$adminRoleId ?? 0])
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();

@@ -92,6 +92,17 @@ class NewestFirstListsTest extends TestCase
             ->assertOk()->assertSeeInOrder(['zulu_user', 'alpha_user']);
     }
 
+    public function test_administrator_accounts_stay_on_top_of_the_users_list(): void
+    {
+        $this->admin->update(['name' => 'Administrator']);
+        // Cashiers added after the admin would otherwise be listed above it.
+        User::factory()->create(['name' => 'alpha_user', 'role_id' => $this->cashier->role_id]);
+        User::factory()->create(['name' => 'zulu_user', 'role_id' => $this->cashier->role_id]);
+
+        $this->actingAs($this->admin)->get(route('admin.users.index'))
+            ->assertOk()->assertSeeInOrder(['Administrator', 'zulu_user', 'alpha_user']);
+    }
+
     public function test_stock_adjustments_list_follows_when_recorded_not_the_adjustment_date(): void
     {
         $alpha = $this->makeProduct('Alpha Camera');
