@@ -101,7 +101,7 @@
                 return;
             }
             clearEmptyHint(list);
-            list.appendChild(makePendingBrandChip(brandName));
+            list.prepend(makePendingBrandChip(brandName));
             input.value = '';
             return;
         }
@@ -125,7 +125,7 @@
                     return;
                 }
                 clearEmptyHint(list);
-                list.appendChild(makeSavedBrandChip(data.brand));
+                list.prepend(makeSavedBrandChip(data.brand));
                 input.value = '';
             })
             .catch(function () {

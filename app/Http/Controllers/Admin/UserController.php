@@ -54,8 +54,8 @@ class UserController extends Controller
                         ->orWhere('last_name', 'like', "%{$search}%");
                 });
             })
-            ->orderBy('is_active', 'desc')
-            ->orderBy('name')
+            // Newest account first.
+            ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 

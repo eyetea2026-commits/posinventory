@@ -42,7 +42,8 @@ class StockAdjustmentController extends Controller
                         $product->where('ProductName', 'like', "%{$search}%");
                     });
             })
-            ->orderByDesc('Date')
+            // Newest adjustment first (by when it was recorded, not its date).
+            ->orderByDesc('AdjustmentID')
             ->paginate(15)
             ->withQueryString();
 
@@ -65,7 +66,7 @@ class StockAdjustmentController extends Controller
         $data = $request->validate([
             'ProductID' => ['required', 'integer', 'exists:Product,ProductID'],
             'QuantityAdjust' => ['required', 'integer', 'not_in:0'],
-            'Reason' => ['required', 'string', 'in:' . implode(',', StockAdjustment::REASONS)],
+            'Reason' => ['required', 'string', 'in:'.implode(',', StockAdjustment::REASONS)],
             'Remarks' => ['nullable', 'string', 'max:500'],
             'Date' => ['required', 'date'],
         ]);
@@ -95,7 +96,7 @@ class StockAdjustmentController extends Controller
                 $newQty = $inventory->Quantity + $data['QuantityAdjust'];
 
                 if ($newQty < 0) {
-                    throw new \RuntimeException('Cannot reduce stock below zero. Current stock: ' . $inventory->Quantity);
+                    throw new \RuntimeException('Cannot reduce stock below zero. Current stock: '.$inventory->Quantity);
                 }
 
                 $adjustment = StockAdjustment::create($data);
@@ -118,7 +119,7 @@ class StockAdjustmentController extends Controller
         $product = Product::find($data['ProductID']);
         $productName = $product?->ProductName ?? 'Unknown product';
         $sign = $data['QuantityAdjust'] >= 0 ? '+' : '';
-        ActivityLog::record('stock.adjusted', "Adjusted \"{$productName}\" by {$sign}{$data['QuantityAdjust']} (new total: {$newQty})" . ($damage ? " — created damage record #{$damage->DamageID}" : ''));
+        ActivityLog::record('stock.adjusted', "Adjusted \"{$productName}\" by {$sign}{$data['QuantityAdjust']} (new total: {$newQty})".($damage ? " — created damage record #{$damage->DamageID}" : ''));
 
         // The adjustment itself already committed above — a notification
         // failure (broken mail transport, queue connection down) must not

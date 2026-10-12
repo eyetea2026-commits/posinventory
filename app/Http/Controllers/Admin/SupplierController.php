@@ -37,7 +37,8 @@ class SupplierController extends Controller
                 ->orWhere('Email', 'like', "%{$search}%")
                 ->orWhere('ContactNumber', 'like', "%{$search}%");
         })
-            ->orderBy('SupplierName')
+            // Newest supplier first.
+            ->orderByDesc('SupplierID')
             ->paginate(15)
             ->withQueryString();
 

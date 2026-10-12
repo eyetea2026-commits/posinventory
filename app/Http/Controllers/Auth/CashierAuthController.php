@@ -60,7 +60,8 @@ class CashierAuthController extends Controller
 
     public function pos()
     {
-        $products = Product::active()->with('inventory')->get()->filter(function ($product) {
+        // Newest product first on the POS grid.
+        $products = Product::active()->with('inventory')->orderByDesc('ProductID')->get()->filter(function ($product) {
             return $product->inventory && $product->inventory->Quantity > 0;
         });
 

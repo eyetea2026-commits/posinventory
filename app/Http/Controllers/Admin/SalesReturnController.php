@@ -64,7 +64,8 @@ class SalesReturnController extends Controller
             ->when($status, function ($query, $status) {
                 $query->where('Status', $status);
             })
-            ->orderByDesc('ReturnDate')
+            // Newest return request first.
+            ->orderByDesc('SalesReturnID')
             ->paginate(15)
             ->withQueryString();
 

@@ -26,7 +26,7 @@
     <label>Brands in this Category</label>
     <div class="brand-chip-list" data-category-id="{{ $category->CategoryID ?? '' }}">
         @if(!empty($category))
-            @forelse($category->brands()->orderBy('BrandName')->get() as $brand)
+            @forelse($category->brands()->orderByDesc('BrandID')->get() as $brand)
                 <span class="brand-chip" data-brand-id="{{ $brand->BrandID }}">
                     {{ $brand->BrandName }}
                     <button type="button" class="brand-chip-remove" onclick="window.removeCategoryBrandChip(this)" title="Remove brand">&times;</button>

@@ -566,6 +566,7 @@ class ReportController extends Controller
             ->when($dateTo, fn ($q) => $q->whereDate('BillingDate', '<=', $dateTo))
             ->with(['payment', 'transaction.items'])
             ->orderByDesc('BillingDate')
+            ->orderByDesc('BillingID')
             ->get();
     }
 
@@ -638,7 +639,7 @@ class ReportController extends Controller
                     });
                 });
             })
-            ->orderBy('InventoryID')
+            ->orderByDesc('InventoryID')
             ->get();
     }
 
@@ -651,6 +652,7 @@ class ReportController extends Controller
             ->when($dateFrom, fn ($q) => $q->whereDate('Date', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('Date', '<=', $dateTo))
             ->orderByDesc('Date')
+            ->orderByDesc('AdjustmentID')
             ->get();
     }
 
@@ -673,6 +675,7 @@ class ReportController extends Controller
             ->when($dateFrom, fn ($q) => $q->whereDate('DateRecorded', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('DateRecorded', '<=', $dateTo))
             ->orderByDesc('DateRecorded')
+            ->orderByDesc('DamageID')
             ->get();
     }
 
@@ -682,6 +685,7 @@ class ReportController extends Controller
             ->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
             ->orderByDesc('PurchaseDate')
+            ->orderByDesc('PurchaseOrderID')
             ->get();
     }
 
@@ -723,6 +727,7 @@ class ReportController extends Controller
             ->when($dateFrom, fn ($q) => $q->whereDate('ReturnDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('ReturnDate', '<=', $dateTo))
             ->orderByDesc('ReturnDate')
+            ->orderByDesc('SalesReturnID')
             ->get()
             ->flatMap(function (SalesReturn $return) {
                 $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? ('TXN-'.$return->SalesTransactionID);

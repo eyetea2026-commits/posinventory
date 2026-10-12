@@ -53,7 +53,8 @@ class ProductController extends Controller
             ->when($categoryId, function ($query, $categoryId) {
                 $query->where('CategoryID', $categoryId);
             })
-            ->orderBy('ProductName')
+            // Newest product first.
+            ->orderByDesc('ProductID')
             ->paginate(15)
             ->withQueryString();
 

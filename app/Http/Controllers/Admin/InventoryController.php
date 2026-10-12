@@ -75,7 +75,8 @@ class InventoryController extends Controller
         // REQ045: apply the status filter at the SQL layer
         $this->applyStatusFilter($query, $status);
 
-        $query->orderBy('ProductName');
+        // Newest product first.
+        $query->orderByDesc('Product.ProductID');
 
         $products = $query->paginate(15)->withQueryString();
 
