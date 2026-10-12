@@ -28,6 +28,9 @@ class ThermalReceiptPrinter
      */
     private const TAIL_LINES = 6;
 
+    /** Blank lines printed above the "CCTV Express" header. */
+    private const HEAD_LINES = 2;
+
     private int $width;
 
     /**
@@ -166,6 +169,12 @@ class ThermalReceiptPrinter
             $lines[] = ['text' => str_ends_with($text, "\n") ? $text : $text."\n", 'center' => $center, 'bold' => $bold, 'tall' => $tall];
         };
         $rule = str_repeat('-', $this->width);
+
+        // Blank space above the header (a space, so the browser-printed
+        // copy keeps the line's height too).
+        for ($i = 0; $i < self::HEAD_LINES; $i++) {
+            $add(' ');
+        }
 
         // Header
         $add('CCTV Express', center: true, bold: true, tall: true);

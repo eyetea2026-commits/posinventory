@@ -119,6 +119,10 @@ class ThermalReceiptPrintingTest extends TestCase
         }
         $text .= html_entity_decode($m[2]);
 
+        // Two blank lines above the header.
+        $this->assertSame([' ', ' '], [html_entity_decode($rows[0][2]), html_entity_decode($rows[1][2])]);
+        $this->assertSame('CCTV Express', trim(html_entity_decode($rows[2][2])));
+
         // Same bold / double-height lines as the direct thermal printout.
         $this->assertSame('pl pl-bold pl-tall', $classOf['CCTV Express']);
         $this->assertSame('pl pl-bold', $classOf['SALES RECEIPT']);
@@ -167,6 +171,9 @@ class ThermalReceiptPrintingTest extends TestCase
         // After the footer the paper feeds 6 lines (ESC d 6) so the receipt
         // clears the tear bar before it's torn off.
         $this->assertMatchesRegularExpression("/Please come again\n.*\x1bd\x06/s", $this->capture->bytes);
+
+        // Two blank lines above the "CCTV Express" header.
+        $this->assertMatchesRegularExpression("/^ \n \n[^\n]*CCTV Express/", $text);
 
         // The on-screen receipt shows the same total.
         $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->assertOk()->assertSee('3,000.00');
