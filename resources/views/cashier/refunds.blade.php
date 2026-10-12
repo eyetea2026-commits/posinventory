@@ -145,7 +145,7 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody id="refundsTbody" data-live-region="refunds-rows">
+        <tbody id="refundsTbody" data-live-region="refunds-rows" data-live-topics="returns">
             @forelse($refunds as $refund)
                 <tr data-refund-row>
                     <td>#{{ str_pad($refund->SalesReturnID, 6, '0', STR_PAD_LEFT) }}</td>

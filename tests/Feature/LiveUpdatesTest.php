@@ -106,11 +106,11 @@ class LiveUpdatesTest extends TestCase
         $this->notify($this->admin, 'New Return Request');
         $after = $this->poll($session)->assertOk()->json();
 
-        $this->assertNotSame($before['signature'], $after['signature']);
+        $this->assertNotSame($before['signatures']['notifications'], $after['signatures']['notifications']);
         $this->assertSame($before['unread'] + 1, $after['unread']);
         $this->assertSame('New Return Request', $after['latest_title']);
         // Unchanged state: same signature, so pages don't re-fetch.
-        $this->assertSame($after['signature'], $this->poll($session)->json('signature'));
+        $this->assertSame($after['signatures'], $this->poll($session)->json('signatures'));
     }
 
     public function test_signature_changes_when_a_notification_is_read_elsewhere(): void
@@ -122,7 +122,7 @@ class LiveUpdatesTest extends TestCase
         $this->cashier->unreadNotifications()->update(['read_at' => now()]);
 
         $after = $this->poll($session)->json();
-        $this->assertNotSame($before['signature'], $after['signature']);
+        $this->assertNotSame($before['signatures']['notifications'], $after['signatures']['notifications']);
         $this->assertSame(0, $after['unread']);
     }
 
@@ -132,23 +132,23 @@ class LiveUpdatesTest extends TestCase
         $cashierSession = $this->sessionFor($this->cashier);
         $otherCashier = User::factory()->create(['role_id' => $this->cashier->role_id]);
 
-        $adminBefore = $this->poll($adminSession)->json('signature');
-        $cashierBefore = $this->poll($cashierSession)->json('signature');
+        $adminBefore = $this->poll($adminSession)->json('signatures.returns');
+        $cashierBefore = $this->poll($cashierSession)->json('signatures.returns');
 
         // Another cashier's request: the admin sees it, this cashier doesn't.
         $this->makeReturnFor($otherCashier);
-        $adminAfterOther = $this->poll($adminSession)->json('signature');
+        $adminAfterOther = $this->poll($adminSession)->json('signatures.returns');
         $this->assertNotSame($adminBefore, $adminAfterOther);
-        $this->assertSame($cashierBefore, $this->poll($cashierSession)->json('signature'));
+        $this->assertSame($cashierBefore, $this->poll($cashierSession)->json('signatures.returns'));
 
         // The admin approves this cashier's request: the cashier sees it.
         $return = $this->makeReturnFor($this->cashier);
-        $cashierPending = $this->poll($cashierSession)->json('signature');
+        $cashierPending = $this->poll($cashierSession)->json('signatures.returns');
         $this->assertNotSame($cashierBefore, $cashierPending);
 
         $this->travel(1)->minutes();
         $return->update(['Status' => 'approved']);
-        $this->assertNotSame($cashierPending, $this->poll($cashierSession)->json('signature'));
+        $this->assertNotSame($cashierPending, $this->poll($cashierSession)->json('signatures.returns'));
     }
 
     public function test_polling_does_not_count_as_activity(): void
@@ -187,7 +187,7 @@ class LiveUpdatesTest extends TestCase
             ->assertSee('data-live-region="returns-pagination"', false)
             ->assertSee('data-live-region="admin-notif-badge"', false)
             ->assertSee('data-live-region="admin-notif-items"', false)
-            ->assertSee('"signature":"'.$state['signature'].'"', false)
+            ->assertSee('"notifications":"'.$state['signatures']['notifications'].'"', false)
             ->assertSee('const POLL_MS = 5000;', false);
         $this->actingAs($this->admin)->get(route('admin.notifications.index'))->assertOk()
             ->assertSee('data-live-region="notifications-list"', false);
@@ -200,5 +200,81 @@ class LiveUpdatesTest extends TestCase
         $this->actingAs($this->cashier)->get(route('cashier.refunds'))
             ->assertSee('data-live-region="refunds-rows"', false)
             ->assertSee("document.addEventListener('live-updates:applied'", false);
+    }
+
+    public function test_a_change_refreshes_only_the_pages_that_show_that_data(): void
+    {
+        $session = $this->sessionFor($this->admin);
+        $before = $this->poll($session)->json('signatures');
+
+        $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
+        Product::create(['ProductName' => 'Switch 8P', 'Model' => 'SW-8', 'Price' => 900, 'CostPrice' => 500, 'CategoryID' => $category->CategoryID]);
+
+        $after = $this->poll($session)->json('signatures');
+        foreach (['products', 'categories', 'inventory', 'discounts'] as $topic) {
+            $this->assertNotSame($before[$topic], $after[$topic], $topic);
+        }
+        foreach (['sales', 'returns'] as $topic) {
+            $this->assertSame($before[$topic], $after[$topic], $topic);
+        }
+    }
+
+    public function test_edits_made_without_eloquent_are_noticed_too(): void
+    {
+        $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
+        $product = Product::create(['ProductName' => 'Dome', 'Model' => 'D-1', 'Price' => 900, 'CostPrice' => 500, 'CategoryID' => $category->CategoryID]);
+        Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
+        $session = $this->sessionFor($this->cashier);
+        $before = $this->poll($session)->json('signatures.inventory');
+
+        // e.g. a sale's stock deduction, done straight on the query builder.
+        DB::table('Inventory')->where('ProductID', $product->ProductID)->decrement('Quantity', 2);
+
+        $this->assertNotSame($before, $this->poll($session)->json('signatures.inventory'));
+    }
+
+    public function test_session_and_cache_writes_never_count_as_changes(): void
+    {
+        $session = $this->sessionFor($this->admin);
+        $before = $this->poll($session)->json('signatures');
+
+        DB::table('sessions')->where('id', $session)->update(['last_activity' => now()->timestamp]);
+        DB::table('cache')->insert(['key' => 'x', 'value' => 'y', 'expiration' => now()->addMinute()->timestamp]);
+
+        $this->assertSame($before, $this->poll($session)->json('signatures'));
+    }
+
+    public function test_every_list_page_marks_its_live_parts(): void
+    {
+        $pages = [
+            'admin.products.index' => ['data-live-region="products-rows" data-live-topics="products"', 'data-live-region="products-pagination"'],
+            'admin.categories.index' => ['data-live-region="categories-rows" data-live-topics="categories"'],
+            'admin.suppliers.index' => ['data-live-region="suppliers-rows" data-live-topics="suppliers"', 'data-live-region="suppliers-pagination"'],
+            'admin.purchase-orders.index' => ['data-live-region="purchase-orders-rows" data-live-topics="purchase_orders"', 'data-live-region="purchase-orders-pagination"'],
+            'admin.stock-receivings.index' => ['data-live-region="receiving-pending-rows" data-live-topics="stock_receivings"', 'data-live-region="receiving-completed-count"', "document.addEventListener('live-updates:applied', applyReceivingFilters);"],
+            'admin.stock-adjustments.index' => ['data-live-region="adjustments-rows" data-live-topics="stock_adjustments"', 'data-live-region="adjustments-pagination"'],
+            'admin.damages.index' => ['data-live-region="damages-rows" data-live-topics="damages"', 'data-live-region="damages-pagination"'],
+            'admin.inventory.index' => ["window.liveUpdates.watch(['inventory', 'products']"],
+            'admin.reports.index' => ["window.liveUpdates.watch(['sales', 'inventory'"],
+        ];
+        foreach ($pages as $route => $needles) {
+            $response = $this->actingAs($this->admin)->get(route($route))->assertOk();
+            foreach ($needles as $needle) {
+                $response->assertSee($needle, false);
+            }
+        }
+
+        // The dashboard can't render under the SQLite test database (MySQL-only
+        // date functions in its charts), so its wiring is checked in the view.
+        $dashboard = file_get_contents(resource_path('views/admin/dashboard.blade.php'));
+        $this->assertStringContainsString("window.liveUpdates.watch(['sales', 'inventory', 'products'", $dashboard);
+        $this->assertStringContainsString("window.liveUpdates.watch(['activity']", $dashboard);
+
+        $this->actingAs($this->cashier)->get(route('cashier.transactions'))->assertOk()
+            ->assertSee('data-live-region="transactions-rows" data-live-topics="sales"', false)
+            ->assertSee('data-live-region="transactions-pagination"', false);
+        $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()
+            ->assertSee('data-live-region="pos-products" data-live-topics="products,inventory"', false)
+            ->assertSee("window.liveUpdates.watch(['discounts'], refreshPromoMap);", false);
     }
 }

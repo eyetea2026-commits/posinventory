@@ -102,10 +102,10 @@
     <div class="tabs-header">
         <div class="chart-toggle-group">
             <button type="button" class="chart-toggle-btn active" data-tab="pending" onclick="switchReceivingTab('pending')">
-                Pending / Expected Delivery ({{ $pendingBatches->count() }})
+                Pending / Expected Delivery (<span data-live-region="receiving-pending-count" data-live-topics="stock_receivings">{{ $pendingBatches->count() }}</span>)
             </button>
             <button type="button" class="chart-toggle-btn" data-tab="completed" onclick="switchReceivingTab('completed')">
-                Completed ({{ $completedBatches->count() }})
+                Completed (<span data-live-region="receiving-completed-count" data-live-topics="stock_receivings">{{ $completedBatches->count() }}</span>)
             </button>
         </div>
         <div class="toolbar receiving-filters">
@@ -138,7 +138,7 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-live-region="receiving-pending-rows" data-live-topics="stock_receivings">
                         @forelse($pendingBatches as $batch)
                             <tr data-supplier-id="{{ $batch->purchaseOrder->supplier?->SupplierID ?? '' }}">
                                 <td>{{ $loop->iteration }}</td>
@@ -194,7 +194,7 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-live-region="receiving-completed-rows" data-live-topics="stock_receivings">
                         @forelse($completedBatches as $batch)
                             <tr data-supplier-id="{{ $batch->purchaseOrder->supplier?->SupplierID ?? '' }}">
                                 <td>{{ $loop->iteration }}</td>
@@ -336,6 +336,9 @@
 
             searchInput.addEventListener('input', applyReceivingFilters);
             supplierFilter.addEventListener('change', applyReceivingFilters);
+            // Rows refreshed in real time (partials/live-updates): keep the
+            // current search/supplier filter applied to them.
+            document.addEventListener('live-updates:applied', applyReceivingFilters);
         })();
 
         // ---- Purchase Order Delivery — View Details modal ----

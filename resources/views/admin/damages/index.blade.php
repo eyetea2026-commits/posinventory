@@ -310,12 +310,12 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody id="damagesTbody">
+            <tbody id="damagesTbody" data-live-region="damages-rows" data-live-topics="damages">
                 @include('admin.damages.partials.rows', ['damagedProducts' => $damagedProducts])
             </tbody>
         </table>
 
-        <div id="damagePaginationWrapper">
+        <div id="damagePaginationWrapper" data-live-region="damages-pagination" data-live-topics="damages">
             @include('admin.damages.partials.pagination', ['damagedProducts' => $damagedProducts])
         </div>
     </div>

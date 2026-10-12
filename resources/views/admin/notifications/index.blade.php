@@ -36,7 +36,7 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody data-live-region="notifications-list">
+                <tbody data-live-region="notifications-list" data-live-topics="notifications">
                     @forelse($notifications as $notification)
                         @php
                             $__isUnread = is_null($notification->read_at);

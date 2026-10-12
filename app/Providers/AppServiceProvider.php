@@ -5,7 +5,10 @@ namespace App\Providers;
 use App\Http\Controllers\Admin\StockReceivingController;
 use App\Models\Inventory;
 use App\Observers\InventoryObserver;
+use App\Services\LiveDataVersions;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Inventory::observe(InventoryObserver::class);
+
+        // Real-time pages: every write the app makes bumps that table's
+        // version, so open pages showing that data refresh by themselves
+        // (see LiveDataVersions / LiveUpdatesController).
+        DB::listen(fn (QueryExecuted $query) => LiveDataVersions::recordWrite($query));
 
         // Project-wide password policy — every Password::defaults() call in
         // the app (User creation/edit, admin password reset) now requires a

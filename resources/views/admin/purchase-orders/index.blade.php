@@ -141,12 +141,13 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody id="purchaseOrdersTbody">
+                <tbody id="purchaseOrdersTbody" data-live-region="purchase-orders-rows" data-live-topics="purchase_orders">
                     @include('admin.purchase-orders.partials.purchase-order-rows')
                 </tbody>
             </table>
         </div>
 
+        <div data-live-region="purchase-orders-pagination" data-live-topics="purchase_orders">
         @if($purchaseOrders->hasPages())
             <div class="pagination">
                 @if($purchaseOrders->onFirstPage())
@@ -166,6 +167,7 @@
                 @endif
             </div>
         @endif
+        </div>
     </div>
 
     <!-- Create Purchase Order Modal -->

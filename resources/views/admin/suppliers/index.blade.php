@@ -47,7 +47,7 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody id="suppliersTbody">
+                <tbody id="suppliersTbody" data-live-region="suppliers-rows" data-live-topics="suppliers">
                     @forelse($suppliers as $supplier)
                         <tr>
                             <td>
@@ -92,6 +92,7 @@
             </table>
         </div>
 
+        <div data-live-region="suppliers-pagination" data-live-topics="suppliers">
         @if($suppliers->hasPages())
             <div class="pagination">
                 @if($suppliers->onFirstPage())
@@ -111,6 +112,7 @@
                 @endif
             </div>
         @endif
+        </div>
     </div>
 
     @include('admin.partials.modal-styles')

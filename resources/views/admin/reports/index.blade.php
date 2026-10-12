@@ -382,6 +382,13 @@
                 updateActivePreset();
             }));
 
+            // Real time (partials/live-updates): when anything a report
+            // covers changes, reload the visible report with the same
+            // type/dates.
+            window.liveUpdates.watch(['sales', 'inventory', 'products', 'damages', 'purchase_orders', 'stock_receivings', 'stock_adjustments', 'returns', 'suppliers'], function () {
+                refreshReportBody();
+            });
+
             // Presets just fill the same two date inputs the manual pickers
             // use, then run through the exact same syncDateConstraints() +
             // refreshReportBody() path — no separate request logic to keep

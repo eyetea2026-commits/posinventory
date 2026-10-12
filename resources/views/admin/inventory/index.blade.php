@@ -746,6 +746,10 @@
             if (document.hidden) return;
             applyFilters(currentPage, { silent: true });
         }, 8000);
+        // ...and straight away when stock changes (partials/live-updates).
+        window.liveUpdates.watch(['inventory', 'products'], function () {
+            applyFilters(currentPage, { silent: true });
+        });
     })();
 </script>
 

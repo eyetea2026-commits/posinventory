@@ -196,14 +196,14 @@
             <input type="text" id="search-input" placeholder="Search products by name or model..." onkeyup="searchProducts()">
         </div>
 
-        <div class="products-grid" id="products-grid">
+        <div class="products-grid" id="products-grid" data-live-region="pos-products" data-live-topics="products,inventory">
             @forelse($products as $product)
                 @php
                     $stock = $product->inventory?->Quantity ?? 0;
                     $stockClass = $stock <= 0 ? 'out-of-stock' : ($stock <= 10 ? 'low' : '');
                     $stockText = $stock <= 0 ? 'Out of Stock' : ($stock <= 10 ? 'Low Stock: ' . $stock : 'Stock: ' . $stock);
                 @endphp
-                <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}" data-product-id="{{ $product->ProductID }}" data-price="{{ $product->Price }}"
+                <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}" data-product-id="{{ $product->ProductID }}" data-price="{{ $product->Price }}" data-stock="{{ $stock }}"
                      onclick="{{ $stock > 0 ? 'addToCart(' . $product->ProductID . ', ' . json_encode($product->ProductName) . ', ' . $product->Price . ', ' . $stock . ')' : '' }}">
                     <h3>{{ $product->ProductName }}</h3>
                     <p>{{ $product->Model }}</p>
@@ -945,6 +945,28 @@
 
     renderProductCardPricing();
     setInterval(refreshPromoMap, 45000);
+
+    // Real time (partials/live-updates): stock or products changed elsewhere
+    // (another cashier's sale, receiving, an adjustment, a new product) --
+    // the grid was just swapped in, so redraw its prices, keep the search
+    // applied, and keep the cart's stock limits current.
+    document.addEventListener('live-updates:applied', function (event) {
+        if (event.detail.regions.indexOf('pos-products') === -1) return;
+        renderProductCardPricing();
+        searchProducts();
+        let cartChanged = false;
+        cart.forEach(function (item) {
+            const card = document.querySelector('.product-card[data-product-id="' + item.id + '"]');
+            if (!card) return;
+            const stock = parseInt(card.dataset.stock, 10);
+            if (!isNaN(stock) && stock !== item.stock) {
+                item.stock = stock;
+                cartChanged = true;
+            }
+        });
+        if (cartChanged) renderCart();
+    });
+    window.liveUpdates.watch(['discounts'], refreshPromoMap);
 
     // Holding down a qty +/- button repeats it instead of requiring one tap
     // per unit. Delegated on the (stable) cart container rather than bound

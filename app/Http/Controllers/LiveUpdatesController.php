@@ -5,16 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\SalesReturn;
 use App\Models\Staff;
 use App\Models\User;
+use App\Services\LiveDataVersions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
  * "Anything new?" check that every signed-in page sends every few seconds
- * (partials/live-updates), so notifications and return/refund requests
- * show up without a refresh. It only returns a short fingerprint of the
- * user's notifications and return requests; when that changes, the page
- * re-fetches itself and swaps in just its live parts (bell, request lists).
+ * (partials/live-updates), so notifications, return/refund requests and the
+ * system's lists show up without a refresh. It only returns short
+ * fingerprints: the user's own notifications and return requests, plus one
+ * per kind of data (see LiveDataVersions). When one a page shows changes,
+ * the page re-fetches and swaps in just its live parts.
  *
  * Runs WITHOUT the session middleware (like /session/alive), so the polling
  * never counts as activity and an unattended screen still times out. The
@@ -34,7 +36,7 @@ class LiveUpdatesController extends Controller
     }
 
     /**
-     * @return array{signature: string, unread: int, latest_title: string|null}
+     * @return array{signatures: array<string, string>, unread: int, latest_title: string|null}
      */
     public static function stateFor(User $user): array
     {
@@ -60,15 +62,18 @@ class LiveUpdatesController extends Controller
         }
 
         return [
-            'signature' => md5(implode('|', [
-                $unread,
-                $notificationState->total ?? 0,
-                $notificationState->newest ?? '',
-                $notificationState->changed ?? '',
-                $notificationState->last_read ?? '',
-                $returnState->total ?? 0,
-                $returnState->changed ?? '',
-            ])),
+            // One fingerprint per kind of data; a page only reacts to the
+            // ones it shows (see partials/live-updates).
+            'signatures' => [
+                'notifications' => md5(implode('|', [
+                    $unread,
+                    $notificationState->total ?? 0,
+                    $notificationState->newest ?? '',
+                    $notificationState->changed ?? '',
+                    $notificationState->last_read ?? '',
+                ])),
+                'returns' => md5(($returnState->total ?? 0).'|'.($returnState->changed ?? '')),
+            ] + LiveDataVersions::signatures(),
             'unread' => $unread,
             'latest_title' => $latestTitle,
         ];

@@ -68,12 +68,12 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody id="transactionsTbody">
+        <tbody id="transactionsTbody" data-live-region="transactions-rows" data-live-topics="sales">
             @include('cashier.partials.transactions-rows')
         </tbody>
     </table>
 
-    <div id="transactionsPagination">
+    <div id="transactionsPagination" data-live-region="transactions-pagination" data-live-topics="sales">
         @include('cashier.partials.transactions-pagination')
     </div>
 </div>

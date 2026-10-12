@@ -438,11 +438,11 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody id="categoriesTbody">
+            <tbody id="categoriesTbody" data-live-region="categories-rows" data-live-topics="categories">
                 @include('admin.categories.partials.rows')
             </tbody>
         </table>
-        <div id="paginationWrapper">
+        <div id="paginationWrapper" data-live-region="categories-pagination" data-live-topics="categories">
             @include('admin.categories.partials.pagination')
         </div>
     </div>

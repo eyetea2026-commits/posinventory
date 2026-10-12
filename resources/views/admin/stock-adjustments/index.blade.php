@@ -53,7 +53,7 @@
                         <th>Reason</th>
                     </tr>
                 </thead>
-                <tbody id="adjustmentsTbody">
+                <tbody id="adjustmentsTbody" data-live-region="adjustments-rows" data-live-topics="stock_adjustments">
                     @forelse($adjustments as $adjustment)
                         <tr>
                             <td>{{ \Illuminate\Support\Carbon::parse($adjustment->Date)->format('m/d/Y') }}</td>
@@ -84,6 +84,7 @@
             </table>
         </div>
 
+        <div data-live-region="adjustments-pagination" data-live-topics="stock_adjustments">
         @if($adjustments->hasPages())
             <div class="pagination">
                 @if($adjustments->onFirstPage())
@@ -103,6 +104,7 @@
                 @endif
             </div>
         @endif
+        </div>
     </div>
 
     <!-- New Stock Adjustment Modal -->

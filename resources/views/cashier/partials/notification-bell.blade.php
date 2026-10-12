@@ -1,4 +1,4 @@
-<div class="notif-bell-wrap" data-live-region="cashier-notif-bell">
+<div class="notif-bell-wrap" data-live-region="cashier-notif-bell" data-live-topics="notifications">
     <button type="button" class="notif-bell-btn" onclick="toggleNotifDropdown(event)">
         <i class="fas fa-bell"></i>
         @if(($headerUnreadCount ?? 0) > 0)

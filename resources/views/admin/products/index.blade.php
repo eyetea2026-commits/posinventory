@@ -881,13 +881,13 @@
                     <th class="col-actions">Actions</th>
                 </tr>
             </thead>
-            <tbody id="productTbody">
+            <tbody id="productTbody" data-live-region="products-rows" data-live-topics="products">
                 @include('admin.products.partials.rows', ['products' => $products])
             </tbody>
         </table>
     </div>
 
-    <div id="paginationWrapper">
+    <div id="paginationWrapper" data-live-region="products-pagination" data-live-topics="products">
         @if($products->hasPages())
             @include('admin.products.partials.pagination', ['products' => $products])
         @endif

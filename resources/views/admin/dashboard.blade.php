@@ -1626,6 +1626,8 @@
                 });
         }
         setInterval(refreshInventoryWidgets, 10000);
+        // ...and straight away when sales or stock change (partials/live-updates).
+        window.liveUpdates.watch(['sales', 'inventory', 'products', 'suppliers', 'returns', 'damages', 'stock_receivings', 'stock_adjustments'], refreshInventoryWidgets);
 
         // Recent Transactions: pagination, column-sort, and search all stay
         // on this same page instead of doing a real navigation (which always
@@ -1723,7 +1725,10 @@
                 select.value = current;
             }
 
+            let lastUrl = null;
+
             function load(url) {
+                lastUrl = url;
                 const seq = ++requestSeq;
                 fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
                     .then(function (r) { return r.json(); })
@@ -1775,6 +1780,12 @@
             });
 
             applyFilters();
+
+            // Real time (partials/live-updates): new log entries show up
+            // on the same filters and page.
+            window.liveUpdates.watch(['activity'], function () {
+                if (lastUrl) load(lastUrl);
+            });
         })();
     })();
     </script>
