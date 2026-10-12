@@ -53,6 +53,20 @@ class ThermalReceiptPrinter
      */
     public function printReceipt(array $receipt, bool $openDrawer = false): void
     {
+        $this->printLineSpecs($this->lines($receipt), $openDrawer);
+    }
+
+    /**
+     * Prints already-built receipt lines (the output of lines()). Used by
+     * printReceipt() and by the print bridge, which receives the deployed
+     * site's lines so its slip comes out exactly like a local one.
+     *
+     * @param  list<array{text: string, center: bool, bold: bool, tall: bool}>  $lines
+     *
+     * @throws \Throwable when the printer can't be reached (off, unplugged, not shared).
+     */
+    public function printLineSpecs(array $lines, bool $openDrawer = false): void
+    {
         $connector = $this->connectorFactory
             ? ($this->connectorFactory)()
             : new WindowsPrintConnector((string) config('services.receipt_printer.name', 'POS58'));
@@ -60,7 +74,7 @@ class ThermalReceiptPrinter
         $printer = new Printer($connector);
 
         try {
-            $this->writeReceipt($printer, $receipt);
+            $this->writeReceipt($printer, $lines);
 
             if ($openDrawer) {
                 $printer->pulse();
@@ -135,13 +149,13 @@ class ThermalReceiptPrinter
     }
 
     /**
-     * @param  array<string, mixed>  $r
+     * @param  list<array{text: string, center: bool, bold: bool, tall: bool}>  $lines
      */
-    private function writeReceipt(Printer $printer, array $r): void
+    private function writeReceipt(Printer $printer, array $lines): void
     {
         $printer->initialize();
 
-        foreach ($this->lines($r) as $line) {
+        foreach ($lines as $line) {
             $printer->setJustification($line['center'] ? Printer::JUSTIFY_CENTER : Printer::JUSTIFY_LEFT);
             $printer->setEmphasis($line['bold']);
             $printer->setTextSize(1, $line['tall'] ? 2 : 1);
@@ -157,12 +171,13 @@ class ThermalReceiptPrinter
 
     /**
      * Every line of the sales receipt, in order. Shared by the thermal
-     * printout and the plain-text version so the two never differ.
+     * printout, the browser-printed copy and the print bridge so they never
+     * differ.
      *
      * @param  array<string, mixed>  $r
      * @return list<array{text: string, center: bool, bold: bool, tall: bool}>
      */
-    private function lines(array $r): array
+    public function lines(array $r): array
     {
         $lines = [];
         $add = function (string $text, bool $center = false, bool $bold = false, bool $tall = false) use (&$lines): void {

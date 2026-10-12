@@ -397,6 +397,8 @@
      fails. Nothing is shown on screen and no browser window is opened. --}}
 <iframe id="receiptPrintFrame" title="Receipt" aria-hidden="true" tabindex="-1" style="position:fixed; width:0; height:0; border:0; visibility:hidden;"></iframe>
 
+@include('partials.print-bridge')
+
 <script>
     // Capped at 7 whole-peso digits (₱9,999,999.99), matching processSale()'s
     // own server-side limit. calculateChange is bound AFTER the formatter so
@@ -1390,7 +1392,19 @@
                                 printReceiptInBackground(receiptUrl);
                             });
                     } else {
-                        printReceiptInBackground(receiptUrl);
+                        // Deployed site: print through the cashier PC's
+                        // local app (exactly like a local sale); without it,
+                        // print through the browser.
+                        window.printViaBridge(data.receipt_number, true)
+                            .then(function () {
+                                toastSuccess('Sale complete. Receipt printed.').then(function () {
+                                    window.location.reload();
+                                });
+                            })
+                            .catch(function (message) {
+                                if (message) toastWarning(message);
+                                printReceiptInBackground(receiptUrl);
+                            });
                     }
                 } else {
                     toastError(data.message, 'Error');

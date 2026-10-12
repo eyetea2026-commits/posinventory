@@ -78,6 +78,8 @@
     </div>
 </div>
 
+@include('partials.print-bridge')
+
 <script>
     // Local-only direct printing (see App\Services\ThermalReceiptPrinter).
     const RECEIPT_THERMAL_PRINTING = @json(\App\Services\ThermalReceiptPrinter::isEnabled());
@@ -101,7 +103,15 @@
             if (RECEIPT_THERMAL_PRINTING) {
                 reprintToThermal(button, receiptNumber, receiptUrl);
             } else {
-                window.open(receiptUrl, '_blank');
+                // Deployed site: print through the cashier PC's local app
+                // (exactly like a local reprint); without it, open the
+                // on-screen receipt.
+                window.printViaBridge(receiptNumber, false)
+                    .then(function () { toastSuccess('Receipt sent to the printer.'); })
+                    .catch(function (message) {
+                        if (message) toastWarning(message);
+                        window.open(receiptUrl, '_blank');
+                    });
             }
         });
 

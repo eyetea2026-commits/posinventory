@@ -14,6 +14,7 @@ use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\SaleCompleted;
 use App\Services\ThermalReceiptPrinter;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -577,6 +578,22 @@ class CashierAuthController extends Controller
         return view('cashier.receipt', $receipt + [
             'printLines' => $printer->printLines($receipt),
             'printTail' => $printer->tailText(),
+        ]);
+    }
+
+    /**
+     * The receipt's thermal-printer lines, for the print bridge: the POS
+     * sends them to the local copy of this app on the cashier PC, which
+     * prints them exactly like a local sale. Same ownership rule as
+     * viewReceipt().
+     */
+    public function receiptPrintLines($receiptNumber, ThermalReceiptPrinter $printer): JsonResponse
+    {
+        $receipt = $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber);
+
+        return response()->json([
+            'lines' => $printer->lines($receipt),
+            'payment_method' => $receipt['paymentMethod'],
         ]);
     }
 

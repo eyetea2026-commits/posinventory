@@ -22,6 +22,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
 use App\Http\Controllers\Cashier\CashierReturnController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PrintBridgeController;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -64,6 +65,14 @@ Route::get('/session/alive', function (Request $request) {
 })->name('session.alive')
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
     ->middleware('throttle:120,1');
+
+// Print bridge (see PrintBridgeController): only used on the cashier PC's
+// local copy, which the deployed POS sends receipt lines to. Sessionless and
+// without CSRF since the request comes from the deployed site's page; the
+// controller itself only accepts this PC and the allowed site.
+Route::match(['post', 'options'], '/print-bridge', PrintBridgeController::class)->name('print-bridge')
+    ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
+    ->middleware('throttle:60,1');
 // throttle:15,1 is an outer safety net only — the real brute-force defense is
 // AuthController's own per-username RateLimiter (5 attempts/60s, with a
 // friendly "too many attempts" message). This route limit used to be 6/min,
@@ -436,4 +445,5 @@ Route::prefix('cashier')->group(function () {
     // Receipt route (REQ102)
     Route::get('receipt/{receiptNumber}', [CashierAuthController::class, 'viewReceipt'])->name('cashier.receipt')->middleware(['auth', 'role:cashier']);
     Route::post('receipt/{receiptNumber}/thermal', [CashierAuthController::class, 'printThermalReceipt'])->name('cashier.receipt.thermal')->middleware(['auth', 'role:cashier']);
+    Route::get('receipt/{receiptNumber}/print-lines', [CashierAuthController::class, 'receiptPrintLines'])->name('cashier.receipt.print-lines')->middleware(['auth', 'role:cashier']);
 });

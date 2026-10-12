@@ -5,6 +5,7 @@ use App\Http\Middleware\PreventBackHistory;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -39,6 +40,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'admin/security/login-events/*/confirm',
             'admin/security/login-events/*/deny',
+        ]);
+
+        // The print bridge's receipt lines are pre-padded 32-column text:
+        // leading spaces (centring) and line breaks must reach the printer
+        // untouched.
+        $middleware->trimStrings(except: [
+            fn (Request $request) => $request->is('print-bridge'),
+        ]);
+        $middleware->convertEmptyStringsToNull(except: [
+            fn (Request $request) => $request->is('print-bridge'),
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

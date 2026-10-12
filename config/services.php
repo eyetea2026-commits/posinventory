@@ -46,6 +46,14 @@ return [
         'name' => env('POS_PRINTER_NAME', 'POS58'),
         'chars_per_line' => (int) env('POS_PRINTER_CHARS_PER_LINE', 32),
         'open_drawer' => (bool) env('POS_PRINTER_OPEN_DRAWER', false),
+
+        // Print bridge: the deployed site sends receipt lines to the local
+        // copy of this app on the cashier PC (`php artisan serve`), which
+        // prints them straight to the thermal printer. bridge_url is used by
+        // the deployed site's pages (empty turns it off); bridge_origins is
+        // checked by the local copy (comma-separated sites allowed to print).
+        'bridge_url' => env('POS_PRINT_BRIDGE_URL', 'http://127.0.0.1:8000/print-bridge'),
+        'bridge_origins' => env('POS_PRINT_BRIDGE_ORIGINS', 'https://cctvexpresstacurong.com'),
     ],
 
 ];
