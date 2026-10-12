@@ -700,4 +700,20 @@ class ReportsModuleTest extends TestCase
                 ->assertJsonPath('salesSummary', null);
         }
     }
+
+    // No date range picked: the printed report says "As of <today>", not
+    // "All Time" (both the Report Period line and the Filters box).
+    public function test_print_preview_without_dates_says_as_of_today(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 13));
+
+        $html = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('All Time', $html);
+        $this->assertSame(2, substr_count($html, 'As of 10/13/2026'));
+
+        // With dates picked, it still shows that range.
+        $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales', 'date_from' => '2026-05-01', 'date_to' => '2026-05-31']))
+            ->assertOk()->assertSee('05/01/2026')->assertSee('05/31/2026')->assertDontSee('As of');
+    }
 }
