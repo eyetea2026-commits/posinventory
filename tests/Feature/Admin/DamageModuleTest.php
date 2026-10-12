@@ -362,7 +362,7 @@ class DamageModuleTest extends TestCase
         $response->assertJsonPath('requestedBy.Name', $this->admin->full_name);
     }
 
-    // The Damage list has no Status column, and a record waiting for its
+    // The Damage list has no Status or PO# column, and a record waiting for its
     // supplier return no longer shows the Confirm Returned (truck), Cancel
     // Supplier Return (undo) and Dispose (trash) buttons -- just View.
     public function test_list_has_no_status_column_or_supplier_return_buttons(): void
@@ -375,6 +375,8 @@ class DamageModuleTest extends TestCase
 
         $this->assertStringContainsString('<th>Reason</th>', $head[1]);
         $this->assertStringNotContainsString('<th>Status</th>', $head[1]);
+        $this->assertStringNotContainsString('<th>PO#</th>', $head[1]);
+        $this->assertSame(substr_count($head[1], '<th>'), substr_count(explode('</tr>', $rows[1])[0], '<td'));
         $this->assertStringContainsString('viewDamageDetails('.$damage->DamageID.')', $rows[1]);
         $this->assertStringNotContainsString('Pending Supplier Return', $rows[1]);
         $this->assertStringNotContainsString(route('admin.damages.confirm-supplier-return', $damage->DamageID), $rows[1]);

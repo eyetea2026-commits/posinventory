@@ -303,7 +303,6 @@
                     <th>Date</th>
                     <th>Product</th>
                     <th>Supplier</th>
-                    <th>PO#</th>
                     <th>Quantity</th>
                     <th>Reason</th>
                     <th>Actions</th>

@@ -11,7 +11,6 @@
             @endif
         </td>
         <td>{{ $damage->supplier->SupplierName ?? 'N/A' }}</td>
-        <td>{{ $damage->PurchaseOrderID ? '#' . $damage->PurchaseOrderID : '-' }}</td>
         <td><span class="badge badge-danger">{{ $damage->Quantity }}</span></td>
         <td class="description-cell">{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType }}</td>
         <td>
@@ -49,7 +48,7 @@
     </tr>
 @empty
     <tr>
-        <td colspan="8">
+        <td colspan="7">
             <div class="empty-state">
                 <div class="empty-icon"><i class="fa-solid fa-box-open"></i></div>
                 <p class="empty-title">No Damage Records Found</p>
