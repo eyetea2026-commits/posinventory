@@ -195,9 +195,9 @@ window.initProductAddForm = function (formId, options) {
         }
     }
 
-    // Add mode only: lets the admin attach suppliers (with a per-supplier
-    // Cost Price) to a product that doesn't exist yet. Held client-side as
-    // Suppliers[][SupplierID]/Suppliers[][CostPrice] hidden inputs and only
+    // Add mode only: lets the admin attach suppliers (just the supplier, no
+    // cost price) to a product that doesn't exist yet. Held client-side as
+    // Suppliers[][SupplierID] hidden inputs and only
     // actually linked once the whole Add Product form is submitted — see
     // ProductController::store() and the matching Add Category "Brands[]"
     // pattern this mirrors. No-ops entirely in Edit mode, where the
@@ -208,14 +208,12 @@ window.initProductAddForm = function (formId, options) {
     var pendingSupplierError = form.querySelector('#pendingSupplierError');
     var addSupplierBtn = form.querySelector('#addProductSupplierBtn');
     var newSupplierIdSelect = form.querySelector('#newSupplierId');
-    var newSupplierCostInput = form.querySelector('#newSupplierCost');
-
-    if (pendingSuppliersBody && pendingSupplierError && addSupplierBtn && newSupplierIdSelect && newSupplierCostInput) {
+    if (pendingSuppliersBody && pendingSupplierError && addSupplierBtn && newSupplierIdSelect) {
         var pendingSuppliers = [];
 
         function renderPendingSuppliers() {
             if (!pendingSuppliers.length) {
-                pendingSuppliersBody.innerHTML = '<tr class="pending-suppliers-empty-row"><td colspan="3" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>';
+                pendingSuppliersBody.innerHTML = '<tr class="pending-suppliers-empty-row"><td colspan="2" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>';
                 return;
             }
 
@@ -227,11 +225,6 @@ window.initProductAddForm = function (formId, options) {
                 supplierCell.style.padding = '8px';
                 supplierCell.textContent = entry.name;
                 row.appendChild(supplierCell);
-
-                var costCell = document.createElement('td');
-                costCell.style.padding = '8px';
-                costCell.textContent = '₱' + parseFloat(entry.cost).toFixed(2);
-                row.appendChild(costCell);
 
                 var actionsCell = document.createElement('td');
                 actionsCell.style.padding = '8px';
@@ -252,12 +245,6 @@ window.initProductAddForm = function (formId, options) {
                 supplierIdInput.value = entry.supplierId;
                 row.appendChild(supplierIdInput);
 
-                var costInput = document.createElement('input');
-                costInput.type = 'hidden';
-                costInput.name = 'Suppliers[][CostPrice]';
-                costInput.value = entry.cost;
-                row.appendChild(costInput);
-
                 pendingSuppliersBody.appendChild(row);
             });
         }
@@ -268,26 +255,22 @@ window.initProductAddForm = function (formId, options) {
             var supplierId = newSupplierIdSelect.value;
             var selectedOption = newSupplierIdSelect.options[newSupplierIdSelect.selectedIndex];
             var supplierName = selectedOption ? selectedOption.textContent : '';
-            var cost = newSupplierCostInput.value;
-
-            if (!supplierId || !cost) {
-                pendingSupplierError.textContent = 'Select a supplier and enter a cost price.';
+            if (!supplierId) {
+                pendingSupplierError.textContent = 'Select a supplier.';
                 pendingSupplierError.style.display = '';
                 return;
             }
 
-            var existingEntry = pendingSuppliers.find(function (entry) {
+            var alreadyAdded = pendingSuppliers.some(function (entry) {
                 return String(entry.supplierId) === String(supplierId);
             });
 
-            if (existingEntry) {
-                existingEntry.cost = cost;
-            } else {
-                pendingSuppliers.push({ supplierId: supplierId, name: supplierName, cost: cost });
+            if (!alreadyAdded) {
+                pendingSuppliers.push({ supplierId: supplierId, name: supplierName });
             }
 
             newSupplierIdSelect.value = '';
-            newSupplierCostInput.value = '';
+            newSupplierIdSelect.dispatchEvent(new Event('change'));
             renderPendingSuppliers();
         });
     }
@@ -518,13 +501,12 @@ window.initProductSuppliersPanel = function (productId) {
 
     function renderSuppliers(suppliers) {
         if (!suppliers.length) {
-            body.innerHTML = '<tr><td colspan="4" style="padding:12px; color:#94a3b8;">No suppliers linked yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="3" style="padding:12px; color:#94a3b8;">No suppliers linked yet.</td></tr>';
             return;
         }
         body.innerHTML = suppliers.map(function (ps) {
             return '<tr>' +
                 '<td style="padding:8px;">' + escapeHtml(ps.supplier ? ps.supplier.SupplierName : 'Unknown') + '</td>' +
-                '<td style="padding:8px;">₱' + parseFloat(ps.CostPrice).toFixed(2) + '</td>' +
                 '<td style="padding:8px;">' + (ps.IsPreferred
                     ? '<span style="color:#10b981;">&#9733; Preferred</span>'
                     : '<button type="button" class="btn btn-secondary" data-prefer-id="' + ps.ProductSupplierID + '">Make Preferred</button>') + '</td>' +
@@ -534,12 +516,12 @@ window.initProductSuppliersPanel = function (productId) {
     }
 
     function loadSuppliers() {
-        body.innerHTML = '<tr><td colspan="4" style="padding:12px; color:#94a3b8;">Loading...</td></tr>';
+        body.innerHTML = '<tr><td colspan="3" style="padding:12px; color:#94a3b8;">Loading...</td></tr>';
         fetch(suppliersUrl(), { headers: { 'Accept': 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (data) { renderSuppliers(data.suppliers || []); })
             .catch(function () {
-                body.innerHTML = '<tr><td colspan="4" style="padding:12px; color:#ef4444;">Failed to load suppliers.</td></tr>';
+                body.innerHTML = '<tr><td colspan="3" style="padding:12px; color:#ef4444;">Failed to load suppliers.</td></tr>';
             });
     }
 
@@ -566,15 +548,14 @@ window.initProductSuppliersPanel = function (productId) {
 
     addBtn.onclick = function () {
         var supplierId = document.getElementById('newSupplierId').value;
-        var cost = document.getElementById('newSupplierCost').value;
-        if (!supplierId || !cost) {
-            Swal.fire({ title: 'Missing info', text: 'Select a supplier and enter a cost price.', icon: 'warning', confirmButtonColor: '#f59e0b' });
+        if (!supplierId) {
+            Swal.fire({ title: 'Missing info', text: 'Select a supplier.', icon: 'warning', confirmButtonColor: '#f59e0b' });
             return;
         }
         fetch(suppliersUrl(), {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ SupplierID: supplierId, CostPrice: cost }),
+            body: JSON.stringify({ SupplierID: supplierId }),
         }).then(function (r) {
             return r.json().then(function (data) { return { ok: r.ok, data: data }; });
         }).then(function (result) {
@@ -587,7 +568,9 @@ window.initProductSuppliersPanel = function (productId) {
                 Swal.fire({ title: 'Error', text: message, icon: 'error', confirmButtonColor: '#ef4444' });
                 return;
             }
-            document.getElementById('newSupplierCost').value = '';
+            var supplierSelect = document.getElementById('newSupplierId');
+            supplierSelect.value = '';
+            supplierSelect.dispatchEvent(new Event('change'));
             loadSuppliers();
         });
     };

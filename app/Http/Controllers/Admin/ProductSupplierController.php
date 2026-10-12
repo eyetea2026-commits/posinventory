@@ -31,9 +31,13 @@ class ProductSupplierController extends Controller
 
     public function store(Request $request, Product $product)
     {
+        // Only the supplier is chosen; a cost price is optional. A link
+        // without one uses the product's own Cost Price (purchase orders
+        // fall back to it), and re-adding a supplier keeps any price it
+        // already has.
         $data = $request->validate([
             'SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
-            'CostPrice' => ['required', 'numeric', 'min:0'],
+            'CostPrice' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $existing = ProductSupplier::where('ProductID', $product->ProductID)
@@ -41,13 +45,16 @@ class ProductSupplierController extends Controller
             ->first();
 
         $oldCost = $existing?->CostPrice;
+        $newCost = $data['CostPrice'] ?? null;
 
         $productSupplier = ProductSupplier::updateOrCreate(
             ['ProductID' => $product->ProductID, 'SupplierID' => $data['SupplierID']],
-            ['CostPrice' => $data['CostPrice']]
+            $newCost !== null ? ['CostPrice' => $newCost] : ($existing ? [] : ['CostPrice' => null])
         );
 
-        ProductCostHistory::log($product, $productSupplier->supplier, $oldCost, (float) $data['CostPrice'], ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE);
+        if ($newCost !== null) {
+            ProductCostHistory::log($product, $productSupplier->supplier, $oldCost, (float) $newCost, ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE);
+        }
 
         return response()->json(['success' => true, 'productSupplier' => $productSupplier->load('supplier')]);
     }

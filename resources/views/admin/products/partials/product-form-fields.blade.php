@@ -143,10 +143,11 @@
      the DOM (see that file and the Edit Product modal's openEditProductModal).
      Add mode (no ProductID yet): a supplier can't be linked to a product
      that doesn't exist, so chosen suppliers are held client-side as
-     "Suppliers[][SupplierID]"/"Suppliers[][CostPrice]" hidden inputs and are
-     only actually linked once the whole Add Product form is submitted (see
+     "Suppliers[][SupplierID]" hidden inputs and are only actually linked
+     once the whole Add Product form is submitted (see
      ProductController::store()) — same pattern as the Add Category form's
-     pending "Brands[]" list. --}}
+     pending "Brands[]" list. Only the supplier is chosen -- no cost price
+     is asked for here; the product's own Cost Price is used. --}}
 <div class="card glass-card" style="margin-top: 24px;">
     <div class="content-header" style="margin-bottom: 16px;">
         <h1 style="font-size: 1.25rem;">Suppliers for this Product</h1>
@@ -157,13 +158,12 @@
             <thead>
                 <tr style="text-align:left; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">
                     <th style="padding:8px;">Supplier</th>
-                    <th style="padding:8px;">Cost Price</th>
                     <th style="padding:8px;">Preferred</th>
                     <th style="padding:8px;">Actions</th>
                 </tr>
             </thead>
             <tbody id="productSuppliersBody">
-                <tr><td colspan="4" style="padding:12px; color:#94a3b8;">Loading...</td></tr>
+                <tr><td colspan="3" style="padding:12px; color:#94a3b8;">Loading...</td></tr>
             </tbody>
         </table>
     @else
@@ -171,12 +171,11 @@
             <thead>
                 <tr style="text-align:left; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">
                     <th style="padding:8px;">Supplier</th>
-                    <th style="padding:8px;">Cost Price</th>
                     <th style="padding:8px;">Actions</th>
                 </tr>
             </thead>
             <tbody id="pendingProductSuppliersBody">
-                <tr class="pending-suppliers-empty-row"><td colspan="3" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>
+                <tr class="pending-suppliers-empty-row"><td colspan="2" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>
             </tbody>
         </table>
         <span class="form-error" id="pendingSupplierError" style="display:none;"></span>
@@ -191,10 +190,6 @@
                         <option value="{{ $s->SupplierID }}">{{ $s->SupplierName }}</option>
                     @endforeach
                 </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="newSupplierCost">Cost Price</label>
-                <input type="number" id="newSupplierCost" class="form-input" min="0" step="0.01">
             </div>
             <div class="form-group">
                 <button type="button" class="btn btn-secondary" id="addProductSupplierBtn">

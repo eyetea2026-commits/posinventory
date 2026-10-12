@@ -150,6 +150,60 @@ class SupplierProductRelationshipTest extends TestCase
         ]);
     }
 
+    // "Suppliers for this Product" only asks for the supplier now -- no cost
+    // price. The link has none, so the product's own Cost Price is used.
+    public function test_adding_a_product_with_just_a_supplier_needs_no_cost_price(): void
+    {
+        $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
+
+        $response = $this->actingAs($this->admin)->post(route('admin.products.store'), [
+            'ProductName' => 'New Switch', 'Model' => 'SW-002', 'Barcode' => 'BARCODE-SW-002',
+            'CostPrice' => 500, 'CategoryID' => $category->CategoryID,
+            'Suppliers' => [
+                ['SupplierID' => $this->supplierA->SupplierID],
+                ['SupplierID' => $this->supplierB->SupplierID],
+            ],
+        ]);
+
+        $response->assertRedirect(route('admin.products.index'));
+        $response->assertSessionHasNoErrors();
+        $product = Product::where('ProductName', 'New Switch')->first();
+
+        foreach ([$this->supplierA, $this->supplierB] as $supplier) {
+            $this->assertDatabaseHas('ProductSupplier', ['ProductID' => $product->ProductID, 'SupplierID' => $supplier->SupplierID, 'CostPrice' => null]);
+        }
+        $this->assertDatabaseMissing('ProductCostHistory', ['ProductID' => $product->ProductID, 'Source' => ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE]);
+    }
+
+    public function test_edit_product_links_a_supplier_without_a_cost_price_and_keeps_an_existing_one(): void
+    {
+        $this->actingAs($this->admin)->postJson(route('admin.products.suppliers.store', $this->product), [
+            'SupplierID' => $this->supplierA->SupplierID,
+        ])->assertOk()->assertJson(['success' => true]);
+        $this->assertDatabaseHas('ProductSupplier', ['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => null]);
+
+        // A supplier that already had a price keeps it when added again.
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierB->SupplierID, 'CostPrice' => 550]);
+        $this->actingAs($this->admin)->postJson(route('admin.products.suppliers.store', $this->product), [
+            'SupplierID' => $this->supplierB->SupplierID,
+        ])->assertOk();
+        $this->assertDatabaseHas('ProductSupplier', ['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierB->SupplierID, 'CostPrice' => 550]);
+        $this->assertDatabaseCount('ProductSupplier', 2);
+        $this->assertDatabaseMissing('ProductCostHistory', ['ProductID' => $this->product->ProductID, 'Source' => ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE]);
+    }
+
+    public function test_supplier_panel_has_no_cost_price_field(): void
+    {
+        $html = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()->getContent();
+        preg_match('#Suppliers for this Product(.*?)Add / Update Supplier#s', $html, $panel);
+
+        $this->assertNotEmpty($panel);
+        $this->assertStringNotContainsString('Cost Price', $panel[1]);
+        $this->assertStringNotContainsString('newSupplierCost', $html);
+        $this->assertStringNotContainsString('Suppliers[][CostPrice]', $html);
+        $this->assertStringContainsString('id="newSupplierId"', $panel[1]);
+    }
+
     public function test_storing_a_product_deduplicates_repeated_supplier_entries(): void
     {
         $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);

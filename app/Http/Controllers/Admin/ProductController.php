@@ -208,13 +208,15 @@ class ProductController extends Controller
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
             // A supplier can't be linked before the Product exists, so the
             // Add Product form's "Suppliers for this Product" panel just
-            // collects {SupplierID, CostPrice} pairs client-side and submits
-            // them alongside the product — linked here in the same request
+            // collects the chosen suppliers client-side and submits them
+            // alongside the product — linked here in the same request
             // instead of the immediate per-supplier AJAX calls the Edit form
-            // uses (ProductSupplierController::store()).
+            // uses (ProductSupplierController::store()). No per-supplier
+            // cost is asked for: a link without one uses the product's own
+            // Cost Price.
             'Suppliers' => ['nullable', 'array'],
             'Suppliers.*.SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
-            'Suppliers.*.CostPrice' => ['required', 'numeric', 'min:0'],
+            'Suppliers.*.CostPrice' => ['nullable', 'numeric', 'min:0'],
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
@@ -312,13 +314,17 @@ class ProductController extends Controller
                 }
                 $seenSuppliers[$supplierId] = true;
 
+                $supplierCost = $supplierEntry['CostPrice'] ?? null;
+
                 $productSupplier = ProductSupplier::create([
                     'ProductID' => $product->ProductID,
                     'SupplierID' => $supplierId,
-                    'CostPrice' => $supplierEntry['CostPrice'],
+                    'CostPrice' => $supplierCost,
                 ]);
 
-                ProductCostHistory::log($product, $productSupplier->supplier, null, (float) $supplierEntry['CostPrice'], ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE);
+                if ($supplierCost !== null) {
+                    ProductCostHistory::log($product, $productSupplier->supplier, null, (float) $supplierCost, ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE);
+                }
             }
 
             return $product;
