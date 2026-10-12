@@ -281,6 +281,22 @@ class PurchaseOrderModuleTest extends TestCase
         return $po;
     }
 
+    public function test_index_no_column_shows_the_order_id_not_a_row_counter(): void
+    {
+        $this->makeOrder(['PONumber' => 'PO-TEST-000001']);
+        $this->makeOrder(['PONumber' => 'PO-TEST-000002']);
+        $searched = $this->makeOrder(['PONumber' => 'PO-TEST-000003']);
+
+        // Searching leaves one row; it must still show the order's own ID
+        // rather than restarting the numbering at 1.
+        $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['search' => 'PO-TEST-000003']));
+
+        $response->assertOk();
+        $this->assertNotSame(1, $searched->PurchaseOrderID);
+        $response->assertSee('<td>'.$searched->PurchaseOrderID.'</td>', false);
+        $response->assertDontSee('<td>1</td>', false);
+    }
+
     public function test_approve_transitions_pending_to_approved(): void
     {
         $po = $this->makeOrder();

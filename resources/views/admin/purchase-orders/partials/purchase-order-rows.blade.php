@@ -11,7 +11,8 @@
 @endphp
 @forelse($purchaseOrders as $order)
     <tr>
-        <td>{{ $purchaseOrders->firstItem() + $loop->index }}</td>
+        {{-- The order's own ID (matches its PO number), not a row counter. --}}
+        <td>{{ $order->PurchaseOrderID }}</td>
         <td>
             <span class="badge badge-primary">{{ $order->PONumber }}</span>
         </td>
