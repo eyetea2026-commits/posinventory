@@ -22,6 +22,9 @@ use Mike42\Escpos\Printer;
  */
 class ThermalReceiptPrinter
 {
+    /** Blank lines after a browser-printed receipt, so it can be torn below the footer. */
+    private const BROWSER_TAIL_LINES = 6;
+
     private int $width;
 
     /**
@@ -110,7 +113,10 @@ class ThermalReceiptPrinter
             }
         }
 
-        return $out;
+        // Feed the paper past the tear bar so the last lines aren't left
+        // inside the printer (and printed on top of the next receipt). A text
+        // driver drops trailing blank lines, so a final "." forces the feed.
+        return $out.str_repeat("\n", self::BROWSER_TAIL_LINES).$this->center('.')."\n";
     }
 
     /**

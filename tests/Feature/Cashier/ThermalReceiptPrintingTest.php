@@ -120,6 +120,10 @@ class ThermalReceiptPrintingTest extends TestCase
             $this->assertLessThanOrEqual(32, strlen($line), "too wide for 58mm: [{$line}]");
         }
 
+        // Blank lines after the footer (ending in "." so a text driver keeps
+        // them) feed the paper past the tear bar.
+        $this->assertMatchesRegularExpression("/Please come again\n{7}\s*\.\n?$/", $text);
+
         // Zero page margins leave no room for the browser's URL/date header and footer.
         $this->assertStringContainsString('@page { margin: 0; }', $html);
         $this->assertMatchesRegularExpression('/@media print \{.*?\.receipt \{ display: none; \}.*?\.print-text \{\s*display: block;/s', $html);
