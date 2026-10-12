@@ -20,7 +20,7 @@
 @endsection
 
 @section('content')
-    <div class="status-tabs" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+    <div class="status-tabs" data-live-region="returns-tabs" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
         @php
             $tabs = [
                 '' => ['label' => 'All', 'count' => array_sum($statusCounts)],
@@ -72,7 +72,7 @@
             </div>
         @endif
 
-        <div class="table-container">
+        <div class="table-container" data-live-region="returns-table">
             <table class="table">
                 <thead>
                     <tr>
@@ -154,6 +154,7 @@
             </table>
         </div>
 
+        <div data-live-region="returns-pagination">
         @if($returns->hasPages())
             <div class="pagination">
                 @if($returns->onFirstPage())
@@ -173,6 +174,7 @@
                 @endif
             </div>
         @endif
+        </div>
     </div>
 
     <!-- View Details Modal -->

@@ -13,6 +13,7 @@
     @include('partials.swal-helpers')
     @include('partials.currency-js')
     @include('partials.session-guard')
+    @include('partials.live-updates')
     @include('partials.searchable-select')
     @include('partials.date-input-guard')
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -260,12 +261,10 @@
                     <div style="position: relative;" @click.outside="notifOpen = false">
                         <button type="button" class="header-icon-btn" @click="notifOpen = !notifOpen; profileOpen = false">
                             <i class="fas fa-bell"></i>
-                            @if($headerUnreadCount > 0)
-                                <span class="header-badge">{{ $headerUnreadCount > 99 ? '99+' : $headerUnreadCount }}</span>
-                            @endif
+                            <span data-live-region="admin-notif-badge">@if($headerUnreadCount > 0)<span class="header-badge">{{ $headerUnreadCount > 99 ? '99+' : $headerUnreadCount }}</span>@endif</span>
                         </button>
                         <div class="header-dropdown" x-show="notifOpen" x-cloak>
-                            <div class="header-dropdown-header" style="display:flex;align-items:center;justify-content:space-between;">
+                            <div class="header-dropdown-header" data-live-region="admin-notif-header" style="display:flex;align-items:center;justify-content:space-between;">
                                 <span>Notifications</span>
                                 @if($headerUnreadCount > 0)
                                     <form method="POST" action="{{ route('admin.notifications.read-all') }}">
@@ -274,7 +273,7 @@
                                     </form>
                                 @endif
                             </div>
-                            <div class="header-dropdown-items">
+                            <div class="header-dropdown-items" data-live-region="admin-notif-items">
                                 @if($headerUnreadNotifications->isEmpty())
                                     <div class="header-dropdown-empty">You're all caught up.</div>
                                 @else

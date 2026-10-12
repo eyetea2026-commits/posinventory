@@ -22,6 +22,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
 use App\Http\Controllers\Cashier\CashierReturnController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LiveUpdatesController;
 use App\Http\Controllers\PrintBridgeController;
 use App\Models\Product;
 use App\Models\User;
@@ -65,6 +66,13 @@ Route::get('/session/alive', function (Request $request) {
 })->name('session.alive')
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
     ->middleware('throttle:120,1');
+
+// "Anything new?" check polled every few seconds by every signed-in page
+// (see LiveUpdatesController / partials/live-updates). Sessionless like
+// /session/alive, so polling never counts as activity.
+Route::get('/live/signature', LiveUpdatesController::class)->name('live.signature')
+    ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
+    ->middleware('throttle:240,1');
 
 // Print bridge (see PrintBridgeController): only used on the cashier PC's
 // local copy, which the deployed POS sends receipt lines to. Sessionless and

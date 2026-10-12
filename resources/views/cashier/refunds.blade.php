@@ -145,7 +145,7 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody id="refundsTbody">
+        <tbody id="refundsTbody" data-live-region="refunds-rows">
             @forelse($refunds as $refund)
                 <tr data-refund-row>
                     <td>#{{ str_pad($refund->SalesReturnID, 6, '0', STR_PAD_LEFT) }}</td>
@@ -370,6 +370,14 @@ function escapeHtml(value) {
 document.addEventListener('DOMContentLoaded', function() {
     loadRefundStats();
     initRefundsLiveSearch();
+});
+
+// A request was approved/declined/processed elsewhere (see
+// partials/live-updates): refresh the counts and re-apply the search box.
+document.addEventListener('live-updates:applied', function () {
+    loadRefundStats();
+    const searchInput = document.getElementById('refundsSearchInput');
+    if (searchInput) searchInput.dispatchEvent(new Event('input'));
 });
 
 // Instant/live search: filters the already-rendered rows (status/type

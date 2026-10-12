@@ -11,6 +11,7 @@
     @include('partials.swal-helpers')
     @include('partials.currency-js')
     @include('partials.session-guard')
+    @include('partials.live-updates')
     @include('partials.searchable-select')
     @include('partials.date-input-guard')
     <link rel="preconnect" href="https://fonts.googleapis.com">
