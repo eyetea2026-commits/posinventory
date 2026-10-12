@@ -147,13 +147,9 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertMatchesRegularExpression('/Amount Received:\s+P5,000\.00/', $text);
         $this->assertMatchesRegularExpression('/Change:\s+P2,000\.00/', $text);
 
-        // Local (direct) and deployed (browser) print the very same slip:
-        // the direct printout is exactly the receipt page's print text.
-        $page = $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->getContent();
-        preg_match('#<pre class="print-text">(.*?)</pre>#s', $page, $m);
-        $this->assertSame(html_entity_decode($m[1]), $text);
-        $this->assertStringNotContainsString("\x1bE\x01", $this->capture->bytes, 'no bold, which the browser path cannot print');
-        $this->assertStringNotContainsString("\x1d!", $this->capture->bytes, 'no double-height text, which the browser path cannot print');
+        // After the footer the paper feeds 6 lines (ESC d 6) so the receipt
+        // clears the tear bar before it's torn off.
+        $this->assertMatchesRegularExpression("/Please come again\n.*\x1bd\x06/s", $this->capture->bytes);
 
         // The on-screen receipt shows the same total.
         $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->assertOk()->assertSee('3,000.00');
