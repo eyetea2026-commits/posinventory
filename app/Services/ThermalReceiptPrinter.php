@@ -100,10 +100,10 @@ class ThermalReceiptPrinter
     }
 
     /**
-     * The same receipt as plain 32-column text ("P" for the peso sign),
-     * for printers that only print text, e.g. a thermal printer installed
-     * with Windows' "Generic / Text Only" driver and printed from the
-     * browser. The on-screen receipt page prints this text.
+     * The receipt as plain 32-column text ("P" for the peso sign). This is
+     * exactly what gets printed both ways: sent straight to the printer
+     * (local) and printed from the browser through Windows' "Generic /
+     * Text Only" driver (deployed site), so the two slips are identical.
      *
      * @param  array<string, mixed>  $r  Output of CashierAuthController::buildReceiptData().
      */
@@ -127,45 +127,36 @@ class ThermalReceiptPrinter
      */
     private function writeReceipt(Printer $printer, array $r): void
     {
+        // Plain text only (no bold or double-height), so the slip matches the
+        // browser-printed one from the deployed site character for character.
         $printer->initialize();
-
-        foreach ($this->lines($r) as $line) {
-            $printer->setJustification($line['center'] ? Printer::JUSTIFY_CENTER : Printer::JUSTIFY_LEFT);
-            $printer->setEmphasis($line['bold']);
-            $printer->setTextSize(1, $line['tall'] ? 2 : 1);
-            $printer->text($line['text']);
-        }
-
-        $printer->setTextSize(1, 1);
-        $printer->setEmphasis(false);
-        $printer->feed(self::TAIL_LINES);
+        $printer->text($this->plainText($r));
         // Models without an auto-cutter simply ignore this; the tear bar is used instead.
         $printer->cut();
     }
 
     /**
-     * Every line of the sales receipt, in order. Shared by the thermal
-     * printout and the plain-text version so the two never differ.
+     * Every line of the sales receipt, in order.
      *
      * @param  array<string, mixed>  $r
-     * @return list<array{text: string, center: bool, bold: bool, tall: bool}>
+     * @return list<array{text: string, center: bool}>
      */
     private function lines(array $r): array
     {
         $lines = [];
-        $add = function (string $text, bool $center = false, bool $bold = false, bool $tall = false) use (&$lines): void {
-            $lines[] = ['text' => str_ends_with($text, "\n") ? $text : $text."\n", 'center' => $center, 'bold' => $bold, 'tall' => $tall];
+        $add = function (string $text, bool $center = false) use (&$lines): void {
+            $lines[] = ['text' => str_ends_with($text, "\n") ? $text : $text."\n", 'center' => $center];
         };
         $rule = str_repeat('-', $this->width);
 
         // Header
-        $add('CCTV Express', center: true, bold: true, tall: true);
+        $add('CCTV Express', center: true);
         $add('Your Trusted Security Partner', center: true);
         if (config('app.business_address')) {
             $add($this->wrap($this->ascii((string) config('app.business_address'))), center: true);
         }
         $add($rule, center: true);
-        $add('SALES RECEIPT', center: true, bold: true);
+        $add('SALES RECEIPT', center: true);
 
         // Meta
         $customer = ($r['customerName'] ?? null) === 'Walk-in Customer' ? 'N/A' : ($r['customerName'] ?? null);
@@ -203,7 +194,7 @@ class ThermalReceiptPrinter
         $add($this->row('VAT Exempt:', $this->money(0)));
         $add($rule);
 
-        $add($this->row('TOTAL:', $this->money($total)), bold: true, tall: true);
+        $add($this->row('TOTAL:', $this->money($total)));
         $add($rule);
 
         // Payment
