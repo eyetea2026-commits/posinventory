@@ -86,6 +86,13 @@
     <button class="print-btn no-print" onclick="window.print()">
         <i class="fas fa-print"></i> Print Receipt
     </button>
+    <script>
+        // Shown inside the POS's receipt panel, which has its own Print
+        // Receipt button -- don't show a second one inside the receipt.
+        if (window.self !== window.top) {
+            document.querySelector('.print-btn').remove();
+        }
+    </script>
 
     @isset($printText)
         <pre class="print-text">{{ $printText }}</pre>

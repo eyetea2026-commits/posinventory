@@ -246,6 +246,11 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertStringContainsString('showReceiptFallback(receiptUrl);', $html);
         $this->assertStringContainsString('id="receiptFallbackOverlay"', $html);
         $this->assertStringContainsString('onclick="printReceiptFallback()"', $html);
+        // Inside that panel the receipt page drops its own Print button, so
+        // only the panel's "Print Receipt" shows.
+        $receiptPage = $this->actingAs($this->cashier)->get(route('cashier.receipt', $this->sellAndGetReceipt()))->getContent();
+        $this->assertMatchesRegularExpression("/if \(window\.self !== window\.top\) \{\s*document\.querySelector\('\.print-btn'\)\.remove\(\);/", $receiptPage);
+
         // It prints by itself once loaded (silently in Chrome --kiosk-printing).
         $this->assertMatchesRegularExpression('/frame\.onload = function \(\) \{.*?frame\.contentWindow\.print\(\);/s', $html);
     }
