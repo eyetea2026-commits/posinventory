@@ -214,6 +214,29 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseMissing('users', ['name' => 'testcashier']);
     }
 
+    public function test_user_store_accepts_gender_prefer_not_to_say(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $response = $this->actingAs($admin)->post(
+            route('admin.users.store'),
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'gender' => 'Prefer not to say'])
+        );
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('users', ['name' => 'testcashier', 'gender' => 'Prefer not to say']);
+    }
+
+    public function test_user_form_offers_prefer_not_to_say(): void
+    {
+        $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertOk()->assertSee('<option value="Prefer not to say"', false);
+    }
+
     public function test_user_store_rejects_a_password_with_no_symbol(): void
     {
         $adminRole = Role::create(['role_name' => 'admin']);

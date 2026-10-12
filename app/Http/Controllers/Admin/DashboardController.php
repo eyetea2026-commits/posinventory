@@ -144,9 +144,17 @@ class DashboardController extends Controller
             ->select('SalesTransaction.*')
             ->leftJoin('Billing', 'Billing.SalesTransactionID', '=', 'SalesTransaction.SalesTransactionID')
             ->with(['staff.user', 'billing.payment'])
+            // Searches every transaction, not just the newest page.
             ->when($txnSearch, function ($query, $search) {
-                $query->where(function ($inner) use ($search) {
+                $search = trim($search);
+                // The table shows each sale as RCT-<id padded to 6 digits>,
+                // so "RCT-000016", "rct16" or "000016" all mean sale #16.
+                $receiptId = preg_match('/^(?:r(?:c(?:t)?)?)?-?\s*0*(\d+)$/i', $search, $m) ? (int) $m[1] : null;
+
+                $query->where(function ($inner) use ($search, $receiptId) {
                     $inner->where('SalesTransaction.SalesTransactionID', 'like', "%{$search}%")
+                        ->when($receiptId, fn ($q) => $q->orWhere('SalesTransaction.SalesTransactionID', $receiptId))
+                        ->orWhereHas('billing.payment', fn ($payment) => $payment->where('ReceiptNumber', 'like', "%{$search}%"))
                         ->orWhere('SalesTransaction.CustomerName', 'like', "%{$search}%")
                         ->orWhereHas('staff', function ($staff) use ($search) {
                             $staff->where('FirstName', 'like', "%{$search}%")

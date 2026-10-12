@@ -388,7 +388,7 @@ class ReturnProcessingTest extends TestCase
         $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $oldTransaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
             ],
             'return_type' => 'refund',
         ]);
@@ -397,12 +397,30 @@ class ReturnProcessingTest extends TestCase
         $this->assertDatabaseMissing('SalesReturn', ['SalesTransactionID' => $oldTransaction->SalesTransactionID]);
     }
 
-    public function test_create_refund_allows_requests_within_the_return_window(): void
+    public function test_other_is_no_longer_a_return_reason(): void
     {
         $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
                 ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+            ],
+            'return_type' => 'refund',
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['items.0.reason_code']);
+        $this->assertDatabaseMissing('SalesReturn', ['SalesTransactionID' => $this->transaction->SalesTransactionID]);
+
+        $html = $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('<option value="other"', $html);
+        $this->assertStringContainsString('<option value="" selected>Select Reason</option>', $html);
+    }
+
+    public function test_create_refund_allows_requests_within_the_return_window(): void
+    {
+        $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
             ],
             'return_type' => 'refund',
         ]);
@@ -419,7 +437,7 @@ class ReturnProcessingTest extends TestCase
         $first = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 2, 'reason_code' => 'other'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 2, 'reason_code' => 'damaged_product'],
             ],
             'return_type' => 'refund',
         ]);
@@ -431,7 +449,7 @@ class ReturnProcessingTest extends TestCase
         $second = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
             ],
             'return_type' => 'refund',
         ]);
@@ -452,7 +470,7 @@ class ReturnProcessingTest extends TestCase
         $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
             ],
             'return_type' => 'refund',
         ]);
@@ -467,7 +485,7 @@ class ReturnProcessingTest extends TestCase
         $first = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
             ],
             'return_type' => 'refund',
         ]);
@@ -476,7 +494,7 @@ class ReturnProcessingTest extends TestCase
         $second = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'other'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
             ],
             'return_type' => 'refund',
         ]);

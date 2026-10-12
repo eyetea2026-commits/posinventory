@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class StockAdjustmentController extends Controller
@@ -70,6 +71,12 @@ class StockAdjustmentController extends Controller
             'Remarks' => ['nullable', 'string', 'max:500'],
             'Date' => ['required', 'date'],
         ]);
+
+        if (in_array($data['Reason'], StockAdjustment::DECREASE_ONLY_REASONS, true) && $data['QuantityAdjust'] > 0) {
+            throw ValidationException::withMessages([
+                'QuantityAdjust' => "A \"{$data['Reason']}\" adjustment can only reduce stock. Enter a negative number (e.g. -5).",
+            ]);
+        }
 
         $newQty = null;
         $adjustment = null;

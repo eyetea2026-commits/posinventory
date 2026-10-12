@@ -51,7 +51,7 @@
     <div class="form-group">
         <label class="form-label" for="QuantityAdjust">Quantity Adjusted <span style="color: var(--danger);">*</span></label>
         <input type="number" id="QuantityAdjust" name="QuantityAdjust" class="form-input" value="{{ old('QuantityAdjust') }}" required placeholder="e.g., 5 or -5">
-        <small style="display:block; color: var(--danger); margin-top: 4px;">(Use -5 to subtract quantity, or 5 to add quantity.)</small>
+        <small id="quantity-adjust-hint" style="display:block; color: var(--danger); margin-top: 4px;">(Use -5 to subtract quantity, or 5 to add quantity.)</small>
         <span class="form-error" id="error-QuantityAdjust">@error('QuantityAdjust'){{ $message }}@enderror</span>
     </div>
 
@@ -63,7 +63,7 @@
 
     <div class="form-group full-width">
         <label class="form-label" for="Reason">Reason <span style="color: var(--danger);">*</span></label>
-        <select id="Reason" name="Reason" class="form-select" required onchange="document.getElementById('damaged-reason-hint').style.display = this.value === '{{ \App\Models\StockAdjustment::REASON_DAMAGED }}' ? 'block' : 'none';">
+        <select id="Reason" name="Reason" class="form-select" required onchange="window.syncStockAdjustmentReason && window.syncStockAdjustmentReason(this);">
             <option value="">Select Reason</option>
             @foreach(\App\Models\StockAdjustment::REASONS as $reasonOption)
                 <option value="{{ $reasonOption }}" {{ old('Reason') === $reasonOption ? 'selected' : '' }}>{{ $reasonOption }}</option>
@@ -74,6 +74,38 @@
             A decrease with this reason automatically creates a Damage record for supplier return.
         </p>
     </div>
+
+    <script>
+        // Damaged and Lost can only take units out of stock; Inventory
+        // Count Error may add or subtract. StockAdjustmentController::store()
+        // enforces the same rule server-side.
+        (function () {
+            var decreaseOnly = @json(\App\Models\StockAdjustment::DECREASE_ONLY_REASONS);
+            var damagedReason = @json(\App\Models\StockAdjustment::REASON_DAMAGED);
+
+            window.syncStockAdjustmentReason = function (select) {
+                var quantity = document.getElementById('QuantityAdjust');
+                var hint = document.getElementById('quantity-adjust-hint');
+                var damagedHint = document.getElementById('damaged-reason-hint');
+                var onlyDecrease = decreaseOnly.indexOf(select.value) !== -1;
+
+                if (damagedHint) damagedHint.style.display = select.value === damagedReason ? 'block' : 'none';
+                if (!quantity) return;
+                if (onlyDecrease) {
+                    quantity.max = '-1';
+                    quantity.placeholder = 'e.g., -5';
+                    if (hint) hint.textContent = '(' + select.value + ' can only subtract quantity. Use a negative number, e.g. -5.)';
+                } else {
+                    quantity.removeAttribute('max');
+                    quantity.placeholder = 'e.g., 5 or -5';
+                    if (hint) hint.textContent = '(Use -5 to subtract quantity, or 5 to add quantity.)';
+                }
+            };
+
+            var reason = document.getElementById('Reason');
+            if (reason && reason.value) window.syncStockAdjustmentReason(reason);
+        })();
+    </script>
 
     <div class="form-group full-width">
         <label class="form-label" for="Remarks">Remarks (Optional)</label>

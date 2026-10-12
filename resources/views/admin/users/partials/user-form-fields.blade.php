@@ -87,6 +87,7 @@
             <option value="">Select Gender</option>
             <option value="Male" {{ old('gender', $user->gender ?? null) == 'Male' ? 'selected' : '' }}>Male</option>
             <option value="Female" {{ old('gender', $user->gender ?? null) == 'Female' ? 'selected' : '' }}>Female</option>
+            <option value="Prefer not to say" {{ old('gender', $user->gender ?? null) == 'Prefer not to say' ? 'selected' : '' }}>Prefer not to say</option>
         </select>
         <span class="form-error" id="error-gender">@error('gender'){{ $message }}@enderror</span>
     </div>

@@ -50,10 +50,11 @@ class SalesReturn extends Model
 
     const TYPE_REPLACEMENT = 'replacement';
 
+    // Reasons a cashier can choose for a return. "Other" was removed, so
+    // every returned unit is either a factory defect or damaged.
     const REASON_CODES = [
         'factory_defect' => 'Factory Defect',
         'damaged_product' => 'Damaged Product',
-        'other' => 'Other',
     ];
 
     // Reasons that mean the physical unit is unsalable — it must never be

@@ -385,6 +385,30 @@ class DashboardChartsTest extends TestCase
         $this->assertStringContainsString('₱1,500.00', $response->json('recentTransactionsHtml'));
     }
 
+    public function test_recent_transactions_search_finds_a_receipt_number_across_all_transactions(): void
+    {
+        $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 100);
+        // 12 sales: more than one page of 10, so the oldest is off page 1.
+        for ($i = 0; $i < 12; $i++) {
+            $this->recordSale($product, 1, 500);
+            $this->travel(1)->minutes();
+        }
+        $oldest = SalesTransaction::orderBy('SalesTransactionID')->first();
+        $receipt = 'RCT-'.str_pad((string) $oldest->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        $this->assertStringNotContainsString($receipt, $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'))->json('recentTransactionsHtml'));
+
+        // Full receipt number, lowercase, and the number without the prefix.
+        foreach ([$receipt, strtolower($receipt), substr($receipt, 4)] as $search) {
+            $html = $this->actingAs($this->admin)
+                ->getJson(route('admin.dashboard.live-inventory', ['txn_search' => $search]))
+                ->assertOk()->json('recentTransactionsHtml');
+
+            $this->assertStringContainsString("<td>{$receipt}</td>", $html, "search: {$search}");
+            $this->assertSame(1, substr_count($html, '<td>RCT-'), "search: {$search} should match one receipt");
+        }
+    }
+
     public function test_live_inventory_recent_transactions_html_reflects_search_and_sort_query_params(): void
     {
         $productA = $this->makeProductWithStock('CCTV', 'Alpha Camera', 20);

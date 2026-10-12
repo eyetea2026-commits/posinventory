@@ -521,9 +521,9 @@ function populateTransactionDetails(transaction) {
                     <div class="form-group">
                         <label>Return Reason</label>
                         <select class="refund-item-reason" onchange="updateItemReason(${productId}, this.value)">
+                            <option value="" selected>Select Reason</option>
                             <option value="factory_defect">Factory Defect</option>
                             <option value="damaged_product">Damaged Product</option>
-                            <option value="other" selected>Other</option>
                         </select>
                     </div>
                 </div>
@@ -541,7 +541,7 @@ function toggleRefundItem(checkbox, productId, unitPrice, maxQty) {
     const controls = document.getElementById(`refund-item-controls-${productId}`);
 
     if (checkbox.checked) {
-        selectedItems[productId] = { unitPrice, maxQty, quantity: 1, reasonCode: 'other' };
+        selectedItems[productId] = { unitPrice, maxQty, quantity: 1, reasonCode: '' };
         controls.style.display = 'block';
         row.classList.add('selected');
     } else {
@@ -599,6 +599,11 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
 
     if (items.length === 0) {
         toastWarning('Please select at least one product to return');
+        return;
+    }
+
+    if (items.some(item => !item.reason_code)) {
+        toastWarning('Please select a return reason for each product');
         return;
     }
 

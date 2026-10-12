@@ -62,10 +62,42 @@ class StockAdjustmentModuleTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['QuantityAdjust' => 5, 'Reason' => StockAdjustment::REASON_COUNT_ERROR]));
         $this->assertSame(15, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
 
-        $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['QuantityAdjust' => -4, 'Reason' => StockAdjustment::REASON_STOLEN]));
+        $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['QuantityAdjust' => -4, 'Reason' => StockAdjustment::REASON_LOST]));
         $this->assertSame(11, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
 
         $this->assertTrue(ActivityLog::where('Action', 'stock.adjusted')->count() >= 2);
+    }
+
+    public function test_stolen_is_no_longer_a_reason(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['Reason' => 'Stolen']));
+
+        $response->assertSessionHasErrors('Reason');
+        $this->assertNotContains('Stolen', StockAdjustment::REASONS);
+        $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index'))
+            ->assertOk()->assertDontSee('<option value="Stolen"', false);
+    }
+
+    public function test_damaged_and_lost_cannot_add_stock(): void
+    {
+        foreach ([StockAdjustment::REASON_DAMAGED, StockAdjustment::REASON_LOST] as $reason) {
+            $response = $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['QuantityAdjust' => 5, 'Reason' => $reason]));
+
+            $response->assertSessionHasErrors('QuantityAdjust');
+        }
+
+        $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
+        $this->assertSame(0, StockAdjustment::count());
+    }
+
+    public function test_inventory_count_error_can_add_or_subtract(): void
+    {
+        $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['QuantityAdjust' => 5, 'Reason' => StockAdjustment::REASON_COUNT_ERROR]))
+            ->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['QuantityAdjust' => -2, 'Reason' => StockAdjustment::REASON_COUNT_ERROR]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(13, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
     }
 
     public function test_zero_quantity_adjustment_is_rejected(): void
