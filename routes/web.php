@@ -197,8 +197,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.categories.edit')->middleware(['auth', 'role:admin']);
     Route::put('categories/{category}', [CategoryController::class, 'update'])
         ->name('admin.categories.update')->middleware(['auth', 'role:admin']);
-    Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
-        ->name('admin.categories.destroy')->middleware(['auth', 'role:admin']);
+    Route::patch('categories/{category}/toggle-status', [CategoryController::class, 'toggleStatus'])
+        ->name('admin.categories.toggle-status')->middleware(['auth', 'role:admin']);
 
     // Brands — managed inline from the Edit Category modal, not a module of
     // their own. Every Brand belongs to exactly one Category.

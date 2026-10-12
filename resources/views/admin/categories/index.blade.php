@@ -60,6 +60,25 @@
         border-radius: 20px;
         overflow: hidden;
     }
+    .category-header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .filter-select {
+        padding: 12px 36px 12px 16px;
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.15);
+        border-radius: 12px;
+        color: #f8fafc;
+        font-size: 0.95rem;
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%2394a3b8%22%3E%3Cpath%20d%3D%22M6%208.5L1.5%204h9z%22%2F%3E%3C%2Fsvg%3E");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+    }
+    .filter-select:focus { outline: none; border-color: var(--primary); }
+    .filter-select option { background: #1e293b; color: #f8fafc; }
+    /* Deactivated categories stay listed (history is kept) but read as retired. */
+    tr.is-inactive .category-name-cell { opacity: 0.6; }
+    .category-status-badge { margin-left: 8px; font-size: 0.72rem; vertical-align: middle; }
     .card-header {
         display: flex;
         justify-content: space-between;
@@ -395,10 +414,18 @@
                 class="search-input"
                 placeholder="Search categories by name..."
             />
+            <input type="hidden" name="status" id="statusInput" value="{{ $status ?? '' }}" />
         </form>
-        <a href="{{ route('admin.categories.create') }}" class="btn btn-primary" onclick="openAddCategoryModal(event)" title="Create Category">
-            <i class="fa-solid fa-plus"></i> Create Category
-        </a>
+        <div class="category-header-actions">
+            <select id="statusFilter" class="filter-select" aria-label="Filter by status">
+                <option value="" {{ empty($status) ? 'selected' : '' }}>All Statuses</option>
+                <option value="active" {{ ($status ?? '') === 'active' ? 'selected' : '' }}>Active</option>
+                <option value="inactive" {{ ($status ?? '') === 'inactive' ? 'selected' : '' }}>Deactivated</option>
+            </select>
+            <a href="{{ route('admin.categories.create') }}" class="btn btn-primary" onclick="openAddCategoryModal(event)" title="Create Category">
+                <i class="fa-solid fa-plus"></i> Create Category
+            </a>
+        </div>
     </div>
     <div class="card-body">
         <div class="table-loader" id="tableLoader"><i class="fas fa-spinner fa-spin"></i></div>
@@ -480,19 +507,23 @@
 @include('admin.categories.partials.category-brands-behavior')
 
 <script>
-    function confirmDelete(categoryId) {
+    // Categories are deactivated instead of deleted, so their products,
+    // brands and history are kept; they can be reactivated anytime.
+    function confirmToggleCategoryStatus(categoryId, isActive) {
         Swal.fire({
-            title: 'Confirm Delete',
-            text: 'Are you sure you want to delete this category? This action cannot be undone.',
-            icon: 'warning',
+            title: isActive ? 'Deactivate Category' : 'Activate Category',
+            text: isActive
+                ? 'This category will no longer be offered when adding a product. Its existing products, brands and history are kept, and you can reactivate it anytime.'
+                : 'This category will be available again when adding products.',
+            icon: isActive ? 'warning' : 'question',
             showCancelButton: true,
-            confirmButtonText: 'Delete',
+            confirmButtonText: isActive ? 'Deactivate' : 'Activate',
             cancelButtonText: 'Cancel',
-            confirmButtonColor: '#ef4444',
+            confirmButtonColor: isActive ? '#ef4444' : '#10b981',
             cancelButtonColor: '#64748b'
         }).then((result) => {
             if (result.isConfirmed) {
-                document.getElementById('deleteForm' + categoryId).submit();
+                document.getElementById('statusForm' + categoryId).submit();
             }
         });
     }
@@ -594,6 +625,8 @@
             const params = new URLSearchParams();
             const search = searchInput.value.trim();
             if (search) params.set('search', search);
+            const status = document.getElementById('statusInput').value;
+            if (status) params.set('status', status);
             if (page > 1) params.set('page', page);
             return params.toString();
         }
@@ -652,6 +685,12 @@
 
         filterForm.addEventListener('submit', function (e) {
             e.preventDefault();
+            applyFilters(1);
+        });
+
+        // Status filter (All / Active / Deactivated) — instant update.
+        document.getElementById('statusFilter').addEventListener('change', function () {
+            document.getElementById('statusInput').value = this.value;
             applyFilters(1);
         });
 

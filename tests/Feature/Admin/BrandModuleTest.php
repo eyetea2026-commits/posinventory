@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class BrandModuleTest extends TestCase
@@ -120,14 +121,18 @@ class BrandModuleTest extends TestCase
     }
 
     // Category deletion must also account for brands, not just products.
-    public function test_category_destroy_is_blocked_while_it_still_has_brands(): void
+    public function test_a_category_with_brands_is_deactivated_not_deleted(): void
     {
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
 
-        $response = $this->actingAs($this->admin)->delete(route('admin.categories.destroy', $this->tv));
+        $this->actingAs($this->admin)->from(route('admin.categories.index'))
+            ->patch(route('admin.categories.toggle-status', $this->tv))
+            ->assertRedirect(route('admin.categories.index'));
 
-        $response->assertRedirect(route('admin.categories.index'));
-        $this->assertDatabaseHas('Category', ['CategoryID' => $this->tv->CategoryID]);
+        // Still there, with its brand, just deactivated.
+        $this->assertDatabaseHas('Category', ['CategoryID' => $this->tv->CategoryID, 'IsActive' => false]);
+        $this->assertDatabaseHas('Brand', ['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
+        $this->assertFalse(Route::has('admin.categories.destroy'));
     }
 
     public function test_edit_category_form_lists_its_existing_brands(): void

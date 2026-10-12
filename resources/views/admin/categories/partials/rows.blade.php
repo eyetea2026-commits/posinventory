@@ -1,9 +1,12 @@
 @forelse($categories as $category)
-    <tr>
+    <tr class="{{ $category->IsActive ? '' : 'is-inactive' }}">
         <td>{{ $categories->firstItem() + $loop->index }}</td>
         <td>
             <div class="category-name-cell">
                 <strong>{{ $category->CategoryName }}</strong>
+                @unless($category->IsActive)
+                    <span class="badge badge-secondary category-status-badge">Deactivated</span>
+                @endunless
                 @if(!empty($category->Description))
                     <div class="category-description">{{ $category->Description }}</div>
                 @endif
@@ -17,11 +20,17 @@
                 <a href="{{ route('admin.categories.edit', $category->CategoryID) }}" class="btn btn-sm btn-edit" onclick="openEditCategoryModal(event, {{ $category->CategoryID }})">
                     <i class="fa-solid fa-edit"></i> Edit
                 </a>
-                <form method="POST" action="{{ route('admin.categories.destroy', $category->CategoryID) }}" style="display:inline;" id="deleteForm{{ $category->CategoryID }}">
+                {{-- Categories are deactivated, never deleted (their products,
+                     brands and history stay intact). --}}
+                <form method="POST" action="{{ route('admin.categories.toggle-status', $category->CategoryID) }}" style="display:inline;" id="statusForm{{ $category->CategoryID }}">
                     @csrf
-                    @method('DELETE')
-                    <button type="button" class="btn btn-sm btn-danger" title="Delete" onclick="confirmDelete({{ $category->CategoryID }})">
-                        <i class="fa-solid fa-trash"></i>
+                    @method('PATCH')
+                    <button type="button"
+                            class="btn btn-sm {{ $category->IsActive ? 'btn-danger' : 'btn-success' }}"
+                            title="{{ $category->IsActive ? 'Deactivate' : 'Activate' }}"
+                            onclick="confirmToggleCategoryStatus({{ $category->CategoryID }}, {{ $category->IsActive ? 'true' : 'false' }})">
+                        <i class="fa-solid {{ $category->IsActive ? 'fa-toggle-on' : 'fa-toggle-off' }}"></i>
+                        {{ $category->IsActive ? 'Deactivate' : 'Activate' }}
                     </button>
                 </form>
             </div>

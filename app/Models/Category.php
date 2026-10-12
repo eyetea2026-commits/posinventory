@@ -15,7 +15,14 @@ class Category extends Model
 
     protected $primaryKey = 'CategoryID';
 
-    protected $fillable = ['CategoryName', 'Description'];
+    protected $fillable = ['CategoryName', 'Description', 'IsActive'];
+
+    protected $attributes = ['IsActive' => true];
+
+    protected function casts(): array
+    {
+        return ['IsActive' => 'boolean'];
+    }
 
     public function products()
     {

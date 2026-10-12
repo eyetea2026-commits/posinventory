@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\User;
 use App\Notifications\CategoryUpdated;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -33,11 +35,17 @@ class CategoryController extends Controller
     public function index(Request $request)
     {
         $search = $request->get('search');
+        $status = in_array($request->get('status'), ['active', 'inactive'], true) ? $request->get('status') : null;
 
         $categories = Category::withCount('products')
             ->when($search, function ($query) use ($search) {
                 return $query->where('CategoryName', 'like', "%{$search}%");
-            })->orderBy('CategoryID', 'desc')->paginate(15)->withQueryString();
+            })
+            ->when($status, fn ($query, $status) => $query->where('IsActive', $status === 'active'))
+            // Active categories first (newest first); deactivated ones go last.
+            ->orderByDesc('IsActive')
+            ->orderBy('CategoryID', 'desc')
+            ->paginate(15)->withQueryString();
 
         // Real-time search: matches the debounced-AJAX pattern used by
         // Products/Inventory — return just the rendered rows/pagination
@@ -56,7 +64,7 @@ class CategoryController extends Controller
             ]);
         }
 
-        return view('admin.categories.index', compact('categories', 'search'));
+        return view('admin.categories.index', compact('categories', 'search', 'status'));
     }
 
     // Show create form
@@ -203,20 +211,27 @@ class CategoryController extends Controller
         return redirect()->route('admin.categories.index')->with('success', 'Category updated successfully.');
     }
 
-    // Delete category
-    public function destroy(Category $category)
+    /**
+     * Categories are deactivated instead of deleted, so their products,
+     * brands and history stay intact. A deactivated category is no longer
+     * offered when adding a product, and can be reactivated anytime.
+     */
+    public function toggleStatus(Category $category): RedirectResponse
     {
-        // Check if category has products
-        if ($category->products()->count() > 0) {
-            return redirect()->route('admin.categories.index')->with('error', 'Cannot delete category with associated products.');
+        $category->update(['IsActive' => ! $category->IsActive]);
+
+        if ($category->IsActive) {
+            ActivityLog::record('category.activated', "Activated category \"{$category->CategoryName}\"");
+            $message = "\"{$category->CategoryName}\" is active again.";
+        } else {
+            ActivityLog::record('category.deactivated', "Deactivated category \"{$category->CategoryName}\"");
+            $message = "\"{$category->CategoryName}\" has been deactivated.";
         }
 
-        if ($category->brands()->count() > 0) {
-            return redirect()->route('admin.categories.index')->with('error', 'Cannot delete category with associated brands.');
-        }
+        // Back to the same list (search, filters and page kept).
+        $previous = url()->previous();
+        $list = route('admin.categories.index');
 
-        $category->delete();
-
-        return redirect()->route('admin.categories.index')->with('success', 'Category deleted successfully.');
+        return redirect()->to(str_starts_with($previous, $list) ? $previous : $list)->with('success', $message);
     }
 }

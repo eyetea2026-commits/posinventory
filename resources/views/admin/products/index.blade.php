@@ -826,6 +826,7 @@
                 placeholder="Search by name, model, SKU, or barcode..."
             />
             <input type="hidden" name="category_id" id="categoryIdInput" value="{{ $categoryId }}" />
+            <input type="hidden" name="status" id="statusInput" value="{{ $status }}" />
         </form>
 
         <div class="filter-group">
@@ -839,6 +840,11 @@
                         {{ $category->CategoryName }}
                     </option>
                 @endforeach
+            </select>
+            <select id="statusFilter" class="filter-select" aria-label="Filter by status">
+                <option value="" {{ empty($status) ? 'selected' : '' }}>All Statuses</option>
+                <option value="active" {{ $status === 'active' ? 'selected' : '' }}>Active</option>
+                <option value="inactive" {{ $status === 'inactive' ? 'selected' : '' }}>Deactivated</option>
             </select>
             <a href="{{ route('admin.products.create') }}" class="btn btn-primary" onclick="openAddProductModal(event)">
                 <i class="fas fa-plus"></i> Add Product
@@ -908,6 +914,8 @@
 
             if (search) params.set('search', search);
             if (categoryId) params.set('category_id', categoryId);
+            const status = document.getElementById('statusInput').value;
+            if (status) params.set('status', status);
             if (page > 1) params.set('page', page);
 
             return params.toString();
@@ -1004,6 +1012,12 @@
         // Category filter change — instant update
         categoryFilter.addEventListener('change', function () {
             categoryIdInput.value = this.value;
+            applyFilters(1);
+        });
+
+        // Status filter (All / Active / Deactivated) — instant update.
+        document.getElementById('statusFilter').addEventListener('change', function () {
+            document.getElementById('statusInput').value = this.value;
             applyFilters(1);
         });
 

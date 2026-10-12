@@ -33,6 +33,8 @@
         <select name="CategoryID" id="CategoryID" class="form-select @error('CategoryID') is-invalid @enderror" required>
             <option value="">Select Category</option>
             @foreach($categories as $category)
+                {{-- Deactivated categories aren't offered, except the one a product already belongs to. --}}
+                @continue(! $category->IsActive && old('CategoryID', $product->CategoryID ?? null) != $category->CategoryID)
                 <option value="{{ $category->CategoryID }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
                     {{ $category->CategoryName }}
                 </option>

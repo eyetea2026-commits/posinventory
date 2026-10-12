@@ -37,6 +37,7 @@ class ProductController extends Controller
     {
         $search = $request->query('search');
         $categoryId = $request->query('category_id');
+        $status = in_array($request->query('status'), ['active', 'inactive'], true) ? $request->query('status') : null;
 
         $products = Product::with(['brand', 'category', 'inventory'])
             ->when($search, function ($query, $search) {
@@ -53,7 +54,9 @@ class ProductController extends Controller
             ->when($categoryId, function ($query, $categoryId) {
                 $query->where('CategoryID', $categoryId);
             })
-            // Newest product first.
+            ->when($status, fn ($query, $status) => $query->where('IsActive', $status === 'active'))
+            // Active products first (newest first); deactivated ones go last.
+            ->orderByDesc('IsActive')
             ->orderByDesc('ProductID')
             ->paginate(15)
             ->withQueryString();
@@ -70,6 +73,7 @@ class ProductController extends Controller
             'products' => $products,
             'search' => $search,
             'categoryId' => $categoryId,
+            'status' => $status,
             'categories' => Category::orderBy('CategoryName')->get(),
             'brands' => Brand::orderBy('BrandName')->get(),
         ]);
@@ -225,6 +229,13 @@ class ProductController extends Controller
         if ($brandId !== null && ! Brand::where('BrandID', $brandId)->where('CategoryID', $data['CategoryID'])->exists()) {
             throw ValidationException::withMessages([
                 'BrandID' => 'The selected brand does not belong to the selected category.',
+            ]);
+        }
+
+        // A deactivated category is no longer offered for new products.
+        if (! Category::whereKey($data['CategoryID'])->value('IsActive')) {
+            throw ValidationException::withMessages([
+                'CategoryID' => 'This category is deactivated. Choose an active category.',
             ]);
         }
 
@@ -388,6 +399,14 @@ class ProductController extends Controller
             ]);
         }
 
+        // Moving a product into a deactivated category isn't allowed; a product
+        // already in one can keep it.
+        if ((int) $data['CategoryID'] !== (int) $product->CategoryID && ! Category::whereKey($data['CategoryID'])->value('IsActive')) {
+            throw ValidationException::withMessages([
+                'CategoryID' => 'This category is deactivated. Choose an active category.',
+            ]);
+        }
+
         // Block duplicate Model against every OTHER product (case-insensitive,
         // whitespace-normalized) — the authoritative server-side check
         // backing the live AJAX one in the edit form/modal. Product Name is
@@ -481,6 +500,10 @@ class ProductController extends Controller
             $message = "\"{$product->ProductName}\" has been deactivated.";
         }
 
-        return redirect()->route('admin.products.index')->with('status', $message);
+        // Back to the same list (search, filters and page kept).
+        $previous = url()->previous();
+        $list = route('admin.products.index');
+
+        return redirect()->to(str_starts_with($previous, $list) ? $previous : $list)->with('status', $message);
     }
 }
