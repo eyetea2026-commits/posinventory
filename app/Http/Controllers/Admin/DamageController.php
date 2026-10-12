@@ -64,7 +64,6 @@ class DamageController extends Controller
 
         $kpis = [
             'total' => DamagedProduct::count(),
-            'returned_to_supplier' => DamagedProduct::where('Status', DamagedProduct::STATUS_RETURNED_TO_SUPPLIER)->count(),
             'total_cost' => (float) DamagedProduct::join('Product', 'DamagedProduct.ProductID', '=', 'Product.ProductID')
                 ->selectRaw('SUM(DamagedProduct.Quantity * COALESCE(Product.CostPrice, 0)) as cost')
                 ->value('cost'),

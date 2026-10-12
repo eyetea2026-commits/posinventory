@@ -376,6 +376,10 @@ class DamageModuleTest extends TestCase
         $this->assertStringContainsString('<th>Reason</th>', $head[1]);
         $this->assertStringNotContainsString('<th>Status</th>', $head[1]);
         $this->assertStringNotContainsString('<th>PO#</th>', $head[1]);
+        // ...and no "Returned to Supplier" card above the list.
+        $this->assertStringContainsString('Total Damage Records', $html);
+        $this->assertStringContainsString('Total Damage Cost', $html);
+        $this->assertStringNotContainsString('<div class="kpi-label">Returned to Supplier</div>', $html);
         $this->assertSame(substr_count($head[1], '<th>'), substr_count(explode('</tr>', $rows[1])[0], '<td'));
         $this->assertStringContainsString('viewDamageDetails('.$damage->DamageID.')', $rows[1]);
         $this->assertStringNotContainsString('Pending Supplier Return', $rows[1]);

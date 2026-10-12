@@ -72,7 +72,7 @@
     }
     .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 16px;
         margin-bottom: 20px;
     }
@@ -273,10 +273,6 @@
     <div class="kpi-card">
         <div class="kpi-label">Total Damage Cost</div>
         <div class="kpi-value">₱{{ number_format($kpis['total_cost'], 2) }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="kpi-label">Returned to Supplier</div>
-        <div class="kpi-value">{{ number_format($kpis['returned_to_supplier']) }}</div>
     </div>
 </div>
 
