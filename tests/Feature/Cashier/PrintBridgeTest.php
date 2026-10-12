@@ -230,7 +230,11 @@ class PrintBridgeTest extends TestCase
 
         $this->actingAs($this->cashier)->get(route('cashier.pos'))
             ->assertSee('window.PRINT_BRIDGE_URL = "http:\/\/127.0.0.1:8000\/print-bridge";', false)
-            ->assertSee('window.printViaBridge(data.receipt_number, true)', false);
+            ->assertSee('window.printViaBridge(data.receipt_number, true)', false)
+            // Never silent while waiting: a "Printing receipt..." notice, then a
+            // hint to allow Chrome's local network prompt.
+            ->assertSee("title: 'Printing receipt...'", false)
+            ->assertSee('click Allow (top left, by the address bar)', false);
         $this->actingAs($this->cashier)->get(route('cashier.transactions'))
             ->assertSee('window.PRINT_BRIDGE_URL = "http:\/\/127.0.0.1:8000\/print-bridge";', false)
             ->assertSee('window.printViaBridge(receiptNumber, false)', false);

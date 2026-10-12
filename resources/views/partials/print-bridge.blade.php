@@ -13,6 +13,30 @@
             return Promise.reject(null);
         }
 
+        // Shown while printing, so the cashier never sees "nothing". If it
+        // takes more than a moment, Chrome is most likely waiting on its
+        // one-time local network permission (a small prompt by the address
+        // bar), which has to be allowed before the slip can print.
+        Swal.fire({
+            title: 'Printing receipt...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            customClass: { popup: 'swal-compact' },
+            didOpen: function () { Swal.showLoading(); },
+        });
+        const hintTimer = setTimeout(function () {
+            if (Swal.isVisible()) {
+                Swal.update({ text: 'If Chrome asks to "access other apps and services on this device" or your local network, click Allow (top left, by the address bar).' });
+                Swal.showLoading();
+            }
+        }, 3000);
+        const done = function () {
+            clearTimeout(hintTimer);
+            if (Swal.isVisible() && Swal.getTitle() && Swal.getTitle().textContent === 'Printing receipt...') {
+                Swal.close();
+            }
+        };
+
         return fetch('{{ url('cashier/receipt') }}/' + encodeURIComponent(receiptNumber) + '/print-lines', {
             headers: { 'Accept': 'application/json' },
         })
@@ -42,6 +66,10 @@
                 });
             }, function (error) {
                 throw null;
+            })
+            .then(function () { done(); }, function (message) {
+                done();
+                throw message;
             });
     };
 </script>
