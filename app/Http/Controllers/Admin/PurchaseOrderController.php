@@ -44,7 +44,7 @@ class PurchaseOrderController extends Controller
         $search = $request->query('search');
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
-        $categoryId = $request->query('category_id');
+        $supplierId = $request->query('supplier_id');
         // "history" = every PO that has been printed (sent to Stock
         // Receiving), kept here read-only so it can still be viewed and
         // reprinted. Anything else is the normal active list.
@@ -68,11 +68,7 @@ class PurchaseOrderController extends Controller
             })
             ->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
-            ->when($categoryId, function ($q) use ($categoryId) {
-                $q->whereHas('items.product', function ($product) use ($categoryId) {
-                    $product->where('CategoryID', $categoryId);
-                });
-            })
+            ->when($supplierId, fn ($q) => $q->where('SupplierID', $supplierId))
             // PurchaseDate is a plain date the admin can freely edit as the
             // order's business date, so two orders placed the same day (or
             // deliberately backdated) can't be told apart by it — sorted by
@@ -89,8 +85,7 @@ class PurchaseOrderController extends Controller
             'search' => $search,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
-            'categoryId' => $categoryId,
-            'categories' => Category::orderBy('CategoryName')->get(),
+            'supplierId' => $supplierId,
             'suppliers' => Supplier::orderBy('SupplierName')->get(),
             'products' => Product::active()->with('category')->orderBy('ProductName')->get(),
         ]);

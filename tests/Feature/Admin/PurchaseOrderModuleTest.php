@@ -95,13 +95,11 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertLessThan(strpos($body, 'PO-OLDER'), strpos($body, 'PO-NEWER'));
     }
 
-    public function test_index_has_no_filter_button_but_search_and_category_filter_still_work(): void
+    // The list filters by Supplier (no longer by Category), and next to
+    // Status it shows how many units each order is for.
+    public function test_index_filters_by_supplier_and_shows_products_ordered(): void
     {
-        $otherCategory = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
-        $otherProduct = Product::create([
-            'ProductName' => 'Network Switch', 'Model' => 'SW-01',
-            'Price' => 2000, 'CostPrice' => 1200, 'CategoryID' => $otherCategory->CategoryID,
-        ]);
+        $otherSupplier = Supplier::create(['SupplierName' => 'Second Supplier', 'ContactNumber' => '2', 'Email' => 'second@mail.com', 'Address' => 'N/A']);
         $matchingPo = PurchaseOrder::create([
             'PONumber' => 'PO-TEST-000001', 'PurchaseDate' => now()->format('Y-m-d'),
             'Status' => PurchaseOrder::STATUS_PENDING, 'SupplierID' => $this->supplier->SupplierID,
@@ -109,18 +107,25 @@ class PurchaseOrderModuleTest extends TestCase
         PurchaseOrderItem::create(['PurchaseOrderID' => $matchingPo->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 5, 'CostPriceAtOrder' => 600]);
         $otherPo = PurchaseOrder::create([
             'PONumber' => 'PO-TEST-000002', 'PurchaseDate' => now()->format('Y-m-d'),
-            'Status' => PurchaseOrder::STATUS_PENDING, 'SupplierID' => $this->supplier->SupplierID,
+            'Status' => PurchaseOrder::STATUS_PENDING, 'SupplierID' => $otherSupplier->SupplierID,
         ]);
-        PurchaseOrderItem::create(['PurchaseOrderID' => $otherPo->PurchaseOrderID, 'ProductID' => $otherProduct->ProductID, 'Quantity' => 3, 'CostPriceAtOrder' => 1200]);
+        PurchaseOrderItem::create(['PurchaseOrderID' => $otherPo->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 3, 'CostPriceAtOrder' => 600]);
+        PurchaseOrderItem::create(['PurchaseOrderID' => $otherPo->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 9, 'CostPriceAtOrder' => 600]);
 
-        $indexResponse = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'));
-        $indexResponse->assertOk();
-        $indexResponse->assertDontSee('<i class="fas fa-filter"></i> Filter', false);
+        $index = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk();
+        $index->assertDontSee('<i class="fas fa-filter"></i> Filter', false);
+        $index->assertSee('<select name="supplier_id"', false);
+        $index->assertSee('All Suppliers');
+        $index->assertDontSee('name="category_id"', false);
+        $index->assertDontSee('All Categories');
+        $index->assertSeeInOrder(['<th>Status</th>', '<th>Products Ordered</th>', '<th>Actions</th>'], false);
+        $index->assertSee('<strong>12</strong> units', false);
+        $index->assertSee('<strong>5</strong> units', false);
 
-        $categoryFiltered = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['category_id' => $otherCategory->CategoryID]));
-        $categoryFiltered->assertOk();
-        $categoryFiltered->assertSee('PO-TEST-000002');
-        $categoryFiltered->assertDontSee('PO-TEST-000001');
+        $supplierFiltered = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['supplier_id' => $otherSupplier->SupplierID]));
+        $supplierFiltered->assertOk();
+        $supplierFiltered->assertSee('PO-TEST-000002');
+        $supplierFiltered->assertDontSee('PO-TEST-000001');
 
         $searchFiltered = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['search' => 'PO-TEST-000001']));
         $searchFiltered->assertOk();

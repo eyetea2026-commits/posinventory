@@ -31,6 +31,9 @@
             @endphp
             <span class="badge {{ $badgeClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$order->Status] ?? ucfirst($order->Status) }}</span>
         </td>
+        {{-- Total units ordered across every item on this order. --}}
+        @php $unitsOrdered = (int) $order->items->sum('Quantity'); @endphp
+        <td><strong>{{ number_format($unitsOrdered) }}</strong> {{ $unitsOrdered === 1 ? 'unit' : 'units' }}</td>
         <td>
             <div class="actions-group">
                 <a href="#" class="action-btn view" title="View Details" onclick="openViewPurchaseOrderModal(event, {{ $order->PurchaseOrderID }})">
@@ -49,7 +52,7 @@
     </tr>
 @empty
     <tr>
-        <td colspan="7">
+        <td colspan="8">
             <div class="empty-state">
                 <div class="empty-icon"><i class="fas {{ $isHistory ? 'fa-clock-rotate-left' : 'fa-shopping-cart' }}"></i></div>
                 <p class="empty-title">{{ $isHistory ? 'No Printed Orders Yet' : 'No Purchase Orders' }}</p>

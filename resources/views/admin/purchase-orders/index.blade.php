@@ -72,7 +72,7 @@
          Receiving) orders, kept here read-only so they can still be viewed
          and reprinted. Tab links carry the current filters across. --}}
     @php
-        $tabFilters = array_filter(['search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'category_id' => $categoryId]);
+        $tabFilters = array_filter(['search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'supplier_id' => $supplierId]);
     @endphp
     <div class="status-tabs" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
         <a href="{{ route('admin.purchase-orders.index', $tabFilters) }}" class="btn {{ $isHistory ? 'btn-secondary' : 'btn-primary' }}" style="text-decoration: none;">
@@ -95,13 +95,13 @@
                 </div>
                 <input type="date" name="date_from" value="{{ $dateFrom }}" class="form-input" style="max-width:160px;" title="From date">
                 <input type="date" name="date_to" value="{{ $dateTo }}" class="form-input" style="max-width:160px;" title="To date">
-                <select name="category_id" class="form-select" style="max-width:180px;">
-                    <option value="">All Categories</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category->CategoryID }}" {{ (string) $categoryId === (string) $category->CategoryID ? 'selected' : '' }}>{{ $category->CategoryName }}</option>
+                <select name="supplier_id" class="form-select" style="max-width:200px;" aria-label="Filter by supplier">
+                    <option value="">All Suppliers</option>
+                    @foreach($suppliers as $supplier)
+                        <option value="{{ $supplier->SupplierID }}" {{ (string) $supplierId === (string) $supplier->SupplierID ? 'selected' : '' }}>{{ $supplier->SupplierName }}</option>
                     @endforeach
                 </select>
-                {{-- No visible Filter button: the date/category fields apply as soon as
+                {{-- No visible Filter button: the date/supplier fields apply as soon as
                      they change, and the search box still submits on Enter via this
                      visually hidden submit control (removing it entirely would also
                      disable the browser's native Enter-to-submit behavior). --}}
@@ -138,6 +138,7 @@
                         <th>Order Date</th>
                         <th>Items</th>
                         <th>Status</th>
+                        <th>Products Ordered</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -246,7 +247,7 @@
     @include('admin.partials.ajax-modal-form')
 
     <script>
-        // The search box, Start Date / End Date and Category all apply as
+        // The search box, Start Date / End Date and Supplier all apply as
         // they change, without a reload (the form's data-live-search, see
         // partials/live-updates).
 
