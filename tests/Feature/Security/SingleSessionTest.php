@@ -17,6 +17,7 @@ class SingleSessionTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $cashier;
 
     protected function setUp(): void
@@ -73,6 +74,61 @@ class SingleSessionTest extends TestCase
         // The first session must remain exactly as it was — untouched by
         // the denied second attempt.
         $this->assertSame($registeredSessionId, $this->admin->fresh()->current_session_id);
+    }
+
+    // Closing the browser: its pages stop checking in at /session/alive, so
+    // after User::SESSION_ALIVE_SECONDS the account can be signed into again
+    // (it used to stay blocked for the full 2-hour session lifetime).
+    public function test_after_the_browser_is_closed_the_account_can_log_in_again(): void
+    {
+        $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+        $firstSession = $this->admin->fresh()->current_session_id;
+        $this->app['auth']->forgetGuards();
+
+        // The browser closed: no more check-ins for a little over 2 minutes.
+        $this->travel(User::SESSION_ALIVE_SECONDS + 5)->seconds();
+
+        $response = $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+
+        $response->assertRedirect('/admin/dashboard');
+        $this->assertAuthenticatedAs($this->admin);
+        $this->assertNotSame($firstSession, $this->admin->fresh()->current_session_id);
+    }
+
+    public function test_a_browser_that_is_still_open_keeps_checking_in_and_blocks_a_second_login(): void
+    {
+        $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+        $firstSession = $this->admin->fresh()->current_session_id;
+        $this->app['auth']->forgetGuards();
+
+        // The open page checks in every 30 seconds for the next few minutes.
+        for ($i = 0; $i < 8; $i++) {
+            $this->travel(30)->seconds();
+            $this->withCookie(config('session.cookie'), $firstSession)
+                ->get(route('session.alive'))->assertNoContent();
+        }
+
+        // A different browser (no cookies) tries the same account.
+        $this->defaultCookies = [];
+        $this->app['auth']->forgetGuards();
+        $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password'])
+            ->assertSessionHasErrors('username');
+        $this->assertSame($firstSession, $this->admin->fresh()->current_session_id);
+    }
+
+    public function test_the_check_in_does_not_count_as_activity_for_the_idle_timeout(): void
+    {
+        $this->post(route('login.post'), ['username' => 'admin', 'password' => 'password']);
+        $sessionId = $this->admin->fresh()->current_session_id;
+        $before = DB::table('sessions')->where('id', $sessionId)->value('last_activity');
+
+        $this->travel(5)->minutes();
+        $response = $this->withCookie(config('session.cookie'), $sessionId)->get(route('session.alive'));
+
+        $response->assertNoContent();
+        // No session was started for the check-in, so nothing was touched.
+        $this->assertSame($before, DB::table('sessions')->where('id', $sessionId)->value('last_activity'));
+        $this->assertNull(collect($response->headers->getCookies())->first(fn ($c) => $c->getName() === config('session.cookie')));
     }
 
     public function test_second_login_denial_does_not_create_an_authenticated_session_for_the_new_browser(): void

@@ -5,8 +5,12 @@
      - Logout/login in another tab: every open tab re-checks at once.
      - Coming back to a tab: re-checks, so a session that ended elsewhere
        (logged out, password reset) is noticed immediately.
-     Deliberately no timer: each check counts as activity, so polling would
-     stop an unattended screen from ever timing out. --}}
+     Deliberately no timer for those checks: each one counts as activity, so
+     polling would stop an unattended screen from ever timing out.
+     - Signed-in pages also check in every 30 seconds at /session/alive,
+       which does NOT count as activity. It tells the login screen this
+       browser is still open, so once the browser is closed the account can
+       be signed into again within about 2 minutes. --}}
 <script>
 (function () {
     const expectedUserId = @json(auth()->id());
@@ -64,5 +68,14 @@
     // Every page load (including the login page right after a logout, or the
     // first page after a login) tells the other open tabs to re-check.
     tellOtherTabs();
+
+    if (expectedUserId !== null) {
+        const aliveUrl = @json(route('session.alive'));
+        const checkIn = function () {
+            fetch(aliveUrl, { cache: 'no-store', credentials: 'same-origin' }).catch(function () { /* offline */ });
+        };
+        checkIn();
+        setInterval(checkIn, 30000);
+    }
 })();
 </script>

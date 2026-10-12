@@ -135,6 +135,8 @@ class AuthController extends Controller
 
                 $lockedUser->current_session_id = $newSessionId;
                 $lockedUser->save();
+                // Counts as open straight away, before its first check-in.
+                User::markSessionAlive($newSessionId);
 
                 return false;
             });

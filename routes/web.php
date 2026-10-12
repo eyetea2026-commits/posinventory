@@ -23,9 +23,13 @@ use App\Http\Controllers\Auth\CashierAuthController;
 use App\Http\Controllers\Cashier\CashierReturnController;
 use App\Http\Controllers\DashboardController;
 use App\Models\Product;
+use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 // The one sign-in entry point for the whole system — see AuthController for
 // why this replaced separate admin/cashier login forms and a portal-picker
@@ -42,6 +46,24 @@ Route::get('/session/status', function () {
         'user_id' => Auth::id(),
     ]);
 })->name('session.status')->middleware('throttle:120,1');
+
+// "This browser is still open" check-in, sent every 30 seconds by every
+// signed-in page (partials/session-guard). It runs WITHOUT the session
+// middleware, so it never counts as activity (the 2-hour idle timeout still
+// applies); it only refreshes the marker User::hasActiveSession() reads, so
+// a browser that was closed stops blocking the next login within
+// User::SESSION_ALIVE_SECONDS.
+Route::get('/session/alive', function (Request $request) {
+    $sessionId = $request->cookie(config('session.cookie'));
+    if (is_string($sessionId) && preg_match('/^[A-Za-z0-9]{40}$/', $sessionId)
+        && User::where('current_session_id', $sessionId)->exists()) {
+        User::markSessionAlive($sessionId);
+    }
+
+    return response()->noContent();
+})->name('session.alive')
+    ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
+    ->middleware('throttle:120,1');
 // throttle:15,1 is an outer safety net only — the real brute-force defense is
 // AuthController's own per-username RateLimiter (5 attempts/60s, with a
 // friendly "too many attempts" message). This route limit used to be 6/min,

@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Models\Role;
 
 class User extends Authenticatable
 {
@@ -58,18 +57,20 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         // Check if role is already loaded, if not try to load it
-        if (!$this->relationLoaded('role')) {
+        if (! $this->relationLoaded('role')) {
             $this->load('role');
         }
+
         return $this->role && strtolower($this->role->role_name) === 'admin';
     }
 
     public function isCashier(): bool
     {
         // Check if role is already loaded, if not try to load it
-        if (!$this->relationLoaded('role')) {
+        if (! $this->relationLoaded('role')) {
             $this->load('role');
         }
+
         return $this->role && strtolower($this->role->role_name) === 'cashier';
     }
 
@@ -85,16 +86,35 @@ class User extends Authenticatable
         }
 
         return static::whereHas('role', function ($query) {
-                $query->whereRaw('LOWER(role_name) = ?', ['admin']);
-            })
+            $query->whereRaw('LOWER(role_name) = ?', ['admin']);
+        })
             ->where('is_active', true)
             ->count() <= 1;
     }
 
-    // Whether `current_session_id` (if any) still points at a session row
-    // that hasn't aged past the app's own session lifetime -- the single
-    // source of truth the login flow checks to enforce one active session
-    // per account. Deliberately NOT in $fillable: only ever set via direct
+    /**
+     * How long a session counts as "still open" after its browser last
+     * checked in. Open pages check in every 30 seconds (session guard), so
+     * a browser that was closed frees the account within this window.
+     */
+    public const SESSION_ALIVE_SECONDS = 120;
+
+    /**
+     * Records that the browser holding this session is still open. Kept in
+     * the cache, separate from the session itself, so it never counts as
+     * activity for the idle timeout.
+     */
+    public static function markSessionAlive(string $sessionId): void
+    {
+        Cache::put('session-alive:'.$sessionId, true, now()->addSeconds(self::SESSION_ALIVE_SECONDS));
+    }
+
+    // Whether `current_session_id` (if any) is still in use: its session row
+    // hasn't aged past the session lifetime AND its browser is still open
+    // (checked in within SESSION_ALIVE_SECONDS). The single source of truth
+    // the login flow checks to enforce one active session per account; a
+    // closed browser no longer blocks the next login until the session
+    // times out. Deliberately NOT in $fillable: only ever set via direct
     // attribute assignment from the auth flow itself, never from
     // mass-assigned request input.
     public function hasActiveSession(): bool
@@ -105,11 +125,11 @@ class User extends Authenticatable
 
         $session = DB::table('sessions')->where('id', $this->current_session_id)->first();
 
-        if (! $session) {
+        if (! $session || $session->last_activity < (now()->timestamp - config('session.lifetime') * 60)) {
             return false;
         }
 
-        return $session->last_activity >= (now()->timestamp - config('session.lifetime') * 60);
+        return Cache::has('session-alive:'.$this->current_session_id);
     }
 
     public function getFullNameAttribute(): string
@@ -117,15 +137,17 @@ class User extends Authenticatable
         $parts = array_filter([
             $this->first_name,
             $this->middle_name,
-            $this->last_name
+            $this->last_name,
         ]);
-        return !empty($parts) ? implode(' ', $parts) : $this->name;
+
+        return ! empty($parts) ? implode(' ', $parts) : $this->name;
     }
 
     public function getInitialsAttribute(): string
     {
         $first = $this->first_name ? substr($this->first_name, 0, 1) : '';
         $last = $this->last_name ? substr($this->last_name, 0, 1) : '';
-        return strtoupper($first . $last);
+
+        return strtoupper($first.$last);
     }
 }
