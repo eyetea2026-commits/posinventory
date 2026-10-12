@@ -17,7 +17,14 @@
 
      Topics: notifications, returns, plus every key in
      LiveDataVersions::TOPICS. After swapping parts the page also gets a
-     "live-updates:applied" event (detail: regions, topics). --}}
+     "live-updates:applied" event (detail: regions, topics).
+
+     Search as you type: a GET filter form marked  data-live-search  searches
+     on every keystroke in its text box (after a short pause, no Enter
+     needed) and re-filters as soon as one of its dropdowns/dates changes.
+     The results replace the page's live parts in place, and the address
+     bar keeps the search so a reload or the real-time refresh shows the
+     same results. --}}
 @auth
 {{-- The "new notification" card. Our own markup (not a SweetAlert toast):
      the site-wide SweetAlert styles size every popup as a 520px dialog,
@@ -85,14 +92,15 @@
 
     // Resolves to the names of the parts that were replaced, or null if the
     // page couldn't be re-fetched (retried on the next check).
-    function refreshRegions(changed) {
+    function refreshRegions(changed, url, signal) {
         const current = regionsByName(document, changed);
         if (!Object.keys(current).length) return Promise.resolve([]);
 
-        return fetch(window.location.href, {
+        return fetch(url || window.location.href, {
             headers: { 'Accept': 'text/html' },
             cache: 'no-store',
             credentials: 'same-origin',
+            signal: signal,
         }).then(function (r) {
             // Signed out / sent elsewhere: leave it to the session guard.
             if (!r.ok || r.redirected) return null;
@@ -203,6 +211,53 @@
     setInterval(poll, POLL_MS);
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible') poll();
+    });
+
+    // ---- Search as you type (forms marked data-live-search) ----
+    const SEARCH_DELAY_MS = 300;
+    let searchController = null;
+
+    function liveSearch(form) {
+        const params = new URLSearchParams();
+        new FormData(form).forEach(function (value, key) {
+            if (String(value).trim() !== '') params.set(key, String(value).trim());
+        });
+        const url = form.action.split('?')[0] + (params.toString() ? '?' + params.toString() : '');
+
+        // Only the newest search may paint the page.
+        if (searchController) searchController.abort();
+        searchController = new AbortController();
+
+        window.history.replaceState({}, '', url);
+        refreshRegions(null, url, searchController.signal).then(function (applied) {
+            if (applied && applied.length) {
+                document.dispatchEvent(new CustomEvent('live-updates:applied', { detail: { regions: applied, topics: [] } }));
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('form[data-live-search]').forEach(function (form) {
+            let timer = null;
+
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                clearTimeout(timer);
+                liveSearch(form);
+            });
+            form.addEventListener('input', function (e) {
+                const field = e.target;
+                if (!(field instanceof HTMLInputElement) || !['text', 'search'].includes(field.type)) return;
+                clearTimeout(timer);
+                timer = setTimeout(function () { liveSearch(form); }, SEARCH_DELAY_MS);
+            });
+            form.addEventListener('change', function (e) {
+                const field = e.target;
+                if (field instanceof HTMLInputElement && ['text', 'search'].includes(field.type)) return;
+                clearTimeout(timer);
+                liveSearch(form);
+            });
+        });
     });
 })();
 </script>

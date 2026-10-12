@@ -49,7 +49,7 @@
                  The Return Type filter dropdown has been removed too; the
                  status tabs' links still carry $search forward via
                  array_filter() above. --}}
-            <form method="GET" action="{{ route('admin.sales-returns.index') }}" style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1;">
+            <form method="GET" action="{{ route('admin.sales-returns.index') }}" data-live-search autocomplete="off" style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1;">
                 @if($status)
                     <input type="hidden" name="status" value="{{ $status }}">
                 @endif

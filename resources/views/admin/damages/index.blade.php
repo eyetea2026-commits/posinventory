@@ -282,7 +282,7 @@
 
 <div class="card">
     <div class="card-header">
-        <form method="GET" action="{{ route('admin.damages.index') }}" id="damageFilterForm" class="search-form" autocomplete="off">
+        <form method="GET" action="{{ route('admin.damages.index') }}" id="damageFilterForm" class="search-form" autocomplete="off" data-live-search>
             <div class="search-box-wrapper">
                 <i class="search-icon fas fa-search"></i>
                 <input type="text" name="search" id="damageSearchInput" class="search-input" placeholder="Search products..." value="{{ $search ?? '' }}">

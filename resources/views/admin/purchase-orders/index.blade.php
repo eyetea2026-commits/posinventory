@@ -85,7 +85,7 @@
 
     <div class="card">
         <div class="toolbar">
-            <form method="GET" action="{{ route('admin.purchase-orders.index') }}" id="purchaseOrderFilterForm" style="display:flex; gap:10px; flex-wrap:wrap; flex:1;">
+            <form method="GET" action="{{ route('admin.purchase-orders.index') }}" id="purchaseOrderFilterForm" data-live-search autocomplete="off" style="display:flex; gap:10px; flex-wrap:wrap; flex:1;">
                 @if($isHistory)
                     <input type="hidden" name="view" value="history">
                 @endif
@@ -246,15 +246,9 @@
     @include('admin.partials.ajax-modal-form')
 
     <script>
-        // With the Filter button removed, the Start Date / End Date / Category
-        // fields apply immediately on change instead of waiting for a click.
-        (function () {
-            const filterForm = document.getElementById('purchaseOrderFilterForm');
-            ['input[name="date_from"]', 'input[name="date_to"]', 'select[name="category_id"]'].forEach(function (selector) {
-                const field = filterForm.querySelector(selector);
-                if (field) field.addEventListener('change', function () { filterForm.submit(); });
-            });
-        })();
+        // The search box, Start Date / End Date and Category all apply as
+        // they change, without a reload (the form's data-live-search, see
+        // partials/live-updates).
 
         // Auto-show session messages
         @if(session('success'))

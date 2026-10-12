@@ -18,7 +18,7 @@
         <div class="toolbar">
             <div class="search-box">
                 <i class="search-icon fas fa-search"></i>
-                <form method="GET" action="{{ route('admin.stock-adjustments.index') }}" class="w-full">
+                <form method="GET" action="{{ route('admin.stock-adjustments.index') }}" class="w-full" data-live-search autocomplete="off">
                     <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search adjustments..." />
                 </form>
             </div>
