@@ -361,4 +361,27 @@ class DamageModuleTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('requestedBy.Name', $this->admin->full_name);
     }
+
+    // The Damage list has no Status column, and a record waiting for its
+    // supplier return no longer shows the Confirm Returned (truck), Cancel
+    // Supplier Return (undo) and Dispose (trash) buttons -- just View.
+    public function test_list_has_no_status_column_or_supplier_return_buttons(): void
+    {
+        $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
+
+        $html = $this->actingAs($this->admin)->get(route('admin.damages.index'))->assertOk()->getContent();
+        preg_match('#<thead>(.*?)</thead>#s', $html, $head);
+        preg_match('#<tbody id="damagesTbody"[^>]*>(.*?)</tbody>#s', $html, $rows);
+
+        $this->assertStringContainsString('<th>Reason</th>', $head[1]);
+        $this->assertStringNotContainsString('<th>Status</th>', $head[1]);
+        $this->assertStringContainsString('viewDamageDetails('.$damage->DamageID.')', $rows[1]);
+        $this->assertStringNotContainsString('Pending Supplier Return', $rows[1]);
+        $this->assertStringNotContainsString(route('admin.damages.confirm-supplier-return', $damage->DamageID), $rows[1]);
+        $this->assertStringNotContainsString(route('admin.damages.cancel', $damage->DamageID), $rows[1]);
+        $this->assertStringNotContainsString(route('admin.damages.dispose', $damage->DamageID), $rows[1]);
+        $this->assertStringNotContainsString('fa-truck', $rows[1]);
+        $this->assertStringNotContainsString('fa-rotate-left', $rows[1]);
+        $this->assertStringNotContainsString('fa-trash-can', $rows[1]);
+    }
 }

@@ -306,7 +306,6 @@
                     <th>PO#</th>
                     <th>Quantity</th>
                     <th>Reason</th>
-                    <th>Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
