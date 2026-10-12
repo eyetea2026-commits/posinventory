@@ -36,7 +36,7 @@ class DeliveryDue extends Notification
     private function summary(): string
     {
         $supplier = $this->purchaseOrder->supplier?->SupplierName ?? 'Unknown supplier';
-        $expected = Carbon::parse($this->purchaseOrder->ExpectedDeliveryDate)->format('M d, Y');
+        $expected = Carbon::parse($this->purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y');
         $days = $this->daysOverdue();
         $timing = $days > 0 ? "{$days} day(s) overdue (expected {$expected})" : "expected today ({$expected})";
 

@@ -115,12 +115,12 @@ class ReportController extends Controller
 
     private function fmtDateTime($value): string
     {
-        return $value ? Carbon::parse($value)->format('F j, Y g:i A') : 'N/A';
+        return $value ? Carbon::parse($value)->format('m/d/Y g:i A') : 'N/A';
     }
 
     private function fmtDate($value): string
     {
-        return $value ? Carbon::parse($value)->format('F j, Y') : 'N/A';
+        return $value ? Carbon::parse($value)->format('m/d/Y') : 'N/A';
     }
 
     private function salesDetail($id): ?array
@@ -774,7 +774,7 @@ class ReportController extends Controller
                 foreach ($this->salesBillingRows($dateFrom, $dateTo) as $item) {
                     fputcsv($handle, [
                         $item->BillingID,
-                        $item->BillingDate,
+                        $this->fmtDate($item->BillingDate),
                         $item->BillingAmount,
                         $this->csvSafe($item->CustomerName ?? 'N/A'),
                         $this->csvSafe($item->payment?->PaymentMethod ?? 'N/A'),
@@ -795,7 +795,7 @@ class ReportController extends Controller
                 foreach ($this->stockAdjustmentRows($dateFrom, $dateTo) as $item) {
                     fputcsv($handle, [
                         $item->AdjustmentID,
-                        $item->Date,
+                        $this->fmtDate($item->Date),
                         $this->csvSafe($item->product?->ProductName ?? 'N/A'),
                         ($item->QuantityAdjust >= 0 ? '+' : '').$item->QuantityAdjust,
                         $this->csvSafe($item->Reason),
@@ -818,7 +818,7 @@ class ReportController extends Controller
                 foreach ($this->orderRows($dateFrom, $dateTo) as $item) {
                     fputcsv($handle, [
                         $item->PurchaseOrderID,
-                        $item->PurchaseDate,
+                        $this->fmtDate($item->PurchaseDate),
                         $item->Status,
                         $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
                     ]);
@@ -834,7 +834,7 @@ class ReportController extends Controller
                         $this->csvSafe($item->Reason),
                         $this->csvSafe($item->CashierName),
                         $item->Status,
-                        $item->ReturnDate,
+                        $this->fmtDate($item->ReturnDate),
                     ]);
                 }
             } elseif ($type === 'damage') {
@@ -842,7 +842,7 @@ class ReportController extends Controller
                 foreach ($this->damageRows($dateFrom, $dateTo) as $item) {
                     fputcsv($handle, [
                         $item->DamageID,
-                        optional($item->DateRecorded)->format('Y-m-d'),
+                        $this->fmtDate($item->DateRecorded),
                         $this->csvSafe($item->product?->ProductName ?? 'N/A'),
                         $this->csvSafe($item->supplier?->SupplierName ?? 'N/A'),
                         $item->Quantity,

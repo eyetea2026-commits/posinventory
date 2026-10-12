@@ -451,8 +451,8 @@ class DashboardController extends Controller
             'data' => $data,
             'compareLabels' => $compareLabels,
             'compareData' => $compareData,
-            'currentRangeLabel' => $start->format('M j, Y').' - '.$end->format('M j, Y'),
-            'compareRangeLabel' => $compareStart->format('M j, Y').' - '.$compareEnd->format('M j, Y'),
+            'currentRangeLabel' => $start->format('m/d/Y').' - '.$end->format('m/d/Y'),
+            'compareRangeLabel' => $compareStart->format('m/d/Y').' - '.$compareEnd->format('m/d/Y'),
         ];
     }
 
@@ -477,7 +477,7 @@ class DashboardController extends Controller
                 $today->copy()->startOfWeek(),
                 $today->copy()->subWeek()->startOfWeek(),
                 $today->copy()->subWeek()->endOfWeek(),
-                'This Week · '.$today->copy()->startOfWeek()->format('M j').' – '.$today->format('M j, Y'),
+                'This Week · '.$today->copy()->startOfWeek()->format('m/d/Y').' – '.$today->format('m/d/Y'),
                 'vs last week',
             ],
             'monthly' => [
@@ -498,7 +498,7 @@ class DashboardController extends Controller
                 $today->copy(),
                 $today->copy()->subDay(),
                 $today->copy()->subDay(),
-                'Today · '.$today->format('M j, Y'),
+                'Today · '.$today->format('m/d/Y'),
                 'vs yesterday',
             ],
         };

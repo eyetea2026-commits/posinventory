@@ -18,8 +18,7 @@ class ProductReceived extends Notification
         public Product $product,
         public Supplier $supplier,
         public int $quantity,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -32,7 +31,7 @@ class ProductReceived extends Notification
             ->subject("Product Received: {$this->product->ProductName}")
             ->line($this->badgeHtml('STOCK RECEIVED', '#16a34a'))
             ->line("Received **{$this->quantity} x \"{$this->product->ProductName}\"** from **\"{$this->supplier->SupplierName}\"**.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Stock Receiving', route('admin.stock-receivings.index'));
     }
 

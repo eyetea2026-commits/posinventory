@@ -15,8 +15,7 @@ class UserAccountUpdated extends Notification
 
     public function __construct(
         public User $account,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -29,7 +28,7 @@ class UserAccountUpdated extends Notification
             ->subject("User Account Updated: {$this->account->name}")
             ->line($this->badgeHtml('ACCOUNT UPDATED', '#3b82f6'))
             ->line("The account **\"{$this->account->name}\"** was updated.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Users', route('admin.users.index'));
     }
 

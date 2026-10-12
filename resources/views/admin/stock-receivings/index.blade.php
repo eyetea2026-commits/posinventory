@@ -145,7 +145,7 @@
                                 <td><span class="badge badge-primary po-number-cell">{{ $batch->purchaseOrder->PONumber }}</span></td>
                                 <td><strong class="supplier-name-cell">{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
-                                <td>{{ $batch->purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($batch->purchaseOrder->ExpectedDeliveryDate)->format('M d, Y') : 'Not set' }}</td>
+                                <td>{{ $batch->purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($batch->purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</td>
                                 <td>
                                     <div class="actions-group">
                                         <a href="#" class="action-btn view" title="View Details" onclick="openBatchDetailsModal(event, {{ $batch->StockReceivingBatchID }})">
@@ -201,7 +201,7 @@
                                 <td><span class="badge badge-primary po-number-cell">{{ $batch->purchaseOrder->PONumber }}</span></td>
                                 <td><strong class="supplier-name-cell">{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
-                                <td>{{ $batch->CompletedAt?->format('M d, Y g:i A') ?? 'N/A' }}</td>
+                                <td>{{ $batch->CompletedAt?->format('m/d/Y g:i A') ?? 'N/A' }}</td>
                                 <td>
                                     <div class="actions-group">
                                         <a href="#" class="action-btn view" title="View Details" onclick="openBatchDetailsModal(event, {{ $batch->StockReceivingBatchID }})">

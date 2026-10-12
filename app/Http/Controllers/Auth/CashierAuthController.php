@@ -708,7 +708,7 @@ class CashierAuthController extends Controller
 
         return [
             'receiptNumber' => $receiptNumber,
-            'date' => $transaction->SalesTransactionDate->format('M d, Y h:i A'),
+            'date' => $transaction->SalesTransactionDate->format('m/d/Y h:i A'),
             'cashierName' => $cashierName,
             'customerName' => $transaction->CustomerName,
             'items' => $items,

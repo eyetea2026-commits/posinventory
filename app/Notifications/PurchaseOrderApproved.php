@@ -15,8 +15,7 @@ class PurchaseOrderApproved extends Notification
 
     public function __construct(
         public PurchaseOrder $purchaseOrder,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -29,8 +28,8 @@ class PurchaseOrderApproved extends Notification
             ->subject("Purchase Order {$this->purchaseOrder->PONumber} Approved")
             ->line($this->badgeHtml('APPROVED', '#16a34a'))
             ->line("Purchase order **{$this->purchaseOrder->PONumber}** has been approved and is ready to receive against.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Supplier:** ' . ($this->purchaseOrder->supplier?->SupplierName ?? 'Unknown supplier'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Supplier:** '.($this->purchaseOrder->supplier?->SupplierName ?? 'Unknown supplier'))
             ->action('View Purchase Order', route('admin.purchase-orders.index'));
     }
 

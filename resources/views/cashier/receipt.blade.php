@@ -217,7 +217,7 @@
         @if($paymentDate ?? null)
             <div class="total-row">
                 <span>{{ $paymentMethod === 'cheque' ? 'Cheque Date' : 'Transfer Date' }}:</span>
-                <span>{{ \Illuminate\Support\Carbon::parse($paymentDate)->format('M d, Y') }}</span>
+                <span>{{ \Illuminate\Support\Carbon::parse($paymentDate)->format('m/d/Y') }}</span>
             </div>
         @endif
         @if($paymentAmount > 0)

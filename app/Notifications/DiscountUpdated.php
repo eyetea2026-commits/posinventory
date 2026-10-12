@@ -17,8 +17,7 @@ class DiscountUpdated extends Notification
     public function __construct(
         public Discount $discount,
         public string $action = 'Updated',
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -31,7 +30,7 @@ class DiscountUpdated extends Notification
             ->subject("Discount {$this->action}: {$this->discount->Name}")
             ->line($this->badgeHtml(strtoupper("DISCOUNT {$this->action}"), '#3b82f6'))
             ->line("Discount **\"{$this->discount->Name}\"** ({$this->discount->DiscountRate}%) was {$this->action}.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Discounts', route('admin.discounts.index'));
     }
 

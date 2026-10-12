@@ -44,7 +44,7 @@
             <h1>CCTV Express</h1>
             <p>Refund Receipt</p>
             <p>Receipt #: {{ $receiptNumber }}</p>
-            <p>{{ \Carbon\Carbon::parse($salesReturn->RefundDate)->format('M d, Y') }}</p>
+            <p>{{ \Carbon\Carbon::parse($salesReturn->RefundDate)->format('m/d/Y') }}</p>
             <p>Cashier: {{ $salesReturn->processedByUser?->full_name ?? 'N/A' }}</p>
         </div>
 

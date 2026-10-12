@@ -17,8 +17,7 @@ class CategoryUpdated extends Notification
     public function __construct(
         public Category $category,
         public string $action = 'Updated',
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -31,7 +30,7 @@ class CategoryUpdated extends Notification
             ->subject("Category {$this->action}: {$this->category->CategoryName}")
             ->line($this->badgeHtml(strtoupper("CATEGORY {$this->action}"), '#3b82f6'))
             ->line("Category **\"{$this->category->CategoryName}\"** was {$this->action}.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Categories', route('admin.categories.index'));
     }
 

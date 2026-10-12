@@ -17,8 +17,7 @@ class ProductUpdated extends Notification
     public function __construct(
         public Product $product,
         public string $action = 'Updated',
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -31,8 +30,8 @@ class ProductUpdated extends Notification
             ->subject("Product {$this->action}: {$this->product->ProductName}")
             ->line($this->badgeHtml(strtoupper("PRODUCT {$this->action}"), '#3b82f6'))
             ->line("Product **\"{$this->product->ProductName}\"** was {$this->action}.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Price:** ₱' . number_format((float) $this->product->Price, 2))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Price:** ₱'.number_format((float) $this->product->Price, 2))
             ->action('View Products', route('admin.products.index'));
     }
 

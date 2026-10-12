@@ -18,8 +18,7 @@ class ReturnRequestApproved extends Notification
 
     public function __construct(
         public SalesReturn $salesReturn,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -28,15 +27,15 @@ class ReturnRequestApproved extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $requestNumber = 'RR-' . str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
+        $requestNumber = 'RR-'.str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
         $items = $this->salesReturn->items()->with('product')->get();
 
         $message = (new MailMessage)
             ->subject("Return Request {$requestNumber} Approved")
             ->line($this->badgeHtml('APPROVED', '#16a34a'))
             ->line("Your {$this->salesReturn->ReturnType} request **{$requestNumber}** has been approved.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Customer:** ' . ($this->salesReturn->CustomerName ?: 'Walk-in Customer'));
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'Walk-in Customer'));
 
         if ($items->isNotEmpty()) {
             $message->line($this->buildItemsTableHtml($items));
@@ -49,7 +48,7 @@ class ReturnRequestApproved extends Notification
 
     public function toDatabase(object $notifiable): array
     {
-        $requestNumber = 'RR-' . str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
+        $requestNumber = 'RR-'.str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
 
         return [
             'title' => 'Return Request Approved',

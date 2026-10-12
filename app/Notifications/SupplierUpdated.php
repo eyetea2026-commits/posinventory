@@ -19,8 +19,7 @@ class SupplierUpdated extends Notification
     public function __construct(
         public Supplier $supplier,
         public string $action = 'Updated',
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -33,8 +32,8 @@ class SupplierUpdated extends Notification
             ->subject("Supplier {$this->action}: {$this->supplier->SupplierName}")
             ->line($this->badgeHtml(strtoupper("SUPPLIER {$this->action}"), '#3b82f6'))
             ->line("Supplier **\"{$this->supplier->SupplierName}\"** was {$this->action}.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Contact:** ' . ($this->supplier->ContactNumber ?: '—') . ' / ' . ($this->supplier->Email ?: '—'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Contact:** '.($this->supplier->ContactNumber ?: '—').' / '.($this->supplier->Email ?: '—'))
             ->action('View Suppliers', route('admin.suppliers.index'));
     }
 

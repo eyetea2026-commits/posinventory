@@ -18,9 +18,7 @@ class UnauthorizedLoginReported extends Notification
 {
     use FormatsMailBadge;
 
-    public function __construct(public LoginSecurityEvent $event)
-    {
-    }
+    public function __construct(public LoginSecurityEvent $event) {}
 
     public function via(object $notifiable): array
     {
@@ -35,10 +33,10 @@ class UnauthorizedLoginReported extends Notification
             ->subject('Security Alert: Potential Unauthorized Admin Access')
             ->line($this->badgeHtml('POTENTIAL UNAUTHORIZED ACCESS', '#dc2626'))
             ->line("The \"{$event->user?->name}\" administrator account reported a login it did not recognize.")
-            ->line('**Affected Account:** ' . ($event->user?->full_name ?? $event->user?->name ?? 'Unknown'))
-            ->line('**Date & Time:** ' . $event->LoginAt->format('F j, Y g:i A'))
-            ->line('**IP Address:** ' . ($event->IPAddress ?? 'Unavailable'))
-            ->line('**Device/Browser:** ' . ($event->DeviceSummary ?? 'Unavailable'))
+            ->line('**Affected Account:** '.($event->user?->full_name ?? $event->user?->name ?? 'Unknown'))
+            ->line('**Date & Time:** '.$event->LoginAt->format('m/d/Y g:i A'))
+            ->line('**IP Address:** '.($event->IPAddress ?? 'Unavailable'))
+            ->line('**Device/Browser:** '.($event->DeviceSummary ?? 'Unavailable'))
             ->line('The affected session has been ended. Review this account\'s activity and consider resetting its password if you believe it was compromised.')
             ->action('Review User Management', route('admin.users.index'));
     }
@@ -49,7 +47,7 @@ class UnauthorizedLoginReported extends Notification
 
         return [
             'title' => 'Potential Unauthorized Access',
-            'description' => "The \"{$event->user?->name}\" account reported a login from {$event->LoginAt->format('F j, Y g:i A')} ({$event->IPAddress}) as not recognized. The affected session has been ended.",
+            'description' => "The \"{$event->user?->name}\" account reported a login from {$event->LoginAt->format('m/d/Y g:i A')} ({$event->IPAddress}) as not recognized. The affected session has been ended.",
             'url' => route('admin.users.index'),
             'icon' => 'triangle-alert',
             'color' => 'danger',

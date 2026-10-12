@@ -29,7 +29,7 @@
                     <td class="text-success">₱{{ number_format($transaction->billing?->BillingAmount ?? 0, 2) }}</td>
                     <td>{{ strtoupper($transaction->billing?->payment?->PaymentMethod ?? 'N/A') }}</td>
                     <td><span class="badge badge-success">Completed</span></td>
-                    <td>{{ \Illuminate\Support\Carbon::parse($transaction->SalesTransactionDate)->format('M d, Y h:i A') }}</td>
+                    <td>{{ \Illuminate\Support\Carbon::parse($transaction->SalesTransactionDate)->format('m/d/Y h:i A') }}</td>
                 </tr>
             @empty
                 <tr>

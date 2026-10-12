@@ -749,7 +749,7 @@
 @section('header')
     <div class="greeting">{{ $greeting }}</div>
     <h1>Welcome Back, {{ auth()->user()->name ?? 'Administrator' }}!</h1>
-    <p><span id="dashboardCurrentDate">{{ now()->format('l, F j, Y') }}</span> &middot; <span id="dashboardCurrentTime">{{ now()->format('h:i A') }}</span></p>
+    <p><span id="dashboardCurrentDate">{{ now()->format('l, m/d/Y') }}</span> &middot; <span id="dashboardCurrentTime">{{ now()->format('h:i A') }}</span></p>
 @endsection
 
 @section('content')
@@ -1084,9 +1084,9 @@
             function tick() {
                 const now = new Date();
                 if (dateEl) {
-                    dateEl.textContent = now.toLocaleDateString('en-US', {
-                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-                    });
+                    // Weekday, MM/DD/YYYY (e.g. Monday, 10/12/2026).
+                    dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long' }) + ', '
+                        + now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
                 }
                 if (timeEl) {
                     timeEl.textContent = now.toLocaleTimeString('en-US', {

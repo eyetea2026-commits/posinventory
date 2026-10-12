@@ -51,7 +51,7 @@
                     @forelse($stockAdjustmentRows as $row)
                         <tr>
                             <td>{{ $row->AdjustmentID }}</td>
-                            <td>{{ $row->Date }}</td>
+                            <td>{{ \Illuminate\Support\Carbon::parse($row->Date)->format('m/d/Y') }}</td>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
                             <td>{{ $row->QuantityAdjust >= 0 ? '+' : '' }}{{ $row->QuantityAdjust }}</td>
                             <td>{{ $row->Reason }}</td>
@@ -118,7 +118,7 @@
                     @forelse($salesRows as $row)
                         <tr>
                             <td>{{ $row->BillingID }}</td>
-                            <td>{{ $row->BillingDate }}</td>
+                            <td>{{ \Illuminate\Support\Carbon::parse($row->BillingDate)->format('m/d/Y') }}</td>
                             <td class="text-success">₱{{ number_format($row->BillingAmount, 2) }}</td>
                             <td>{{ $row->CustomerName ?? 'Walk-in' }}</td>
                             <td>{{ $row->payment?->PaymentMethod ? ucfirst($row->payment->PaymentMethod) : 'N/A' }}</td>
@@ -152,7 +152,7 @@
                     @forelse($orderRows as $row)
                         <tr>
                             <td><code>{{ $row->PONumber }}</code></td>
-                            <td>{{ $row->PurchaseDate }}</td>
+                            <td>{{ \Illuminate\Support\Carbon::parse($row->PurchaseDate)->format('m/d/Y') }}</td>
                             <td><span class="badge badge-info">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$row->Status] ?? $row->Status }}</span></td>
                             <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
                             <td>
@@ -190,7 +190,7 @@
                             <td>{{ ucfirst(str_replace('_', ' ', $row->Reason)) }}</td>
                             <td>{{ $row->CashierName }}</td>
                             <td><span class="badge badge-info">{{ ucfirst($row->Status) }}</span></td>
-                            <td>{{ $row->ReturnDate }}</td>
+                            <td>{{ \Illuminate\Support\Carbon::parse($row->ReturnDate)->format('m/d/Y') }}</td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('returns', {{ $row->SalesReturnID }})">
                                     <i class="fas fa-eye"></i> View Details
@@ -221,7 +221,7 @@
                     @forelse($damageRows as $row)
                         <tr>
                             <td>{{ $row->DamageID }}</td>
-                            <td>{{ optional($row->DateRecorded)->format('Y-m-d') }}</td>
+                            <td>{{ optional($row->DateRecorded)->format('m/d/Y') }}</td>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
                             <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
                             <td>{{ $row->Quantity }}</td>

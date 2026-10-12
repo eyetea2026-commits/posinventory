@@ -19,8 +19,7 @@ class PurchaseOrderCancelled extends Notification
 
     public function __construct(
         public PurchaseOrder $purchaseOrder,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -33,8 +32,8 @@ class PurchaseOrderCancelled extends Notification
             ->subject("Purchase Order {$this->purchaseOrder->PONumber} Cancelled")
             ->line($this->badgeHtml('CANCELLED', '#dc2626'))
             ->line("Purchase order **{$this->purchaseOrder->PONumber}** has been cancelled.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Supplier:** ' . ($this->purchaseOrder->supplier?->SupplierName ?? 'Unknown supplier'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Supplier:** '.($this->purchaseOrder->supplier?->SupplierName ?? 'Unknown supplier'))
             ->action('View Purchase Order', route('admin.purchase-orders.index'));
     }
 

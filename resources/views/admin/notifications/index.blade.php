@@ -55,7 +55,7 @@
                             </td>
                             <td>{{ $notification->data['title'] ?? 'Notification' }}</td>
                             <td>{{ $notification->data['description'] ?? '' }}</td>
-                            <td>{{ $notification->created_at->format('M d, Y g:i A') }}</td>
+                            <td>{{ $notification->created_at->format('m/d/Y g:i A') }}</td>
                             <td>
                                 <div class="actions-group">
                                     <form method="POST" action="{{ route('admin.notifications.read', $notification->id) }}">

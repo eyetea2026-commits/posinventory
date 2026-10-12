@@ -18,8 +18,7 @@ class ReturnRequestDeclined extends Notification
 
     public function __construct(
         public SalesReturn $salesReturn,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -28,16 +27,16 @@ class ReturnRequestDeclined extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $requestNumber = 'RR-' . str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
+        $requestNumber = 'RR-'.str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
         $items = $this->salesReturn->items()->with('product')->get();
 
         $message = (new MailMessage)
             ->subject("Return Request {$requestNumber} Declined")
             ->line($this->badgeHtml('DECLINED', '#dc2626'))
             ->line("Your {$this->salesReturn->ReturnType} request **{$requestNumber}** has been declined.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Customer:** ' . ($this->salesReturn->CustomerName ?: 'Walk-in Customer'))
-            ->line('**Decline Reason:** ' . ($this->salesReturn->DeclineReason ?: 'Not specified'));
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'Walk-in Customer'))
+            ->line('**Decline Reason:** '.($this->salesReturn->DeclineReason ?: 'Not specified'));
 
         if ($items->isNotEmpty()) {
             $message->line($this->buildItemsTableHtml($items));
@@ -50,7 +49,7 @@ class ReturnRequestDeclined extends Notification
 
     public function toDatabase(object $notifiable): array
     {
-        $requestNumber = 'RR-' . str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
+        $requestNumber = 'RR-'.str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
 
         return [
             'title' => 'Return Request Declined',

@@ -14,7 +14,7 @@
 
             <div class="sec-details">
                 <div class="sec-row"><span>Admin</span><strong>{{ $event->user?->full_name ?? $event->user?->name }}</strong></div>
-                <div class="sec-row"><span>Date</span><strong>{{ $event->LoginAt->format('F j, Y') }}</strong></div>
+                <div class="sec-row"><span>Date</span><strong>{{ $event->LoginAt->format('m/d/Y') }}</strong></div>
                 <div class="sec-row"><span>Time</span><strong>{{ $event->LoginAt->format('g:i A') }}</strong></div>
                 <div class="sec-row"><span>IP Address</span><strong>{{ $event->IPAddress ?? 'Unavailable' }}</strong></div>
                 <div class="sec-row"><span>Device/Browser</span><strong>{{ $event->DeviceSummary ?? 'Unavailable' }}</strong></div>
@@ -24,7 +24,7 @@
                 <div class="sec-resolved">
                     This login was already marked
                     <strong>{{ $event->ConfirmationStatus === 'confirmed' ? 'Yes, This Was Me' : 'No, This Was Not Me' }}</strong>
-                    on {{ $event->ConfirmedAt?->format('F j, Y g:i A') }}. No further action is needed.
+                    on {{ $event->ConfirmedAt?->format('m/d/Y g:i A') }}. No further action is needed.
                 </div>
             @else
                 <div class="sec-actions">

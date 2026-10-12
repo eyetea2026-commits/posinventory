@@ -253,8 +253,8 @@ class DashboardChartsTest extends TestCase
         $this->assertSame([3, 700.0], [$monthly['invoiceCount'], $monthly['revenueTotal']]);
         $this->assertSame([4, 1500.0], [$yearly['invoiceCount'], $yearly['revenueTotal']]);
 
-        $this->assertSame('Today · Oct 14, 2026', $daily['periodLabel']);
-        $this->assertSame('This Week · Oct 12 – Oct 14, 2026', $weekly['periodLabel']);
+        $this->assertSame('Today · 10/14/2026', $daily['periodLabel']);
+        $this->assertSame('This Week · 10/12/2026 – 10/14/2026', $weekly['periodLabel']);
         $this->assertSame('This Month · October 2026', $monthly['periodLabel']);
         $this->assertSame('This Year · 2026', $yearly['periodLabel']);
 
@@ -282,8 +282,8 @@ class DashboardChartsTest extends TestCase
     {
         $data = $this->baseViewData([
             'salesTrend' => array_map(fn ($stats) => array_merge(['labels' => [], 'data' => [], 'compareLabels' => [], 'compareData' => []], $stats), [
-                'daily' => ['invoiceCount' => 1, 'revenueTotal' => 100, 'changePct' => null, 'periodLabel' => 'Today · Oct 14, 2026', 'compareLabel' => 'vs yesterday'],
-                'weekly' => ['invoiceCount' => 2, 'revenueTotal' => 300, 'changePct' => null, 'periodLabel' => 'This Week · Oct 12 – Oct 14, 2026', 'compareLabel' => 'vs last week'],
+                'daily' => ['invoiceCount' => 1, 'revenueTotal' => 100, 'changePct' => null, 'periodLabel' => 'Today · 10/14/2026', 'compareLabel' => 'vs yesterday'],
+                'weekly' => ['invoiceCount' => 2, 'revenueTotal' => 300, 'changePct' => null, 'periodLabel' => 'This Week · 10/12/2026 – 10/14/2026', 'compareLabel' => 'vs last week'],
                 'monthly' => ['invoiceCount' => 3, 'revenueTotal' => 700, 'changePct' => null, 'periodLabel' => 'This Month · October 2026', 'compareLabel' => 'vs last month'],
                 'yearly' => ['invoiceCount' => 4, 'revenueTotal' => 1500, 'changePct' => null, 'periodLabel' => 'This Year · 2026', 'compareLabel' => 'vs last year'],
             ]),
@@ -292,7 +292,7 @@ class DashboardChartsTest extends TestCase
         $this->actingAs($this->admin);
         $html = view('admin.dashboard', $data)->render();
 
-        $this->assertStringContainsString('id="salesTrendPeriod">Today · Oct 14, 2026<', $html);
+        $this->assertStringContainsString('id="salesTrendPeriod">Today · 10/14/2026<', $html);
         $this->assertStringContainsString('periodEl.textContent = range.periodLabel', $html);
     }
 

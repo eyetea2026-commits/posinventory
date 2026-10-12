@@ -20,8 +20,8 @@
                     <td><code>{{ $discount->PromoCode ?? '—' }}</code></td>
                     <td>{{ $discount->DiscountType === 'fixed' ? '₱' . number_format($discount->DiscountRate, 2) : number_format($discount->DiscountRate, 2) . '%' }}</td>
                     <td>{{ $discount->products->isEmpty() ? '—' : $discount->products->pluck('ProductName')->implode(', ') }}</td>
-                    <td>{{ $discount->StartDate?->format('M d, Y') ?? '—' }}</td>
-                    <td>{{ $discount->EndDate?->format('M d, Y') ?? '—' }}</td>
+                    <td>{{ $discount->StartDate?->format('m/d/Y') ?? '—' }}</td>
+                    <td>{{ $discount->EndDate?->format('m/d/Y') ?? '—' }}</td>
                     <td><span class="badge badge-secondary">Expired</span></td>
                 </tr>
             @empty

@@ -70,7 +70,7 @@ class LoginSecurityController extends Controller
 
             ActivityLog::record(
                 'security.login_confirmed',
-                "\"{$loginSecurityEvent->user?->name}\" confirmed a login from {$loginSecurityEvent->LoginAt->format('F j, Y g:i A')} ({$loginSecurityEvent->IPAddress}) as recognized.",
+                "\"{$loginSecurityEvent->user?->name}\" confirmed a login from {$loginSecurityEvent->LoginAt->format('m/d/Y g:i A')} ({$loginSecurityEvent->IPAddress}) as recognized.",
                 $loginSecurityEvent->UserID
             );
         }
@@ -94,7 +94,7 @@ class LoginSecurityController extends Controller
 
             ActivityLog::record(
                 'security.login_not_recognized',
-                "\"{$loginSecurityEvent->user?->name}\" reported a login from {$loginSecurityEvent->LoginAt->format('F j, Y g:i A')} ({$loginSecurityEvent->IPAddress}) as NOT recognized.",
+                "\"{$loginSecurityEvent->user?->name}\" reported a login from {$loginSecurityEvent->LoginAt->format('m/d/Y g:i A')} ({$loginSecurityEvent->IPAddress}) as NOT recognized.",
                 $loginSecurityEvent->UserID
             );
 

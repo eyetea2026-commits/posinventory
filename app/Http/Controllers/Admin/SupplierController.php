@@ -202,12 +202,18 @@ class SupplierController extends Controller
 
         $auditHistory = ActivityLog::where('Description', 'like', "%{$purchaseOrder->PONumber}%")
             ->orderByDesc('DateRecorded')
-            ->get(['Action', 'Description', 'DateRecorded']);
+            ->get(['Action', 'Description', 'DateRecorded'])
+            // Shown as-is in the details modal, so send a readable MM/DD/YYYY time.
+            ->map(fn (ActivityLog $log) => [
+                'Action' => $log->Action,
+                'Description' => $log->Description,
+                'DateRecorded' => $log->DateRecorded?->format('m/d/Y h:i A'),
+            ]);
 
         return response()->json([
             'purchaseOrder' => [
                 'PONumber' => $purchaseOrder->PONumber,
-                'PurchaseDate' => Carbon::parse($purchaseOrder->PurchaseDate)->format('Y-m-d'),
+                'PurchaseDate' => Carbon::parse($purchaseOrder->PurchaseDate)->format('m/d/Y'),
                 'Status' => PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? $purchaseOrder->Status,
                 'CreatedBy' => $purchaseOrder->createdByUser?->full_name ?? 'N/A',
                 'Notes' => $purchaseOrder->Notes,
@@ -224,8 +230,8 @@ class SupplierController extends Controller
                 'TotalPurchaseAmount' => $items->sum('Subtotal'),
             ],
             'delivery' => [
-                'ExpectedDeliveryDate' => $purchaseOrder->ExpectedDeliveryDate ? Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('Y-m-d') : null,
-                'ReceivedDate' => $lastReceipt ? Carbon::parse($lastReceipt)->format('Y-m-d') : null,
+                'ExpectedDeliveryDate' => $purchaseOrder->ExpectedDeliveryDate ? Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : null,
+                'ReceivedDate' => $lastReceipt ? Carbon::parse($lastReceipt)->format('m/d/Y') : null,
                 'DeliveryStatus' => $this->resolveDeliveryStatus($purchaseOrder, $lastReceipt),
             ],
             'auditHistory' => $auditHistory,

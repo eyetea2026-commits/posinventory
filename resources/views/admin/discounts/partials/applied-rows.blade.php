@@ -27,8 +27,8 @@
         <td>{{ $discount->products_count }}</td>
         <td>{{ $discount->DiscountType === 'fixed' ? 'Fixed Amount' : 'Percentage' }}</td>
         <td class="rate-cell">{{ $discount->DiscountType === 'fixed' ? '₱' . number_format($discount->DiscountRate, 2) : number_format($discount->DiscountRate, 2) . '%' }}</td>
-        <td>{{ $discount->StartDate?->format('M d, Y') ?? '—' }}</td>
-        <td>{{ $discount->EndDate?->format('M d, Y') ?? '—' }}</td>
+        <td>{{ $discount->StartDate?->format('m/d/Y') ?? '—' }}</td>
+        <td>{{ $discount->EndDate?->format('m/d/Y') ?? '—' }}</td>
         <td><span class="badge badge-dot {{ $statusClass }}">{{ $statusLabel }}</span></td>
         <td>
             <div class="actions-group">

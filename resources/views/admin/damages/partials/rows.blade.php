@@ -3,7 +3,7 @@
 @forelse($damagedProducts as $damage)
     <tr>
         <td>{{ $damage->DamageID }}</td>
-        <td>{{ \Carbon\Carbon::parse($damage->DateRecorded)->format('M d, Y') }}</td>
+        <td>{{ \Carbon\Carbon::parse($damage->DateRecorded)->format('m/d/Y') }}</td>
         <td>
             <strong>{{ $damage->product->ProductName ?? 'N/A' }}</strong>
             @if($damage->SalesReturnID)

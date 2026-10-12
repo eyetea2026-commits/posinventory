@@ -15,8 +15,7 @@ class UserAccountCreated extends Notification
 
     public function __construct(
         public User $account,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -29,7 +28,7 @@ class UserAccountCreated extends Notification
             ->subject("New User Account Created: {$this->account->name}")
             ->line($this->badgeHtml('ACCOUNT CREATED', '#3b82f6'))
             ->line("A new **{$this->account->role?->role_name}** account was created for **\"{$this->account->name}\"**.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Users', route('admin.users.index'));
     }
 

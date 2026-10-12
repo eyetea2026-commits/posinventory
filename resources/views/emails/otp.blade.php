@@ -11,7 +11,7 @@ Use the code below to continue resetting your password. This code expires in **{
 </tr>
 </table>
 
-**Date & Time:** {{ now()->format('F j, Y g:i A') }}
+**Date & Time:** {{ now()->format('m/d/Y g:i A') }}
 
 If you did not request this code, you can safely ignore this email — your password will not change unless this code is entered.
 </x-mail::message>

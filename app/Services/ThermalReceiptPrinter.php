@@ -81,7 +81,7 @@ class ThermalReceiptPrinter
             $printer->text("CCTV EXPRESS\n");
             $printer->setEmphasis(false);
             $printer->text("Printer test OK\n");
-            $printer->text(now()->format('M d, Y h:i A')."\n");
+            $printer->text(now()->format('m/d/Y h:i A')."\n");
             $printer->text(str_repeat('-', $this->width)."\n");
             $printer->setJustification(Printer::JUSTIFY_LEFT);
             $printer->text($this->row('Left', 'Right')."\n");
@@ -172,7 +172,7 @@ class ThermalReceiptPrinter
             $printer->text($this->row('Bank:', $this->ascii((string) $r['bankName']))."\n");
         }
         if (! empty($r['paymentDate'])) {
-            $printer->text($this->row($method === 'cheque' ? 'Cheque Date:' : 'Transfer Date:', Carbon::parse($r['paymentDate'])->format('M d, Y'))."\n");
+            $printer->text($this->row($method === 'cheque' ? 'Cheque Date:' : 'Transfer Date:', Carbon::parse($r['paymentDate'])->format('m/d/Y'))."\n");
         }
         if ((float) ($r['paymentAmount'] ?? 0) > 0) {
             $printer->text($this->row('Amount Received:', $this->money((float) $r['paymentAmount']))."\n");

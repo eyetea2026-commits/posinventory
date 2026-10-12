@@ -15,8 +15,7 @@ class SaleCompleted extends Notification
 
     public function __construct(
         public SalesTransaction $transaction,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -33,10 +32,10 @@ class SaleCompleted extends Notification
             ->subject("Sale Completed — ₱{$total}")
             ->line($this->badgeHtml('SALE COMPLETED', '#16a34a'))
             ->line("A sale was completed for **₱{$total}**.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Customer:** ' . ($this->transaction->CustomerName ?: 'Walk-in Customer'))
-            ->line('**Cashier:** ' . $cashierName)
-            ->line('**Items:** ' . $this->transaction->items()->count())
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Customer:** '.($this->transaction->CustomerName ?: 'Walk-in Customer'))
+            ->line('**Cashier:** '.$cashierName)
+            ->line('**Items:** '.$this->transaction->items()->count())
             ->action('View Transaction', route('admin.reports.index'));
     }
 

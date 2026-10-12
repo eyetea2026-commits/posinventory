@@ -119,11 +119,11 @@
         </div>
         <div class="detail-item">
             <label>Start Date</label>
-            <span>{{ $discount->StartDate?->format('F j, Y') ?? 'N/A' }}</span>
+            <span>{{ $discount->StartDate?->format('m/d/Y') ?? 'N/A' }}</span>
         </div>
         <div class="detail-item">
             <label>End Date</label>
-            <span>{{ $discount->EndDate?->format('F j, Y') ?? 'N/A' }}</span>
+            <span>{{ $discount->EndDate?->format('m/d/Y') ?? 'N/A' }}</span>
         </div>
         <div class="detail-item">
             <label>Remaining Days</label>
@@ -144,11 +144,11 @@
         </div>
         <div class="detail-item">
             <label>Created Date</label>
-            <span>{{ $discount->created_at?->format('F j, Y g:i A') ?? 'N/A' }}</span>
+            <span>{{ $discount->created_at?->format('m/d/Y g:i A') ?? 'N/A' }}</span>
         </div>
         <div class="detail-item">
             <label>Last Updated</label>
-            <span>{{ $discount->updated_at?->format('F j, Y g:i A') ?? 'N/A' }}</span>
+            <span>{{ $discount->updated_at?->format('m/d/Y g:i A') ?? 'N/A' }}</span>
         </div>
     </div>
 </div>

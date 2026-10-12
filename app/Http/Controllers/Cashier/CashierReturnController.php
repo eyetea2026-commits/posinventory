@@ -133,7 +133,7 @@ class CashierReturnController extends Controller
                     'SalesTransactionID' => $t->SalesTransactionID,
                     'ReceiptNumber' => 'RCT-'.str_pad($t->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'CustomerName' => $t->CustomerName,
-                    'TransactionDate' => optional($t->SalesTransactionDate)->format('Y-m-d H:i'),
+                    'TransactionDate' => optional($t->SalesTransactionDate)->format('m/d/Y h:i A'),
                 ];
             })]);
         }
@@ -168,7 +168,7 @@ class CashierReturnController extends Controller
                 'SalesTransactionID' => $t->SalesTransactionID,
                 'ReceiptNumber' => 'RCT-'.str_pad($t->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                 'CustomerName' => $t->CustomerName,
-                'TransactionDate' => optional($t->SalesTransactionDate)->format('Y-m-d H:i'),
+                'TransactionDate' => optional($t->SalesTransactionDate)->format('m/d/Y h:i A'),
             ];
         })]);
     }
@@ -218,7 +218,7 @@ class CashierReturnController extends Controller
             'OriginalTransactionID' => $transaction->SalesTransactionID,
             'ReceiptNumber' => $receiptNumber,
             'InvoiceNumber' => $receiptNumber,
-            'TransactionDate' => optional($transaction->SalesTransactionDate)->format('Y-m-d H:i'),
+            'TransactionDate' => optional($transaction->SalesTransactionDate)->format('m/d/Y h:i A'),
             'CustomerName' => $transaction->CustomerName,
             'PaymentMethod' => $transaction->billing?->payment?->PaymentMethod,
             'OriginalCashier' => $transaction->staff?->user?->full_name,

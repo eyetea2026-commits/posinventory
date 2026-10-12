@@ -191,8 +191,8 @@ class DiscountController extends Controller
                     'valueLabel' => $d->DiscountType === Discount::TYPE_FIXED
                         ? '₱'.number_format($d->DiscountRate, 2)
                         : number_format($d->DiscountRate, 2).'%',
-                    'start' => $d->StartDate?->format('M d, Y') ?? '—',
-                    'end' => $d->EndDate?->format('M d, Y') ?? '—',
+                    'start' => $d->StartDate?->format('m/d/Y') ?? '—',
+                    'end' => $d->EndDate?->format('m/d/Y') ?? '—',
                     // Discount::STATUS_LABELS is the single source of truth
                     // for this wording — every list/popup that shows a
                     // promo's status goes through effective_status_label so

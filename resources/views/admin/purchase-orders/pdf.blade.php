@@ -16,8 +16,8 @@
 <body>
     <h1>Purchase Order {{ $purchaseOrder->PONumber }}</h1>
     <p class="meta">Supplier: {{ $purchaseOrder->supplier?->SupplierName ?? 'N/A' }}</p>
-    <p class="meta">Order Date: {{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('Y-m-d') }}</p>
-    <p class="meta">Expected Delivery: {{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('Y-m-d') : 'N/A' }}</p>
+    <p class="meta">Order Date: {{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('m/d/Y') }}</p>
+    <p class="meta">Expected Delivery: {{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : 'N/A' }}</p>
     <p class="meta">Status: {{ \App\Models\PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? $purchaseOrder->Status }}</p>
     @if($purchaseOrder->Notes)
         <p class="meta">Notes: {{ $purchaseOrder->Notes }}</p>

@@ -15,8 +15,7 @@ class UserAccountDeactivated extends Notification
 
     public function __construct(
         public User $account,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -29,7 +28,7 @@ class UserAccountDeactivated extends Notification
             ->subject("User Account Deactivated: {$this->account->name}")
             ->line($this->badgeHtml('DEACTIVATED', '#dc2626'))
             ->line("The account **\"{$this->account->name}\"** has been deactivated and can no longer log in.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Users', route('admin.users.index'));
     }
 

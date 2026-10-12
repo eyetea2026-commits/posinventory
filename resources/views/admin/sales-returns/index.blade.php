@@ -90,7 +90,7 @@
                     @forelse($returns as $return)
                         <tr>
                             <td>#{{ $return->SalesReturnID }}</td>
-                            <td>{{ \Illuminate\Support\Carbon::parse($return->ReturnDate)->format('M d, Y') }}</td>
+                            <td>{{ \Illuminate\Support\Carbon::parse($return->ReturnDate)->format('m/d/Y') }}</td>
                             <td>{{ $return->staff?->user?->full_name ?? 'N/A' }}</td>
                             <td>{{ $return->transaction ? 'RCT-' . str_pad($return->SalesTransactionID, 6, '0', STR_PAD_LEFT) : 'N/A' }}</td>
                             <td>{{ $return->CustomerName ?? $return->transaction?->CustomerName ?? 'N/A' }}</td>

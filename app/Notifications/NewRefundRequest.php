@@ -16,8 +16,7 @@ class NewRefundRequest extends Notification
 
     public function __construct(
         public SalesReturn $salesReturn,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -26,7 +25,7 @@ class NewRefundRequest extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $requestNumber = 'RR-' . str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
+        $requestNumber = 'RR-'.str_pad($this->salesReturn->SalesReturnID, 5, '0', STR_PAD_LEFT);
         $items = $this->salesReturn->relationLoaded('items')
             ? $this->salesReturn->items
             : $this->salesReturn->items()->with('product')->get();
@@ -35,8 +34,8 @@ class NewRefundRequest extends Notification
             ->subject("New {$this->salesReturn->ReturnType} Request {$requestNumber}")
             ->line($this->badgeHtml('PENDING REVIEW', '#d97706'))
             ->line("A new **{$this->salesReturn->ReturnType}** request **{$requestNumber}** was submitted.")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
-            ->line('**Customer:** ' . ($this->salesReturn->CustomerName ?: 'Walk-in Customer'));
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
+            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'Walk-in Customer'));
 
         if ($items->isNotEmpty()) {
             $message->line($this->buildItemsTableHtml($items));

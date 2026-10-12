@@ -17,7 +17,7 @@
             <span class="badge badge-primary">{{ $order->PONumber }}</span>
         </td>
         <td><strong>{{ $order->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
-        <td>{{ \Illuminate\Support\Carbon::parse($order->PurchaseDate)->format('M d, Y') }}</td>
+        <td>{{ \Illuminate\Support\Carbon::parse($order->PurchaseDate)->format('m/d/Y') }}</td>
         <td>{{ $order->items->count() }} items</td>
         <td>
             @php

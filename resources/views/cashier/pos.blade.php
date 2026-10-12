@@ -174,7 +174,7 @@
     </div>
     <div class="pos-datetime">
         <i class="fas fa-clock"></i>
-        <span id="posCurrentDate">{{ now()->format('l, F j, Y') }}</span>
+        <span id="posCurrentDate">{{ now()->format('l, m/d/Y') }}</span>
         &middot;
         <span id="posCurrentTime">{{ now()->format('h:i A') }}</span>
     </div>
@@ -432,9 +432,9 @@
         function tick() {
             const now = new Date();
             if (dateEl) {
-                dateEl.textContent = now.toLocaleDateString('en-US', {
-                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-                });
+                // Weekday, MM/DD/YYYY (e.g. Monday, 10/12/2026).
+                dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long' }) + ', '
+                    + now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
             }
             if (timeEl) {
                 timeEl.textContent = now.toLocaleTimeString('en-US', {

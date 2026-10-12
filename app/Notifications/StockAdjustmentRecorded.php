@@ -18,8 +18,7 @@ class StockAdjustmentRecorded extends Notification
         public int $quantityAdjust,
         public int $newQuantity,
         public string $reason,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -36,7 +35,7 @@ class StockAdjustmentRecorded extends Notification
             ->line($this->badgeHtml($isIncrease ? 'STOCK INCREASED' : 'STOCK DECREASED', $isIncrease ? '#16a34a' : '#d97706'))
             ->line("**\"{$this->product->ProductName}\"** was adjusted by **{$sign}{$this->quantityAdjust}** (new total: **{$this->newQuantity}**).")
             ->line("**Reason:** {$this->reason}")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Stock Adjustments', route('admin.stock-adjustments.index'));
     }
 

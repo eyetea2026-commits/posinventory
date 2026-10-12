@@ -97,7 +97,13 @@ class DamageController extends Controller
             ->orWhere('Description', 'like', "%damage #{$damage->DamageID}%")
             ->orWhere('Description', 'like', "%damage record #{$damage->DamageID}%")
             ->orderByDesc('DateRecorded')
-            ->get(['Action', 'Description', 'DateRecorded']);
+            ->get(['Action', 'Description', 'DateRecorded'])
+            // Shown as-is in the details modal, so send a readable MM/DD/YYYY time.
+            ->map(fn (ActivityLog $log) => [
+                'Action' => $log->Action,
+                'Description' => $log->Description,
+                'DateRecorded' => $log->DateRecorded?->format('m/d/Y h:i A'),
+            ]);
 
         // Who actually submitted the return request this damage originated
         // from — resolved via SalesReturn.StaffID -> Staff -> User rather
@@ -112,7 +118,7 @@ class DamageController extends Controller
                 'Name' => $user?->full_name ?? 'Unknown User',
                 'EmployeeID' => $staff ? ('EMP-'.str_pad((string) $staff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
                 'Role' => $user?->role?->role_name ? ucfirst($user->role->role_name) : 'Unknown',
-                'RequestDate' => optional($damage->salesReturn->created_at)->format('F j, Y g:i A'),
+                'RequestDate' => optional($damage->salesReturn->created_at)->format('m/d/Y g:i A'),
             ];
         } else {
             // Manually recorded damage (no originating return) has no
@@ -129,7 +135,7 @@ class DamageController extends Controller
                 'Name' => $created?->user?->full_name ?? 'Unknown User',
                 'EmployeeID' => 'N/A',
                 'Role' => $created?->user?->role?->role_name ? ucfirst($created->user->role->role_name) : 'Admin',
-                'RequestDate' => $created ? $created->DateRecorded->format('F j, Y g:i A') : optional($damage->DateRecorded)->format('F j, Y'),
+                'RequestDate' => $created ? $created->DateRecorded->format('m/d/Y g:i A') : optional($damage->DateRecorded)->format('m/d/Y'),
             ];
         }
 
@@ -163,9 +169,9 @@ class DamageController extends Controller
                 'WarehouseLocation' => $damage->WarehouseLocation,
                 'Remarks' => $damage->Remarks,
                 'ImageUrl' => $damage->ImagePath ? Storage::url($damage->ImagePath) : null,
-                'DateRecorded' => optional($damage->DateRecorded)->format('Y-m-d'),
+                'DateRecorded' => optional($damage->DateRecorded)->format('m/d/Y'),
                 'ResolvedBy' => $damage->resolvedByUser?->full_name,
-                'ResolvedDate' => optional($damage->ResolvedDate)->format('Y-m-d'),
+                'ResolvedDate' => optional($damage->ResolvedDate)->format('m/d/Y'),
             ],
             'product' => [
                 'ProductName' => $damage->product?->ProductName,

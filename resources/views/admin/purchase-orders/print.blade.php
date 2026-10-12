@@ -55,8 +55,8 @@
     <div class="section-heading">Purchase Order Information</div>
     <div class="info-grid">
         <div class="info-col">
-            <p><strong>Date Created:</strong> {{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('F j, Y') }}</p>
-            <p><strong>Expected Delivery:</strong> {{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('F j, Y') : 'Not set' }}</p>
+            <p><strong>Date Created:</strong> {{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('m/d/Y') }}</p>
+            <p><strong>Expected Delivery:</strong> {{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</p>
         </div>
     </div>
 

@@ -102,7 +102,7 @@ class SalesReturnController extends Controller
             'Name' => $requestUser?->full_name ?? 'Unknown User',
             'EmployeeID' => $requestStaff ? ('EMP-'.str_pad((string) $requestStaff->StaffID, 4, '0', STR_PAD_LEFT)) : 'N/A',
             'Role' => $requestUser?->role?->role_name ? ucfirst($requestUser->role->role_name) : 'Unknown',
-            'RequestDate' => optional($salesReturn->created_at)->format('F j, Y g:i A'),
+            'RequestDate' => optional($salesReturn->created_at)->format('m/d/Y g:i A'),
         ];
 
         $transaction = $salesReturn->transaction;
@@ -139,7 +139,7 @@ class SalesReturnController extends Controller
                 'SalesTransactionID' => $transaction?->SalesTransactionID,
                 'ReceiptNumber' => $receiptNumber,
                 'InvoiceNumber' => $receiptNumber,
-                'TransactionDate' => optional($transaction?->SalesTransactionDate)->format('Y-m-d H:i'),
+                'TransactionDate' => optional($transaction?->SalesTransactionDate)->format('m/d/Y h:i A'),
                 'CustomerName' => $salesReturn->CustomerName ?? $transaction?->CustomerName,
                 'OriginalCashier' => $transaction?->staff?->user?->full_name,
                 'PaymentMethod' => $transaction?->billing?->payment?->PaymentMethod,
@@ -151,7 +151,7 @@ class SalesReturnController extends Controller
                 'ReturnType' => $salesReturn->ReturnType,
                 'Remarks' => $salesReturn->Remarks,
                 'TotalRefundAmount' => $totalRefundAmount,
-                'ReturnDate' => $salesReturn->ReturnDate ? Carbon::parse($salesReturn->ReturnDate)->format('Y-m-d') : null,
+                'ReturnDate' => $salesReturn->ReturnDate ? Carbon::parse($salesReturn->ReturnDate)->format('m/d/Y') : null,
                 'Status' => $salesReturn->Status,
                 'DeclineReason' => $salesReturn->DeclineReason,
                 'ApprovedBy' => $salesReturn->approvedByUser?->full_name,

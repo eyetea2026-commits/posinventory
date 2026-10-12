@@ -11,7 +11,7 @@
 <div class="section-title" style="margin-top:0;">Order Information</div>
 <div class="detail-row">
     <span class="detail-label">Order Date</span>
-    <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('M d, Y') }}</span>
+    <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('m/d/Y') }}</span>
 </div>
 <div class="detail-row">
     <span class="detail-label">Supplier</span>
@@ -19,7 +19,7 @@
 </div>
 <div class="detail-row">
     <span class="detail-label">Expected Delivery</span>
-    <span class="detail-value">{{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('M d, Y') : 'Not set' }}</span>
+    <span class="detail-value">{{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</span>
 </div>
 @if($showStatus)
     <div class="detail-row">

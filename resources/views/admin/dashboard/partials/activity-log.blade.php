@@ -22,7 +22,7 @@
                     $roleName = $log->user?->role?->role_name;
                 @endphp
                 <tr>
-                    <td style="white-space: nowrap;">{{ $log->DateRecorded?->format('M d, Y h:i A') ?? 'N/A' }}</td>
+                    <td style="white-space: nowrap;">{{ $log->DateRecorded?->format('m/d/Y h:i A') ?? 'N/A' }}</td>
                     <td>{{ $log->user?->full_name ?? 'System / Unknown' }}</td>
                     <td>
                         @if($roleName === 'admin')

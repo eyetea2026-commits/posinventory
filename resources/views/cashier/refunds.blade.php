@@ -149,7 +149,7 @@
             @forelse($refunds as $refund)
                 <tr data-refund-row>
                     <td>#{{ str_pad($refund->SalesReturnID, 6, '0', STR_PAD_LEFT) }}</td>
-                    <td>{{ \Carbon\Carbon::parse($refund->ReturnDate)->format('M d, Y') }}</td>
+                    <td>{{ \Carbon\Carbon::parse($refund->ReturnDate)->format('m/d/Y') }}</td>
                     <td>#{{ str_pad($refund->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
                     <td>{{ $refund->CustomerName ?? 'N/A' }}</td>
                     <td><span class="type-badge">{{ ucfirst($refund->ReturnType) }}</span></td>

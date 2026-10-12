@@ -818,8 +818,12 @@
 
             const user = data.user;
             const fullName = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(' ') || 'N/A';
-            const createdAt = new Date(user.created_at).toLocaleString('en-PH');
-            const updatedAt = new Date(user.updated_at).toLocaleString('en-PH');
+            // MM/DD/YYYY hh:mm AM/PM, matching the date format used across the system.
+            const mdyDateTime = (value) => new Date(value).toLocaleString('en-US', {
+                month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            }).replace(',', '');
+            const createdAt = mdyDateTime(user.created_at);
+            const updatedAt = mdyDateTime(user.updated_at);
 
             updateBtn.dataset.userId = userId;
             updateBtn.dataset.isAdmin = user.role_name === 'admin' ? '1' : '0';

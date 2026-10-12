@@ -18,7 +18,7 @@
     <button class="print-btn no-print" onclick="window.print()">Print</button>
 
     <h1>Damage Report #{{ $damage->DamageID }}</h1>
-    <p class="meta">Date Recorded: {{ optional($damage->DateRecorded)->format('Y-m-d') }}</p>
+    <p class="meta">Date Recorded: {{ optional($damage->DateRecorded)->format('m/d/Y') }}</p>
     <p class="meta">Status: {{ \App\Models\DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status }}</p>
 
     <div class="section">

@@ -17,8 +17,7 @@ class LowStockAlert extends Notification
         public Product $product,
         public int $quantity,
         public string $status,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -33,7 +32,7 @@ class LowStockAlert extends Notification
             ->subject("{$this->status}: {$this->product->ProductName}")
             ->line($this->badgeHtml(strtoupper($this->status), $isOutOfStock ? '#dc2626' : '#d97706'))
             ->line("**\"{$this->product->ProductName}\"** is now at **{$this->quantity} unit(s)** in stock ({$this->status}).")
-            ->line('**Date & Time:** ' . now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->line('**Action Required:** consider reordering soon to avoid stockouts.')
             ->action('View Inventory', route('admin.inventory.index'));
     }

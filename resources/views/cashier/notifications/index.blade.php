@@ -71,7 +71,7 @@
                     </td>
                     <td>{{ $notification->data['title'] ?? 'Notification' }}</td>
                     <td>{{ $notification->data['description'] ?? '' }}</td>
-                    <td>{{ $notification->created_at->format('M d, Y g:i A') }}</td>
+                    <td>{{ $notification->created_at->format('m/d/Y g:i A') }}</td>
                     <td>
                         <form method="POST" action="{{ route('cashier.notifications.read', $notification->id) }}">
                             @csrf

@@ -49,8 +49,8 @@
         <div style="background:#1e293b; border:1px solid #334155; border-radius:16px; padding:16px;">
             <h3 style="margin:0 0 12px; color:#e2e8f0;">System Information</h3>
             <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;">
-                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Date Created</label><span style="color:#f8fafc;">{{ $user->created_at->format('F j, Y h:i A') }}</span></div>
-                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Last Updated</label><span style="color:#f8fafc;">{{ $user->updated_at->format('F j, Y h:i A') }}</span></div>
+                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Date Created</label><span style="color:#f8fafc;">{{ $user->created_at->format('m/d/Y h:i A') }}</span></div>
+                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Last Updated</label><span style="color:#f8fafc;">{{ $user->updated_at->format('m/d/Y h:i A') }}</span></div>
             </div>
         </div>
     </div>

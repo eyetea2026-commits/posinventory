@@ -39,7 +39,7 @@ class DeliveryReceived extends Notification
             ->subject("Delivery Received: PO #{$this->purchaseOrder->PONumber}")
             ->line($this->badgeHtml('DELIVERY RECEIVED', '#16a34a'))
             ->line($this->summary())
-            ->line('**Date & Time:** '.now()->format('F j, Y g:i A'))
+            ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Stock Receiving', route('admin.stock-receivings.index'));
     }
 

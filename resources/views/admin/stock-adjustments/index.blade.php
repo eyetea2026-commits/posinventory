@@ -56,7 +56,7 @@
                 <tbody id="adjustmentsTbody">
                     @forelse($adjustments as $adjustment)
                         <tr>
-                            <td>{{ \Illuminate\Support\Carbon::parse($adjustment->Date)->format('M d, Y') }}</td>
+                            <td>{{ \Illuminate\Support\Carbon::parse($adjustment->Date)->format('m/d/Y') }}</td>
                             <td><strong>{{ $adjustment->product?->ProductName ?? 'Unknown' }}</strong></td>
                             <td>
                                 @if($adjustment->QuantityAdjust > 0)

@@ -2,7 +2,7 @@
     @php $po = $row->purchaseOrder; @endphp
     <tr>
         <td><code>{{ $po->PONumber }}</code></td>
-        <td>{{ \Illuminate\Support\Carbon::parse($po->PurchaseDate)->format('M d, Y') }}</td>
+        <td>{{ \Illuminate\Support\Carbon::parse($po->PurchaseDate)->format('m/d/Y') }}</td>
         <td>{{ $supplier->SupplierName }}</td>
         <td>{{ $row->productsOrderedCount }}</td>
         <td>{{ $row->totalQuantityOrdered }}</td>
@@ -31,7 +31,7 @@
             @endphp
             <span class="badge {{ $deliveryClass }}">{{ $row->deliveryStatus }}</span>
         </td>
-        <td>{{ $row->receivedDate ? \Illuminate\Support\Carbon::parse($row->receivedDate)->format('M d, Y') : '—' }}</td>
+        <td>{{ $row->receivedDate ? \Illuminate\Support\Carbon::parse($row->receivedDate)->format('m/d/Y') : '—' }}</td>
         <td>
             <button type="button" class="action-btn view" title="View Details" onclick="viewSupplierHistoryDetails({{ $supplier->SupplierID }}, {{ $po->PurchaseOrderID }})">
                 <i class="fas fa-eye"></i>

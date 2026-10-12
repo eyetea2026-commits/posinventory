@@ -20,16 +20,16 @@
 </div>
 <div class="detail-row">
     <span class="detail-label">Order Date</span>
-    <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($po->PurchaseDate)->format('M d, Y') }}</span>
+    <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($po->PurchaseDate)->format('m/d/Y') }}</span>
 </div>
 <div class="detail-row">
     <span class="detail-label">Expected Delivery</span>
-    <span class="detail-value">{{ $po->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($po->ExpectedDeliveryDate)->format('M d, Y') : 'Not set' }}</span>
+    <span class="detail-value">{{ $po->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($po->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</span>
 </div>
 @if(!$isPending)
     <div class="detail-row">
         <span class="detail-label">Completed</span>
-        <span class="detail-value">{{ $batch->CompletedAt?->format('M d, Y g:i A') ?? 'N/A' }}</span>
+        <span class="detail-value">{{ $batch->CompletedAt?->format('m/d/Y g:i A') ?? 'N/A' }}</span>
     </div>
 @endif
 

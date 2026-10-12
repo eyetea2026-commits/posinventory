@@ -27,7 +27,7 @@
                     <td><code>{{ $billing->PromoCode ?? '—' }}</code></td>
                     <td>{{ $discount && $discount->products->isNotEmpty() ? $discount->products->pluck('ProductName')->implode(', ') : '—' }}</td>
                     <td>₱{{ number_format($billing->DiscountAmount, 2) }}</td>
-                    <td>{{ \Illuminate\Support\Carbon::parse($billing->BillingDate)->format('M d, Y') }}</td>
+                    <td>{{ \Illuminate\Support\Carbon::parse($billing->BillingDate)->format('m/d/Y') }}</td>
                     <td>RCT-{{ str_pad($billing->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
                     <td><span class="badge badge-success">Used</span></td>
                 </tr>

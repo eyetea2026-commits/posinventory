@@ -43,7 +43,7 @@
             <h1>CCTV Express</h1>
             <p>Replacement Slip</p>
             <p>Slip #: {{ $replacement->SlipNumber }}</p>
-            <p>{{ \Carbon\Carbon::parse($replacement->ReplacementDate)->format('M d, Y') }}</p>
+            <p>{{ \Carbon\Carbon::parse($replacement->ReplacementDate)->format('m/d/Y') }}</p>
         </div>
 
         <div class="section">

@@ -21,9 +21,7 @@ class AdminLoginSecurityAlert extends Notification
 {
     use FormatsMailBadge;
 
-    public function __construct(public LoginSecurityEvent $event)
-    {
-    }
+    public function __construct(public LoginSecurityEvent $event) {}
 
     // Database (in-app) notification fires regardless -- it doesn't need an
     // email address. Mail is skipped when the admin has none registered,
@@ -47,7 +45,7 @@ class AdminLoginSecurityAlert extends Notification
             ->markdown('emails.admin-login-security-alert', [
                 'badge' => $this->badgeHtml('SECURITY ALERT', '#d97706'),
                 'adminName' => $notifiable->full_name,
-                'date' => $event->LoginAt->format('F j, Y'),
+                'date' => $event->LoginAt->format('m/d/Y'),
                 'time' => $event->LoginAt->format('g:i A'),
                 'ipAddress' => $event->IPAddress ?? 'Unavailable',
                 'device' => $event->DeviceSummary ?? 'Unavailable',
@@ -62,7 +60,7 @@ class AdminLoginSecurityAlert extends Notification
 
         return [
             'title' => 'Security Alert — Was this you?',
-            'description' => "Your Admin account was used to log in on {$event->LoginAt->format('F j, Y g:i A')} from {$event->IPAddress} ({$event->DeviceSummary}).",
+            'description' => "Your Admin account was used to log in on {$event->LoginAt->format('m/d/Y g:i A')} from {$event->IPAddress} ({$event->DeviceSummary}).",
             'url' => route('admin.security.review', ['loginSecurityEvent' => $event->LoginSecurityEventID]),
             'icon' => 'shield-alert',
             'color' => 'warning',
