@@ -21,6 +21,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Services\ReportSummaryBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class ReportsModuleTest extends TestCase
@@ -715,5 +716,21 @@ class ReportsModuleTest extends TestCase
         // With dates picked, it still shows that range.
         $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales', 'date_from' => '2026-05-01', 'date_to' => '2026-05-31']))
             ->assertOk()->assertSee('05/01/2026')->assertSee('05/31/2026')->assertDontSee('As of');
+    }
+
+    // The Excel download's header says the same: "As of <today>" when no
+    // dates are picked, never "All Time".
+    public function test_excel_download_without_dates_says_as_of_today(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 13));
+        $this->makeBilling(1500, '2026-10-10');
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'excel']))->assertOk();
+
+        $sheet = IOFactory::load($response->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $cells = collect($sheet->toArray())->flatten()->filter()->map(fn ($v) => (string) $v);
+
+        $this->assertTrue($cells->contains('As of 10/13/2026'), 'Report Period should read "As of 10/13/2026"');
+        $this->assertFalse($cells->contains('All Time'));
     }
 }

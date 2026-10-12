@@ -201,7 +201,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 // ---- Title block, inserted above the heading/data grid ----
                 $period = ($this->dateFrom || $this->dateTo)
                     ? ($this->dateFrom ? self::mdy($this->dateFrom) : 'Earliest').' to '.($this->dateTo ? self::mdy($this->dateTo) : 'Latest')
-                    : 'All Time';
+                    : 'As of '.now()->format('m/d/Y');
 
                 $titleRows = [
                     ['', 'CCTV EXPRESS TRADING'],
