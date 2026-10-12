@@ -566,9 +566,15 @@ class CashierAuthController extends Controller
     /**
      * View and print receipt (REQ102)
      */
-    public function viewReceipt($receiptNumber)
+    public function viewReceipt($receiptNumber, ThermalReceiptPrinter $printer)
     {
-        return view('cashier.receipt', $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber));
+        $receipt = $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber);
+
+        // Printed from the browser, the receipt is sent as plain 32-column
+        // text (the same lines as the direct thermal printout), because a
+        // thermal printer on Windows' "Generic / Text Only" driver drops the
+        // page layout and can't print the peso sign.
+        return view('cashier.receipt', $receipt + ['printText' => $printer->plainText($receipt)]);
     }
 
     /**

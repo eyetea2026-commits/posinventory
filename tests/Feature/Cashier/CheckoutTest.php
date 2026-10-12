@@ -122,7 +122,10 @@ class CheckoutTest extends TestCase
         // price, and not run together with the quantity as "2 x 2,500.00".
         $receiptResponse->assertSee('<td class="col-qty">2</td>', false);
         $receiptResponse->assertSee('<td class="col-amt">5,000.00</td>', false);
-        $receiptResponse->assertDontSee('2 x', false);
+        // The on-screen table never uses "2 x price" (only the separate
+        // plain-text copy printed from the browser does, like the thermal slip).
+        $onScreen = preg_replace('#<pre class="print-text">.*?</pre>#s', '', $receiptResponse->getContent());
+        $this->assertStringNotContainsString('2 x', $onScreen);
         $receiptResponse->assertDontSee('<td class="col-amt">2,500.00</td>', false);
     }
 

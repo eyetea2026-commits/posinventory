@@ -99,6 +99,32 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertSame('', $this->capture->bytes);
     }
 
+    // Printing the receipt page from the browser (the deployed site, where
+    // direct printing is off) to a "Generic / Text Only" thermal driver.
+    public function test_browser_printed_receipt_is_plain_32_column_text_without_page_header(): void
+    {
+        $receipt = $this->sellAndGetReceipt('Dome Camera 2MP', 1500, 2, 'cash', 5000);
+
+        $html = $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('#<pre class="print-text">(.*?)</pre>#s', $html);
+        preg_match('#<pre class="print-text">(.*?)</pre>#s', $html, $m);
+        $text = html_entity_decode($m[1]);
+
+        // Same lines as the direct thermal printout: padded columns, "P" amounts.
+        $this->assertStringContainsString('2 x P1,500.00', $text);
+        $this->assertMatchesRegularExpression('/TOTAL:\s+P3,000\.00/', $text);
+        $this->assertMatchesRegularExpression('/Receipt #:\s+'.preg_quote($receipt, '/').'/', $text);
+        $this->assertDoesNotMatchRegularExpression('/[^\x00-\x7F]/', $text, 'no peso sign or other characters a text-only printer turns into "?"');
+        foreach (explode("\n", rtrim($text, "\n")) as $line) {
+            $this->assertLessThanOrEqual(32, strlen($line), "too wide for 58mm: [{$line}]");
+        }
+
+        // Zero page margins leave no room for the browser's URL/date header and footer.
+        $this->assertStringContainsString('@page { margin: 0; }', $html);
+        $this->assertMatchesRegularExpression('/@media print \{.*?\.receipt \{ display: none; \}.*?\.print-text \{\s*display: block;/s', $html);
+    }
+
     public function test_it_prints_the_same_figures_as_the_on_screen_receipt(): void
     {
         $this->enablePrinterWith();

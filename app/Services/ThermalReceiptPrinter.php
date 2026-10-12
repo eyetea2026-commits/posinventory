@@ -94,99 +94,139 @@ class ThermalReceiptPrinter
     }
 
     /**
+     * The same receipt as plain 32-column text ("P" for the peso sign),
+     * for printers that only print text, e.g. a thermal printer installed
+     * with Windows' "Generic / Text Only" driver and printed from the
+     * browser. The on-screen receipt page prints this text.
+     *
+     * @param  array<string, mixed>  $r  Output of CashierAuthController::buildReceiptData().
+     */
+    public function plainText(array $r): string
+    {
+        $out = '';
+        foreach ($this->lines($r) as $line) {
+            foreach (explode("\n", rtrim($line['text'], "\n")) as $part) {
+                $out .= ($line['center'] ? $this->center($part) : $part)."\n";
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * @param  array<string, mixed>  $r
      */
     private function writeReceipt(Printer $printer, array $r): void
     {
-        $rule = str_repeat('-', $this->width)."\n";
-
         $printer->initialize();
 
-        // Header
-        $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->setEmphasis(true);
-        $printer->setTextSize(1, 2);
-        $printer->text("CCTV Express\n");
+        foreach ($this->lines($r) as $line) {
+            $printer->setJustification($line['center'] ? Printer::JUSTIFY_CENTER : Printer::JUSTIFY_LEFT);
+            $printer->setEmphasis($line['bold']);
+            $printer->setTextSize(1, $line['tall'] ? 2 : 1);
+            $printer->text($line['text']);
+        }
+
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
-        $printer->text("Your Trusted Security Partner\n");
+        $printer->feed(3);
+        // Models without an auto-cutter simply ignore this; the tear bar is used instead.
+        $printer->cut();
+    }
+
+    /**
+     * Every line of the sales receipt, in order. Shared by the thermal
+     * printout and the plain-text version so the two never differ.
+     *
+     * @param  array<string, mixed>  $r
+     * @return list<array{text: string, center: bool, bold: bool, tall: bool}>
+     */
+    private function lines(array $r): array
+    {
+        $lines = [];
+        $add = function (string $text, bool $center = false, bool $bold = false, bool $tall = false) use (&$lines): void {
+            $lines[] = ['text' => str_ends_with($text, "\n") ? $text : $text."\n", 'center' => $center, 'bold' => $bold, 'tall' => $tall];
+        };
+        $rule = str_repeat('-', $this->width);
+
+        // Header
+        $add('CCTV Express', center: true, bold: true, tall: true);
+        $add('Your Trusted Security Partner', center: true);
         if (config('app.business_address')) {
-            $printer->text($this->wrap($this->ascii((string) config('app.business_address'))));
+            $add($this->wrap($this->ascii((string) config('app.business_address'))), center: true);
         }
-        $printer->text($rule);
-        $printer->setEmphasis(true);
-        $printer->text("SALES RECEIPT\n");
-        $printer->setEmphasis(false);
-        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $add($rule, center: true);
+        $add('SALES RECEIPT', center: true, bold: true);
 
         // Meta
         $customer = ($r['customerName'] ?? null) === 'Walk-in Customer' ? 'N/A' : ($r['customerName'] ?? null);
-        $printer->text($this->row('Receipt #:', (string) $r['receiptNumber'])."\n");
-        $printer->text($this->row('Date:', (string) $r['date'])."\n");
-        $printer->text($this->row('Cashier:', $this->ascii((string) $r['cashierName']))."\n");
+        $add($this->row('Receipt #:', (string) $r['receiptNumber']));
+        $add($this->row('Date:', (string) $r['date']));
+        $add($this->row('Cashier:', $this->ascii((string) $r['cashierName'])));
         if ($customer) {
-            $printer->text($this->row('Customer:', $this->ascii((string) $customer))."\n");
+            $add($this->row('Customer:', $this->ascii((string) $customer)));
         }
-        $printer->text($rule);
+        $add($rule);
 
         // Items: name on its own (wrapped) line, then "qty x price ... amount".
         foreach ($r['items'] as $item) {
-            $printer->text($this->wrap($this->ascii((string) $item['name'])));
+            $add($this->wrap($this->ascii((string) $item['name'])));
             $lineTotal = (float) $item['price'] * (int) $item['qty'];
-            $printer->text($this->row('  '.$item['qty'].' x '.$this->money((float) $item['price']), $this->money($lineTotal))."\n");
+            $add($this->row('  '.$item['qty'].' x '.$this->money((float) $item['price']), $this->money($lineTotal)));
         }
-        $printer->text($rule);
+        $add($rule);
 
         // Discount
         if (! empty($r['hasDiscount'])) {
             if (! empty($r['promoCode'])) {
-                $printer->text($this->row('Promo Code:', $this->ascii((string) $r['promoCode']))."\n");
+                $add($this->row('Promo Code:', $this->ascii((string) $r['promoCode'])));
             }
-            $printer->text($this->row('Discount ('.$r['discountRate'].'%):', '-'.$this->money((float) $r['discountAmount']))."\n");
-            $printer->text($rule);
+            $add($this->row('Discount ('.$r['discountRate'].'%):', '-'.$this->money((float) $r['discountAmount'])));
+            $add($rule);
         }
 
         // VAT breakdown (prices are VAT-inclusive; this splits the total).
         $total = (float) $r['total'];
         $vat = (float) $r['vatAmount'];
-        $printer->text($this->row('VATable Sales:', $this->money($total - $vat))."\n");
-        $printer->text($this->row('VAT (12%):', $this->money($vat))."\n");
-        $printer->text($this->row('Zero Rated:', $this->money(0))."\n");
-        $printer->text($this->row('VAT Exempt:', $this->money(0))."\n");
-        $printer->text($rule);
+        $add($this->row('VATable Sales:', $this->money($total - $vat)));
+        $add($this->row('VAT (12%):', $this->money($vat)));
+        $add($this->row('Zero Rated:', $this->money(0)));
+        $add($this->row('VAT Exempt:', $this->money(0)));
+        $add($rule);
 
-        $printer->setEmphasis(true);
-        $printer->setTextSize(1, 2);
-        $printer->text($this->row('TOTAL:', $this->money($total))."\n");
-        $printer->setTextSize(1, 1);
-        $printer->setEmphasis(false);
-        $printer->text($rule);
+        $add($this->row('TOTAL:', $this->money($total)), bold: true, tall: true);
+        $add($rule);
 
         // Payment
         $method = (string) ($r['paymentMethod'] ?? 'cash');
-        $printer->text($this->row('Payment:', $this->methodLabel($method))."\n");
+        $add($this->row('Payment:', $this->methodLabel($method)));
         if (! empty($r['referenceNumber'])) {
-            $printer->text($this->row($method === 'cheque' ? 'Cheque No.:' : 'Reference:', $this->ascii((string) $r['referenceNumber']))."\n");
+            $add($this->row($method === 'cheque' ? 'Cheque No.:' : 'Reference:', $this->ascii((string) $r['referenceNumber'])));
         }
         if (! empty($r['bankName'])) {
-            $printer->text($this->row('Bank:', $this->ascii((string) $r['bankName']))."\n");
+            $add($this->row('Bank:', $this->ascii((string) $r['bankName'])));
         }
         if (! empty($r['paymentDate'])) {
-            $printer->text($this->row($method === 'cheque' ? 'Cheque Date:' : 'Transfer Date:', Carbon::parse($r['paymentDate'])->format('m/d/Y'))."\n");
+            $add($this->row($method === 'cheque' ? 'Cheque Date:' : 'Transfer Date:', Carbon::parse($r['paymentDate'])->format('m/d/Y')));
         }
         if ((float) ($r['paymentAmount'] ?? 0) > 0) {
-            $printer->text($this->row('Amount Received:', $this->money((float) $r['paymentAmount']))."\n");
-            $printer->text($this->row('Change:', $this->money((float) $r['change']))."\n");
+            $add($this->row('Amount Received:', $this->money((float) $r['paymentAmount'])));
+            $add($this->row('Change:', $this->money((float) $r['change'])));
         }
-        $printer->text($rule);
+        $add($rule);
 
         // Footer
-        $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->text("Thank you for your purchase!\n");
-        $printer->text("Please come again\n");
-        $printer->feed(3);
-        // Models without an auto-cutter simply ignore this; the tear bar is used instead.
-        $printer->cut();
+        $add('Thank you for your purchase!', center: true);
+        $add('Please come again', center: true);
+
+        return $lines;
+    }
+
+    private function center(string $text): string
+    {
+        $pad = max(0, intdiv($this->width - strlen($text), 2));
+
+        return str_repeat(' ', $pad).$text;
     }
 
     /**

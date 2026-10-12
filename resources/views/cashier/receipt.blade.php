@@ -55,10 +55,30 @@
             cursor: pointer;
         }
 
+        /* Plain-text copy of the receipt, used only when printing. */
+        .print-text { display: none; }
+
+        /* No page margins, so the browser has nowhere to put its own
+           header/footer (page URL, title, date) on the slip. */
+        @page { margin: 0; }
+
         @media print {
             body { margin: 0; padding: 0; max-width: 100%; background: #fff; }
-            .receipt { border: none; padding: 0; }
             .no-print { display: none; }
+            /* Thermal printers on Windows' "Generic / Text Only" driver keep
+               only the text, so the receipt prints as fixed-width text lines
+               (columns padded with spaces, "P" for the peso sign) instead of
+               the on-screen layout. */
+            .receipt { display: none; }
+            .print-text {
+                display: block;
+                margin: 0;
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.25;
+                white-space: pre;
+                color: #000;
+            }
         }
     </style>
 </head>
@@ -66,6 +86,10 @@
     <button class="print-btn no-print" onclick="window.print()">
         <i class="fas fa-print"></i> Print Receipt
     </button>
+
+    @isset($printText)
+        <pre class="print-text">{{ $printText }}</pre>
+    @endisset
 
     <div class="receipt">
         {{-- Header: business identity, matching the reference's centered
