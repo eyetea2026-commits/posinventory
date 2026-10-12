@@ -231,4 +231,16 @@ class ThermalReceiptPrintingTest extends TestCase
             ->assertSee('const RECEIPT_THERMAL_PRINTING = true;', false)
             ->assertSee("confirmPrintReceipt(event, '{$receipt}'", false);
     }
+
+    // After "Yes, Complete Sale" the receipt appears inside the POS (with
+    // Print Receipt / New Sale), never in a separate browser window.
+    public function test_completed_sale_shows_the_receipt_inside_the_pos_not_a_new_window(): void
+    {
+        $html = $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('window.open(', $html);
+        $this->assertStringContainsString('showReceiptFallback(receiptUrl);', $html);
+        $this->assertStringContainsString('id="receiptFallbackOverlay"', $html);
+        $this->assertStringContainsString('onclick="printReceiptFallback()"', $html);
+    }
 }

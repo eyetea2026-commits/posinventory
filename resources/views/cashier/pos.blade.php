@@ -392,11 +392,10 @@
     </div>
 </div>
 
-{{-- Fallback receipt viewer — shown automatically in-page whenever the
-     preferred pop-up receipt window can't open (browser popup blocker,
-     an extension, or a policy that blocks window.open() entirely). Every
-     sale still gets its receipt displayed immediately either way; this
-     path just doesn't depend on popups being allowed at all. --}}
+{{-- In-page receipt viewer — shown after every completed sale when direct
+     thermal printing is off (the deployed site), and if a direct print
+     fails. No separate browser window is opened; "Print Receipt" prints
+     just this receipt, "New Sale" starts the next sale. --}}
 <div id="receiptFallbackOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center;">
     <div style="background:#1a1d2d; border-radius:16px; width:min(420px, 92vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden;">
         <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid rgba(148,163,184,0.15);">
@@ -1365,30 +1364,6 @@
                 return;
             }
 
-            // Only now — after the cashier has actually clicked "Complete
-            // Sale" in the confirm dialog, not when they first clicked the
-            // checkout button — does a receipt window get opened. It's
-            // still opened synchronously inside this click's own handler
-            // (SweetAlert2 resolves the confirm button's click synchronously,
-            // before any network round-trip), which is what keeps it counting
-            // as a genuine user gesture for the popup blocker; waiting until
-            // after the fetch() response below would arrive too late for
-            // that and get silently blocked. If the popup still doesn't open
-            // (blocked by a stricter blocker or extension), the receipt
-            // falls back to the in-page viewer once the sale finishes.
-            // With direct thermal printing on, the receipt goes straight to the
-            // printer instead, so no popup is opened at all.
-            const receiptWindow = THERMAL_PRINTING ? null : window.open('', '_blank', 'width=400,height=600');
-            if (receiptWindow) {
-                // No <head> tag here on purpose — some local dev tooling scans
-                // outgoing HTML for literal "<head>" text to inject a logger
-                // script, which doesn't know this one is just JS string content
-                // rather than a real tag, and ends up corrupting this script
-                // block. A bare <body> is all a placeholder needs anyway.
-                receiptWindow.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#666;">Processing receipt&hellip;</body>');
-                receiptWindow.document.title = 'Receipt';
-            }
-
             fetch('{{ route("cashier.process-sale") }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -1413,29 +1388,14 @@
                                 toastWarning(message || 'Receipt printer not reachable.');
                                 showReceiptFallback(receiptUrl);
                             });
-                    } else if (receiptWindow && !receiptWindow.closed) {
-                        receiptWindow.location.href = receiptUrl;
-                        receiptWindow.focus();
-
-                        // Reload so the product grid reflects the stock the sale
-                        // just deducted — it's rendered server-side once at page
-                        // load, so without this the displayed "Stock: X" (and the
-                        // cart's own stock-limit checks) stay stale until a manual
-                        // refresh. The receipt is in its own separate popup
-                        // window, so reloading this tab doesn't affect it.
-                        window.location.reload();
                     } else {
-                        // Popup was blocked (or got closed) — the sale still went
-                        // through, so the receipt must still appear automatically
-                        // without depending on popup permission. Shown in-page
-                        // instead; the POS only resets once the cashier
-                        // acknowledges it via "New Sale", per the same "receipt
-                        // first, reset after" order the popup path already
-                        // follows in practice.
+                        // The receipt is shown inside the POS (no separate
+                        // window): the cashier prints it from there, and "New
+                        // Sale" reloads the page so the product grid shows the
+                        // stock this sale just deducted.
                         showReceiptFallback(receiptUrl);
                     }
                 } else {
-                    if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
                     toastError(data.message, 'Error');
                     checkoutBtn.disabled = false;
                     // Re-open the cheque/bank fields for editing — a failure
@@ -1448,7 +1408,6 @@
                 }
             })
             .catch(error => {
-                if (receiptWindow && !receiptWindow.closed) receiptWindow.close();
                 toastError(error.message, 'Error Processing Sale');
                 checkoutBtn.disabled = false;
                 if (selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank') {
