@@ -392,26 +392,10 @@
     </div>
 </div>
 
-{{-- In-page receipt viewer — shown after every completed sale when direct
-     thermal printing is off (the deployed site), and if a direct print
-     fails. No separate browser window is opened; "Print Receipt" prints
-     just this receipt, "New Sale" starts the next sale. --}}
-<div id="receiptFallbackOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background:#1a1d2d; border-radius:16px; width:min(420px, 92vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden;">
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid rgba(148,163,184,0.15);">
-            <strong style="color:#f8fafc;"><i class="fas fa-receipt"></i> Sale Complete — Receipt</strong>
-        </div>
-        <iframe id="receiptFallbackFrame" style="border:0; width:100%; flex:1; min-height:420px; background:#fff;"></iframe>
-        <div style="display:flex; gap:10px; padding:14px 20px; border-top:1px solid rgba(148,163,184,0.15);">
-            <button type="button" class="btn-checkout" style="flex:1;" onclick="printReceiptFallback()">
-                <i class="fas fa-print"></i> Print Receipt
-            </button>
-            <button type="button" class="clear-cart-btn" style="flex:0 0 auto;" onclick="closeReceiptFallbackAndReset()">
-                <i class="fas fa-check"></i> New Sale
-            </button>
-        </div>
-    </div>
-</div>
+{{-- Hidden frame the receipt is printed from after a sale when direct
+     thermal printing is off (the deployed site), or if a direct print
+     fails. Nothing is shown on screen and no browser window is opened. --}}
+<iframe id="receiptPrintFrame" title="Receipt" aria-hidden="true" tabindex="-1" style="position:fixed; width:0; height:0; border:0; visibility:hidden;"></iframe>
 
 <script>
     // Capped at 7 whole-peso digits (₱9,999,999.99), matching processSale()'s
@@ -639,8 +623,7 @@
         // processed: the scanner's Enter would otherwise click its
         // confirm button (e.g. "Yes, Complete Sale").
         function scanningBlocked() {
-            const fallback = document.getElementById('receiptFallbackOverlay');
-            return (window.Swal && Swal.isVisible()) || (fallback && fallback.style.display !== 'none');
+            return (window.Swal && Swal.isVisible()) || window.receiptPrinting === true;
         }
 
         function reset() {
@@ -1265,33 +1248,38 @@
             });
     }
 
-    // Shows the receipt inside the POS and prints it as soon as it has
-    // loaded. In Chrome opened with --kiosk-printing (the "CCTV Express POS"
-    // desktop shortcut) that print goes straight to the default printer,
-    // the thermal printer, with no print window; in a normal browser
-    // window it opens the print window automatically.
-    function showReceiptFallback(receiptUrl) {
-        const frame = document.getElementById('receiptFallbackFrame');
+    // Prints the receipt from a hidden frame (no pop-up on screen), then
+    // starts a new sale. In Chrome opened with --kiosk-printing (the "CCTV
+    // Express POS" desktop shortcut) the print goes straight to the default
+    // printer, the thermal printer, with no print window; in a normal
+    // browser window the print window opens by itself. The page reloads
+    // only after printing has finished, so the job isn't cut off, and the
+    // product grid then shows the stock this sale just deducted. A receipt
+    // can still be reprinted from Transactions.
+    function printReceiptInBackground(receiptUrl) {
+        const frame = document.getElementById('receiptPrintFrame');
+        window.receiptPrinting = true;
+
+        let finished = false;
+        const finish = function () {
+            if (finished) return;
+            finished = true;
+            toastSuccess('Sale complete. Receipt printed.').then(function () {
+                window.location.reload();
+            });
+        };
+
         frame.onload = function () {
             frame.onload = null;
             try {
+                frame.contentWindow.addEventListener('afterprint', finish);
                 frame.contentWindow.focus();
                 frame.contentWindow.print();
-            } catch (e) { /* "Print Receipt" is still there */ }
+            } catch (e) { /* reload below either way */ }
+            // Fallback when the browser never reports the print as done.
+            setTimeout(finish, 1500);
         };
         frame.src = receiptUrl;
-        document.getElementById('receiptFallbackOverlay').style.display = 'flex';
-    }
-
-    function printReceiptFallback() {
-        const frame = document.getElementById('receiptFallbackFrame');
-        if (frame.contentWindow) frame.contentWindow.print();
-    }
-
-    function closeReceiptFallbackAndReset() {
-        document.getElementById('receiptFallbackOverlay').style.display = 'none';
-        document.getElementById('receiptFallbackFrame').src = 'about:blank';
-        window.location.reload();
     }
 
     function processCheckout() {
@@ -1396,17 +1384,13 @@
                             })
                             .catch(function (message) {
                                 // The sale itself already went through -- only
-                                // the printout failed, so show the receipt on
-                                // screen (it can still be browser-printed).
+                                // the printout failed, so print it through the
+                                // browser instead.
                                 toastWarning(message || 'Receipt printer not reachable.');
-                                showReceiptFallback(receiptUrl);
+                                printReceiptInBackground(receiptUrl);
                             });
                     } else {
-                        // The receipt is shown inside the POS (no separate
-                        // window): the cashier prints it from there, and "New
-                        // Sale" reloads the page so the product grid shows the
-                        // stock this sale just deducted.
-                        showReceiptFallback(receiptUrl);
+                        printReceiptInBackground(receiptUrl);
                     }
                 } else {
                     toastError(data.message, 'Error');

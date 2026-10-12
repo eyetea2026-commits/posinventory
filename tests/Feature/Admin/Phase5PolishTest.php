@@ -121,9 +121,8 @@ class Phase5PolishTest extends TestCase
     // browser's popup blocker prevents window.open() from succeeding, the
     // sale still completed successfully server-side but the cashier saw
     // nothing — no receipt, no error. The POS page must always ship the
-    // in-page fallback viewer so a receipt is guaranteed to display
-    // regardless of whether popups are allowed.
-    public function test_pos_page_ships_the_receipt_fallback_viewer_for_blocked_popups(): void
+    // in-page print frame so the receipt prints without needing popups.
+    public function test_pos_page_ships_the_in_page_receipt_print_frame_for_blocked_popups(): void
     {
         $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);
         $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
@@ -131,8 +130,8 @@ class Phase5PolishTest extends TestCase
         $response = $this->actingAs($cashier)->get(route('cashier.pos'));
 
         $response->assertOk();
-        $response->assertSee('id="receiptFallbackOverlay"', false);
-        $response->assertSee('showReceiptFallback', false);
-        $response->assertSee('printReceiptFallback', false);
+        $response->assertSee('id="receiptPrintFrame"', false);
+        $response->assertSee('function printReceiptInBackground(receiptUrl)', false);
+        $response->assertDontSee('window.open(', false);
     }
 }

@@ -256,22 +256,22 @@ class ThermalReceiptPrintingTest extends TestCase
             ->assertSee("confirmPrintReceipt(event, '{$receipt}'", false);
     }
 
-    // After "Yes, Complete Sale" the receipt appears inside the POS (with
-    // Print Receipt / New Sale), never in a separate browser window.
-    public function test_completed_sale_shows_the_receipt_inside_the_pos_not_a_new_window(): void
+    // After "Yes, Complete Sale" the receipt prints from a hidden frame: no
+    // receipt pop-up on screen and no separate browser window.
+    public function test_completed_sale_prints_the_receipt_without_a_popup_or_new_window(): void
     {
         $html = $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()->getContent();
 
         $this->assertStringNotContainsString('window.open(', $html);
-        $this->assertStringContainsString('showReceiptFallback(receiptUrl);', $html);
-        $this->assertStringContainsString('id="receiptFallbackOverlay"', $html);
-        $this->assertStringContainsString('onclick="printReceiptFallback()"', $html);
-        // Inside that panel the receipt page drops its own Print button, so
-        // only the panel's "Print Receipt" shows.
-        $receiptPage = $this->actingAs($this->cashier)->get(route('cashier.receipt', $this->sellAndGetReceipt()))->getContent();
-        $this->assertMatchesRegularExpression("/if \(window\.self !== window\.top\) \{\s*document\.querySelector\('\.print-btn'\)\.remove\(\);/", $receiptPage);
+        $this->assertStringNotContainsString('Sale Complete — Receipt', $html);
+        $this->assertStringNotContainsString('receiptFallbackOverlay', $html);
+        $this->assertMatchesRegularExpression('/<iframe id="receiptPrintFrame"[^>]*visibility:hidden;/', $html);
+        $this->assertStringContainsString('printReceiptInBackground(receiptUrl);', $html);
 
-        // It prints by itself once loaded (silently in Chrome --kiosk-printing).
+        // It prints by itself once loaded (silently in Chrome --kiosk-printing),
+        // and only starts the next sale after printing.
         $this->assertMatchesRegularExpression('/frame\.onload = function \(\) \{.*?frame\.contentWindow\.print\(\);/s', $html);
+        $this->assertMatchesRegularExpression("/addEventListener\('afterprint', finish\)/", $html);
+        $this->assertMatchesRegularExpression("/const finish = function \(\) \{.*?toastSuccess\('Sale complete\. Receipt printed\.'\)\.then\(function \(\) \{\s*window\.location\.reload\(\);/s", $html);
     }
 }
