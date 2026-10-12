@@ -41,6 +41,8 @@
             <thead>
                 <tr>
                     <th>Product</th>
+                    <th>Model</th>
+                    <th>SKU</th>
                     <th>Purchase Order Quantity</th>
                     <th>Quantity Received</th>
                     <th>Receipt Number</th>
@@ -50,6 +52,8 @@
                 @foreach($po->items as $item)
                     <tr>
                         <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
+                        <td>{{ $item->product?->Model ?: '—' }}</td>
+                        <td style="white-space: nowrap;">{{ $item->product?->SKU ?: '—' }}</td>
                         <td>{{ $item->Quantity }}</td>
                         <td>
                             <input type="hidden" name="items[{{ $loop->index }}][purchase_order_item_id]" value="{{ $item->PurchaseOrderItemID }}">

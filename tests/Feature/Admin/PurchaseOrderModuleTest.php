@@ -367,6 +367,9 @@ class PurchaseOrderModuleTest extends TestCase
     public function test_show_ajax_branch_returns_read_only_details_without_status_or_action_buttons(): void
     {
         $po = $this->makeOrder(['CreatedBy' => $this->admin->id]);
+        // Add Product assigns every product a SKU (SKU-000001 style).
+        $product = $po->items()->first()->product()->first();
+        $product->update(['SKU' => Product::generateSku($product->ProductID)]);
 
         $response = $this->actingAs($this->admin)->getJson(route('admin.purchase-orders.show', $po));
 
@@ -377,6 +380,10 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertStringContainsString('Order Information', $html);
         $this->assertStringContainsString('Order Items', $html);
         $this->assertStringContainsString('DVR Camera', $html);
+        // Each item shows its Model and SKU next to the product name.
+        $this->assertMatchesRegularExpression('#<th>Product</th>\s*<th>Model</th>\s*<th>SKU</th>#', $html);
+        $this->assertStringContainsString('<td>'.e($product->Model).'</td>', $html);
+        $this->assertStringContainsString('>'.$product->SKU.'</td>', $html);
         $this->assertStringNotContainsString('Approve', $html);
         $this->assertStringNotContainsString('Cancel', $html);
         $this->assertStringNotContainsString('Export PDF', $html);

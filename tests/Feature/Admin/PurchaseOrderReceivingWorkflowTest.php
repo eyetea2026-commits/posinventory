@@ -531,6 +531,8 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
     public function test_view_details_shows_ordered_quantity_as_read_only_reference(): void
     {
+        // Add Product assigns every product a SKU (SKU-000001 style).
+        $this->productA->update(['SKU' => Product::generateSku($this->productA->ProductID)]);
         $po = $this->makeDraftOrder();
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
         $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
@@ -543,6 +545,12 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertStringContainsString('Quantity Received', $html);
         $this->assertStringContainsString('Receipt Number', $html);
         $this->assertStringContainsString($this->productA->ProductName, $html);
+        // Each item shows its Model and SKU next to the product name.
+        $product = $this->productA->fresh();
+        $this->assertMatchesRegularExpression('#<th>Product</th>\s*<th>Model</th>\s*<th>SKU</th>#', $html);
+        $this->assertStringContainsString('<td>'.e($product->Model).'</td>', $html);
+        $this->assertStringContainsString('>'.$product->SKU.'</td>', $html);
+        $this->assertNotEmpty($product->SKU);
     }
 
     public function test_check_receipt_number_detects_one_already_used_by_the_legacy_manual_record_receipt_flow(): void

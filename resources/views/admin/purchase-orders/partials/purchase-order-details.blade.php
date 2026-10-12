@@ -52,6 +52,8 @@
         <thead>
             <tr>
                 <th>Product</th>
+                <th>Model</th>
+                <th>SKU</th>
                 <th>Ordered</th>
                 <th>Received</th>
                 <th>Remaining</th>
@@ -63,6 +65,8 @@
             @foreach($purchaseOrder->items as $item)
                 <tr>
                     <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
+                    <td>{{ $item->product?->Model ?: '—' }}</td>
+                    <td style="white-space: nowrap;">{{ $item->product?->SKU ?: '—' }}</td>
                     <td>{{ $item->Quantity }}</td>
                     <td>{{ $item->ReceivedQuantity }}</td>
                     <td>{{ $item->remaining_quantity }}</td>
