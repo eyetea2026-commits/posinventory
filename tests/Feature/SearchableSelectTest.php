@@ -38,4 +38,17 @@ class SearchableSelectTest extends TestCase
         $this->actingAs($cashier)->get(route('cashier.pos'))
             ->assertOk()->assertSee('window.__searchableSelect', false);
     }
+
+    // Typed dates only trigger filters once complete (partials/date-input-guard),
+    // so a half-typed year like 0002 no longer reloads the page mid-typing.
+    public function test_admin_and_cashier_pages_load_the_date_typing_guard(): void
+    {
+        $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
+        $cashier = User::factory()->create(['role_id' => Role::create(['role_name' => 'cashier'])->id]);
+
+        $this->actingAs($admin)->get(route('admin.purchase-orders.index'))
+            ->assertOk()->assertSee('window.__dateInputGuard', false);
+        $this->actingAs($cashier)->get(route('cashier.pos'))
+            ->assertOk()->assertSee('window.__dateInputGuard', false);
+    }
 }
