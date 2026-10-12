@@ -22,8 +22,11 @@ use Mike42\Escpos\Printer;
  */
 class ThermalReceiptPrinter
 {
-    /** Blank lines after a browser-printed receipt, so it can be torn below the footer. */
-    private const BROWSER_TAIL_LINES = 6;
+    /**
+     * Blank lines fed after the footer so the whole receipt clears the tear
+     * bar (the Officom's tear bar sits several lines above the print head).
+     */
+    private const TAIL_LINES = 6;
 
     private int $width;
 
@@ -89,7 +92,7 @@ class ThermalReceiptPrinter
             $printer->setJustification(Printer::JUSTIFY_LEFT);
             $printer->text($this->row('Left', 'Right')."\n");
             $printer->text($this->row('Amount', $this->money(1234567.89))."\n");
-            $printer->feed(3);
+            $printer->feed(self::TAIL_LINES);
             $printer->cut();
         } finally {
             $printer->close();
@@ -116,7 +119,7 @@ class ThermalReceiptPrinter
         // Feed the paper past the tear bar so the last lines aren't left
         // inside the printer (and printed on top of the next receipt). A text
         // driver drops trailing blank lines, so a final "." forces the feed.
-        return $out.str_repeat("\n", self::BROWSER_TAIL_LINES).$this->center('.')."\n";
+        return $out.str_repeat("\n", self::TAIL_LINES).$this->center('.')."\n";
     }
 
     /**
@@ -135,7 +138,7 @@ class ThermalReceiptPrinter
 
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
-        $printer->feed(3);
+        $printer->feed(self::TAIL_LINES);
         // Models without an auto-cutter simply ignore this; the tear bar is used instead.
         $printer->cut();
     }

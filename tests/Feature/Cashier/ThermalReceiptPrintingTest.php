@@ -147,6 +147,10 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertMatchesRegularExpression('/Amount Received:\s+P5,000\.00/', $text);
         $this->assertMatchesRegularExpression('/Change:\s+P2,000\.00/', $text);
 
+        // After the footer the paper feeds 6 lines (ESC d 6) so the receipt
+        // clears the tear bar before it's torn off.
+        $this->assertMatchesRegularExpression("/Please come again\n.*\x1bd\x06/s", $this->capture->bytes);
+
         // The on-screen receipt shows the same total.
         $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->assertOk()->assertSee('3,000.00');
     }
