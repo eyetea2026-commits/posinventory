@@ -68,20 +68,23 @@
             /* Printed as the thermal slip: 32 fixed-width columns (spaces
                line the columns up, "P" for the peso sign) with the same bold
                and double-height lines as the direct thermal printout. Sized
-               for 58mm paper (48mm printable): 32 chars x 0.6em x 2.5mm. */
+               like the printer's own font on 58mm paper (48mm printable):
+               32 chars at 1.5mm each (Consolas 0.55em x 3mm, less 0.15mm
+               letter spacing), 3.75mm per line. */
             .receipt { display: none; }
             .print-text {
                 display: block;
                 width: 48mm;
                 margin: 0;
-                font-family: 'Courier New', monospace;
-                font-size: 2.5mm;
-                line-height: 1.25;
+                font-family: Consolas, 'Courier New', monospace;
+                font-size: 3mm;
+                letter-spacing: -0.15mm;
+                line-height: 3.75mm;
                 color: #000;
             }
             .print-text .pl, .print-text .pl-tail { white-space: pre; margin: 0; font: inherit; }
             .print-text .pl-bold { font-weight: bold; }
-            .print-text .pl-tall { transform: scaleY(2); transform-origin: top left; margin-bottom: 1.25em; }
+            .print-text .pl-tall { transform: scaleY(2); transform-origin: top left; margin-bottom: 3.75mm; }
         }
     </style>
 </head>
