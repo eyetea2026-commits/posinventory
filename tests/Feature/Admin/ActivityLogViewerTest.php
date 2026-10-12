@@ -190,7 +190,9 @@ class ActivityLogViewerTest extends TestCase
             'txnSearch' => null, 'txnSort' => 'date_desc',
         ])->render();
 
-        $recent = strpos($html, '<h2 class="card-title">Recent Transactions</h2>');
+        $recent = strpos($html, '<h2 class="card-title">Overall Transactions</h2>');
+        $this->assertNotFalse($recent);
+        $this->assertStringNotContainsString('<h2 class="card-title">Recent Transactions</h2>', $html);
         $activity = strpos($html, '<h2 class="card-title">Activity Log</h2>');
         $this->assertNotFalse($activity);
         $this->assertGreaterThan($recent, $activity);

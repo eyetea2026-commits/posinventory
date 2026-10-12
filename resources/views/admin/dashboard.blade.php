@@ -935,7 +935,7 @@
         <div class="card">
             <div class="card-header">
                 <div>
-                    <h2 class="card-title">Recent Transactions</h2>
+                    <h2 class="card-title">Overall Transactions</h2>
                     <p class="card-subtitle">Search, sort, and page through the latest sales</p>
                 </div>
             </div>
