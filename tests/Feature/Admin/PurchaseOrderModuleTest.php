@@ -558,4 +558,15 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertDontSee('id="ProductSearch" class="form-input" placeholder="Search product by name', false);
         $response->assertDontSee('<select id="ProductID"', false);
     }
+
+    // The remove (trash) button is a small icon on the same line, beside
+    // Current Price -- not a wide bar on its own line below the item.
+    public function test_order_item_remove_button_is_small_and_beside_current_price(): void
+    {
+        $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('grid-template-columns: 2fr 1fr 1fr 1fr auto;', $html);
+        $this->assertMatchesRegularExpression('/\.order-item-row \.order-item-remove \{[^}]*width: 40px;[^}]*height: 40px;/s', $html);
+        $this->assertMatchesRegularExpression('#name="products\[\]\[cost_price\]"[^>]*>\s*</div>\s*<button type="button" onclick="removeOrderItem\(this\)" class="btn btn-danger btn-icon order-item-remove"#', $html);
+    }
 }

@@ -1,9 +1,11 @@
 {{-- Shared "Create Purchase Order" field markup. Included by both the
      standalone create page and the Create Purchase Order modal. --}}
 <style>
+    /* Product | Quantity | Previous Price | Current Price | small Remove
+       button, all on one line. */
     .order-item-row {
         display: grid;
-        grid-template-columns: 2fr 1fr 1fr auto;
+        grid-template-columns: 2fr 1fr 1fr 1fr auto;
         gap: 16px;
         align-items: end;
         padding: 16px;
@@ -11,6 +13,20 @@
         border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
         border-radius: 12px;
         margin-bottom: 12px;
+    }
+    .order-item-row .form-group { margin-bottom: 0; }
+    .order-item-row .order-item-remove {
+        align-self: end;
+        margin-bottom: 5px;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        font-size: 0.85rem;
     }
     .order-items-section {
         border-top: 1px solid var(--border, rgba(148, 163, 184, 0.2));
@@ -25,6 +41,7 @@
     }
     @media (max-width: 700px) {
         .order-item-row { grid-template-columns: 1fr; }
+        .order-item-row .order-item-remove { justify-self: end; }
     }
 </style>
 
@@ -92,7 +109,7 @@
                 <label class="form-label">Current Price <span style="color: var(--danger);">*</span></label>
                 <input type="number" name="products[][cost_price]" min="0.01" step="0.01" class="form-input order-item-cost" required>
             </div>
-            <button type="button" onclick="removeOrderItem(this)" class="btn btn-danger btn-icon" title="Remove item">
+            <button type="button" onclick="removeOrderItem(this)" class="btn btn-danger btn-icon order-item-remove" title="Remove item" aria-label="Remove item">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
