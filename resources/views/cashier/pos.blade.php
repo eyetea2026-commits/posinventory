@@ -1265,8 +1265,21 @@
             });
     }
 
+    // Shows the receipt inside the POS and prints it as soon as it has
+    // loaded. In Chrome opened with --kiosk-printing (the "CCTV Express POS"
+    // desktop shortcut) that print goes straight to the default printer,
+    // the thermal printer, with no print window; in a normal browser
+    // window it opens the print window automatically.
     function showReceiptFallback(receiptUrl) {
-        document.getElementById('receiptFallbackFrame').src = receiptUrl;
+        const frame = document.getElementById('receiptFallbackFrame');
+        frame.onload = function () {
+            frame.onload = null;
+            try {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+            } catch (e) { /* "Print Receipt" is still there */ }
+        };
+        frame.src = receiptUrl;
         document.getElementById('receiptFallbackOverlay').style.display = 'flex';
     }
 

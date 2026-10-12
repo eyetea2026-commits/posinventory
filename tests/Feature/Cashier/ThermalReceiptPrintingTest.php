@@ -242,5 +242,7 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertStringContainsString('showReceiptFallback(receiptUrl);', $html);
         $this->assertStringContainsString('id="receiptFallbackOverlay"', $html);
         $this->assertStringContainsString('onclick="printReceiptFallback()"', $html);
+        // It prints by itself once loaded (silently in Chrome --kiosk-printing).
+        $this->assertMatchesRegularExpression('/frame\.onload = function \(\) \{.*?frame\.contentWindow\.print\(\);/s', $html);
     }
 }
