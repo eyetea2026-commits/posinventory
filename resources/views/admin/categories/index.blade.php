@@ -414,14 +414,8 @@
                 class="search-input"
                 placeholder="Search categories by name..."
             />
-            <input type="hidden" name="status" id="statusInput" value="{{ $status ?? '' }}" />
         </form>
         <div class="category-header-actions">
-            <select id="statusFilter" class="filter-select" aria-label="Filter by status">
-                <option value="" {{ empty($status) ? 'selected' : '' }}>All Statuses</option>
-                <option value="active" {{ ($status ?? '') === 'active' ? 'selected' : '' }}>Active</option>
-                <option value="inactive" {{ ($status ?? '') === 'inactive' ? 'selected' : '' }}>Deactivated</option>
-            </select>
             <a href="{{ route('admin.categories.create') }}" class="btn btn-primary" onclick="openAddCategoryModal(event)" title="Create Category">
                 <i class="fa-solid fa-plus"></i> Create Category
             </a>
@@ -604,8 +598,6 @@
             const params = new URLSearchParams();
             const search = searchInput.value.trim();
             if (search) params.set('search', search);
-            const status = document.getElementById('statusInput').value;
-            if (status) params.set('status', status);
             if (page > 1) params.set('page', page);
             return params.toString();
         }
@@ -664,12 +656,6 @@
 
         filterForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            applyFilters(1);
-        });
-
-        // Status filter (All / Active / Deactivated) — instant update.
-        document.getElementById('statusFilter').addEventListener('change', function () {
-            document.getElementById('statusInput').value = this.value;
             applyFilters(1);
         });
 

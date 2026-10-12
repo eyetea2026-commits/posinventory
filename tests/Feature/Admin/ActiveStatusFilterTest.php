@@ -95,7 +95,6 @@ class ActiveStatusFilterTest extends TestCase
         $this->assertStringNotContainsString('Activate', $rows[1]);
         $this->assertStringNotContainsString('confirmToggleCategoryStatus', $html);
         $this->assertStringNotContainsString('title="Delete"', $html);
-        $this->assertStringContainsString('id="statusFilter"', $html);
     }
 
     public function test_category_status_can_no_longer_be_toggled(): void
@@ -109,18 +108,25 @@ class ActiveStatusFilterTest extends TestCase
         $this->assertDatabaseHas('Product', ['ProductName' => 'Dome Camera', 'CategoryID' => $this->category->CategoryID]);
     }
 
-    public function test_categories_filter_and_deactivated_ones_go_last(): void
+    // The category status filter was removed: no dropdown, and a ?status=
+    // in the address no longer hides anything.
+    public function test_categories_have_no_status_filter_and_list_every_category(): void
     {
         $older = Category::create(['CategoryName' => 'Alpha Cables', 'Description' => 'x']);
         $newer = Category::create(['CategoryName' => 'Zulu Storage', 'Description' => 'x']);
         $newer->update(['IsActive' => false]);
 
-        $this->actingAs($this->admin)->get(route('admin.categories.index'))
-            ->assertSeeInOrder(['Alpha Cables', 'Zulu Storage']);
-        $this->actingAs($this->admin)->get(route('admin.categories.index', ['status' => 'active']))
-            ->assertSee('Alpha Cables')->assertDontSee('Zulu Storage');
-        $this->actingAs($this->admin)->get(route('admin.categories.index', ['status' => 'inactive']))
-            ->assertSee('Zulu Storage')->assertDontSee('Alpha Cables');
+        $html = $this->actingAs($this->admin)->get(route('admin.categories.index'))
+            ->assertSeeInOrder(['Alpha Cables', 'Zulu Storage'])
+            ->getContent();
+        $this->assertStringNotContainsString('id="statusFilter"', $html);
+        $this->assertStringNotContainsString('All Statuses', $html);
+        $this->assertStringNotContainsString('name="status"', $html);
+
+        foreach (['active', 'inactive'] as $status) {
+            $this->actingAs($this->admin)->get(route('admin.categories.index', ['status' => $status]))
+                ->assertSee('Alpha Cables')->assertSee('Zulu Storage');
+        }
     }
 
     public function test_deactivated_category_is_not_offered_for_new_products(): void

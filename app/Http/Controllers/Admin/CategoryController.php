@@ -33,13 +33,11 @@ class CategoryController extends Controller
     public function index(Request $request)
     {
         $search = $request->get('search');
-        $status = in_array($request->get('status'), ['active', 'inactive'], true) ? $request->get('status') : null;
 
         $categories = Category::withCount('products')
             ->when($search, function ($query) use ($search) {
                 return $query->where('CategoryName', 'like', "%{$search}%");
             })
-            ->when($status, fn ($query, $status) => $query->where('IsActive', $status === 'active'))
             // Active categories first (newest first); deactivated ones go last.
             ->orderByDesc('IsActive')
             ->orderBy('CategoryID', 'desc')
@@ -62,7 +60,7 @@ class CategoryController extends Controller
             ]);
         }
 
-        return view('admin.categories.index', compact('categories', 'search', 'status'));
+        return view('admin.categories.index', compact('categories', 'search'));
     }
 
     // Show create form
