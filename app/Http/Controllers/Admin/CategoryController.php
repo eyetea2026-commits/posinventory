@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\User;
 use App\Notifications\CategoryUpdated;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -209,29 +207,5 @@ class CategoryController extends Controller
         }
 
         return redirect()->route('admin.categories.index')->with('success', 'Category updated successfully.');
-    }
-
-    /**
-     * Categories are deactivated instead of deleted, so their products,
-     * brands and history stay intact. A deactivated category is no longer
-     * offered when adding a product, and can be reactivated anytime.
-     */
-    public function toggleStatus(Category $category): RedirectResponse
-    {
-        $category->update(['IsActive' => ! $category->IsActive]);
-
-        if ($category->IsActive) {
-            ActivityLog::record('category.activated', "Activated category \"{$category->CategoryName}\"");
-            $message = "\"{$category->CategoryName}\" is active again.";
-        } else {
-            ActivityLog::record('category.deactivated', "Deactivated category \"{$category->CategoryName}\"");
-            $message = "\"{$category->CategoryName}\" has been deactivated.";
-        }
-
-        // Back to the same list (search, filters and page kept).
-        $previous = url()->previous();
-        $list = route('admin.categories.index');
-
-        return redirect()->to(str_starts_with($previous, $list) ? $previous : $list)->with('success', $message);
     }
 }

@@ -120,19 +120,16 @@ class BrandModuleTest extends TestCase
         $this->assertDatabaseMissing('Brand', ['BrandID' => $brand->BrandID]);
     }
 
-    // Category deletion must also account for brands, not just products.
-    public function test_a_category_with_brands_is_deactivated_not_deleted(): void
+    // A category with brands can't be deleted or deactivated, so its
+    // brands are never orphaned.
+    public function test_a_category_with_brands_can_be_neither_deleted_nor_deactivated(): void
     {
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
 
-        $this->actingAs($this->admin)->from(route('admin.categories.index'))
-            ->patch(route('admin.categories.toggle-status', $this->tv))
-            ->assertRedirect(route('admin.categories.index'));
-
-        // Still there, with its brand, just deactivated.
-        $this->assertDatabaseHas('Category', ['CategoryID' => $this->tv->CategoryID, 'IsActive' => false]);
-        $this->assertDatabaseHas('Brand', ['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
         $this->assertFalse(Route::has('admin.categories.destroy'));
+        $this->assertFalse(Route::has('admin.categories.toggle-status'));
+        $this->assertDatabaseHas('Category', ['CategoryID' => $this->tv->CategoryID, 'IsActive' => true]);
+        $this->assertDatabaseHas('Brand', ['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
     }
 
     public function test_edit_category_form_lists_its_existing_brands(): void

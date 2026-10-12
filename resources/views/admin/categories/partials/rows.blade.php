@@ -20,19 +20,6 @@
                 <a href="{{ route('admin.categories.edit', $category->CategoryID) }}" class="btn btn-sm btn-edit" onclick="openEditCategoryModal(event, {{ $category->CategoryID }})">
                     <i class="fa-solid fa-edit"></i> Edit
                 </a>
-                {{-- Categories are deactivated, never deleted (their products,
-                     brands and history stay intact). --}}
-                <form method="POST" action="{{ route('admin.categories.toggle-status', $category->CategoryID) }}" style="display:inline;" id="statusForm{{ $category->CategoryID }}">
-                    @csrf
-                    @method('PATCH')
-                    <button type="button"
-                            class="btn btn-sm {{ $category->IsActive ? 'btn-danger' : 'btn-success' }}"
-                            title="{{ $category->IsActive ? 'Deactivate' : 'Activate' }}"
-                            onclick="confirmToggleCategoryStatus({{ $category->CategoryID }}, {{ $category->IsActive ? 'true' : 'false' }})">
-                        <i class="fa-solid {{ $category->IsActive ? 'fa-toggle-on' : 'fa-toggle-off' }}"></i>
-                        {{ $category->IsActive ? 'Deactivate' : 'Activate' }}
-                    </button>
-                </form>
             </div>
         </td>
     </tr>

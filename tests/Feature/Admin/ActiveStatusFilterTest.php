@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 // Products and Categories: All / Active / Deactivated filter, deactivated
@@ -82,26 +83,30 @@ class ActiveStatusFilterTest extends TestCase
 
     // ---- Categories ----
 
-    public function test_category_rows_offer_deactivate_instead_of_delete(): void
+    // The Deactivate/Activate button was removed from categories entirely
+    // (and there's still no Delete): the row only offers Edit.
+    public function test_category_rows_have_no_deactivate_or_delete_button(): void
     {
         $html = $this->actingAs($this->admin)->get(route('admin.categories.index'))->assertOk()->getContent();
+        preg_match('#<tbody id="categoriesTbody"[^>]*>(.*?)</tbody>#s', $html, $rows);
 
-        $this->assertStringContainsString(route('admin.categories.toggle-status', $this->category), $html);
-        $this->assertStringContainsString('confirmToggleCategoryStatus(', $html);
+        $this->assertStringContainsString('openEditCategoryModal(event, '.$this->category->CategoryID.')', $rows[1]);
+        $this->assertStringNotContainsString('Deactivate', $rows[1]);
+        $this->assertStringNotContainsString('Activate', $rows[1]);
+        $this->assertStringNotContainsString('confirmToggleCategoryStatus', $html);
         $this->assertStringNotContainsString('title="Delete"', $html);
         $this->assertStringContainsString('id="statusFilter"', $html);
     }
 
-    public function test_category_can_be_deactivated_and_reactivated_even_with_products(): void
+    public function test_category_status_can_no_longer_be_toggled(): void
     {
         $this->makeProduct('Dome Camera');
 
-        $this->actingAs($this->admin)->patch(route('admin.categories.toggle-status', $this->category));
-        $this->assertFalse($this->category->fresh()->IsActive);
-        $this->assertDatabaseHas('Product', ['ProductName' => 'Dome Camera', 'CategoryID' => $this->category->CategoryID]);
+        $this->assertFalse(Route::has('admin.categories.toggle-status'));
+        $this->actingAs($this->admin)->patch('/admin/categories/'.$this->category->CategoryID.'/toggle-status');
 
-        $this->actingAs($this->admin)->patch(route('admin.categories.toggle-status', $this->category));
         $this->assertTrue($this->category->fresh()->IsActive);
+        $this->assertDatabaseHas('Product', ['ProductName' => 'Dome Camera', 'CategoryID' => $this->category->CategoryID]);
     }
 
     public function test_categories_filter_and_deactivated_ones_go_last(): void

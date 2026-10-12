@@ -507,27 +507,6 @@
 @include('admin.categories.partials.category-brands-behavior')
 
 <script>
-    // Categories are deactivated instead of deleted, so their products,
-    // brands and history are kept; they can be reactivated anytime.
-    function confirmToggleCategoryStatus(categoryId, isActive) {
-        Swal.fire({
-            title: isActive ? 'Deactivate Category' : 'Activate Category',
-            text: isActive
-                ? 'This category will no longer be offered when adding a product. Its existing products, brands and history are kept, and you can reactivate it anytime.'
-                : 'This category will be available again when adding products.',
-            icon: isActive ? 'warning' : 'question',
-            showCancelButton: true,
-            confirmButtonText: isActive ? 'Deactivate' : 'Activate',
-            cancelButtonText: 'Cancel',
-            confirmButtonColor: isActive ? '#ef4444' : '#10b981',
-            cancelButtonColor: '#64748b'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('statusForm' + categoryId).submit();
-            }
-        });
-    }
-
     // Auto-show session messages
     @if(session('success'))
         Swal.fire({
