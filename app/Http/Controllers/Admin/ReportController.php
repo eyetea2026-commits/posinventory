@@ -77,6 +77,8 @@ class ReportController extends Controller
             // the very first page load showed no matter how the filter
             // changes afterward.
             'totalRevenue' => (float) ($data['sales']->total_revenue ?? 0),
+            // Same for the Sales and Revenue summary cards above the filters.
+            'salesSummary' => $data['salesSummary'],
         ]);
     }
 
@@ -537,12 +539,38 @@ class ReportController extends Controller
             'purchaseOrders' => $purchaseOrders,
             'pendingReturns' => $pendingReturns,
             'salesRows' => $reportType === 'sales' ? $this->salesBillingRows($dateFrom, $dateTo) : collect(),
+            'salesSummary' => $reportType === 'sales' ? $this->salesSummary((float) ($sales->total_revenue ?? 0), $dateFrom, $dateTo) : null,
             'inventoryRows' => $reportType === 'inventory' ? $this->inventoryRows($dateFrom, $dateTo) : collect(),
             'reorderRows' => $reportType === 'reorder' ? $this->reorderRows() : collect(),
             'stockAdjustmentRows' => $reportType === 'stock_adjustment' ? $this->stockAdjustmentRows($dateFrom, $dateTo) : collect(),
             'orderRows' => $reportType === 'orders' ? $this->orderRows($dateFrom, $dateTo) : collect(),
             'returnRows' => $reportType === 'returns' ? $this->returnRows($dateFrom, $dateTo) : collect(),
             'damageRows' => $reportType === 'damage' ? $this->damageRows($dateFrom, $dateTo) : collect(),
+        ];
+    }
+
+    /**
+     * The three Sales and Revenue summary cards for the selected range:
+     * everything sold, the money given back on completed refunds, and
+     * what's left after those refunds. A refund counts on the day it was
+     * paid out (RefundDate), or its request date if that's missing.
+     * Replacements hand back goods, not money, so they don't count.
+     *
+     * @return array{sales_total: float, refund_total: float, net_total: float}
+     */
+    private function salesSummary(float $salesTotal, ?string $dateFrom, ?string $dateTo): array
+    {
+        $refundTotal = (float) SalesReturn::query()
+            ->where('ReturnType', 'refund')
+            ->where('Status', SalesReturn::STATUS_PROCESSED)
+            ->when($dateFrom, fn ($q) => $q->whereRaw('DATE(COALESCE(RefundDate, ReturnDate)) >= ?', [$dateFrom]))
+            ->when($dateTo, fn ($q) => $q->whereRaw('DATE(COALESCE(RefundDate, ReturnDate)) <= ?', [$dateTo]))
+            ->sum('RefundAmount');
+
+        return [
+            'sales_total' => round($salesTotal, 2),
+            'refund_total' => round($refundTotal, 2),
+            'net_total' => round($salesTotal - $refundTotal, 2),
         ];
     }
 

@@ -17,6 +17,34 @@
         <span id="dateRangeErrorText">{{ $dateRangeError }}</span>
     </div>
 
+    {{-- Sales and Revenue only: totals for the selected date range. Kept
+         outside #reportBodyContainer, so refreshReportBody() fills them in
+         from the preview response and hides them for other report types. --}}
+    @php $summary = $salesSummary ?? ['sales_total' => 0, 'refund_total' => 0, 'net_total' => 0]; @endphp
+    <div id="salesSummaryCards" class="stats-grid mt-4" style="{{ $reportType === 'sales' ? '' : 'display:none;' }}">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="fas fa-cash-register"></i></div>
+            <div class="stat-content">
+                <div class="stat-label">Total Cost of Sale</div>
+                <div class="stat-value" id="summarySalesTotal">₱{{ number_format($summary['sales_total'], 2) }}</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon red"><i class="fas fa-rotate-left"></i></div>
+            <div class="stat-content">
+                <div class="stat-label">Total Cost of Refund</div>
+                <div class="stat-value" id="summaryRefundTotal">₱{{ number_format($summary['refund_total'], 2) }}</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="fas fa-sack-dollar"></i></div>
+            <div class="stat-content">
+                <div class="stat-label">Total Amount of Money After Refund</div>
+                <div class="stat-value" id="summaryNetTotal">₱{{ number_format($summary['net_total'], 2) }}</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Report Type / Date Range -->
     <div class="card mt-4 report-filter-card">
         <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items:end;">
@@ -344,6 +372,17 @@
             // newer, correct results.
             let requestSequence = 0;
 
+            // The three Sales and Revenue cards: shown only for that report
+            // type, with the totals for the selected range.
+            const salesSummaryCards = document.getElementById('salesSummaryCards');
+            function updateSalesSummary(summary) {
+                salesSummaryCards.style.display = summary ? '' : 'none';
+                if (!summary) return;
+                document.getElementById('summarySalesTotal').textContent = window.formatPeso(summary.sales_total);
+                document.getElementById('summaryRefundTotal').textContent = window.formatPeso(summary.refund_total);
+                document.getElementById('summaryNetTotal').textContent = window.formatPeso(summary.net_total);
+            }
+
             function refreshReportBody() {
                 dateFromError.textContent = '';
                 dateToError.textContent = '';
@@ -362,6 +401,7 @@
                     .then((data) => {
                         if (thisRequest !== requestSequence) return;
                         bodyContainer.innerHTML = data.html;
+                        updateSalesSummary(data.salesSummary);
                         if (data.dateRangeError) {
                             errorText.textContent = data.dateRangeError;
                             errorBanner.style.display = '';
