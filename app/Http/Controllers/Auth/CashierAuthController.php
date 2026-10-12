@@ -570,11 +570,14 @@ class CashierAuthController extends Controller
     {
         $receipt = $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber);
 
-        // Printed from the browser, the receipt is sent as plain 32-column
-        // text (the same lines as the direct thermal printout), because a
-        // thermal printer on Windows' "Generic / Text Only" driver drops the
-        // page layout and can't print the peso sign.
-        return view('cashier.receipt', $receipt + ['printText' => $printer->plainText($receipt)]);
+        // Printed from the browser, the receipt prints the same 32-column
+        // lines as the direct thermal printout (bold / double-height where
+        // that printout uses them), so with the thermal printer's own driver
+        // the slip looks the same either way.
+        return view('cashier.receipt', $receipt + [
+            'printLines' => $printer->printLines($receipt),
+            'printTail' => $printer->tailText(),
+        ]);
     }
 
     /**

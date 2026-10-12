@@ -55,7 +55,7 @@
             cursor: pointer;
         }
 
-        /* Plain-text copy of the receipt, used only when printing. */
+        /* Thermal-slip copy of the receipt, used only when printing. */
         .print-text { display: none; }
 
         /* No page margins, so the browser has nowhere to put its own
@@ -65,20 +65,23 @@
         @media print {
             body { margin: 0; padding: 0; max-width: 100%; background: #fff; }
             .no-print { display: none; }
-            /* Thermal printers on Windows' "Generic / Text Only" driver keep
-               only the text, so the receipt prints as fixed-width text lines
-               (columns padded with spaces, "P" for the peso sign) instead of
-               the on-screen layout. */
+            /* Printed as the thermal slip: 32 fixed-width columns (spaces
+               line the columns up, "P" for the peso sign) with the same bold
+               and double-height lines as the direct thermal printout. Sized
+               for 58mm paper (48mm printable): 32 chars x 0.6em x 2.5mm. */
             .receipt { display: none; }
             .print-text {
                 display: block;
+                width: 48mm;
                 margin: 0;
                 font-family: 'Courier New', monospace;
-                font-size: 12px;
+                font-size: 2.5mm;
                 line-height: 1.25;
-                white-space: pre;
                 color: #000;
             }
+            .print-text .pl, .print-text .pl-tail { white-space: pre; margin: 0; font: inherit; }
+            .print-text .pl-bold { font-weight: bold; }
+            .print-text .pl-tall { transform: scaleY(2); transform-origin: top left; margin-bottom: 1.25em; }
         }
     </style>
 </head>
@@ -94,8 +97,13 @@
         }
     </script>
 
-    @isset($printText)
-        <pre class="print-text">{{ $printText }}</pre>
+    @isset($printLines)
+        <div class="print-text">
+            @foreach($printLines as $line)
+                <div class="pl{{ $line['bold'] ? ' pl-bold' : '' }}{{ $line['tall'] ? ' pl-tall' : '' }}">{{ $line['text'] }}</div>
+            @endforeach
+            <pre class="pl-tail">{{ $printTail }}</pre>
+        </div>
     @endisset
 
     <div class="receipt">

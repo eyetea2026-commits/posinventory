@@ -100,16 +100,33 @@ class ThermalReceiptPrintingTest extends TestCase
     }
 
     // Printing the receipt page from the browser (the deployed site, where
-    // direct printing is off) to a "Generic / Text Only" thermal driver.
-    public function test_browser_printed_receipt_is_plain_32_column_text_without_page_header(): void
+    // direct printing is off) through the thermal printer's driver.
+    public function test_browser_printed_receipt_matches_the_thermal_slip_without_page_header(): void
     {
         $receipt = $this->sellAndGetReceipt('Dome Camera 2MP', 1500, 2, 'cash', 5000);
 
         $html = $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->assertOk()->getContent();
 
-        $this->assertMatchesRegularExpression('#<pre class="print-text">(.*?)</pre>#s', $html);
-        preg_match('#<pre class="print-text">(.*?)</pre>#s', $html, $m);
-        $text = html_entity_decode($m[1]);
+        $this->assertMatchesRegularExpression('#<div class="print-text">(.*?)<pre class="pl-tail">(.*?)</pre>#s', $html);
+        preg_match('#<div class="print-text">(.*?)<pre class="pl-tail">(.*?)</pre>#s', $html, $m);
+        preg_match_all('#<div class="(pl[^"]*)">(.*?)</div>#s', $m[1], $rows, PREG_SET_ORDER);
+        $text = '';
+        $classOf = [];
+        foreach ($rows as [, $class, $line]) {
+            $line = html_entity_decode($line);
+            $text .= $line."\n";
+            $classOf[trim(preg_replace('/\s+/', ' ', $line))] = $class;
+        }
+        $text .= html_entity_decode($m[2]);
+
+        // Same bold / double-height lines as the direct thermal printout.
+        $this->assertSame('pl pl-bold pl-tall', $classOf['CCTV Express']);
+        $this->assertSame('pl pl-bold', $classOf['SALES RECEIPT']);
+        $this->assertSame('pl pl-bold pl-tall', $classOf['TOTAL: P3,000.00']);
+        $this->assertSame('pl', $classOf['Your Trusted Security Partner']);
+        $this->assertSame('pl', $classOf['Payment: Cash']);
+        $this->assertStringContainsString('.print-text .pl-bold { font-weight: bold; }', $html);
+        $this->assertStringContainsString('.print-text .pl-tall { transform: scaleY(2);', $html);
 
         // Same lines as the direct thermal printout: padded columns, "P" amounts.
         $this->assertStringContainsString('2 x P1,500.00', $text);
@@ -126,7 +143,7 @@ class ThermalReceiptPrintingTest extends TestCase
 
         // Zero page margins leave no room for the browser's URL/date header and footer.
         $this->assertStringContainsString('@page { margin: 0; }', $html);
-        $this->assertMatchesRegularExpression('/@media print \{.*?\.receipt \{ display: none; \}.*?\.print-text \{\s*display: block;/s', $html);
+        $this->assertMatchesRegularExpression('/@media print \{.*?\.receipt \{ display: none; \}.*?\.print-text \{\s*display: block;\s*width: 48mm;/s', $html);
     }
 
     public function test_it_prints_the_same_figures_as_the_on_screen_receipt(): void

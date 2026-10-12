@@ -123,8 +123,8 @@ class CheckoutTest extends TestCase
         $receiptResponse->assertSee('<td class="col-qty">2</td>', false);
         $receiptResponse->assertSee('<td class="col-amt">5,000.00</td>', false);
         // The on-screen table never uses "2 x price" (only the separate
-        // plain-text copy printed from the browser does, like the thermal slip).
-        $onScreen = preg_replace('#<pre class="print-text">.*?</pre>#s', '', $receiptResponse->getContent());
+        // thermal-slip copy printed from the browser does).
+        $onScreen = preg_replace('#<div class="print-text">.*?<pre class="pl-tail">.*?</pre>#s', '', $receiptResponse->getContent());
         $this->assertStringNotContainsString('2 x', $onScreen);
         $receiptResponse->assertDontSee('<td class="col-amt">2,500.00</td>', false);
     }

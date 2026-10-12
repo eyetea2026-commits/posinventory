@@ -100,26 +100,35 @@ class ThermalReceiptPrinter
     }
 
     /**
-     * The same receipt as plain 32-column text ("P" for the peso sign),
-     * for printers that only print text, e.g. a thermal printer installed
-     * with Windows' "Generic / Text Only" driver and printed from the
-     * browser. The on-screen receipt page prints this text.
+     * The receipt one printed line at a time (centred lines already padded
+     * to the paper width), each with the same bold / double-height styling
+     * the direct thermal printout uses. The receipt page prints these from
+     * the browser, so with a proper thermal driver the slip looks the same
+     * as the direct printout.
      *
-     * @param  array<string, mixed>  $r  Output of CashierAuthController::buildReceiptData().
+     * @param  array<string, mixed>  $r
+     * @return list<array{text: string, bold: bool, tall: bool}>
      */
-    public function plainText(array $r): string
+    public function printLines(array $r): array
     {
-        $out = '';
+        $out = [];
         foreach ($this->lines($r) as $line) {
             foreach (explode("\n", rtrim($line['text'], "\n")) as $part) {
-                $out .= ($line['center'] ? $this->center($part) : $part)."\n";
+                $out[] = ['text' => $line['center'] ? $this->center($part) : $part, 'bold' => $line['bold'], 'tall' => $line['tall']];
             }
         }
 
-        // Feed the paper past the tear bar so the last lines aren't left
-        // inside the printer (and printed on top of the next receipt). A text
-        // driver drops trailing blank lines, so a final "." forces the feed.
-        return $out.str_repeat("\n", self::TAIL_LINES).$this->center('.')."\n";
+        return $out;
+    }
+
+    /**
+     * Blank lines after the footer so the paper feeds past the tear bar (the
+     * last lines aren't left inside the printer). Some text-only drivers drop
+     * trailing blank lines, so a final "." forces the feed.
+     */
+    public function tailText(): string
+    {
+        return str_repeat("\n", self::TAIL_LINES).$this->center('.')."\n";
     }
 
     /**
