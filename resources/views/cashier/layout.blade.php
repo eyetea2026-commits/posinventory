@@ -236,6 +236,92 @@
             }
         }
     </style>
+    {{-- In the head (not after the page content) so the notification
+         dropdown and toasts are styled from the first paint: on a long page
+         like the POS the browser otherwise draws them as raw links first. --}}
+    <style>
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 14px 20px;
+            background: #1a1d2d;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+            z-index: 9999;
+            border-left: 4px solid #10b981;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast-success { border-color: #10b981; }
+        .toast-success i { color: #10b981; }
+        .toast-error { border-color: #ef4444; }
+        .toast-error i { color: #ef4444; }
+
+        .notif-bell-wrap { position: relative; display: inline-flex; align-items: center; }
+        .notif-bell-btn {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.05rem;
+            cursor: pointer;
+            padding: 4px;
+        }
+        .notif-bell-btn:hover { color: #e2e8f0; }
+        .notif-badge {
+            position: absolute;
+            top: -2px;
+            right: -4px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 10px;
+            line-height: 1.3;
+        }
+        .notif-dropdown {
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 10px;
+            width: 320px;
+            /* Shrinks to fit a narrow/resized viewport instead of
+               overflowing past the screen edge and clipping its own
+               content or the "Mark all read" / "View all" controls. */
+            max-width: calc(100vw - 24px);
+            background: rgba(26, 29, 45, 0.72);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            z-index: 1100;
+            text-align: left;
+        }
+        .notif-dropdown.active { display: flex; }
+        .notif-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); font-weight: 600; flex-shrink: 0; }
+        .notif-dropdown-header button { background: none; border: none; color: #94a3b8; font-size: 0.75rem; cursor: pointer; }
+        {{-- Only the notification list itself scrolls -- the header and
+             "View all notifications" footer link stay pinned in view, and
+             the list never grows the dropdown past a fixed height no
+             matter how many unread notifications there are. --}}
+        .notif-items { max-height: 320px; overflow-y: auto; }
+        .notif-item { display: block; padding: 10px 16px; text-decoration: none; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); font-size: 0.85rem; }
+        .notif-item:hover { background: rgba(59, 130, 246, 0.1); }
+        .notif-item small { color: #94a3b8; }
+        .notif-empty { padding: 20px 16px; color: #94a3b8; font-size: 0.85rem; text-align: center; }
+        .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; flex-shrink: 0; }
+    </style>
 </head>
 <body>
     <div class="mobile-header">
@@ -333,89 +419,5 @@
             showToast('{{ session('error') }}', 'error');
         @endif
     </script>
-
-    <style>
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 14px 20px;
-            background: #1a1d2d;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            transform: translateX(120%);
-            transition: transform 0.3s ease;
-            z-index: 9999;
-            border-left: 4px solid #10b981;
-        }
-        .toast.show { transform: translateX(0); }
-        .toast-success { border-color: #10b981; }
-        .toast-success i { color: #10b981; }
-        .toast-error { border-color: #ef4444; }
-        .toast-error i { color: #ef4444; }
-
-        .notif-bell-wrap { position: relative; display: inline-flex; align-items: center; }
-        .notif-bell-btn {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            background: none;
-            border: none;
-            color: #94a3b8;
-            font-size: 1.05rem;
-            cursor: pointer;
-            padding: 4px;
-        }
-        .notif-bell-btn:hover { color: #e2e8f0; }
-        .notif-badge {
-            position: absolute;
-            top: -2px;
-            right: -4px;
-            background: #ef4444;
-            color: #fff;
-            font-size: 0.6rem;
-            font-weight: 700;
-            padding: 1px 5px;
-            border-radius: 10px;
-            line-height: 1.3;
-        }
-        .notif-dropdown {
-            display: none;
-            flex-direction: column;
-            position: absolute;
-            top: 100%;
-            right: 0;
-            margin-top: 10px;
-            width: 320px;
-            /* Shrinks to fit a narrow/resized viewport instead of
-               overflowing past the screen edge and clipping its own
-               content or the "Mark all read" / "View all" controls. */
-            max-width: calc(100vw - 24px);
-            background: rgba(26, 29, 45, 0.72);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-            z-index: 1100;
-            text-align: left;
-        }
-        .notif-dropdown.active { display: flex; }
-        .notif-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); font-weight: 600; flex-shrink: 0; }
-        .notif-dropdown-header button { background: none; border: none; color: #94a3b8; font-size: 0.75rem; cursor: pointer; }
-        {{-- Only the notification list itself scrolls -- the header and
-             "View all notifications" footer link stay pinned in view, and
-             the list never grows the dropdown past a fixed height no
-             matter how many unread notifications there are. --}}
-        .notif-items { max-height: 320px; overflow-y: auto; }
-        .notif-item { display: block; padding: 10px 16px; text-decoration: none; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); font-size: 0.85rem; }
-        .notif-item:hover { background: rgba(59, 130, 246, 0.1); }
-        .notif-item small { color: #94a3b8; }
-        .notif-empty { padding: 20px 16px; color: #94a3b8; font-size: 0.85rem; text-align: center; }
-        .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; flex-shrink: 0; }
-    </style>
 </body>
 </html>
