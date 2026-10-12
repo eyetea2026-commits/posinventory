@@ -18,7 +18,6 @@
         </td>
         <td><strong>{{ $order->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
         <td>{{ \Illuminate\Support\Carbon::parse($order->PurchaseDate)->format('m/d/Y') }}</td>
-        <td>{{ $order->items->count() }} items</td>
         <td>
             @php
                 $badgeClass = match($order->Status) {
@@ -31,9 +30,10 @@
             @endphp
             <span class="badge {{ $badgeClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$order->Status] ?? ucfirst($order->Status) }}</span>
         </td>
-        {{-- Total units ordered across every item on this order. --}}
-        @php $unitsOrdered = (int) $order->items->sum('Quantity'); @endphp
-        <td><strong>{{ number_format($unitsOrdered) }}</strong> {{ $unitsOrdered === 1 ? 'unit' : 'units' }}</td>
+        {{-- How many different products this order is for (not their
+             quantities): ordering 3 products shows "3 products". --}}
+        @php $productsOrdered = $order->items->pluck('ProductID')->unique()->count(); @endphp
+        <td><strong>{{ $productsOrdered }}</strong> {{ $productsOrdered === 1 ? 'product' : 'products' }}</td>
         <td>
             <div class="actions-group">
                 <a href="#" class="action-btn view" title="View Details" onclick="openViewPurchaseOrderModal(event, {{ $order->PurchaseOrderID }})">
@@ -52,7 +52,7 @@
     </tr>
 @empty
     <tr>
-        <td colspan="8">
+        <td colspan="7">
             <div class="empty-state">
                 <div class="empty-icon"><i class="fas {{ $isHistory ? 'fa-clock-rotate-left' : 'fa-shopping-cart' }}"></i></div>
                 <p class="empty-title">{{ $isHistory ? 'No Printed Orders Yet' : 'No Purchase Orders' }}</p>

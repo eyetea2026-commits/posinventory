@@ -96,7 +96,8 @@ class PurchaseOrderModuleTest extends TestCase
     }
 
     // The list filters by Supplier (no longer by Category), and next to
-    // Status it shows how many units each order is for.
+    // Status it shows how many different products each order is for (not
+    // their quantities).
     public function test_index_filters_by_supplier_and_shows_products_ordered(): void
     {
         $otherSupplier = Supplier::create(['SupplierName' => 'Second Supplier', 'ContactNumber' => '2', 'Email' => 'second@mail.com', 'Address' => 'N/A']);
@@ -110,7 +111,10 @@ class PurchaseOrderModuleTest extends TestCase
             'Status' => PurchaseOrder::STATUS_PENDING, 'SupplierID' => $otherSupplier->SupplierID,
         ]);
         PurchaseOrderItem::create(['PurchaseOrderID' => $otherPo->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 3, 'CostPriceAtOrder' => 600]);
-        PurchaseOrderItem::create(['PurchaseOrderID' => $otherPo->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => 9, 'CostPriceAtOrder' => 600]);
+        $secondProduct = Product::create(['ProductName' => 'Bullet Cam', 'Model' => 'BC-1', 'Price' => 900, 'CostPrice' => 500, 'CategoryID' => $this->product->CategoryID]);
+        $thirdProduct = Product::create(['ProductName' => 'NVR 8CH', 'Model' => 'NVR-8', 'Price' => 3000, 'CostPrice' => 2000, 'CategoryID' => $this->product->CategoryID]);
+        PurchaseOrderItem::create(['PurchaseOrderID' => $otherPo->PurchaseOrderID, 'ProductID' => $secondProduct->ProductID, 'Quantity' => 9, 'CostPriceAtOrder' => 500]);
+        PurchaseOrderItem::create(['PurchaseOrderID' => $otherPo->PurchaseOrderID, 'ProductID' => $thirdProduct->ProductID, 'Quantity' => 40, 'CostPriceAtOrder' => 2000]);
 
         $index = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk();
         $index->assertDontSee('<i class="fas fa-filter"></i> Filter', false);
@@ -118,9 +122,11 @@ class PurchaseOrderModuleTest extends TestCase
         $index->assertSee('All Suppliers');
         $index->assertDontSee('name="category_id"', false);
         $index->assertDontSee('All Categories');
-        $index->assertSeeInOrder(['<th>Status</th>', '<th>Products Ordered</th>', '<th>Actions</th>'], false);
-        $index->assertSee('<strong>12</strong> units', false);
-        $index->assertSee('<strong>5</strong> units', false);
+        $index->assertSeeInOrder(['<th>Order Date</th>', '<th>Status</th>', '<th>Products Ordered</th>', '<th>Actions</th>'], false);
+        $index->assertDontSee('<th>Items</th>', false);
+        $index->assertSee('<strong>3</strong> products', false);
+        $index->assertSee('<strong>1</strong> product<', false);
+        $index->assertDontSee('units', false);
 
         $supplierFiltered = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['supplier_id' => $otherSupplier->SupplierID]));
         $supplierFiltered->assertOk();
