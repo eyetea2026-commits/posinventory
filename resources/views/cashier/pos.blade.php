@@ -1199,17 +1199,19 @@
     //    Change field is hidden (there's never change on these).
     //  - Cash / GCash: cashier types the amount, unless "Auto-fill exact
     //    amount" is ticked, in which case it tracks the total and locks.
+    //    The Change field shows for Cash only (also hidden for GCash).
     // Called whenever the method, the checkbox, or the cart total changes.
     function syncPaymentAmountMode() {
         const input = document.getElementById('payment-amount');
         const checkbox = document.getElementById('auto-fill-payment');
         const isExactOnly = selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank';
+        const hidesChange = isExactOnly || selectedPaymentMethod === 'gcash';
         const wasAutoFilled = input.readOnly;
         const autoFill = isExactOnly || checkbox.checked;
 
         document.getElementById('auto-fill-payment-group').style.display = isExactOnly ? 'none' : '';
         document.getElementById('payment-amount-hint').style.display = isExactOnly ? '' : 'none';
-        document.getElementById('change-group').style.display = isExactOnly ? 'none' : '';
+        document.getElementById('change-group').style.display = hidesChange ? 'none' : '';
 
         if (autoFill) {
             input.value = window.formatMoneyPlain(currentTotal);

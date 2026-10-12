@@ -306,6 +306,9 @@ class CheckoutTest extends TestCase
         $response->assertSee('id="change-group"', false);
         $response->assertSee('maxIntegerDigits: 7', false);
         $response->assertSee('function syncPaymentAmountMode()', false);
+        // Change only shows for Cash: hidden for GCash, Bank Transfer and Cheque.
+        $response->assertSee("const hidesChange = isExactOnly || selectedPaymentMethod === 'gcash';", false);
+        $response->assertSee("document.getElementById('change-group').style.display = hidesChange ? 'none' : '';", false);
         // The old inline handler ran before the formatter capped the value.
         $response->assertDontSee('oninput="calculateChange()"', false);
         // Adding/scanning an item scrolls the cart to that line, and every
