@@ -35,6 +35,34 @@ class SessionFreshnessTest extends TestCase
         $this->assertSame('no-cache', $response->headers->get('Pragma'));
     }
 
+    // Closing the whole browser signs the user out.
+    public function test_the_login_cookie_is_deleted_when_the_browser_closes(): void
+    {
+        $this->assertTrue(config('session.expire_on_close'));
+        $this->cashier->update(['name' => 'closecheck']);
+        $tokenBefore = $this->cashier->fresh()->remember_token;
+
+        $response = $this->post(route('login.post'), ['username' => 'closecheck', 'password' => 'password', 'remember' => 'on']);
+
+        $response->assertRedirect();
+        $this->assertAuthenticatedAs($this->cashier);
+        $cookies = collect($response->headers->getCookies());
+        $session = $cookies->first(fn ($c) => $c->getName() === config('session.cookie'));
+        $this->assertNotNull($session);
+        // Expiry 0 = a browser-session cookie, removed when the browser closes.
+        $this->assertSame(0, $session->getExpiresTime());
+        // No "remember me" cookie that would sign them back in, even if the
+        // old checkbox value is still sent.
+        $this->assertNull($cookies->first(fn ($c) => str_starts_with($c->getName(), 'remember_')));
+        // A remembered login would have written a new remember token.
+        $this->assertSame($tokenBefore, $this->cashier->fresh()->remember_token);
+    }
+
+    public function test_the_login_page_no_longer_offers_remember_me(): void
+    {
+        $this->get(route('welcome'))->assertOk()->assertDontSee('name="remember"', false)->assertDontSee('Remember Me');
+    }
+
     public function test_signed_in_pages_are_never_cached_by_the_browser(): void
     {
         $this->assertNotCacheable($this->actingAs($this->cashier)->get(route('cashier.pos')));

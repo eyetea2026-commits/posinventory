@@ -46,14 +46,6 @@
                         </div>
                         @error('password') <span class="lv2-field-error">{{ $message }}</span> @enderror
 
-                        <div class="lv2-remember">
-                            <span>Remember Me</span>
-                            <label class="lv2-switch">
-                                <input id="remember" type="checkbox" name="remember">
-                                <span class="lv2-slider"></span>
-                            </label>
-                        </div>
-
                         <button type="submit" class="lv2-submit">Log in</button>
 
                         <div class="lv2-footer">

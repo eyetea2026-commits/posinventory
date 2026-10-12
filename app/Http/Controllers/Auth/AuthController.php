@@ -96,7 +96,10 @@ class AuthController extends Controller
             'password' => $credentials['password'],
         ];
 
-        if (Auth::attempt($loginCredentials, $request->boolean('remember'))) {
+        // Never "remember" the login: closing the browser must sign the user
+        // out (config session.expire_on_close), and a remember-me cookie
+        // would silently sign them back in.
+        if (Auth::attempt($loginCredentials, false)) {
             $request->session()->regenerate();
             $user = Auth::user();
 
