@@ -35,7 +35,7 @@ class ReturnRequestApproved extends Notification
             ->line($this->badgeHtml('APPROVED', '#16a34a'))
             ->line("Your {$this->salesReturn->ReturnType} request **{$requestNumber}** has been approved.")
             ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
-            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'Walk-in Customer'));
+            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'N/A'));
 
         if ($items->isNotEmpty()) {
             $message->line($this->buildItemsTableHtml($items));

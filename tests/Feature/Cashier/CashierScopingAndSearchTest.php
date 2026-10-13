@@ -227,13 +227,13 @@ class CashierScopingAndSearchTest extends TestCase
 
     public function test_searching_na_finds_walk_in_sales(): void
     {
-        $this->makeTransactionFor($this->staff1, 'Walk-in Customer');
+        $this->makeTransactionFor($this->staff1, 'N/A');
         $this->makeTransactionFor($this->staff1, 'Narvaiz');
 
         $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions', ['search' => 'N/A']));
 
         $this->assertSame(1, $response->viewData('transactions')->total());
-        $this->assertSame('Walk-in Customer', $response->viewData('transactions')->first()->CustomerName);
+        $this->assertSame('N/A', $response->viewData('transactions')->first()->CustomerName);
     }
 
     public function test_transactions_page_has_no_search_button_and_wires_up_live_search(): void

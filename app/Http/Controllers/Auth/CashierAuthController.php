@@ -194,12 +194,6 @@ class CashierAuthController extends Controller
                     if ($receiptMatchIds !== []) {
                         $inner->orWhereIn('SalesTransactionID', $receiptMatchIds);
                     }
-
-                    // The list shows walk-in sales as "N/A", so searching
-                    // for that finds them too.
-                    if (strcasecmp(trim($search), 'n/a') === 0) {
-                        $inner->orWhere('CustomerName', 'Walk-in Customer');
-                    }
                 });
             })
             ->orderBy('SalesTransactionID', 'desc')
@@ -290,8 +284,9 @@ class CashierAuthController extends Controller
         // by the ConvertEmptyStringsToNull middleware) is common — input()'s default
         // only applies when the key is entirely absent, not when it's null/blank, so
         // that case has to be handled explicitly or SalesTransaction's NOT NULL
-        // CustomerName column rejects the insert.
-        $customerName = trim((string) $request->input('customer_name')) ?: 'Walk-in Customer';
+        // CustomerName column rejects the insert. A customer
+        // who gave no name is saved as "N/A".
+        $customerName = trim((string) $request->input('customer_name')) ?: 'N/A';
         $paymentMethod = $data['payment_method'];
         $paymentAmount = round(floatval($request->input('payment_amount', 0)), 2);
         $referenceNumber = $data['reference_number'] ?? null;

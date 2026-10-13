@@ -402,8 +402,8 @@ class ReportController extends Controller
     // of them can drift from each other.
     /**
      * How a customer appears on the reports: a sale or return where the
-     * customer gave no name (stored as "Walk-in Customer") shows "N/A".
-     * Display only -- the stored value is unchanged, same as the receipt.
+     * customer gave no name shows "N/A" (saved as "N/A"; older records
+     * saved "Walk-in Customer", which shows as N/A too).
      */
     public static function customerLabel(?string $name): string
     {

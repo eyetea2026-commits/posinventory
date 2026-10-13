@@ -139,10 +139,8 @@
         @if($customerName)
             <div class="meta-row">
                 <span>Customer:</span>
-                {{-- Display only — the stored value is still "Walk-in
-                     Customer" (unchanged everywhere else: transaction
-                     history, reports, database). Only this receipt line
-                     shows "N/A" for it. --}}
+                {{-- No name given is saved as "N/A"; older sales saved
+                     "Walk-in Customer", which shows as N/A too. --}}
                 <span>{{ $customerName === 'Walk-in Customer' ? 'N/A' : $customerName }}</span>
             </div>
         @endif

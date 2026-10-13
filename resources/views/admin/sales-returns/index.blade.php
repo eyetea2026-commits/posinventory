@@ -93,7 +93,7 @@
                             <td>{{ \Illuminate\Support\Carbon::parse($return->ReturnDate)->format('m/d/Y') }}</td>
                             <td>{{ $return->staff?->user?->full_name ?? 'N/A' }}</td>
                             <td>{{ $return->transaction ? 'RCT-' . str_pad($return->SalesTransactionID, 6, '0', STR_PAD_LEFT) : 'N/A' }}</td>
-                            {{-- No name given (stored as "Walk-in Customer") shows N/A. --}}
+                            {{-- No name given shows N/A (older records saved "Walk-in Customer"). --}}
                             <td>{{ \App\Http\Controllers\Admin\ReportController::customerLabel($return->CustomerName ?? $return->transaction?->CustomerName) }}</td>
                             <td>
                                 <span class="badge {{ $return->ReturnType === 'replacement' ? 'badge-info' : 'badge-primary' }}">

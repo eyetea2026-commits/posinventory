@@ -15,6 +15,7 @@ use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -180,7 +181,7 @@ class CheckoutTest extends TestCase
 
         $response->assertStatus(400);
         $response->assertJsonPath('success', false);
-        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'Walk-in Customer']);
+        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'N/A']);
     }
 
     public function test_gcash_payment_meeting_total_succeeds(): void
@@ -198,6 +199,44 @@ class CheckoutTest extends TestCase
         $response->assertJsonPath('success', true);
     }
 
+    public function test_a_sale_without_a_customer_name_is_saved_as_na(): void
+    {
+        $product = $this->makeProduct(1000);
+
+        $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $product->ProductID, 'qty' => 1]],
+            'customer_name' => '',
+            'payment_method' => 'cash',
+            'payment_amount' => 1000,
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('SalesTransaction', ['CustomerName' => 'N/A']);
+        $this->assertDatabaseHas('Billing', ['CustomerName' => 'N/A']);
+        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'Walk-in Customer']);
+    }
+
+    public function test_the_migration_changes_saved_walk_in_customers_to_na(): void
+    {
+        $product = $this->makeProduct(1000);
+        foreach (['', 'Narvaiz'] as $name) {
+            $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+                'items' => [['id' => $product->ProductID, 'qty' => 1]],
+                'customer_name' => $name,
+                'payment_method' => 'cash',
+                'payment_amount' => 1000,
+            ])->assertOk();
+        }
+        DB::table('SalesTransaction')->where('CustomerName', 'N/A')->update(['CustomerName' => 'Walk-in Customer']);
+        DB::table('Billing')->where('CustomerName', 'N/A')->update(['CustomerName' => 'Walk-in Customer']);
+
+        $migration = require database_path('migrations/2026_10_13_111641_change_walk_in_customer_names_to_na.php');
+        $migration->up();
+
+        $this->assertSame(['N/A', 'Narvaiz'], DB::table('SalesTransaction')->orderBy('SalesTransactionID')->pluck('CustomerName')->all());
+        $this->assertSame(['N/A', 'Narvaiz'], DB::table('Billing')->orderBy('BillingID')->pluck('CustomerName')->all());
+    }
+
     // ---- Insufficient stock is rejected server-side, not just hidden by
     // the UI, and never partially decrements what little stock exists ----
 
@@ -213,7 +252,7 @@ class CheckoutTest extends TestCase
 
         $response->assertStatus(400);
         $response->assertJsonPath('success', false);
-        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'Walk-in Customer']);
+        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'N/A']);
         $this->assertSame(3, Inventory::where('ProductID', $product->ProductID)->value('Quantity'));
     }
 
@@ -233,7 +272,7 @@ class CheckoutTest extends TestCase
 
         $response->assertStatus(409);
         $response->assertJsonPath('success', false);
-        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'Walk-in Customer']);
+        $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'N/A']);
     }
 
     // ---- Money rounding: a discount rate that produces a repeating binary

@@ -35,7 +35,7 @@ class ReturnRequestDeclined extends Notification
             ->line($this->badgeHtml('DECLINED', '#dc2626'))
             ->line("Your {$this->salesReturn->ReturnType} request **{$requestNumber}** has been declined.")
             ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
-            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'Walk-in Customer'))
+            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'N/A'))
             ->line('**Decline Reason:** '.($this->salesReturn->DeclineReason ?: 'Not specified'));
 
         if ($items->isNotEmpty()) {

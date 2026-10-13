@@ -35,7 +35,7 @@ class NewRefundRequest extends Notification
             ->line($this->badgeHtml('PENDING REVIEW', '#d97706'))
             ->line("A new **{$this->salesReturn->ReturnType}** request **{$requestNumber}** was submitted.")
             ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
-            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'Walk-in Customer'));
+            ->line('**Customer:** '.($this->salesReturn->CustomerName ?: 'N/A'));
 
         if ($items->isNotEmpty()) {
             $message->line($this->buildItemsTableHtml($items));
