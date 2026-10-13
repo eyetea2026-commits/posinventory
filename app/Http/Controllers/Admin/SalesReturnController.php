@@ -140,7 +140,7 @@ class SalesReturnController extends Controller
                 'ReceiptNumber' => $receiptNumber,
                 'InvoiceNumber' => $receiptNumber,
                 'TransactionDate' => optional($transaction?->SalesTransactionDate)->format('m/d/Y h:i A'),
-                'CustomerName' => $salesReturn->CustomerName ?? $transaction?->CustomerName,
+                'CustomerName' => ReportController::customerLabel($salesReturn->CustomerName ?? $transaction?->CustomerName),
                 'OriginalCashier' => $transaction?->staff?->user?->full_name,
                 'PaymentMethod' => $transaction?->billing?->payment?->PaymentMethod,
             ],

@@ -309,4 +309,22 @@ class SalesReturnApprovalTest extends TestCase
         ]);
         $this->assertSame('declined', $return->fresh()->Status);
     }
+
+    // A customer who gave no name (stored as "Walk-in Customer") shows as
+    // "N/A" on the Approval list and in its View Details; real names stay.
+    public function test_walk_in_customers_show_as_na_on_the_approval_page(): void
+    {
+        $walkIn = $this->makeReturn(['CustomerName' => 'Walk-in Customer']);
+        $this->makeReturn(['CustomerName' => 'Maria Santos']);
+
+        $html = $this->actingAs($this->admin)->get(route('admin.sales-returns.index'))->assertOk()->getContent();
+        preg_match('#<tbody>(.*?)</tbody>#s', $html, $rows);
+
+        $this->assertStringContainsString('<td>N/A</td>', $rows[1]);
+        $this->assertStringContainsString('<td>Maria Santos</td>', $rows[1]);
+        $this->assertStringNotContainsString('Walk-in', $rows[1]);
+
+        $this->actingAs($this->admin)->getJson(route('admin.sales-returns.show', $walkIn))
+            ->assertOk()->assertJsonPath('transaction.CustomerName', 'N/A');
+    }
 }
