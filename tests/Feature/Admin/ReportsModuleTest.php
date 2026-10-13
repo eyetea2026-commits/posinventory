@@ -13,6 +13,7 @@ use App\Models\PurchaseOrderItem;
 use App\Models\Role;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\StockAdjustment;
@@ -732,5 +733,34 @@ class ReportsModuleTest extends TestCase
 
         $this->assertTrue($cells->contains('As of 10/13/2026'), 'Report Period should read "As of 10/13/2026"');
         $this->assertFalse($cells->contains('All Time'));
+    }
+
+    // A customer who gave no name (stored as "Walk-in Customer") shows as
+    // "N/A" on the Sales and Revenue and Refund reports; real names stay.
+    public function test_walk_in_customers_show_as_na_on_sales_and_refund_reports(): void
+    {
+        $walkIn = $this->makeBilling(1000, '2026-05-10');
+        $named = $this->makeBilling(2000, '2026-05-11');
+        $named->update(['CustomerName' => 'Juan Dela Cruz']);
+        $refund = $this->makeRefund($walkIn, 500, '2026-05-12');
+        $refund->update(['CustomerName' => 'Walk-in Customer']);
+        SalesReturnItem::create(['SalesReturnID' => $refund->SalesReturnID, 'ProductID' => $this->product->ProductID, 'Quantity' => 1, 'UnitPrice' => 500, 'Reason' => 'Factory Defect']);
+
+        $sales = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'sales']))->json('html');
+        $this->assertStringContainsString('<td>N/A</td>', $sales);
+        $this->assertStringContainsString('<td>Juan Dela Cruz</td>', $sales);
+        $this->assertStringNotContainsString('Walk-in', $sales);
+
+        $salesPrint = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()->getContent();
+        $this->assertStringNotContainsString('Walk-in', $salesPrint);
+        $this->assertStringContainsString('Juan Dela Cruz', $salesPrint);
+
+        $returnsPrint = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'returns']))->assertOk()->getContent();
+        $this->assertStringContainsString('<td>N/A</td>', $returnsPrint);
+        $this->assertStringNotContainsString('Walk-in', $returnsPrint);
+
+        $csv = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'csv']))->streamedContent();
+        $this->assertStringNotContainsString('Walk-in', $csv);
+        $this->assertStringContainsString('N/A', $csv);
     }
 }

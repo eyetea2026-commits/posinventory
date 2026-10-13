@@ -162,7 +162,7 @@ class ReportController extends Controller
                     ['label' => 'Report ID', 'value' => $reportNumber],
                     ['label' => 'Cashier Name', 'value' => $cashierName],
                     ['label' => 'Transaction Date & Time', 'value' => $this->fmtDateTime($transaction?->SalesTransactionDate)],
-                    ['label' => 'Customer Name', 'value' => $billing->CustomerName ?: 'Walk-in Customer'],
+                    ['label' => 'Customer Name', 'value' => self::customerLabel($billing->CustomerName)],
                     ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ? ucfirst($billing->payment->PaymentMethod) : 'N/A'],
                 ],
             ],
@@ -400,6 +400,18 @@ class ReportController extends Controller
     // literal "Stock_adjustment"/"stock_adjustment". Shared by the
     // Print Preview/PDF titles and the Excel export's title block so none
     // of them can drift from each other.
+    /**
+     * How a customer appears on the reports: a sale or return where the
+     * customer gave no name (stored as "Walk-in Customer") shows "N/A".
+     * Display only -- the stored value is unchanged, same as the receipt.
+     */
+    public static function customerLabel(?string $name): string
+    {
+        $name = trim((string) $name);
+
+        return ($name === '' || preg_match('/^walk-?in( customer)?$/i', $name)) ? 'N/A' : $name;
+    }
+
     public static function typeLabel(string $type): string
     {
         return match ($type) {
@@ -635,7 +647,7 @@ class ReportController extends Controller
         return (object) [
             'ReceiptNumber' => $receiptNumber,
             'BillingDate' => $billing->BillingDate,
-            'CustomerName' => $billing->CustomerName ?? 'Walk-in Customer',
+            'CustomerName' => self::customerLabel($billing->CustomerName),
             'PaymentMethod' => $billing->payment?->PaymentMethod,
             'ProductName' => $item?->product?->ProductName ?? 'N/A',
             'Quantity' => $item?->Quantity ?? 0,
@@ -767,7 +779,7 @@ class ReportController extends Controller
                     'SalesReturnID' => $return->SalesReturnID,
                     'SalesTransactionID' => $return->SalesTransactionID,
                     'ReceiptNumber' => $receiptNumber,
-                    'CustomerName' => $return->CustomerName ?? 'N/A',
+                    'CustomerName' => self::customerLabel($return->CustomerName),
                     'product' => $item->product,
                     'Quantity' => $item->Quantity,
                     'Reason' => $item->Reason,
@@ -804,7 +816,7 @@ class ReportController extends Controller
                         $item->BillingID,
                         $this->fmtDate($item->BillingDate),
                         $item->BillingAmount,
-                        $this->csvSafe($item->CustomerName ?? 'N/A'),
+                        $this->csvSafe(self::customerLabel($item->CustomerName)),
                         $this->csvSafe($item->payment?->PaymentMethod ?? 'N/A'),
                     ]);
                 }

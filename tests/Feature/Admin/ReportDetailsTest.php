@@ -88,7 +88,7 @@ class ReportDetailsTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonFragment(['label' => 'Cashier Name', 'value' => 'Jane Doe']);
-        $response->assertJsonFragment(['label' => 'Customer Name', 'value' => 'Walk-in Customer']);
+        $response->assertJsonFragment(['label' => 'Customer Name', 'value' => 'N/A']);
         $response->assertJsonFragment(['label' => 'Payment Method', 'value' => 'Cash']);
         $response->assertJsonFragment([
             'heading' => 'Products Sold',
