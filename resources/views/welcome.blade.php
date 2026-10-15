@@ -49,14 +49,7 @@
                         <button type="submit" class="lv2-submit">Log in</button>
 
                         <div class="lv2-footer">
-                            {{-- Both shown unconditionally: deciding which to show
-                                 used to require looking up the typed username's
-                                 role, which also revealed which accounts exist. --}}
-                            <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password? (Administrator)</a>
-                            <span id="cashier-note" class="lv2-cashier-note">
-                                <i class="fa-solid fa-lock"></i>
-                                Cashiers: please contact your Administrator for a password reset
-                            </span>
+                            <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password?</a>
                         </div>
                     </form>
                 </section>
@@ -483,16 +476,7 @@
             font-weight: 600;
         }
         .lv2-forgot-link:hover { text-decoration: underline; }
-        .lv2-cashier-note {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            color: #94a3b8;
-            font-size: 0.82rem;
-        }
-        .lv2-forgot-link[hidden],
-        .lv2-cashier-note[hidden] {
+        .lv2-forgot-link[hidden] {
             display: none;
         }
         .lv2-alert {
