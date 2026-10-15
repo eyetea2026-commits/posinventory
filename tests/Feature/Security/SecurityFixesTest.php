@@ -323,7 +323,7 @@ class SecurityFixesTest extends TestCase
         $response->assertDontSee('role-lookup', false);
         $response->assertSee('Forgot Password?');
         $response->assertDontSee('Forgot Password? (Administrator)');
-        $response->assertDontSee('Cashiers: please contact your Administrator');
+        $response->assertSee('Cashiers: please contact your Administrator for a password reset');
     }
 
     // ---- #9: File upload restrictions ----
