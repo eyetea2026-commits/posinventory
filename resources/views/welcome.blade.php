@@ -48,12 +48,9 @@
 
                         <button type="submit" class="lv2-submit">Log in</button>
 
-                        {{-- Only after a failed login for an Admin account. --}}
-                        @if(session('show_forgot_password'))
-                            <div class="lv2-footer">
-                                <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password?</a>
-                            </div>
-                        @endif
+                        <div class="lv2-footer">
+                            <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password?</a>
+                        </div>
                     </form>
                 </section>
             </div>

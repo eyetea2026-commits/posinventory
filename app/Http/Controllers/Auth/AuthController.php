@@ -87,9 +87,7 @@ class AuthController extends Controller
             $seconds = RateLimiter::availableIn($throttleKey);
             ActivityLog::record('auth.login_locked', "Login locked out for \"{$credentials['username']}\" after repeated failures, from {$request->ip()}");
 
-            return back()
-                ->withErrors(['username' => "Too many failed login attempts. Please try again in {$seconds} second(s)."])
-                ->with('show_forgot_password', $this->isAdminUsername($credentials['username']));
+            return back()->withErrors(['username' => "Too many failed login attempts. Please try again in {$seconds} second(s)."]);
         }
 
         // Authenticate using username (name field) instead of email
@@ -174,19 +172,7 @@ class AuthController extends Controller
         RateLimiter::hit($throttleKey, self::LOGIN_LOCKOUT_SECONDS);
         ActivityLog::record('auth.login_failed', "Failed login attempt for username \"{$credentials['username']}\" from {$request->ip()}");
 
-        return back()
-            ->withErrors(['username' => 'The provided credentials do not match our records.'])
-            ->with('show_forgot_password', $this->isAdminUsername($credentials['username']));
-    }
-
-    /**
-     * Whether a failed login was for an Admin account, which is when the
-     * login page offers "Forgot Password?" (only Admins can reset their own
-     * password; Cashiers ask an Admin).
-     */
-    private function isAdminUsername(string $username): bool
-    {
-        return (bool) User::where('name', $username)->first()?->isAdmin();
+        return back()->withErrors(['username' => 'The provided credentials do not match our records.']);
     }
 
     // "Was this you?" security check — Admin accounts only (Cashier is

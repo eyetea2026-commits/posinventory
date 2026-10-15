@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -98,7 +99,7 @@ class AdminForgotPasswordTest extends TestCase
         $resetResponse->assertRedirect(route('welcome'));
 
         $admin->refresh();
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPass1234!', $admin->password));
+        $this->assertTrue(Hash::check('NewPass1234!', $admin->password));
     }
 
     public function test_reset_is_rejected_for_an_unrelated_email_without_its_own_otp_verification(): void
@@ -122,7 +123,7 @@ class AdminForgotPasswordTest extends TestCase
 
         $response->assertRedirect(route('admin.forgot'));
         $otherAdmin->refresh();
-        $this->assertFalse(\Illuminate\Support\Facades\Hash::check('NewPass1234!', $otherAdmin->password));
+        $this->assertFalse(Hash::check('NewPass1234!', $otherAdmin->password));
     }
 
     // ---- A completed reset must force out whatever session was already
@@ -187,6 +188,35 @@ class AdminForgotPasswordTest extends TestCase
         ]);
 
         $resetResponse->assertRedirect(route('welcome'));
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('NewPass1234!', $admin->fresh()->password));
+        $this->assertTrue(Hash::check('NewPass1234!', $admin->fresh()->password));
+    }
+
+    public function test_a_cashier_cannot_reset_their_password(): void
+    {
+        Mail::fake();
+
+        $cashier = User::factory()->create([
+            'role_id' => Role::where('role_name', 'cashier')->value('id'),
+            'email' => 'cashier@cctvexpress.local',
+        ]);
+        $originalHash = $cashier->password;
+
+        $this->from(route('admin.forgot'))
+            ->post(route('admin.forgot.post'), ['email' => $cashier->email])
+            ->assertRedirect(route('admin.forgot'))
+            ->assertSessionHasErrors('email');
+        Mail::assertNothingSent();
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => $cashier->email]);
+
+        // Even with a forged "verified" session, the password can't change.
+        $this->withSession(['otp_verified' => true, 'otp_verified_email' => $cashier->email])
+            ->from(route('admin.password.reset.form'))
+            ->post(route('admin.password.reset'), [
+                'email' => $cashier->email,
+                'password' => 'NewPass1234!',
+                'password_confirmation' => 'NewPass1234!',
+            ])
+            ->assertSessionHasErrors('email');
+        $this->assertSame($originalHash, $cashier->fresh()->password);
     }
 }
