@@ -314,16 +314,55 @@ class SecurityFixesTest extends TestCase
         $this->get('/login/role-lookup?username='.$this->admin->name)->assertNotFound();
     }
 
-    public function test_login_page_has_no_role_badge_and_shows_reset_guidance_statically(): void
+    public function test_login_page_has_no_role_badge_and_hides_forgot_password_at_first(): void
     {
         $response = $this->get(route('welcome'));
 
         $response->assertOk();
         $response->assertDontSee('id="role-badge"', false);
         $response->assertDontSee('role-lookup', false);
-        $response->assertSee('Forgot Password?');
-        $response->assertDontSee('Forgot Password? (Administrator)');
+        $response->assertDontSee('Forgot Password?');
         $response->assertSee('Cashiers: please contact your Administrator for a password reset');
+    }
+
+    public function test_forgot_password_shows_after_a_wrong_password_for_an_admin(): void
+    {
+        $this->from(route('welcome'))
+            ->followingRedirects()
+            ->post(route('login.post'), ['username' => 'admin', 'password' => 'wrong-password'])
+            ->assertSee('Forgot Password?')
+            ->assertSee(route('admin.forgot'), false);
+    }
+
+    public function test_forgot_password_stays_hidden_after_a_wrong_password_for_a_cashier(): void
+    {
+        $this->from(route('welcome'))
+            ->followingRedirects()
+            ->post(route('login.post'), ['username' => 'cashier1', 'password' => 'wrong-password'])
+            ->assertSee('The provided credentials do not match our records.')
+            ->assertDontSee('Forgot Password?');
+    }
+
+    public function test_forgot_password_stays_hidden_for_an_unknown_username(): void
+    {
+        $this->from(route('welcome'))
+            ->followingRedirects()
+            ->post(route('login.post'), ['username' => 'nobody', 'password' => 'wrong-password'])
+            ->assertSee('The provided credentials do not match our records.')
+            ->assertDontSee('Forgot Password?');
+    }
+
+    public function test_forgot_password_shows_for_an_admin_while_locked_out(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->post(route('login.post'), ['username' => 'admin', 'password' => 'wrong-password']);
+        }
+
+        $this->from(route('welcome'))
+            ->followingRedirects()
+            ->post(route('login.post'), ['username' => 'admin', 'password' => 'wrong-password'])
+            ->assertSee('Too many failed login attempts')
+            ->assertSee('Forgot Password?');
     }
 
     // ---- #9: File upload restrictions ----

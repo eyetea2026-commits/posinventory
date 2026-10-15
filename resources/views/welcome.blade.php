@@ -49,7 +49,10 @@
                         <button type="submit" class="lv2-submit">Log in</button>
 
                         <div class="lv2-footer">
-                            <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password?</a>
+                            {{-- Only after a failed login for an Admin account. --}}
+                            @if(session('show_forgot_password'))
+                                <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password?</a>
+                            @endif
                             <span id="cashier-note" class="lv2-cashier-note">
                                 <i class="fa-solid fa-lock"></i>
                                 Cashiers: please contact your Administrator for a password reset
