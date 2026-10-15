@@ -54,7 +54,6 @@
                                 <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password?</a>
                             @endif
                             <span id="cashier-note" class="lv2-cashier-note">
-                                <i class="fa-solid fa-lock"></i>
                                 Cashiers: please contact your Administrator for a password reset
                             </span>
                         </div>

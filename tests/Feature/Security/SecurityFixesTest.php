@@ -323,6 +323,8 @@ class SecurityFixesTest extends TestCase
         $response->assertDontSee('role-lookup', false);
         $response->assertDontSee('Forgot Password?');
         $response->assertSee('Cashiers: please contact your Administrator for a password reset');
+        $this->assertStringNotContainsString('fa-lock"></i>
+                                Cashiers', $response->getContent());
     }
 
     public function test_forgot_password_shows_after_a_wrong_password_for_an_admin(): void
