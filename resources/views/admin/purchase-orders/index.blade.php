@@ -76,7 +76,7 @@
     @endphp
     <div class="status-tabs" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
         <a href="{{ route('admin.purchase-orders.index', $tabFilters) }}" class="btn {{ $isHistory ? 'btn-secondary' : 'btn-primary' }}" style="text-decoration: none;">
-            <i class="fas fa-list"></i> Active Orders <span style="opacity: 0.75;">({{ $activeCount }})</span>
+            <i class="fas fa-list"></i> Draft Order <span style="opacity: 0.75;">({{ $activeCount }})</span>
         </a>
         <a href="{{ route('admin.purchase-orders.index', array_merge($tabFilters, ['view' => 'history'])) }}" class="btn {{ $isHistory ? 'btn-primary' : 'btn-secondary' }}" style="text-decoration: none;">
             <i class="fas fa-clock-rotate-left"></i> History <span style="opacity: 0.75;">({{ $historyCount }})</span>

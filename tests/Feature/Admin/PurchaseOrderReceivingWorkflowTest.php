@@ -180,7 +180,8 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
         $response->assertOk();
         $response->assertDontSee('title="Reprint"', false);
-        $response->assertSee('Active Orders <span style="opacity: 0.75;">(1)</span>', false);
+        $response->assertSee('Draft Order <span style="opacity: 0.75;">(1)</span>', false);
+        $response->assertDontSee('Active Orders');
         $response->assertSee('History <span style="opacity: 0.75;">(1)</span>', false);
     }
 
