@@ -322,6 +322,7 @@ class SecurityFixesTest extends TestCase
         $response->assertDontSee('id="role-badge"', false);
         $response->assertDontSee('role-lookup', false);
         $response->assertDontSee('Forgot Password?');
+        $response->assertSee('<h1>CCTV Express Solution Tacurong</h1>', false);
         $response->assertSee('Cashiers: please contact your Administrator for a password reset');
         $this->assertStringNotContainsString('fa-lock"></i>
                                 Cashiers', $response->getContent());

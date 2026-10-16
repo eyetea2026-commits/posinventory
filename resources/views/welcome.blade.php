@@ -12,7 +12,7 @@
         <div class="lv2-frame">
             <div class="lv2-left">
                 <div class="lv2-heading">
-                    <h1>CCTV Express Tacurong</h1>
+                    <h1>CCTV Express Solution Tacurong</h1>
                     <p>POS &amp; Inventory Management System</p>
                 </div>
 
