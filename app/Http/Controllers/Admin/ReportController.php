@@ -815,7 +815,7 @@ class ReportController extends Controller
                     fputcsv($handle, [
                         $item->BillingID,
                         $this->fmtDate($item->BillingDate),
-                        $item->BillingAmount,
+                        $this->money($item->BillingAmount),
                         $this->csvSafe(self::customerLabel($item->CustomerName)),
                         $this->csvSafe($item->payment?->PaymentMethod ?? 'N/A'),
                     ]);

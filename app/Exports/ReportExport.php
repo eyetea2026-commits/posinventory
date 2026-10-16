@@ -157,6 +157,12 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         };
     }
 
+    /**
+     * Money cells stay real numbers (so sums and formulas still work) but
+     * display with the peso sign, e.g. ₱1,234.50.
+     */
+    private const PESO_FORMAT = '"₱"#,##0.00';
+
     // Dates are written as MM/DD/YYYY, the format used everywhere in the system.
     private static function mdy($value): string
     {
@@ -250,7 +256,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                     foreach ($this->moneyColumns() as $moneyCol) {
                         $letter = Coordinate::stringFromColumnIndex($moneyCol);
                         $sheet->getStyle("{$letter}{$dataStartRow}:{$letter}{$dataEndRow}")
-                            ->getNumberFormat()->setFormatCode('#,##0.00');
+                            ->getNumberFormat()->setFormatCode(self::PESO_FORMAT);
                     }
                     foreach ($this->dateColumns() as $dateCol) {
                         $letter = Coordinate::stringFromColumnIndex($dateCol);
@@ -279,7 +285,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                     }
 
                     if ($entry['money']) {
-                        $sheet->getStyle("B{$summaryRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+                        $sheet->getStyle("B{$summaryRow}")->getNumberFormat()->setFormatCode(self::PESO_FORMAT);
                     }
 
                     $summaryRow++;

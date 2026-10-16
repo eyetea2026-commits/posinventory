@@ -721,6 +721,36 @@ class ReportsModuleTest extends TestCase
 
     // The Excel download's header says the same: "As of <today>" when no
     // dates are picked, never "All Time".
+    public function test_downloaded_reports_show_the_peso_sign(): void
+    {
+        $billing = $this->makeBilling(1500, '2026-06-15');
+        SalesItem::create(['Quantity' => 1, 'UnitPrice' => 1500, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+
+        $csv = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'csv']))->streamedContent();
+        $this->assertStringContainsString('"₱1,500.00"', $csv);
+
+        $excel = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'excel']))->assertOk();
+        $sheet = IOFactory::load($excel->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $totalCell = null;
+        foreach ($sheet->getRowIterator() as $row) {
+            if ($sheet->getCell('A'.$row->getRowIndex())->getValue() === 'Invoice No') {
+                $totalCell = $sheet->getCell('J'.($row->getRowIndex() + 1));
+                break;
+            }
+        }
+        $this->assertNotNull($totalCell);
+        $this->assertEquals(1500, $totalCell->getValue());
+        $this->assertSame('₱1,500.00', $totalCell->getFormattedValue());
+
+        // The PDF is rendered from the same table as the print preview.
+        $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))
+            ->assertOk()
+            ->assertSee('₱1,500.00');
+        $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'pdf']))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+    }
+
     public function test_excel_download_without_dates_says_as_of_today(): void
     {
         $this->travelTo(now()->setDate(2026, 10, 13));
