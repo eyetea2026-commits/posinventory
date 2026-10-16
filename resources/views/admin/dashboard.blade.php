@@ -476,16 +476,28 @@
         .badge-info { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
         .badge-replenish { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
 
+        /* Fills the rest of the card (which stretches to match the cards
+           beside it) and scrolls inside that space, instead of stopping
+           at a fixed 300px and leaving the bottom of the card empty. */
+        #stockAlertsContainer {
+            flex: 1 1 auto;
+            min-height: 300px;
+            position: relative;
+        }
+
         .stock-alert-list {
+            position: absolute;
+            inset: 0;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            max-height: 300px;
             overflow-y: auto;
+            padding-right: 4px;
         }
 
         .stock-alert-item {
             display: flex;
+            flex-shrink: 0;
             align-items: center;
             gap: 14px;
             padding: 12px 14px;

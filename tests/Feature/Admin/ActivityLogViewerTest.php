@@ -206,6 +206,11 @@ class ActivityLogViewerTest extends TestCase
         $this->assertStringContainsString('<button type="button" class="ops-tab-btn" data-ops-tab="activity"', $html);
         $this->assertStringContainsString('<div class="card ops-tab-panel active" id="ops-tab-transactions" role="tabpanel">', $html);
         $this->assertStringContainsString('<div class="card ops-tab-panel" id="activity-log" role="tabpanel">', $html);
+        // Stock Alerts fill their card and scroll inside it, instead of a
+        // fixed 300px list leaving the bottom of the card empty.
+        $this->assertStringContainsString('<div id="stockAlertsContainer">', $html);
+        $this->assertMatchesRegularExpression('/#stockAlertsContainer \{\s*flex: 1 1 auto;\s*min-height: 300px;\s*position: relative;/', $html);
+        $this->assertMatchesRegularExpression('/\.stock-alert-list \{\s*position: absolute;\s*inset: 0;/', $html);
         $this->assertStringContainsString('id="activityLogContainer"', $html);
         $this->assertStringContainsString(route('admin.activity-logs.index'), $html);
         // No longer a separate sidebar page.
