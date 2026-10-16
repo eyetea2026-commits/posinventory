@@ -64,4 +64,20 @@ class ErrorPagesTest extends TestCase
             ->assertSee('Go to Home')
             ->assertDontSee('boom');
     }
+
+    public function test_unknown_addresses_show_the_styled_404_page(): void
+    {
+        $this->actingAs($this->cashier)->get('/Cashier/dashboard')
+            ->assertNotFound()
+            ->assertSee('Page not found')
+            ->assertSee('ERROR 404')
+            ->assertSee('<a href="'.url('/').'" class="error-btn  error-btn-primary ">Go to Home</a>', false);
+    }
+
+    public function test_go_to_home_takes_a_signed_in_user_to_their_own_home_page(): void
+    {
+        $this->actingAs($this->admin)->get(url('/'))->assertRedirect('/admin/dashboard');
+        auth()->logout();
+        $this->actingAs($this->cashier)->get(url('/'))->assertRedirect('/cashier/pos');
+    }
 }
