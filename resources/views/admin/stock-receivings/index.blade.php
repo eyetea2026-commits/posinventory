@@ -238,7 +238,7 @@
 
     <!-- Purchase Order Delivery — View Details Modal -->
     <div id="batchDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="batchDetailsModalTitle" aria-hidden="true">
-        <div class="modal-content">
+        <div class="modal-content modal-content-wide" style="max-width: 900px;">
             <div class="modal-header">
                 <h2 id="batchDetailsModalTitle"><i class="fas fa-eye"></i> Delivery Details</h2>
                 <button type="button" class="modal-close" onclick="closeBatchDetailsModal()" aria-label="Close">&times;</button>

@@ -115,6 +115,14 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertSee('Pending / Expected Delivery');
     }
 
+    public function test_delivery_details_popup_is_wide(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'))
+            ->assertOk()
+            ->assertSee('<div id="batchDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="batchDetailsModalTitle" aria-hidden="true">
+        <div class="modal-content modal-content-wide" style="max-width: 900px;">', false);
+    }
+
     public function test_stock_receiving_index_renders_search_and_supplier_filter(): void
     {
         $po = $this->makeDraftOrder();
