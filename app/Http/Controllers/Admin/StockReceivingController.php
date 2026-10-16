@@ -96,33 +96,21 @@ class StockReceivingController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:PurchaseOrderItem,PurchaseOrderItemID'],
             'items.*.quantity_received' => ['required', 'integer', 'min:0'],
-            'items.*.receipt_number' => ['nullable', 'string', 'max:50'],
+            // One Receipt Number for the whole delivery (every product on
+            // this Purchase Order), not one per product line.
+            'receipt_number' => ['nullable', 'string', 'max:50'],
         ]);
 
-        // Receipt Number must be unique — both within this submission (two
-        // lines can't share one) and against every delivery ever recorded.
-        // Checked up front so a duplicate is reported before anything is
-        // written, matching the "validate everything, then one transaction"
-        // pattern used throughout this codebase.
-        $receiptNumbers = collect($data['items'])
-            ->pluck('receipt_number')
-            ->filter(fn ($value) => filled($value))
-            ->map(fn ($value) => trim($value));
+        // Must not match any other delivery. Checked up front so a duplicate
+        // is reported before anything is written.
+        $receiptNumber = filled($data['receipt_number'] ?? null) ? trim($data['receipt_number']) : null;
 
-        $duplicateInSubmission = $receiptNumbers->duplicates()->first();
-        if ($duplicateInSubmission !== null) {
-            return back()->with('error', "Receipt Number \"{$duplicateInSubmission}\" is used more than once here — each line needs its own unique Receipt Number.");
-        }
-
-        if ($receiptNumbers->isNotEmpty()) {
-            $alreadyUsed = PurchaseOrderItem::whereIn('ReceiptNumber', $receiptNumbers->unique())->first();
-            if ($alreadyUsed) {
-                return back()->with('error', "Receipt Number \"{$alreadyUsed->ReceiptNumber}\" has already been used for another delivery.");
-            }
+        if ($receiptNumber !== null && self::receiptNumberIsUsed($receiptNumber, $stockReceivingBatch->StockReceivingBatchID)) {
+            return back()->with('error', "Receipt Number \"{$receiptNumber}\" has already been used for another delivery.");
         }
 
         try {
-            DB::transaction(function () use ($data, $stockReceivingBatch) {
+            DB::transaction(function () use ($data, $stockReceivingBatch, $receiptNumber) {
                 $lockedBatch = StockReceivingBatch::where('StockReceivingBatchID', $stockReceivingBatch->StockReceivingBatchID)
                     ->where('Status', StockReceivingBatch::STATUS_PENDING)
                     ->lockForUpdate()
@@ -162,10 +150,7 @@ class StockReceivingController extends Controller
                         throw new \RuntimeException("Quantity Received for \"{$item->product?->ProductName}\" cannot exceed the ordered quantity of {$item->Quantity}.");
                     }
 
-                    $item->update([
-                        'ReceivedQuantity' => $quantityReceived,
-                        'ReceiptNumber' => $row['receipt_number'] ?? null,
-                    ]);
+                    $item->update(['ReceivedQuantity' => $quantityReceived]);
 
                     if ($quantityReceived <= 0) {
                         continue;
@@ -190,6 +175,7 @@ class StockReceivingController extends Controller
 
                 $lockedBatch->update([
                     'Status' => StockReceivingBatch::STATUS_COMPLETED,
+                    'ReceiptNumber' => $receiptNumber,
                     'ReceivedBy' => auth()->id(),
                     'CompletedAt' => now(),
                 ]);
@@ -297,33 +283,33 @@ class StockReceivingController extends Controller
         }
     }
 
-    // Live duplicate-check used by both Receipt Number entry points: the
-    // manual "Record Receipt" form (checks as the admin types) and the
-    // "Add to Inventory" batch table (checks each line). Searches both
-    // tables a Receipt Number can actually land in — StockReceiving (the
-    // manual flow) and PurchaseOrderItem (the batch flow) — since those two
-    // uniqueness domains aren't otherwise cross-checked against each other,
-    // "already used" needs to mean used anywhere, not just in whichever
-    // table the calling form itself writes to.
+    // Live "already used" check for both Receipt Number entry points: the
+    // manual "Record Receipt" form and the delivery's Receipt Number in
+    // "Add to Inventory". Pass exclude_batch_id so a delivery's own saved
+    // number isn't reported as a duplicate of itself.
     public function checkReceiptNumber(Request $request)
     {
         $receiptNumber = trim((string) $request->input('receipt_number', ''));
-        $excludeItemId = $request->input('exclude_purchase_order_item_id');
-
-        $used = false;
-        if ($receiptNumber !== '') {
-            $used = StockReceiving::where('ReceiptNumber', $receiptNumber)->exists()
-                || PurchaseOrderItem::where('ReceiptNumber', $receiptNumber)
-                    ->when($excludeItemId, function ($query, $excludeItemId) {
-                        return $query->where('PurchaseOrderItemID', '!=', $excludeItemId);
-                    })
-                    ->exists();
-        }
+        $excludeBatchId = $request->filled('exclude_batch_id') ? (int) $request->input('exclude_batch_id') : null;
 
         return response()->json([
-            'used' => $used,
+            'used' => $receiptNumber !== '' && self::receiptNumberIsUsed($receiptNumber, $excludeBatchId),
             'receipt_number' => $receiptNumber,
         ]);
+    }
+
+    /**
+     * Whether a Receipt Number is already on record anywhere: another
+     * delivery, the manual Record Receipt flow, or a product line from
+     * before Receipt Numbers moved to the delivery as a whole.
+     */
+    private static function receiptNumberIsUsed(string $receiptNumber, ?int $excludeBatchId = null): bool
+    {
+        return StockReceivingBatch::where('ReceiptNumber', $receiptNumber)
+            ->when($excludeBatchId, fn ($query) => $query->where('StockReceivingBatchID', '!=', $excludeBatchId))
+            ->exists()
+            || StockReceiving::where('ReceiptNumber', $receiptNumber)->exists()
+            || PurchaseOrderItem::where('ReceiptNumber', $receiptNumber)->exists();
     }
 
     public function create(Request $request)

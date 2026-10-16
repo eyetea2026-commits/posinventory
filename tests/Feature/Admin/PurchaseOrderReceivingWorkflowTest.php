@@ -275,9 +275,10 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
 
         $response = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'RCT-A1',
             'items' => [
-                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 48, 'receipt_number' => 'RCT-A1'],
-                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20, 'receipt_number' => 'RCT-B1'],
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 48],
+                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
             ],
         ]);
 
@@ -288,7 +289,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemA->refresh();
         $this->assertSame(50, $itemA->Quantity);
         $this->assertSame(48, $itemA->ReceivedQuantity);
-        $this->assertSame('RCT-A1', $itemA->ReceiptNumber);
         $this->assertSame(5 + 48, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
 
         $itemB->refresh();
@@ -298,6 +298,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
         $batch->refresh();
         $this->assertSame(StockReceivingBatch::STATUS_COMPLETED, $batch->Status);
+        $this->assertSame('RCT-A1', $batch->ReceiptNumber);
         $this->assertNotNull($batch->CompletedAt);
         $this->assertSame($this->admin->id, $batch->ReceivedBy);
 
@@ -316,9 +317,10 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
 
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'RCT-A1',
             'items' => [
-                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50, 'receipt_number' => 'RCT-A1'],
-                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20, 'receipt_number' => 'RCT-B1'],
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50],
+                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
             ],
         ]);
 
@@ -410,7 +412,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame($inventoryAAfterFirst, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
     }
 
-    public function test_add_to_inventory_rejects_a_receipt_number_duplicated_within_the_same_submission(): void
+    public function test_one_receipt_number_covers_every_product_in_the_delivery(): void
     {
         $po = $this->makeDraftOrder();
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
@@ -419,20 +421,39 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
         $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
 
-        $response = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+        $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'RCT-SAME',
             'items' => [
-                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50, 'receipt_number' => 'RCT-SAME'],
-                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20, 'receipt_number' => 'RCT-SAME'],
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50],
+                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
             ],
-        ]);
-
-        $response->assertRedirect();
-        $response->assertSessionHas('error');
+        ])->assertRedirect(route('admin.stock-receivings.index'))->assertSessionMissing('error');
 
         $batch->refresh();
-        $this->assertSame(StockReceivingBatch::STATUS_PENDING, $batch->Status);
-        $this->assertSame(0, $itemA->fresh()->ReceivedQuantity);
-        $this->assertNull($itemA->fresh()->ReceiptNumber);
+        $this->assertSame(StockReceivingBatch::STATUS_COMPLETED, $batch->Status);
+        $this->assertSame('RCT-SAME', $batch->ReceiptNumber);
+        $this->assertSame(50, $itemA->fresh()->ReceivedQuantity);
+        $this->assertSame(20, $itemB->fresh()->ReceivedQuantity);
+
+        // The completed delivery shows that one Receipt Number, no per-line column.
+        $html = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', $batch))->json('html');
+        $this->assertStringContainsString('RCT-SAME', $html);
+        $this->assertSame(1, substr_count($html, 'Receipt Number'));
+    }
+
+    public function test_existing_deliveries_keep_their_receipt_number_after_the_upgrade(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
+
+        $migration = require database_path('migrations/2026_10_17_071332_add_receipt_number_to_stock_receiving_batch_table.php');
+        $migration->down();
+        // Before the upgrade, Receipt Numbers were saved per product line.
+        PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->update(['ReceiptNumber' => 'OLD-RCT-1']);
+        $migration->up();
+
+        $this->assertSame('OLD-RCT-1', $batch->fresh()->ReceiptNumber);
     }
 
     public function test_add_to_inventory_rejects_a_receipt_number_already_used_by_another_delivery(): void
@@ -444,8 +465,9 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $item1B = PurchaseOrderItem::where('PurchaseOrderID', $po1->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
 
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch1), [
+            'receipt_number' => 'RCT-DUPE',
             'items' => [
-                ['purchase_order_item_id' => $item1A->PurchaseOrderItemID, 'quantity_received' => 50, 'receipt_number' => 'RCT-DUPE'],
+                ['purchase_order_item_id' => $item1A->PurchaseOrderItemID, 'quantity_received' => 50],
                 ['purchase_order_item_id' => $item1B->PurchaseOrderItemID, 'quantity_received' => 20],
             ],
         ]);
@@ -466,8 +488,9 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $batch2 = StockReceivingBatch::where('PurchaseOrderID', $po2->PurchaseOrderID)->firstOrFail();
 
         $response = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch2), [
+            'receipt_number' => 'RCT-DUPE',
             'items' => [
-                ['purchase_order_item_id' => $item2A->PurchaseOrderItemID, 'quantity_received' => 10, 'receipt_number' => 'RCT-DUPE'],
+                ['purchase_order_item_id' => $item2A->PurchaseOrderItemID, 'quantity_received' => 10],
             ],
         ]);
 
@@ -491,7 +514,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertJson(['used' => false]);
     }
 
-    public function test_check_receipt_number_detects_one_already_used_on_a_purchase_order_item(): void
+    public function test_check_receipt_number_detects_one_already_used_by_another_delivery(): void
     {
         $po = $this->makeDraftOrder();
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
@@ -500,8 +523,9 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
 
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'RCT-TAKEN',
             'items' => [
-                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50, 'receipt_number' => 'RCT-TAKEN'],
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50],
                 ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
             ],
         ]);
@@ -514,7 +538,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertJson(['used' => true]);
     }
 
-    public function test_check_receipt_number_excludes_the_items_own_current_value(): void
+    public function test_check_receipt_number_excludes_the_deliverys_own_current_value(): void
     {
         $po = $this->makeDraftOrder();
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
@@ -522,16 +546,17 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
 
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'RCT-SELF',
             'items' => [
-                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 30, 'receipt_number' => 'RCT-SELF'],
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 30],
             ],
         ]);
 
-        // Re-checking the value already saved on this exact line must not
-        // flag it as a duplicate of itself.
+        // Re-checking the value already saved on this exact delivery must
+        // not flag it as a duplicate of itself.
         $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
             'receipt_number' => 'RCT-SELF',
-            'exclude_purchase_order_item_id' => $itemA->PurchaseOrderItemID,
+            'exclude_batch_id' => $batch->StockReceivingBatchID,
         ]);
 
         $response->assertOk();
@@ -553,6 +578,9 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertStringContainsString('Purchase Order Quantity', $html);
         $this->assertStringContainsString('Quantity Received', $html);
         $this->assertStringContainsString('Receipt Number', $html);
+        // One Receipt Number field for the whole delivery, not one per line.
+        $this->assertSame(1, substr_count($html, 'name="receipt_number"'));
+        $this->assertStringNotContainsString('][receipt_number]', $html);
         $this->assertStringContainsString($this->productA->ProductName, $html);
         // Each item shows its Model and SKU next to the product name.
         $product = $this->productA->fresh();

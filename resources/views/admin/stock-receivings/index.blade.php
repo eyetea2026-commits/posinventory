@@ -64,6 +64,10 @@
             border-bottom: 1px solid rgba(148, 163, 184, 0.08);
         }
         .items-table tbody tr:last-child td { border-bottom: none; }
+        .batch-receipt-number { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+        .batch-receipt-number .detail-label { display: block; flex: 0 0 auto; }
+        .batch-receipt-number .form-input { max-width: 320px; }
+        .batch-receipt-hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: #64748b; }
 
         /* Pending/Completed tabs — same design as the Discount module's
            tabs (admin/discounts/index.blade.php). */
@@ -356,87 +360,48 @@
             banner.textContent = '';
         }
 
-        // Live "already used" check for each line's Receipt Number in the
-        // "Add to Inventory" table — mirrors the same check on the manual
-        // Record Receipt form. Two layers: an instant client-side check
-        // against every OTHER visible row (no round trip needed for "you
-        // typed the same number twice in this delivery"), then a debounced
-        // server check against every past delivery.
+        // Live "already used" check for the delivery's Receipt Number (one
+        // for every product on the Purchase Order), against every other
+        // delivery on record.
         let receiptNumberCheckInFlight = 0;
 
-        function checkBatchReceiptNumbersForDuplicatesInPage() {
-            const inputs = Array.from(document.querySelectorAll('#batchDetailsBody .receipt-number-input'));
-            const valueCounts = {};
-            inputs.forEach(function (input) {
+        function initBatchReceiptNumberChecks() {
+            const input = document.getElementById('batchReceiptNumberInput');
+            if (!input) return;
+            const errorEl = input.parentElement.querySelector('.receipt-number-error');
+            let debounceTimer = null;
+
+            input.addEventListener('input', function () {
+                input.classList.remove('is-invalid');
+                if (errorEl) errorEl.textContent = '';
+                clearTimeout(debounceTimer);
+
                 const value = input.value.trim();
                 if (!value) return;
-                valueCounts[value] = (valueCounts[value] || 0) + 1;
-            });
 
-            inputs.forEach(function (input) {
-                const value = input.value.trim();
-                const errorEl = input.parentElement.querySelector('.receipt-number-error');
-                if (value && valueCounts[value] > 1) {
-                    input.classList.add('is-invalid');
-                    if (errorEl) errorEl.textContent = 'Used more than once in this delivery.';
-                    input.dataset.receiptNumberInvalid = '1';
-                }
-            });
-        }
-
-        function initBatchReceiptNumberChecks() {
-            const inputs = document.querySelectorAll('#batchDetailsBody .receipt-number-input');
-
-            inputs.forEach(function (input) {
-                const errorEl = input.parentElement.querySelector('.receipt-number-error');
-                let debounceTimer = null;
-
-                input.addEventListener('input', function () {
-                    delete input.dataset.receiptNumberInvalid;
-                    input.classList.remove('is-invalid');
-                    if (errorEl) errorEl.textContent = '';
-
-                    clearTimeout(debounceTimer);
-                    const value = input.value.trim();
-
-                    // Same-page duplicates are re-checked across every row
-                    // on every keystroke here (cheap, no network) — a row
-                    // that stops matching gets its own error cleared above
-                    // first, then this pass re-flags whichever rows still
-                    // collide.
-                    checkBatchReceiptNumbersForDuplicatesInPage();
-                    if (input.dataset.receiptNumberInvalid) return;
-
-                    if (!value) return;
-
-                    const requestId = ++receiptNumberCheckInFlight;
-                    debounceTimer = setTimeout(function () {
-                        fetch('{{ route('admin.stock-receivings.check-receipt-number') }}', {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                'Accept': 'application/json',
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                receipt_number: value,
-                                exclude_purchase_order_item_id: input.dataset.purchaseOrderItemId
-                            })
+                const requestId = ++receiptNumberCheckInFlight;
+                debounceTimer = setTimeout(function () {
+                    fetch('{{ route('admin.stock-receivings.check-receipt-number') }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ receipt_number: value, exclude_batch_id: input.dataset.batchId })
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function (data) {
+                            if (requestId !== receiptNumberCheckInFlight) return;
+                            if (data && data.used) {
+                                input.classList.add('is-invalid');
+                                if (errorEl) errorEl.textContent = 'Already used for another delivery.';
+                            }
                         })
-                            .then(function (r) { return r.json(); })
-                            .then(function (data) {
-                                if (requestId !== receiptNumberCheckInFlight) return;
-                                if (data && data.used) {
-                                    input.classList.add('is-invalid');
-                                    input.dataset.receiptNumberInvalid = '1';
-                                    if (errorEl) errorEl.textContent = 'Already used for another delivery.';
-                                }
-                            })
-                            .catch(function () {
-                                // Non-fatal — the server-side check on submit still catches it.
-                            });
-                    }, 350);
-                });
+                        .catch(function () {
+                            // Non-fatal — the server-side check on submit still catches it.
+                        });
+                }, 350);
             });
         }
 
@@ -522,7 +487,7 @@
             if (form.querySelector('.receipt-number-input.is-invalid')) {
                 Swal.fire({
                     title: 'Duplicate Receipt Number',
-                    text: 'One or more Receipt Numbers here are already in use. Please fix them before continuing.',
+                    text: 'This Receipt Number is already used for another delivery. Please fix it before continuing.',
                     icon: 'error',
                     confirmButtonColor: '#ef4444'
                 });

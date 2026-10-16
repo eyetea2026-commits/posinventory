@@ -13,6 +13,7 @@ class StockReceivingBatch extends Model
     protected $fillable = [
         'PurchaseOrderID',
         'Status',
+        'ReceiptNumber',
         'ReceivedBy',
         'CompletedAt',
         'DueNotifiedAt',

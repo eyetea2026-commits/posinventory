@@ -1,7 +1,8 @@
 {{-- Stock Receiving "View Details" — read-only PO header info, then an
      editable Ordered Items table: Purchase Order Quantity stays read-only
      (the original order reference, never overwritten), Quantity Received
-     and Receipt Number are the only editable fields per item. "Add to
+     is the only editable field per item, and one Receipt Number covers the
+     whole delivery (every product on this Purchase Order). "Add to
      Inventory" posts every row here in one request to
      StockReceivingController::addToInventory().
      Expects $batch (StockReceivingBatch) with purchaseOrder.supplier and
@@ -9,6 +10,9 @@
 @php
     $po = $batch->purchaseOrder;
     $isPending = $batch->Status === \App\Models\StockReceivingBatch::STATUS_PENDING;
+    // Deliveries recorded before Receipt Numbers moved to the delivery as a
+    // whole kept them on the product lines.
+    $receiptNumber = $batch->ReceiptNumber ?? $po->items->pluck('ReceiptNumber')->filter()->first();
 @endphp
 <div class="detail-row">
     <span class="detail-label">PO Number</span>
@@ -31,11 +35,22 @@
         <span class="detail-label">Completed</span>
         <span class="detail-value">{{ $batch->CompletedAt?->format('m/d/Y g:i A') ?? 'N/A' }}</span>
     </div>
+    <div class="detail-row">
+        <span class="detail-label">Receipt Number</span>
+        <span class="detail-value">{{ $receiptNumber ?? 'N/A' }}</span>
+    </div>
 @endif
 
-<div class="section-title">Ordered Items</div>
 <form id="batchReceivingForm" method="POST" action="{{ route('admin.stock-receivings.batches.add-to-inventory', $batch) }}">
     @csrf
+    @if($isPending)
+        <div class="batch-receipt-number">
+            <label for="batchReceiptNumberInput" class="detail-label">Receipt Number <span class="batch-receipt-hint">(one for this whole delivery)</span></label>
+            <input type="text" id="batchReceiptNumberInput" class="form-input receipt-number-input" name="receipt_number" data-batch-id="{{ $batch->StockReceivingBatchID }}" maxlength="50" value="{{ $receiptNumber }}" placeholder="e.g., SUP-2026-0001">
+            <span class="form-error receipt-number-error"></span>
+        </div>
+    @endif
+    <div class="section-title">Ordered Items</div>
     <div style="overflow-x: auto;">
         <table class="items-table">
             <thead>
@@ -45,7 +60,6 @@
                     <th>SKU</th>
                     <th>Purchase Order Quantity</th>
                     <th>Quantity Received</th>
-                    <th>Receipt Number</th>
                 </tr>
             </thead>
             <tbody>
@@ -62,14 +76,6 @@
                             @else
                                 {{ $item->ReceivedQuantity }}
                                 <input type="hidden" name="items[{{ $loop->index }}][quantity_received]" value="{{ $item->ReceivedQuantity }}">
-                            @endif
-                        </td>
-                        <td>
-                            @if($isPending)
-                                <input type="text" class="form-input receipt-number-input" style="max-width:160px;" name="items[{{ $loop->index }}][receipt_number]" data-purchase-order-item-id="{{ $item->PurchaseOrderItemID }}" maxlength="50" value="{{ $item->ReceiptNumber }}">
-                                <span class="form-error receipt-number-error"></span>
-                            @else
-                                {{ $item->ReceiptNumber ?? 'N/A' }}
                             @endif
                         </td>
                     </tr>
