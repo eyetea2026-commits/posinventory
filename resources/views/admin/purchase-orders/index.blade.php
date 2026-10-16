@@ -136,6 +136,7 @@
                         <th>Supplier</th>
                         <!-- REQ054: Select existing supplier profile -->
                         <th>Order Date</th>
+                        <th>Status</th>
                         <th>Products Ordered</th>
                         <th>Actions</th>
                     </tr>

@@ -95,9 +95,9 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertLessThan(strpos($body, 'PO-OLDER'), strpos($body, 'PO-NEWER'));
     }
 
-    // The list filters by Supplier (no longer by Category), and after the
-    // Order Date it shows how many different products each order is for
-    // (not their quantities).
+    // The list filters by Supplier (no longer by Category), and next to
+    // Status it shows how many different products each order is for (not
+    // their quantities).
     public function test_purchase_order_details_popup_is_wide(): void
     {
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))
@@ -130,9 +130,7 @@ class PurchaseOrderModuleTest extends TestCase
         $index->assertSee('All Suppliers');
         $index->assertDontSee('name="category_id"', false);
         $index->assertDontSee('All Categories');
-        $index->assertSeeInOrder(['<th>Order Date</th>', '<th>Products Ordered</th>', '<th>Actions</th>'], false);
-        // Status shows in the View Details popup, not as a list column.
-        $index->assertDontSee('<th>Status</th>', false);
+        $index->assertSeeInOrder(['<th>Order Date</th>', '<th>Status</th>', '<th>Products Ordered</th>', '<th>Actions</th>'], false);
         $index->assertDontSee('<th>Items</th>', false);
         $index->assertSee('<strong>3</strong> products', false);
         $index->assertSee('<strong>1</strong> product<', false);
@@ -374,7 +372,7 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertSee('Pending Approval');
     }
 
-    public function test_show_ajax_branch_returns_read_only_details_with_status_but_no_action_buttons(): void
+    public function test_show_ajax_branch_returns_read_only_details_without_status_or_action_buttons(): void
     {
         $po = $this->makeOrder(['CreatedBy' => $this->admin->id]);
         // Add Product assigns every product a SKU (SKU-000001 style).
@@ -394,8 +392,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertMatchesRegularExpression('#<th>Product</th>\s*<th>Model</th>\s*<th>SKU</th>#', $html);
         $this->assertStringContainsString('<td>'.e($product->Model).'</td>', $html);
         $this->assertStringContainsString('>'.$product->SKU.'</td>', $html);
-        // The Status shows here, since the list no longer has a Status column.
-        $this->assertMatchesRegularExpression('#<span class="detail-label">Status</span>\s*<span class="detail-value">\s*<span class="badge badge-[a-z]+">'.preg_quote(PurchaseOrder::STATUS_LABELS[$po->Status], '#').'</span>#', $html);
         $this->assertStringNotContainsString('Approve', $html);
         $this->assertStringNotContainsString('Cancel', $html);
         $this->assertStringNotContainsString('Export PDF', $html);
