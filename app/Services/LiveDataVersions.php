@@ -35,6 +35,7 @@ class LiveDataVersions
         'inventory' => ['inventory', 'product', 'category', 'brand'],
         'sales' => ['salestransaction', 'salesitem', 'payment', 'billing', 'salesreturn', 'salesreturnitem', 'replacement'],
         'discounts' => ['discount', 'discountproduct', 'product'],
+        'users' => ['users', 'roles'],
         'activity' => ['activitylog'],
     ];
 

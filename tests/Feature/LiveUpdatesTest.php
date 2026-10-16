@@ -220,6 +220,20 @@ class LiveUpdatesTest extends TestCase
         }
     }
 
+    public function test_user_and_discount_changes_refresh_their_pages(): void
+    {
+        $session = $this->sessionFor($this->admin);
+        $before = $this->poll($session)->json('signatures');
+
+        User::factory()->create(['role_id' => $this->cashier->role_id]);
+        $afterUser = $this->poll($session)->json('signatures');
+        $this->assertNotSame($before['users'], $afterUser['users']);
+        $this->assertSame($before['discounts'], $afterUser['discounts']);
+
+        DB::table('Discount')->where('DiscountID', '>', 0)->update(['Name' => 'Promo']);
+        $this->assertNotSame($afterUser['discounts'], $this->poll($session)->json('signatures.discounts'));
+    }
+
     public function test_edits_made_without_eloquent_are_noticed_too(): void
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
@@ -257,6 +271,8 @@ class LiveUpdatesTest extends TestCase
             'admin.damages.index' => ['data-live-region="damages-rows" data-live-topics="damages"', 'data-live-region="damages-pagination"'],
             'admin.inventory.index' => ["window.liveUpdates.watch(['inventory', 'products']"],
             'admin.reports.index' => ["window.liveUpdates.watch(['sales', 'inventory'"],
+            'admin.users.index' => ['data-live-region="users-rows" data-live-topics="users"', 'data-live-region="users-pagination" data-live-topics="users"'],
+            'admin.discounts.index' => ["window.liveUpdates.watch(['discounts'], function () { applyFilters(currentPage); });", "window.liveUpdates.watch(['discounts'], function () { reloadAppliedList(appliedPage); });"],
         ];
         foreach ($pages as $route => $needles) {
             $response = $this->actingAs($this->admin)->get(route($route))->assertOk();

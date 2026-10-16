@@ -504,7 +504,7 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody data-live-region="users-rows" data-live-topics="users">
                 @forelse($users as $user)
                     <tr>
                         <td>
@@ -561,6 +561,7 @@
         </table>
     </div>
 
+    <div data-live-region="users-pagination" data-live-topics="users">
     @if($users->hasPages())
         <div class="pagination">
             @if($users->onFirstPage())
@@ -568,6 +569,7 @@
             @else
                 <a href="{{ $users->previousPageUrl() }}"><i class="fas fa-chevron-left"></i></a>
             @endif
+    </div>
 
             @foreach($users->getUrlRange(1, min(5, $users->lastPage())) as $page => $url)
                 <a href="{{ $url }}" class="{{ $page == $users->currentPage() ? 'active' : '' }}" style="{{ $page == $users->currentPage() ? 'background: var(--primary);' : '' }}">{{ $page }}</a>
@@ -1003,8 +1005,8 @@
         if (newPagination) {
             if (currentPagination) {
                 currentPagination.outerHTML = newPagination.outerHTML;
-            } else if (currentTableContainer) {
-                currentTableContainer.insertAdjacentHTML('afterend', newPagination.outerHTML);
+            } else {
+                document.querySelector('[data-live-region="users-pagination"]').insertAdjacentHTML('beforeend', newPagination.outerHTML);
             }
         } else if (currentPagination) {
             currentPagination.remove();

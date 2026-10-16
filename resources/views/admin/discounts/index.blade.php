@@ -523,6 +523,7 @@
         const paginationWrapper = document.getElementById('discountPaginationWrapper');
         let debounceTimer = null;
         let currentController = null;
+        let currentPage = Number(new URLSearchParams(window.location.search).get('page')) || 1;
 
         function buildQuery(page) {
             const params = new URLSearchParams();
@@ -533,7 +534,8 @@
         }
 
         async function applyFilters(page = 1) {
-            const query = buildQuery(page);
+            currentPage = Number(page) || 1;
+            const query = buildQuery(currentPage);
             const url = `${filterForm.action}${query ? '?' + query : ''}`;
             const fetchUrl = url + (query ? '&' : '?') + 'ajax=1';
             window.history.replaceState({}, '', url);
@@ -577,6 +579,8 @@
 
         rebindPagination();
         window.refreshDiscountsTable = function () { applyFilters(1); };
+        // Real time (partials/live-updates): same search and page.
+        window.liveUpdates.watch(['discounts'], function () { applyFilters(currentPage); });
     })();
 
     // ---- Tab 2: Apply Discount/Promo ----
@@ -877,8 +881,11 @@
 
         // ---- Applied Discount/Promo List ----
         let appliedController = null;
+        let appliedPage = 1;
 
         async function reloadAppliedList(page = 1) {
+            appliedPage = Number(page) || 1;
+            page = appliedPage;
             if (appliedController) appliedController.abort();
             appliedController = new AbortController();
             const url = '{{ route('admin.discounts.index') }}?ajax_applied=1' + (page > 1 ? '&applied_page=' + page : '');
@@ -909,6 +916,8 @@
         }
 
         rebindAppliedPagination();
+        // Real time (partials/live-updates): same page.
+        window.liveUpdates.watch(['discounts'], function () { reloadAppliedList(appliedPage); });
 
         // ---- View Details modal ----
         window.openPromoDetails = function (discountId) {
