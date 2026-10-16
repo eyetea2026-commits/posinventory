@@ -98,6 +98,14 @@ class PurchaseOrderModuleTest extends TestCase
     // The list filters by Supplier (no longer by Category), and next to
     // Status it shows how many different products each order is for (not
     // their quantities).
+    public function test_purchase_order_details_popup_is_wide(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))
+            ->assertOk()
+            ->assertSee('<div id="viewPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="viewPurchaseOrderModalTitle" aria-hidden="true">
+        <div class="modal-content modal-content-wide" style="max-width: 900px;">', false);
+    }
+
     public function test_index_filters_by_supplier_and_shows_products_ordered(): void
     {
         $otherSupplier = Supplier::create(['SupplierName' => 'Second Supplier', 'ContactNumber' => '2', 'Email' => 'second@mail.com', 'Address' => 'N/A']);

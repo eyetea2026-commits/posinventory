@@ -197,7 +197,7 @@
 
     <!-- View Purchase Order Details Modal -->
     <div id="viewPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="viewPurchaseOrderModalTitle" aria-hidden="true">
-        <div class="modal-content">
+        <div class="modal-content modal-content-wide" style="max-width: 900px;">
             <div class="modal-header">
                 <h2 id="viewPurchaseOrderModalTitle"><i class="fas fa-eye"></i> Purchase Order Details</h2>
                 <button type="button" class="modal-close" onclick="closeViewPurchaseOrderModal()" aria-label="Close">&times;</button>
