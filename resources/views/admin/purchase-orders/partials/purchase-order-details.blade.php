@@ -1,12 +1,13 @@
 {{-- Shared "View Details" content. Included by both the standalone show page
-     (with $showStatus=true — the page keeps its own Status badge and its
-     separate action toolbar untouched) and the View Details modal fragment
-     (status/actions omitted — the modal is a read-only quick-look surface;
-     its own "Print" button lives in the modal shell, not in this partial, so
-     it isn't duplicated on the full page which already has one).
-     Expects $purchaseOrder with supplier/items.product loaded. --}}
+     and the View Details modal fragment, both with $showStatus=true (the
+     Purchase Order list has no Status column, so the modal is where it
+     shows). The modal passes $listBadges=true to use the badge colours the
+     Purchase Orders page styles; its own "Print" button lives in the modal
+     shell, not in this partial. Expects $purchaseOrder with
+     supplier/items.product loaded. --}}
 @php
     $showStatus = $showStatus ?? false;
+    $listBadges = $listBadges ?? false;
 @endphp
 <div class="section-title" style="margin-top:0;">Order Information</div>
 <div class="detail-row">
@@ -26,7 +27,13 @@
         <span class="detail-label">Status</span>
         <span class="detail-value">
             @php
-                $statusClass = match($purchaseOrder->Status) {
+                $statusClass = $listBadges ? match($purchaseOrder->Status) {
+                    \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-success',
+                    \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-warning',
+                    \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-info',
+                    \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-danger',
+                    default => 'badge-secondary',
+                } : match($purchaseOrder->Status) {
                     \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-completed',
                     \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-pending',
                     \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-approved',

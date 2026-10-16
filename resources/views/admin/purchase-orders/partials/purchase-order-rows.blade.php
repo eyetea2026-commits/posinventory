@@ -18,18 +18,6 @@
         </td>
         <td><strong>{{ $order->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
         <td>{{ \Illuminate\Support\Carbon::parse($order->PurchaseDate)->format('m/d/Y') }}</td>
-        <td>
-            @php
-                $badgeClass = match($order->Status) {
-                    \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-success',
-                    \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-warning',
-                    \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-info',
-                    \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-danger',
-                    default => 'badge-secondary',
-                };
-            @endphp
-            <span class="badge {{ $badgeClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$order->Status] ?? ucfirst($order->Status) }}</span>
-        </td>
         {{-- How many different products this order is for (not their
              quantities): ordering 3 products shows "3 products". --}}
         @php $productsOrdered = $order->items->pluck('ProductID')->unique()->count(); @endphp
@@ -52,7 +40,7 @@
     </tr>
 @empty
     <tr>
-        <td colspan="7">
+        <td colspan="6">
             <div class="empty-state">
                 <div class="empty-icon"><i class="fas {{ $isHistory ? 'fa-clock-rotate-left' : 'fa-shopping-cart' }}"></i></div>
                 <p class="empty-title">{{ $isHistory ? 'No Printed Orders Yet' : 'No Purchase Orders' }}</p>
