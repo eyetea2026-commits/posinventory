@@ -196,10 +196,16 @@ class ActivityLogViewerTest extends TestCase
         $activity = strpos($html, '<h2 class="card-title">Activity Log</h2>');
         $this->assertNotFalse($activity);
         $this->assertGreaterThan($recent, $activity);
-        // Both cards share one two-column grid row, so they sit side by side.
-        $grid = strpos($html, '<div class="charts-grid operational-grid">');
-        $this->assertNotFalse($grid);
-        $this->assertLessThan($recent, $grid);
+        // Shown as two tabs (like the Discounts page): Overall Transactions
+        // open first, Activity Log one click away.
+        $this->assertStringNotContainsString('operational-grid', $html);
+        $tabs = strpos($html, '<div class="ops-tab-group" role="tablist">');
+        $this->assertNotFalse($tabs);
+        $this->assertLessThan($recent, $tabs);
+        $this->assertStringContainsString('<button type="button" class="ops-tab-btn active" data-ops-tab="transactions"', $html);
+        $this->assertStringContainsString('<button type="button" class="ops-tab-btn" data-ops-tab="activity"', $html);
+        $this->assertStringContainsString('<div class="card ops-tab-panel active" id="ops-tab-transactions" role="tabpanel">', $html);
+        $this->assertStringContainsString('<div class="card ops-tab-panel" id="activity-log" role="tabpanel">', $html);
         $this->assertStringContainsString('id="activityLogContainer"', $html);
         $this->assertStringContainsString(route('admin.activity-logs.index'), $html);
         // No longer a separate sidebar page.

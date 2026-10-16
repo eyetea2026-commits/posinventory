@@ -405,10 +405,16 @@
         .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 24px 0; flex-wrap: wrap; }
         /* Two equal columns; minmax(0, 1fr) lets each table scroll inside
            its own card instead of stretching the grid wider than the page. */
-        .operational-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
-        @media (max-width: 1280px) {
-            .operational-grid { grid-template-columns: minmax(0, 1fr); }
+        .ops-tab-group { display: inline-flex; flex-wrap: wrap; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 16px; }
+        .ops-tab-btn {
+            padding: 9px 18px; border-radius: 9px; border: none; background: transparent; color: #94a3b8;
+            font-weight: 600; font-size: 0.88rem; cursor: pointer; transition: all 0.2s ease;
         }
+        .ops-tab-btn:hover:not(.active) { color: #cbd5e1; }
+        .ops-tab-btn.active { background: linear-gradient(135deg, #3b82f6, #10b981); color: white; }
+        .ops-tab-panel { display: none; }
+        .ops-tab-panel.active { display: block; }
+        .operational-tabs { min-width: 0; }
         .activity-log-toolbar { justify-content: flex-start; gap: 10px; }
         .activity-log-toolbar .search-box { flex: 1 1 260px; max-width: 340px; }
         /* Explicit colors (matching the search box beside them): the shared
@@ -929,10 +935,18 @@
 
     {{-- Section 5: Operational Activity --}}
     <h2 class="dashboard-section-title mt-4">Operational Activity</h2>
-    {{-- Recent Transactions and Activity Log side by side (stacked on
-         narrower screens, where two 6-column tables can't both fit). --}}
-    <div class="charts-grid operational-grid">
-        <div class="card">
+    {{-- Overall Transactions and Activity Log as two tabs (same style as
+         the Discounts page tabs). --}}
+    <div class="ops-tab-group" role="tablist">
+        <button type="button" class="ops-tab-btn active" data-ops-tab="transactions" role="tab" aria-selected="true" onclick="switchOperationalTab('transactions')">
+            <i class="fas fa-receipt"></i> Overall Transactions
+        </button>
+        <button type="button" class="ops-tab-btn" data-ops-tab="activity" role="tab" aria-selected="false" onclick="switchOperationalTab('activity')">
+            <i class="fas fa-clock-rotate-left"></i> Activity Log
+        </button>
+    </div>
+    <div class="operational-tabs">
+        <div class="card ops-tab-panel active" id="ops-tab-transactions" role="tabpanel">
             <div class="card-header">
                 <div>
                     <h2 class="card-title">Overall Transactions</h2>
@@ -955,7 +969,7 @@
 
         {{-- Activity Log: rows load over AJAX from
              ActivityLogController::index(). --}}
-        <div class="card" id="activity-log">
+        <div class="card ops-tab-panel" id="activity-log" role="tabpanel">
             <div class="card-header">
                 <div>
                     <h2 class="card-title">Activity Log</h2>
@@ -987,6 +1001,17 @@
 
 @push('scripts')
     <script>
+    // Operational Activity tabs: Overall Transactions / Activity Log.
+    function switchOperationalTab(tab) {
+        document.querySelectorAll('.ops-tab-btn').forEach(function (btn) {
+            const active = btn.dataset.opsTab === tab;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        document.getElementById('ops-tab-transactions').classList.toggle('active', tab === 'transactions');
+        document.getElementById('activity-log').classList.toggle('active', tab === 'activity');
+    }
+
     (function () {
         const trendData = @json($salesTrend);
         const categoryChartData = @json($categoryChart);
