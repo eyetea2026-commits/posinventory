@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Receipt - {{ $receiptNumber }}</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
         * { box-sizing: border-box; }
         body {

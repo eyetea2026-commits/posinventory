@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Replacement Slip - {{ $replacement->SlipNumber }}</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
         @media print {
             body { margin: 0; padding: 20px; }

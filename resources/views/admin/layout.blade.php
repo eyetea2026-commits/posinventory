@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     @include('partials.font-scale')
     <title>@yield('title', 'Admin - ' . config('app.name'))</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <link rel="stylesheet" href="{{ asset('Administrator/Dashboard.css') }}">
     <link rel="stylesheet" href="{{ asset('Administrator/AdminModules.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

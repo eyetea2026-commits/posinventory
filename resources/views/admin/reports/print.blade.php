@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>{{ \App\Http\Controllers\Admin\ReportController::typeLabel($type) }} Report</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
         @page { size: A4 {{ $landscape ?? false ? 'landscape' : 'portrait' }}; margin: 16mm; }
         body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: {{ $landscape ?? false ? '1150px' : '900px' }}; margin: 0 auto; padding: 30px; }

@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Purchase Order {{ $purchaseOrder->PONumber }}</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
         @page { size: A4; margin: 18mm 16mm; }
         body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a1a1a; max-width: 800px; margin: 0 auto; padding: 30px; }

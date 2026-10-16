@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Damage Report #{{ $damage->DamageID }}</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
         body { font-family: sans-serif; font-size: 12px; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; }
         h1 { font-size: 18px; margin-bottom: 4px; }

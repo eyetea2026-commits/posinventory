@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Response Recorded</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
 </head>
 <body>
     <div class="sec-page">
