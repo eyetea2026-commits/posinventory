@@ -7,6 +7,7 @@
 @endsection
 
 @section('content')
+@include('partials.email-check')
 @include('admin.users.partials.user-form-styles')
 <style>
     :root {
@@ -1095,6 +1096,9 @@
         }
     });
 
+    // Live "Please enter a valid email address." while typing (partials/email-check).
+    window.attachEmailCheck(document.querySelector('#addUserForm input[name="email"]'), document.getElementById('error-email'));
+
     document.getElementById('addUserSubmitBtn').addEventListener('click', () => addUserModalForm.confirmSave());
     document.getElementById('addUserCancelBtn').addEventListener('click', () => addUserModalForm.confirmCancel());
 
@@ -1130,6 +1134,8 @@
         addUserLastFocused = document.activeElement;
         form.reset();
         clearAddUserFieldErrors();
+        // Clears the red "valid email" state left from last time.
+        form.querySelector('input[name="email"]').dispatchEvent(new Event('input'));
         hideAddUserGeneralError();
         addUserModalForm.markUnchanged();
         addUserModalForm.resetSubmitButton();

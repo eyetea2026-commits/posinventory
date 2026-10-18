@@ -62,6 +62,12 @@
                     </div>
                 @endif
 
+                @include('partials.email-check')
+                <script>
+                    window.attachEmailCheck(document.getElementById('email_manual'));
+                    window.attachEmailCheck(document.getElementById('email'));
+                </script>
+
                 <div class="button-grid">
                     <button type="submit" class="button">Send OTP Code</button>
                 </div>

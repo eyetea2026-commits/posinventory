@@ -57,6 +57,16 @@ class AdminForgotPasswordTest extends TestCase
         $response->assertDontSee('admin-two@cctvexpress.local', false);
     }
 
+    public function test_forgot_page_checks_the_email_while_typing(): void
+    {
+        $this->get(route('admin.forgot'))
+            ->assertOk()
+            ->assertSee('window.attachEmailCheck = function', false)
+            ->assertSee("window.attachEmailCheck(document.getElementById('email'));", false)
+            ->assertSee("window.attachEmailCheck(document.getElementById('email_manual'));", false)
+            ->assertSee('Please enter a valid email address.');
+    }
+
     public function test_forgot_page_falls_back_to_manual_entry_when_the_admin_has_no_email(): void
     {
         User::factory()->create(['role_id' => $this->adminRole->id, 'email' => null]);

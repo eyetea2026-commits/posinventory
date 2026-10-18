@@ -103,6 +103,18 @@ class UserManagementTest extends TestCase
         $response->assertSee('name="email"', false);
     }
 
+    public function test_add_user_popup_checks_the_email_while_typing(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('window.attachEmailCheck = function', false)
+            ->assertSee("window.attachEmailCheck(document.querySelector('#addUserForm input[name=\"email\"]'), document.getElementById('error-email'));", false)
+            ->assertSee('Please enter a valid email address.');
+    }
+
     public function test_admin_can_create_a_cashier_with_an_email(): void
     {
         $adminRole = Role::create(['role_name' => 'admin']);
