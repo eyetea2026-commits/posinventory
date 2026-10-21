@@ -21,6 +21,11 @@
     .barcode-scanner { display: flex; gap: 10px; margin-bottom: 16px; }
     .barcode-scanner input { flex: 1; padding: 14px 18px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 10px; }
     .barcode-scanner input:focus { outline: none; border-color: #8b5cf6; }
+    /* "Added: <product> (<barcode>)" after each scan, so the cashier sees
+       which product the scanner actually read. Not a pop-up: a pop-up
+       would block the next scan. */
+    .scan-feedback { margin: -8px 0 14px; padding: 8px 12px; border-radius: 8px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: #6ee7b7; font-size: 0.85rem; transition: opacity 0.3s ease; }
+    .scan-feedback strong { color: #d1fae5; }
 
     .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(154px, 1fr)); gap: 10px; flex: 1; overflow-y: auto; padding-right: 8px; align-content: start; }
     .products-grid::-webkit-scrollbar { width: 6px; }
@@ -191,6 +196,7 @@
         <div class="barcode-scanner">
             <input type="text" id="barcode-input" placeholder="Enter Barcode" onkeydown="handleBarcode(event)" autofocus>
         </div>
+        <div id="scan-feedback" class="scan-feedback" role="status" aria-live="polite" hidden></div>
 
         <div class="search-bar">
             <input type="text" id="search-input" placeholder="Search products by name or model..." onkeyup="searchProducts()">
@@ -566,7 +572,9 @@
                         // its qty instead of pushing a new one, so repeated
                         // scans of the same item just keep adding +1 — clear
                         // the field so it's ready for the next scan.
-                        addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock);
+                        if (addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock)) {
+                            showScanFeedback(data.product.ProductName, data.product.Barcode || barcode);
+                        }
                         input.value = '';
                     } else {
                         toastWarning('Product out of stock!');
@@ -724,7 +732,7 @@
                 existingItem.qty++;
             } else {
                 toastWarning('Maximum stock reached!');
-                return;
+                return false;
             }
         } else {
             cart.push({ id, name, price, qty: 1, stock });
@@ -733,6 +741,26 @@
         // the cart holds more than the ~7 lines visible at a time.
         cartFocusItemId = id;
         renderCart();
+        return true;
+    }
+
+    // Shows which product a scan added, e.g. "Added: UPS 1000VA
+    // (CCTVEX-000041)", for a few seconds. Each new scan replaces it.
+    let scanFeedbackTimer = null;
+    function showScanFeedback(name, barcode) {
+        const box = document.getElementById('scan-feedback');
+        box.innerHTML = '';
+        box.append('Added: ');
+        const strong = document.createElement('strong');
+        strong.textContent = name;
+        box.append(strong, ' (' + barcode + ')');
+        box.hidden = false;
+        box.style.opacity = '1';
+        clearTimeout(scanFeedbackTimer);
+        scanFeedbackTimer = setTimeout(function () {
+            box.style.opacity = '0';
+            scanFeedbackTimer = setTimeout(function () { box.hidden = true; }, 300);
+        }, 4000);
     }
 
     function updateQty(id, change) {

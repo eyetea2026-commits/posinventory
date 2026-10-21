@@ -127,6 +127,18 @@ class SecurityFixesTest extends TestCase
     // A wireless scanner can stall mid-code; the scan must wait for the rest
     // instead of submitting early (CCTVEX-000031 used to arrive as
     // CCTVEX-00003 and show "Product Not Found").
+    // After a scan the POS names the product it added (not a pop-up, which
+    // would block the next scan), so a wrong scan is noticed right away.
+    public function test_pos_shows_which_product_each_scan_added(): void
+    {
+        $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
+
+        $response->assertOk();
+        $response->assertSee('<div id="scan-feedback" class="scan-feedback" role="status" aria-live="polite" hidden></div>', false);
+        $response->assertSee('showScanFeedback(data.product.ProductName, data.product.Barcode || barcode);', false);
+        $response->assertSee("box.append('Added: ');", false);
+    }
+
     public function test_pos_scan_detection_waits_through_a_mid_scan_stall(): void
     {
         $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
