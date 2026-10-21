@@ -600,14 +600,18 @@
     // "types" a whole barcode within a few milliseconds per character, far
     // faster than a person, so a burst of SCAN_MIN_LENGTH+ characters with
     // every gap under SCAN_MAX_KEY_GAP_MS is treated as a scan. It ends on
-    // the scanner's Enter/Tab suffix, or on a short pause for scanners
-    // configured without one. Any characters the burst typed into another
+    // the scanner's Enter/Tab suffix, or on a pause for scanners configured
+    // without one. Once a burst has started, a longer gap (up to
+    // SCAN_IDLE_SUBMIT_MS) still belongs to the same scan: wireless
+    // (Bluetooth/2.4GHz) scanners sometimes stall briefly mid-code, and
+    // ending the scan there cut off its last characters (CCTVEX-000031
+    // arriving as CCTVEX-00003). Any characters the burst typed into another
     // field (customer name, search, payment, a qty box) are put back.
     // Ordinary typing never forms such a burst, so it behaves as before.
     (function () {
         const SCAN_MIN_LENGTH = 6;        // shortest product barcode is 8
         const SCAN_MAX_KEY_GAP_MS = 60;   // scanners: ~2-30ms; people: 100ms+
-        const SCAN_IDLE_SUBMIT_MS = 150;  // for scanners that send no Enter
+        const SCAN_IDLE_SUBMIT_MS = 500;  // longest mid-scan stall; also ends scans that send no Enter
 
         let buffer = '';
         let lastKeyAt = 0;
@@ -660,7 +664,8 @@
 
             const now = performance.now();
             const gap = now - lastKeyAt;
-            const isBurst = buffer.length >= SCAN_MIN_LENGTH && gap <= SCAN_MAX_KEY_GAP_MS;
+            // A scan already under way tolerates a wireless stall.
+            const isBurst = buffer.length >= SCAN_MIN_LENGTH && gap <= SCAN_IDLE_SUBMIT_MS;
 
             if (e.key === 'Enter' || e.key === 'NumpadEnter' || e.key === 'Tab') {
                 if (isBurst) {
@@ -682,7 +687,7 @@
                 return;
             }
 
-            if (gap > SCAN_MAX_KEY_GAP_MS) {
+            if (gap > SCAN_MAX_KEY_GAP_MS && !isBurst) {
                 // Possible start of a new burst: remember the field's value
                 // BEFORE this first character lands in it (keydown runs first).
                 buffer = '';

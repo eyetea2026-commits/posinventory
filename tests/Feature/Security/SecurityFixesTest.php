@@ -124,6 +124,19 @@ class SecurityFixesTest extends TestCase
         $response->assertDontSee('onclick="scanBarcode()"', false);
     }
 
+    // A wireless scanner can stall mid-code; the scan must wait for the rest
+    // instead of submitting early (CCTVEX-000031 used to arrive as
+    // CCTVEX-00003 and show "Product Not Found").
+    public function test_pos_scan_detection_waits_through_a_mid_scan_stall(): void
+    {
+        $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
+
+        $response->assertOk();
+        $response->assertSee('const SCAN_IDLE_SUBMIT_MS = 500;', false);
+        $response->assertSee('const isBurst = buffer.length >= SCAN_MIN_LENGTH && gap <= SCAN_IDLE_SUBMIT_MS;', false);
+        $response->assertSee('if (gap > SCAN_MAX_KEY_GAP_MS && !isBurst) {', false);
+    }
+
     public function test_barcode_api_also_matches_on_sku(): void
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
