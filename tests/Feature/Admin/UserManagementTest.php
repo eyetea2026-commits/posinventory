@@ -209,6 +209,31 @@ class UserManagementTest extends TestCase
             ->assertDontSee('name="age"', false);
     }
 
+    public function test_the_age_goes_up_by_itself_on_each_birthday(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        // Turns 25 three days from now.
+        $this->actingAs($admin)->post(route('admin.users.store'), $this->baseCashierPayload([
+            'role_id' => $cashierRole->id, 'birthdate' => today()->subYears(25)->addDays(3)->toDateString(),
+        ]))->assertRedirect(route('admin.users.index'));
+        $user = User::where('name', 'testcashier')->first();
+        $this->assertSame(24, $user->age);
+
+        $this->travel(3)->days();
+        $this->assertSame(25, $user->fresh()->age);
+        $this->actingAs($admin)->getJson(route('admin.users.show', $user))->assertJsonPath('user.age', 25);
+
+        $this->travel(1)->years();
+        $this->assertSame(26, $user->fresh()->age);
+
+        // Users without a birthdate keep the age saved for them.
+        $older = User::factory()->create(['role_id' => $cashierRole->id, 'age' => 40]);
+        $this->assertSame(40, $older->fresh()->age);
+    }
+
     public function test_user_store_rejects_a_contact_number_that_is_not_exactly_11_digits(): void
     {
         $adminRole = Role::create(['role_name' => 'admin']);

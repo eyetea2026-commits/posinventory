@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -44,12 +46,26 @@ class User extends Authenticatable
     }
 
     /**
-     * Age today, worked out from the birthdate; users saved before
-     * birthdates existed fall back to the age typed in back then.
+     * Age today. With a birthdate it's worked out fresh every time it's
+     * read, so it goes up on its own each birthday (nothing has to run to
+     * update it); users saved before birthdates existed keep the age typed
+     * in back then.
+     */
+    protected function age(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value, array $attributes) => ! empty($attributes['birthdate'])
+                ? (int) Carbon::parse($attributes['birthdate'])->age
+                : ($value === null ? null : (int) $value),
+        );
+    }
+
+    /**
+     * Same as age; kept for the views that read current_age.
      */
     public function getCurrentAgeAttribute(): ?int
     {
-        return $this->birthdate ? (int) $this->birthdate->age : $this->age;
+        return $this->age;
     }
 
     public function role()
