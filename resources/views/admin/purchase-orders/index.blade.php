@@ -172,7 +172,7 @@
 
     <!-- Create Purchase Order Modal -->
     <div id="addPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addPurchaseOrderModalTitle" aria-hidden="true">
-        <div class="modal-content modal-content-wide">
+        <div class="modal-content modal-content-wide" style="max-width: 1100px;">
             <div class="modal-header">
                 <h2 id="addPurchaseOrderModalTitle"><i class="fas fa-cart-plus"></i> Create Purchase Order</h2>
                 <button type="button" class="modal-close" onclick="closePurchaseOrderModal()" aria-label="Close">&times;</button>
@@ -271,7 +271,7 @@
         @endif
 
         // ---- Create Purchase Order modal ----
-        const ADD_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate'];
+        const ADD_PO_FIELD_IDS = ['PurchaseDate', 'Notes'];
         let addPurchaseOrderLastFocused = null;
 
         function addPurchaseOrderIsSubmitting() {
@@ -426,14 +426,21 @@
 
         document.getElementById('addPurchaseOrderSubmitBtn').addEventListener('click', function () {
             const form = document.getElementById('addPurchaseOrderForm');
-            if (!form.checkValidity()) {
-                form.reportValidity();
+            if (!window.validateOrderItems() || !form.checkValidity()) {
+                if (form.querySelector('#PurchaseDate:invalid')) form.reportValidity();
                 return;
             }
 
+            // One purchase order is made for each supplier of the ticked products.
+            const supplierCount = new Set(Array.from(form.querySelectorAll('#order-items .po-item-row'))
+                .filter(function (row) { return row.querySelector('.po-item-check').checked; })
+                .map(function (row) { return row.dataset.supplier; })).size;
+
             Swal.fire({
                 title: 'Confirm Save',
-                text: 'Are you sure you want to create this purchase order?',
+                text: supplierCount > 1
+                    ? 'This will create ' + supplierCount + ' purchase orders, one for each supplier. Continue?'
+                    : 'Are you sure you want to create this purchase order?',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Yes',

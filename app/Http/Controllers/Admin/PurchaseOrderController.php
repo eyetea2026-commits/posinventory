@@ -18,6 +18,7 @@ use App\Notifications\PurchaseOrderCancelled;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -183,80 +184,139 @@ class PurchaseOrderController extends Controller
         return view('admin.purchase-orders.create-from-reorder', $viewData);
     }
 
+    /**
+     * Rows for the Create Purchase Order "Order Items" table: every active
+     * product, low-stock ones first (at or below their threshold, ticked by
+     * default), each with its threshold, previous price, a starting current
+     * price and quantity, and its supplier (the preferred one, or its only
+     * one). A product without one gets a supplier picker in its row.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public static function orderItemCandidates()
+    {
+        $activeSuppliers = Supplier::where('Status', Supplier::STATUS_ACTIVE)->orderBy('SupplierName')->get();
+
+        return Product::active()
+            ->with(['inventory', 'suppliers.supplier'])
+            ->orderBy('ProductName')
+            ->get()
+            ->map(function (Product $product) use ($activeSuppliers) {
+                $quantity = (int) ($product->inventory?->Quantity ?? 0);
+                $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
+                $link = $product->resolveReorderSupplier();
+                $previousPrice = (float) ($product->CostPrice ?? 0);
+                $currentPrice = $link && $link->CostPrice !== null ? (float) $link->CostPrice : $previousPrice;
+
+                return [
+                    'product' => $product,
+                    'stock' => $quantity,
+                    'threshold' => $threshold,
+                    'lowStock' => $quantity <= $threshold,
+                    'previousPrice' => $previousPrice,
+                    'currentPrice' => $currentPrice,
+                    'suggestedQuantity' => max(1, self::suggestedReorderQuantity($quantity, $threshold)),
+                    'supplier' => $link?->supplier,
+                    // Choices when no supplier is set: this product's own
+                    // suppliers if it has several, otherwise every active one.
+                    'supplierChoices' => $link ? collect() : ($product->suppliers->isNotEmpty()
+                        ? $product->suppliers->pluck('supplier')->filter()->sortBy('SupplierName')->values()
+                        : $activeSuppliers),
+                ];
+            })
+            ->sortBy(fn (array $row) => [$row['lowStock'] ? 0 : 1, strtolower($row['product']->ProductName)])
+            ->values();
+    }
+
+    /**
+     * Saves the ticked products as Draft Purchase Orders, one per supplier:
+     * products from the same supplier go on the same order.
+     */
     public function store(Request $request)
     {
         $data = $request->validate([
-            'SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
             'PurchaseDate' => ['required', 'date'],
-            'ExpectedDeliveryDate' => ['nullable', 'date', 'after_or_equal:PurchaseDate'],
             'Notes' => ['nullable', 'string', 'max:1000'],
-            'products' => ['required', 'array', 'min:1'],
-            'products.*.product_id' => ['required', 'integer', Rule::exists('Product', 'ProductID')->where('IsActive', true)],
-            'products.*.quantity' => ['required', 'integer', 'min:1'],
-            'products.*.cost_price' => ['required', 'numeric', 'min:0.01'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', Rule::exists('Product', 'ProductID')->where('IsActive', true)],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.cost_price' => ['required', 'numeric', 'min:0.01'],
+            'items.*.supplier_id' => ['nullable', 'integer', 'exists:Supplier,SupplierID'],
         ], [
-            'products.*.product_id.exists' => 'One of the selected products is inactive and can no longer be ordered.',
-            'products.*.cost_price.required' => 'Current Price is required for every product.',
-            'products.*.cost_price.numeric' => 'Current Price must be a valid number.',
-            'products.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
+            'items.required' => 'Tick at least one product to order.',
+            'items.min' => 'Tick at least one product to order.',
+            'items.*.product_id.exists' => 'One of the selected products is inactive and can no longer be ordered.',
+            'items.*.quantity.required' => 'Quantity is required for every ticked product.',
+            'items.*.quantity.min' => 'Quantity must be at least 1.',
+            'items.*.cost_price.required' => 'Current Price is required for every ticked product.',
+            'items.*.cost_price.numeric' => 'Current Price must be a valid number.',
+            'items.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
         ]);
 
-        $purchaseOrder = DB::transaction(function () use ($data) {
-            // Status is never taken from the request — every new Purchase
-            // Order starts life as a Draft, full stop, regardless of what a
-            // client sends. The old Status <select> is gone from the form
-            // for the same reason.
-            $purchaseOrder = PurchaseOrder::create([
-                'PurchaseDate' => $data['PurchaseDate'],
-                'ExpectedDeliveryDate' => $data['ExpectedDeliveryDate'] ?? null,
-                'Notes' => $data['Notes'] ?? null,
-                'Status' => PurchaseOrder::STATUS_DRAFT,
-                'SupplierID' => $data['SupplierID'],
-                'CreatedBy' => auth()->id(),
-            ]);
-
-            // The PO number is derived from the now-known auto-increment PK,
-            // which already guarantees uniqueness under concurrency — no
-            // separate counter/locking scheme needed.
-            $year = Carbon::parse($data['PurchaseDate'])->format('Y');
-            $purchaseOrder->update([
-                'PONumber' => "PO-{$year}-".str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
-            ]);
-
-            foreach ($data['products'] as $item) {
-                if (empty($item['product_id']) || empty($item['quantity'])) {
-                    continue;
-                }
-
-                // Current Price is required and validated above (> ₱0.00) —
-                // always the admin's own entered value now, never silently
-                // re-derived from the product's stored cost.
-                PurchaseOrderItem::create([
-                    'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
-                    'ProductID' => $item['product_id'],
-                    'Quantity' => $item['quantity'],
-                    'CostPriceAtOrder' => $item['cost_price'],
+        // A product's own supplier (preferred, or its only one) always wins;
+        // the submitted one is used only for a product that has none.
+        $products = Product::with('suppliers')->whereIn('ProductID', collect($data['items'])->pluck('product_id'))->get()->keyBy('ProductID');
+        $groups = [];
+        foreach ($data['items'] as $item) {
+            $product = $products->get($item['product_id']);
+            $supplierId = $product->resolveReorderSupplier()?->SupplierID ?? ($item['supplier_id'] ?? null);
+            if (! $supplierId) {
+                throw ValidationException::withMessages([
+                    'items' => "Choose a supplier for \"{$product->ProductName}\".",
                 ]);
             }
+            $groups[$supplierId][] = $item;
+        }
 
-            return $purchaseOrder;
+        $purchaseOrders = DB::transaction(function () use ($data, $groups) {
+            $created = [];
+            foreach ($groups as $supplierId => $items) {
+                // Status is never taken from the request: every new Purchase
+                // Order starts as a Draft.
+                $purchaseOrder = PurchaseOrder::create([
+                    'PurchaseDate' => $data['PurchaseDate'],
+                    'Notes' => $data['Notes'] ?? null,
+                    'Status' => PurchaseOrder::STATUS_DRAFT,
+                    'SupplierID' => $supplierId,
+                    'CreatedBy' => auth()->id(),
+                ]);
+
+                // The PO number is derived from the auto-increment key, which
+                // is already unique under concurrency.
+                $year = Carbon::parse($data['PurchaseDate'])->format('Y');
+                $purchaseOrder->update([
+                    'PONumber' => "PO-{$year}-".str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
+                ]);
+
+                foreach ($items as $item) {
+                    PurchaseOrderItem::create([
+                        'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
+                        'ProductID' => $item['product_id'],
+                        'Quantity' => $item['quantity'],
+                        'CostPriceAtOrder' => $item['cost_price'],
+                    ]);
+                }
+
+                $created[] = $purchaseOrder->load('supplier');
+            }
+
+            return $created;
         });
 
-        $supplier = Supplier::find($data['SupplierID']);
-        ActivityLog::record('purchase_order.created', "Created PO #{$purchaseOrder->PONumber} for \"{$supplier?->SupplierName}\"");
+        foreach ($purchaseOrders as $purchaseOrder) {
+            ActivityLog::record('purchase_order.created', "Created PO #{$purchaseOrder->PONumber} for \"{$purchaseOrder->supplier?->SupplierName}\"");
+        }
 
-        $message = "Purchase order {$purchaseOrder->PONumber} created successfully.";
+        $numbers = collect($purchaseOrders)->pluck('PONumber')->implode(', ');
+        $message = count($purchaseOrders) === 1
+            ? "Purchase order {$numbers} created successfully."
+            : count($purchaseOrders)." purchase orders created, one per supplier: {$numbers}.";
 
-        // The "Create Purchase Order" modal's fetch() sends Accept:
-        // application/json — respond with just the new row markup instead
-        // of redirecting to index() and making it re-fetch/re-render the
-        // whole page (every product/supplier/category dropdown, full page
-        // chrome, ...) only to scrape the table back out of it, which was
-        // the actual cause of "saving is slow". The standalone, non-AJAX
-        // create.blade.php page's plain form POST doesn't send that header,
-        // so it keeps getting the original redirect untouched.
+        // The Create Purchase Order popup's fetch() sends Accept:
+        // application/json and gets just the new rows back; the standalone
+        // create page's plain form POST is redirected.
         if ($request->wantsJson()) {
-            $purchaseOrders = PurchaseOrder::with(['supplier', 'items.product'])
+            $listed = PurchaseOrder::with(['supplier', 'items.product'])
                 ->whereDoesntHave('stockReceivingBatch')
                 ->orderByDesc('created_at')
                 ->paginate(15);
@@ -264,8 +324,9 @@ class PurchaseOrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $message,
+                'purchase_orders' => collect($purchaseOrders)->pluck('PONumber'),
                 'html' => view('admin.purchase-orders.partials.purchase-order-rows', [
-                    'purchaseOrders' => $purchaseOrders,
+                    'purchaseOrders' => $listed,
                 ])->render(),
             ]);
         }

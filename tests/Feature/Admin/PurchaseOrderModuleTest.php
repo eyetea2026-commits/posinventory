@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Role;
@@ -158,8 +159,8 @@ class PurchaseOrderModuleTest extends TestCase
             'PurchaseDate' => now()->format('Y-m-d'),
             'ExpectedDeliveryDate' => now()->addDays(7)->format('Y-m-d'),
             'Status' => 'pending',
-            'products' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 650],
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 650, 'supplier_id' => $this->supplier->SupplierID],
             ],
         ]);
 
@@ -184,24 +185,24 @@ class PurchaseOrderModuleTest extends TestCase
         ];
 
         $missing = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
-            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5]],
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'supplier_id' => $this->supplier->SupplierID]],
         ]);
-        $missing->assertSessionHasErrors('products.0.cost_price');
+        $missing->assertSessionHasErrors('items.0.cost_price');
 
         $zero = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
-            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 0]],
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 0, 'supplier_id' => $this->supplier->SupplierID]],
         ]);
-        $zero->assertSessionHasErrors('products.0.cost_price');
+        $zero->assertSessionHasErrors('items.0.cost_price');
 
         $negative = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
-            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => -100]],
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => -100, 'supplier_id' => $this->supplier->SupplierID]],
         ]);
-        $negative->assertSessionHasErrors('products.0.cost_price');
+        $negative->assertSessionHasErrors('items.0.cost_price');
 
         $nonNumeric = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $basePayload + [
-            'products' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 'abc']],
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 'abc', 'supplier_id' => $this->supplier->SupplierID]],
         ]);
-        $nonNumeric->assertSessionHasErrors('products.0.cost_price');
+        $nonNumeric->assertSessionHasErrors('items.0.cost_price');
 
         $this->assertSame(0, PurchaseOrder::count());
     }
@@ -212,8 +213,8 @@ class PurchaseOrderModuleTest extends TestCase
             'SupplierID' => $this->supplier->SupplierID,
             'PurchaseDate' => now()->format('Y-m-d'),
             'Status' => 'pending',
-            'products' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 815.75],
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 815.75, 'supplier_id' => $this->supplier->SupplierID],
             ],
         ]);
 
@@ -266,8 +267,8 @@ class PurchaseOrderModuleTest extends TestCase
             'SupplierID' => $this->supplier->SupplierID,
             'PurchaseDate' => now()->format('Y-m-d'),
             'Status' => 'approved',
-            'products' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600],
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600, 'supplier_id' => $this->supplier->SupplierID],
             ],
         ]);
 
@@ -587,12 +588,75 @@ class PurchaseOrderModuleTest extends TestCase
 
     // The remove (trash) button is a small icon on the same line, beside
     // Current Price -- not a wide bar on its own line below the item.
-    public function test_order_item_remove_button_is_small_and_beside_current_price(): void
+    // Ticked products are grouped by their supplier: one Draft PO each.
+    public function test_store_creates_one_purchase_order_per_supplier(): void
     {
+        $otherSupplier = Supplier::create(['SupplierName' => 'KCC point', 'ContactNumber' => '0912-345-6789', 'Email' => 'kcc@mail.com', 'Address' => 'N/A']);
+        $cable = Product::create(['ProductName' => 'Cable', 'Model' => 'CB-1', 'Price' => 100, 'CostPrice' => 50, 'CategoryID' => $this->product->CategoryID]);
+        $dvr = Product::create(['ProductName' => 'DVR', 'Model' => 'DV-1', 'Price' => 3000, 'CostPrice' => 2000, 'CategoryID' => $this->product->CategoryID]);
+        $noSupplier = Product::create(['ProductName' => 'Adapter', 'Model' => 'AD-1', 'Price' => 200, 'CostPrice' => 120, 'CategoryID' => $this->product->CategoryID]);
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID]);
+        ProductSupplier::create(['ProductID' => $cable->ProductID, 'SupplierID' => $this->supplier->SupplierID]);
+        ProductSupplier::create(['ProductID' => $dvr->ProductID, 'SupplierID' => $otherSupplier->SupplierID]);
+
+        $response = $this->actingAs($this->admin)->postJson(route('admin.purchase-orders.store'), [
+            'PurchaseDate' => now()->format('Y-m-d'),
+            'Notes' => 'Restock',
+            'items' => [
+                ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600],
+                ['product_id' => $cable->ProductID, 'quantity' => 10, 'cost_price' => 50],
+                // A product's own supplier wins over a submitted one.
+                ['product_id' => $dvr->ProductID, 'quantity' => 2, 'cost_price' => 2000, 'supplier_id' => $this->supplier->SupplierID],
+                // No supplier assigned: the one chosen in its row is used.
+                ['product_id' => $noSupplier->ProductID, 'quantity' => 3, 'cost_price' => 120, 'supplier_id' => $otherSupplier->SupplierID],
+            ],
+        ])->assertOk();
+
+        $this->assertSame(2, PurchaseOrder::count());
+        $first = PurchaseOrder::where('SupplierID', $this->supplier->SupplierID)->firstOrFail();
+        $second = PurchaseOrder::where('SupplierID', $otherSupplier->SupplierID)->firstOrFail();
+        $this->assertEqualsCanonicalizing([$this->product->ProductID, $cable->ProductID], $first->items()->pluck('ProductID')->all());
+        $this->assertEqualsCanonicalizing([$dvr->ProductID, $noSupplier->ProductID], $second->items()->pluck('ProductID')->all());
+        $this->assertSame(PurchaseOrder::STATUS_DRAFT, $first->Status);
+        $this->assertSame('Restock', $second->Notes);
+        $this->assertNull($first->ExpectedDeliveryDate);
+        $response->assertJsonPath('message', '2 purchase orders created, one per supplier: '.$first->PONumber.', '.$second->PONumber.'.');
+    }
+
+    public function test_store_needs_a_supplier_for_a_product_that_has_none(): void
+    {
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
+            'PurchaseDate' => now()->format('Y-m-d'),
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600]],
+        ])->assertSessionHasErrors(['items' => 'Choose a supplier for "'.$this->product->ProductName.'".']);
+
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
+            'PurchaseDate' => now()->format('Y-m-d'),
+        ])->assertSessionHasErrors(['items' => 'Tick at least one product to order.']);
+
+        $this->assertSame(0, PurchaseOrder::count());
+    }
+
+    // The Create Purchase Order form: no Supplier dropdown or Expected
+    // Delivery, an Order Items table (low stock first and ticked), Notes last.
+    public function test_create_form_is_an_order_items_table_with_low_stock_first(): void
+    {
+        $plenty = Product::create(['ProductName' => 'AAA Plenty Cam', 'Model' => 'PL-1', 'Price' => 900, 'CostPrice' => 500, 'CategoryID' => $this->product->CategoryID]);
+        Inventory::create(['ProductID' => $plenty->ProductID, 'Quantity' => 100, 'ReorderThreshold' => 10, 'Status' => 'Available']);
+        Inventory::updateOrCreate(['ProductID' => $this->product->ProductID], ['Quantity' => 2, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);
+
         $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('grid-template-columns: 2fr 1fr 1fr 1fr auto;', $html);
-        $this->assertMatchesRegularExpression('/\.order-item-row \.order-item-remove \{[^}]*width: 40px;[^}]*height: 40px;/s', $html);
-        $this->assertMatchesRegularExpression('#name="products\[\]\[cost_price\]"[^>]*>\s*</div>\s*<button type="button" onclick="removeOrderItem\(this\)" class="btn btn-danger btn-icon order-item-remove"#', $html);
+        $this->assertStringNotContainsString('<select id="SupplierID" name="SupplierID"', $html);
+        $this->assertStringNotContainsString('name="ExpectedDeliveryDate"', $html);
+        $this->assertMatchesRegularExpression('#<th><label class="po-select-all"><input type="checkbox" id="po-select-all"[^>]*> Select All</label></th>\s*<th>Product</th>\s*<th>Threshold</th>\s*<th>Previous Price</th>\s*<th>Current Price</th>\s*<th>Quantity</th>\s*<th>Supplier</th>#', $html);
+        // Low stock first (even though "AAA" sorts earlier) and ticked.
+        $this->assertLessThan(strpos($html, 'AAA Plenty Cam'), strpos($html, $this->product->ProductName.'<span class="po-low">Low Stock</span>'));
+        $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order '.preg_quote($this->product->ProductName, '#').'" checked#', $html);
+        $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order AAA Plenty Cam"  onchange#', $html);
+        // Suggested reorder quantity: (10 - 2) + 10 = 18.
+        $this->assertStringContainsString('name="items['.$this->product->ProductID.'][quantity]" min="1" step="1" value="18"', $html);
+        // Notes come after the table.
+        $this->assertGreaterThan(strpos($html, 'id="order-items"'), strpos($html, 'id="Notes" name="Notes"'));
     }
 }

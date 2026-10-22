@@ -1,183 +1,206 @@
 {{-- Shared "Create Purchase Order" field markup. Included by both the
-     standalone create page and the Create Purchase Order modal. --}}
+     standalone create page and the Create Purchase Order modal.
+
+     Order Items is one table of every active product (low-stock ones first
+     and ticked), with Threshold, Previous Price, Current Price, Quantity and
+     Supplier. Only ticked rows are sent; Save creates one Draft Purchase
+     Order per supplier (PurchaseOrderController::store()). Notes sit at the
+     bottom. --}}
+@php
+    $orderRows = \App\Http\Controllers\Admin\PurchaseOrderController::orderItemCandidates();
+@endphp
 <style>
-    /* Product | Quantity | Previous Price | Current Price | small Remove
-       button, all on one line. */
-    .order-item-row {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr 1fr auto;
-        gap: 16px;
-        align-items: end;
-        padding: 16px;
-        background: var(--bg-hover, rgba(30, 41, 59, 0.6));
-        border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
-        border-radius: 12px;
-        margin-bottom: 12px;
-    }
-    .order-item-row .form-group { margin-bottom: 0; }
-    .order-item-row .order-item-remove {
-        align-self: end;
-        margin-bottom: 5px;
-        width: 40px;
-        min-width: 40px;
-        height: 40px;
-        padding: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 10px;
-        font-size: 0.85rem;
-    }
-    .order-items-section {
-        border-top: 1px solid var(--border, rgba(148, 163, 184, 0.2));
-        padding-top: 20px;
-        margin-top: 8px;
-    }
-    .order-items-section h3 {
-        margin: 0 0 16px;
-        font-size: 1.05rem;
-        font-weight: 600;
-        color: var(--text-primary, #f8fafc);
-    }
-    @media (max-width: 700px) {
-        .order-item-row { grid-template-columns: 1fr; }
-        .order-item-row .order-item-remove { justify-self: end; }
-    }
+    .po-items-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+    .po-items-toolbar h3 { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--text-primary, #f8fafc); }
+    .po-items-search { flex: 1 1 220px; max-width: 320px; }
+    .po-items-summary { color: #94a3b8; font-size: 0.82rem; }
+    .po-items-summary strong { color: #e2e8f0; }
+    .po-items-wrap { max-height: 420px; overflow: auto; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; }
+    .po-items-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .po-items-table th { position: sticky; top: 0; z-index: 1; background: #1e293b; color: #cbd5e1; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; text-align: center; padding: 10px 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.25); white-space: nowrap; }
+    .po-items-table td { padding: 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); text-align: center; color: #e2e8f0; vertical-align: middle; }
+    .po-items-table tr.is-unselected td { color: #64748b; }
+    .po-items-table tr.is-hidden { display: none; }
+    .po-items-table td.po-product { text-align: left; min-width: 180px; }
+    .po-items-table .po-model { display: block; color: #94a3b8; font-size: 0.75rem; }
+    .po-items-table .po-low { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 0.68rem; font-weight: 700; }
+    .po-items-table input[type="number"], .po-items-table select { width: 100%; min-width: 90px; padding: 6px 8px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.82rem; text-align: center; }
+    .po-items-table input:disabled, .po-items-table select:disabled { opacity: 0.45; }
+    .po-items-table input.error, .po-items-table select.error { border-color: #ef4444; }
+    .po-items-table input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .po-select-all { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .po-notes { margin-top: 16px; }
 </style>
 
 <div class="form-grid">
-    <div class="form-group">
-        <label class="form-label" for="SupplierID">Supplier <span style="color: var(--danger);">*</span></label>
-        <select id="SupplierID" name="SupplierID" class="form-select" required>
-            <option value="">Select Supplier</option>
-            @foreach($suppliers as $supplier)
-                <option value="{{ $supplier->SupplierID }}" {{ old('SupplierID') == $supplier->SupplierID ? 'selected' : '' }}>
-                    {{ $supplier->SupplierName }}
-                </option>
-            @endforeach
-        </select>
-        <span class="form-error" id="error-SupplierID">@error('SupplierID'){{ $message }}@enderror</span>
-    </div>
-
     <div class="form-group">
         <label class="form-label" for="PurchaseDate">Purchase Date <span style="color: var(--danger);">*</span></label>
         <input type="date" id="PurchaseDate" name="PurchaseDate" class="form-input" value="{{ old('PurchaseDate', now()->toDateString()) }}" required>
         <span class="form-error" id="error-PurchaseDate">@error('PurchaseDate'){{ $message }}@enderror</span>
     </div>
-
-    <div class="form-group">
-        <label class="form-label" for="ExpectedDeliveryDate">Expected Delivery Date</label>
-        <input type="date" id="ExpectedDeliveryDate" name="ExpectedDeliveryDate" class="form-input" value="{{ old('ExpectedDeliveryDate') }}">
-        <span class="form-error" id="error-ExpectedDeliveryDate">@error('ExpectedDeliveryDate'){{ $message }}@enderror</span>
-    </div>
-
-    <div class="form-group full-width">
-        <label class="form-label" for="Notes">Notes</label>
-        <textarea id="Notes" name="Notes" class="form-textarea" placeholder="Optional notes...">{{ old('Notes') }}</textarea>
-        <span class="form-error" id="error-Notes">@error('Notes'){{ $message }}@enderror</span>
-    </div>
 </div>
 
 <div class="order-items-section">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-        <h3 style="margin:0;">Order Items</h3>
+    <div class="po-items-toolbar">
+        <h3>Order Items</h3>
+        <input type="text" class="form-input po-items-search" id="po-items-search" placeholder="Search products..." autocomplete="off" oninput="filterOrderItems(this.value)">
+        <span class="po-items-summary" id="po-items-summary"></span>
     </div>
-    <span class="form-error" id="error-products" style="display: block; margin-bottom: 12px;">@error('products'){{ $message }}@enderror</span>
+    <span class="form-error" id="error-products" style="display: block; margin-bottom: 8px;">@error('items'){{ $message }}@enderror</span>
 
-    <div id="order-items"></div>
+    <div class="po-items-wrap">
+        <table class="po-items-table">
+            <thead>
+                <tr>
+                    <th><label class="po-select-all"><input type="checkbox" id="po-select-all" onchange="toggleAllOrderItems(this.checked)"> Select All</label></th>
+                    <th>Product</th>
+                    <th>Threshold</th>
+                    <th>Previous Price</th>
+                    <th>Current Price</th>
+                    <th>Quantity</th>
+                    <th>Supplier</th>
+                </tr>
+            </thead>
+            <tbody id="order-items">
+                @forelse($orderRows as $row)
+                    @php($product = $row['product'])
+                    <tr class="po-item-row" data-product-name="{{ strtolower($product->ProductName.' '.$product->Model) }}" data-supplier="{{ $row['supplier']?->SupplierID }}">
+                        <td>
+                            <input type="checkbox" class="po-item-check" aria-label="Order {{ $product->ProductName }}" {{ $row['lowStock'] ? 'checked' : '' }} onchange="syncOrderItems()">
+                            <input type="hidden" name="items[{{ $product->ProductID }}][product_id]" value="{{ $product->ProductID }}">
+                        </td>
+                        <td class="po-product">
+                            {{ $product->ProductName }}@if($row['lowStock'])<span class="po-low">Low Stock</span>@endif
+                            <span class="po-model">{{ $product->Model }} · Stock: {{ $row['stock'] }}</span>
+                        </td>
+                        <td>{{ $row['threshold'] }}</td>
+                        <td>{{ $row['previousPrice'] > 0 ? '₱'.number_format($row['previousPrice'], 2) : 'N/A' }}</td>
+                        <td><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" step="0.01" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price"></td>
+                        <td><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" step="1" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity"></td>
+                        <td>
+                            @if($row['supplier'])
+                                {{ $row['supplier']->SupplierName }}
+                            @else
+                                <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">
+                                    <option value="">Choose supplier</option>
+                                    @foreach($row['supplierChoices'] as $choice)
+                                        <option value="{{ $choice->SupplierID }}">{{ $choice->SupplierName }}</option>
+                                    @endforeach
+                                </select>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="7">No active products to order.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
 
-    <template id="order-item-template">
-        <div class="order-item-row">
-            <div class="form-group">
-                <label class="form-label">Product</label>
-                <select name="products[][product_id]" class="form-select order-item-product" required onchange="onOrderItemProductChange(this)">
-                    <option value="">Select Product</option>
-                    @foreach($products as $product)
-                        <option value="{{ $product->ProductID }}" data-category="{{ $product->CategoryID }}" data-cost="{{ $product->CostPrice }}">{{ $product->ProductName }} ({{ $product->Model }})</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Quantity Ordered</label>
-                <input type="number" name="products[][quantity]" min="1" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Previous Price</label>
-                <div class="form-input order-item-previous-cost" style="background: var(--bg-hover, rgba(30, 41, 59, 0.6)); display:flex; align-items:center;">N/A</div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Current Price <span style="color: var(--danger);">*</span></label>
-                <input type="number" name="products[][cost_price]" min="0.01" step="0.01" class="form-input order-item-cost" required>
-            </div>
-            <button type="button" onclick="removeOrderItem(this)" class="btn btn-danger btn-icon order-item-remove" title="Remove item" aria-label="Remove item">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    </template>
-
-    <button type="button" onclick="addOrderItem()" class="btn btn-secondary">
-        <i class="fas fa-plus"></i> Add Item
-    </button>
+<div class="form-group full-width po-notes">
+    <label class="form-label" for="Notes">Notes</label>
+    <textarea id="Notes" name="Notes" class="form-textarea" placeholder="Optional notes...">{{ old('Notes') }}</textarea>
+    <span class="form-error" id="error-Notes">@error('Notes'){{ $message }}@enderror</span>
 </div>
 
 <script>
-    // Each row needs an explicit shared index — "products[][product_id]" and
-    // "products[][quantity]" as two separate bare-bracket fields do NOT get
-    // paired into one row by PHP's array parser; each occurrence of "[]"
-    // bumps its own auto-index independently, so a row's product_id and
-    // quantity silently land in two different array entries. Rewriting each
-    // clone's "[]" to an explicit "[N]" keeps a row's fields together.
-    let orderItemIndex = 0;
-
-    function addOrderItem() {
-        const template = document.querySelector('#order-item-template');
-        const container = document.querySelector('#order-items');
-        const clone = template.content.cloneNode(true);
-        const idx = orderItemIndex++;
-        clone.querySelectorAll('[name]').forEach(function (el) {
-            el.name = el.name.replace('[]', '[' + idx + ']');
+    // Only ticked rows are sent: an unticked row's fields are disabled.
+    function syncOrderItems() {
+        const rows = Array.from(document.querySelectorAll('#order-items .po-item-row'));
+        const suppliers = new Set();
+        let selected = 0;
+        rows.forEach(function (row) {
+            const checked = row.querySelector('.po-item-check').checked;
+            row.classList.toggle('is-unselected', !checked);
+            row.querySelectorAll('input:not(.po-item-check), select').forEach(function (field) {
+                field.disabled = !checked;
+                if (!checked) field.classList.remove('error');
+            });
+            if (checked) {
+                selected++;
+                if (row.dataset.supplier) suppliers.add(row.dataset.supplier);
+            }
         });
-        container.appendChild(clone);
-    }
 
-    function removeOrderItem(button) {
-        const row = button.closest('.order-item-row');
-        if (document.querySelectorAll('.order-item-row').length > 1) {
-            row?.remove();
+        const selectAll = document.getElementById('po-select-all');
+        if (selectAll) {
+            selectAll.checked = rows.length > 0 && selected === rows.length;
+            selectAll.indeterminate = selected > 0 && selected < rows.length;
+        }
+        const summary = document.getElementById('po-items-summary');
+        if (summary) {
+            summary.innerHTML = selected === 0
+                ? 'No products ticked'
+                : '<strong>' + selected + '</strong> product' + (selected === 1 ? '' : 's') + ' · '
+                    + '<strong>' + suppliers.size + '</strong> supplier' + (suppliers.size === 1 ? '' : 's')
+                    + ' → ' + suppliers.size + ' purchase order' + (suppliers.size === 1 ? '' : 's');
         }
     }
 
+    function toggleAllOrderItems(checked) {
+        document.querySelectorAll('#order-items .po-item-row:not(.is-hidden) .po-item-check').forEach(function (box) {
+            box.checked = checked;
+        });
+        syncOrderItems();
+    }
+
+    function filterOrderItems(query) {
+        const q = query.trim().toLowerCase();
+        document.querySelectorAll('#order-items .po-item-row').forEach(function (row) {
+            row.classList.toggle('is-hidden', q !== '' && !row.dataset.productName.includes(q));
+        });
+    }
+
+    // Back to the starting state (low-stock products ticked, suggested
+    // quantities); called when the Create Purchase Order popup opens.
     function resetOrderItems() {
-        const container = document.querySelector('#order-items');
-        container.innerHTML = '';
-        orderItemIndex = 0;
-        addOrderItem();
+        const search = document.getElementById('po-items-search');
+        if (search) search.value = '';
+        filterOrderItems('');
+        document.querySelectorAll('#order-items .po-item-row').forEach(function (row) {
+            row.dataset.supplier = row.querySelector('.po-item-supplier') ? '' : row.dataset.supplier;
+        });
+        syncOrderItems();
     }
 
-    // Shows the product's currently stored cost as the read-only "Previous
-    // Price" (never editable — that's the whole point of it existing
-    // alongside Current Price) and pre-fills Current Price from it, still
-    // fully editable by the admin afterward. A null/0 stored cost means
-    // nothing is on record yet, shown as "N/A" rather than a fake ₱0.00.
-    function onOrderItemProductChange(select) {
-        const option = select.options[select.selectedIndex];
-        const row = select.closest('.order-item-row');
-        const costInput = row?.querySelector('.order-item-cost');
-        const previousCostEl = row?.querySelector('.order-item-previous-cost');
-        const cost = option ? parseFloat(option.dataset.cost) : NaN;
-        const hasPreviousCost = !isNaN(cost) && cost > 0;
+    // Checked before saving: at least one product, and every ticked row has
+    // a quantity, a price and a supplier. Shows the first problem above the
+    // table and marks the fields. Returns true when the order can be saved.
+    window.validateOrderItems = function () {
+        const error = document.getElementById('error-products');
+        const rows = Array.from(document.querySelectorAll('#order-items .po-item-row')).filter(function (row) {
+            return row.querySelector('.po-item-check').checked;
+        });
+        let message = rows.length === 0 ? 'Tick at least one product to order.' : '';
+        let firstInvalid = null;
 
-        if (previousCostEl) {
-            previousCostEl.textContent = hasPreviousCost ? '₱' + cost.toFixed(2) : 'N/A';
-        }
-        if (costInput && hasPreviousCost) {
-            costInput.value = cost.toFixed(2);
-        }
-    }
+        rows.forEach(function (row) {
+            const name = row.querySelector('.po-product').firstChild.textContent.trim();
+            const price = row.querySelector('input[name$="[cost_price]"]');
+            const qty = row.querySelector('input[name$="[quantity]"]');
+            const supplier = row.querySelector('.po-item-supplier');
+            [[price, !(parseFloat(price.value) > 0), 'Enter a Current Price for "' + name + '".'],
+             [qty, !(parseInt(qty.value, 10) >= 1), 'Enter a Quantity for "' + name + '".'],
+             [supplier, supplier && !supplier.value, 'Choose a supplier for "' + name + '".']].forEach(function (check) {
+                const field = check[0];
+                if (!field) return;
+                field.classList.toggle('error', check[1]);
+                if (check[1] && !firstInvalid) {
+                    firstInvalid = field;
+                    message = check[2];
+                }
+            });
+        });
 
-    document.addEventListener('DOMContentLoaded', function () {
-        if (document.querySelectorAll('.order-item-row').length === 0) {
-            addOrderItem();
+        if (error) error.textContent = message;
+        if (firstInvalid) {
+            firstInvalid.scrollIntoView({ block: 'center' });
+            firstInvalid.focus();
         }
-    });
+
+        return message === '';
+    };
+
+    document.addEventListener('DOMContentLoaded', syncOrderItems);
 </script>

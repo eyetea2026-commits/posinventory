@@ -190,10 +190,10 @@ class ProductDeletionGuardTest extends TestCase
         $response = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
             'SupplierID' => $this->supplier->SupplierID,
             'PurchaseDate' => now()->toDateString(),
-            'products' => [['product_id' => $product->ProductID, 'quantity' => 5, 'cost_price' => 600]],
+            'items' => [['product_id' => $product->ProductID, 'quantity' => 5, 'cost_price' => 600, 'supplier_id' => $this->supplier->SupplierID]],
         ]);
 
-        $response->assertSessionHasErrors('products.0.product_id');
+        $response->assertSessionHasErrors('items.0.product_id');
         $this->assertSame(0, PurchaseOrder::count());
     }
 
