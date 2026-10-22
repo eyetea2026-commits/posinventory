@@ -248,6 +248,10 @@ class ThermalReceiptPrinter
             $add($this->row('Discount ('.$r['discountRate'].'%):', '-'.$this->money((float) $r['discountAmount'])));
             $add($rule);
         }
+        if (! empty($r['customDiscountPercent'])) {
+            $add($this->row('Discount ('.$this->percent((float) $r['customDiscountPercent']).'):', '-'.$this->money((float) $r['customDiscountAmount'])));
+            $add($rule);
+        }
 
         // VAT breakdown (prices are VAT-inclusive; this splits the total).
         $total = (float) $r['total'];
@@ -322,6 +326,11 @@ class ThermalReceiptPrinter
      * other non-ASCII characters print as garbage, so everything sent is
      * plain ASCII ("P" stands in for the peso sign).
      */
+    private function percent(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.').'%';
+    }
+
     private function money(float $amount): string
     {
         return 'P'.number_format($amount, 2);

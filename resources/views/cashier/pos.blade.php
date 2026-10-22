@@ -121,6 +121,15 @@
     .form-group label { display: block; margin-bottom: 3px; color: #94a3b8; font-size: 0.76rem; }
     .form-group input, .form-group select { width: 100%; padding: 8px 10px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 8px; font-size: 0.85rem; }
     .form-group input:focus { outline: none; border-color: #3b82f6; }
+    /* Custom % discount (needs an Administrator's password). */
+    .custom-discount { margin-bottom: 9px; flex-shrink: 0; }
+    .custom-discount-row { display: flex; gap: 8px; }
+    .custom-discount-row input { flex: 1; min-width: 0; }
+    .custom-discount-btn { padding: 8px 14px; border: none; border-radius: 8px; background: #3b82f6; color: #fff; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .custom-discount-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .custom-discount-btn.remove { background: #4a5568; }
+    .custom-discount-status { margin-top: 4px; font-size: 0.74rem; color: #6ee7b7; }
+    .custom-discount-status:empty { display: none; }
     .change-display { padding: 8px 10px; background: #1a1d2d; border: 1px solid #4a5568; color: #34d399; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
     #payment-amount.auto-filled { color: #34d399; cursor: not-allowed; opacity: 0.9; }
     .payment-amount-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.72rem; }
@@ -230,8 +239,8 @@
         </div>
 
         <div class="form-group">
-            <label>Customer Name (Optional)</label>
-            <input type="text" id="customer-name" placeholder="Enter customer name...">
+            <label>Customer / Company Name (Optional)</label>
+            <input type="text" id="customer-name" placeholder="Enter customer or company name...">
         </div>
 
         <div class="cart-items" id="cart-items">
@@ -240,6 +249,17 @@
                 <p>Cart is empty</p>
                 <p>Click products to add</p>
             </div>
+        </div>
+
+        {{-- Custom percentage discount, above Salable Sales. It needs an
+             Administrator's password (CashierAuthController::approveCustomDiscount). --}}
+        <div class="form-group custom-discount">
+            <label for="custom-discount-input">Discount (%)</label>
+            <div class="custom-discount-row">
+                <input type="number" id="custom-discount-input" min="0.01" max="100" step="0.01" placeholder="e.g. 10" oninput="onCustomDiscountInput()">
+                <button type="button" class="custom-discount-btn" id="custom-discount-btn" onclick="applyCustomDiscount()">Apply</button>
+            </div>
+            <div class="custom-discount-status" id="custom-discount-status"></div>
         </div>
 
         <div class="cart-summary">
@@ -259,6 +279,10 @@
             <div class="summary-row" id="discount-summary-row" style="display:none;">
                 <span>Discount</span>
                 <span id="discount">-₱0.00</span>
+            </div>
+            <div class="summary-row" id="custom-discount-summary-row" style="display:none;">
+                <span id="custom-discount-label">Discount</span>
+                <span id="custom-discount-amount">-₱0.00</span>
             </div>
             <div class="summary-row total">
                 <span>Total</span>
@@ -805,6 +829,8 @@
         }).then(function (result) {
             if (!result.isConfirmed) return;
             cart = [];
+            document.getElementById('custom-discount-input').value = '';
+            setCustomDiscount(null);
             renderCart();
             document.getElementById('customer-name').value = '';
         });
@@ -1086,8 +1112,16 @@
         // Total itself is untouched below). Matches processSale()'s own
         // formula exactly so the live preview never disagrees with the
         // receipt.
-        currentTotal = roundMoney(subtotal - discountAmount);
+        // The custom discount is a percent of what's left after promos,
+        // exactly as processSale() works it out.
+        const afterPromos = roundMoney(subtotal - discountAmount);
+        const customDiscountAmount = customDiscount ? roundMoney(afterPromos * customDiscount.percent / 100) : 0;
+        currentTotal = roundMoney(afterPromos - customDiscountAmount);
         const vatAmount = roundMoney(currentTotal * 0.12);
+
+        document.getElementById('custom-discount-summary-row').style.display = customDiscount ? 'flex' : 'none';
+        document.getElementById('custom-discount-label').textContent = customDiscount ? 'Discount (' + customDiscount.percent + '%)' : 'Discount';
+        document.getElementById('custom-discount-amount').textContent = '-' + window.formatPeso(customDiscountAmount);
 
         document.getElementById('subtotal').textContent = window.formatPeso(subtotal);
         document.getElementById('vat').textContent = window.formatPeso(vatAmount);
@@ -1098,6 +1132,87 @@
         // Re-applies auto-fill (if active) against the new total, then
         // recalculates Change.
         syncPaymentAmountMode();
+    }
+
+    // ---- Custom % discount (Administrator's approval) ----
+    // null, or { percent, approvedBy } once an Administrator approved it.
+    let customDiscount = null;
+
+    function setCustomDiscount(value) {
+        customDiscount = value;
+        const button = document.getElementById('custom-discount-btn');
+        const status = document.getElementById('custom-discount-status');
+        if (value) {
+            button.textContent = 'Remove';
+            button.classList.add('remove');
+            status.textContent = value.percent + '% approved by ' + value.approvedBy;
+        } else {
+            button.textContent = 'Apply';
+            button.classList.remove('remove');
+            status.textContent = '';
+        }
+        updateTotals();
+    }
+
+    // Changing the number after approval cancels it: a new percent needs a new approval.
+    function onCustomDiscountInput() {
+        if (customDiscount) setCustomDiscount(null);
+    }
+
+    function applyCustomDiscount() {
+        const input = document.getElementById('custom-discount-input');
+        if (customDiscount) {
+            input.value = '';
+            setCustomDiscount(null);
+            return;
+        }
+
+        const percent = Math.round(parseFloat(input.value) * 100) / 100;
+        if (!(percent > 0) || percent > 100) {
+            toastWarning('Enter a discount between 0.01% and 100%.');
+            return;
+        }
+
+        Swal.fire({
+            title: 'Administrator Approval',
+            text: 'Enter an Administrator\'s password to give a ' + percent + '% discount.',
+            input: 'password',
+            inputPlaceholder: 'Administrator password',
+            inputAttributes: { autocomplete: 'off', autocapitalize: 'off' },
+            showCancelButton: true,
+            confirmButtonText: 'Approve',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b',
+            customClass: { popup: 'swal-compact' },
+            showLoaderOnConfirm: true,
+            preConfirm: function (password) {
+                if (!password) {
+                    Swal.showValidationMessage('Enter the Administrator\'s password.');
+                    return false;
+                }
+                return fetch('{{ route('cashier.custom-discount.approve') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                    body: JSON.stringify({ percent: percent, admin_password: password }),
+                })
+                    .then(function (r) {
+                        return r.json().catch(function () { return {}; }).then(function (body) {
+                            if (r.status === 429) throw new Error('Too many attempts. Please wait a minute and try again.');
+                            if (!r.ok || !body.success) throw new Error(body.message || (body.errors && Object.values(body.errors)[0][0]) || 'Approval failed.');
+                            return body;
+                        });
+                    })
+                    .catch(function (error) {
+                        Swal.showValidationMessage(error.message);
+                        return false;
+                    });
+            },
+        }).then(function (result) {
+            if (result.isConfirmed && result.value) {
+                setCustomDiscount({ percent: result.value.percent, approvedBy: result.value.approved_by });
+            }
+        });
     }
 
     function togglePaymentDropdown() {
@@ -1356,6 +1471,7 @@
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
             items: cart,
+            custom_discount_percent: customDiscount ? customDiscount.percent : null,
             payment_method: selectedPaymentMethod,
             payment_amount: window.parseMoney(document.getElementById('payment-amount').value),
             reference_number: null,

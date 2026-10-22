@@ -12,6 +12,7 @@ class Billing extends Model
     public $timestamps = false;
 
     protected $table = 'Billing';
+
     protected $primaryKey = 'BillingID';
 
     protected $fillable = [
@@ -20,12 +21,23 @@ class Billing extends Model
         'BillingAmount',
         'Subtotal',
         'DiscountAmount',
+        'CustomDiscountPercent',
+        'CustomDiscountAmount',
+        'CustomDiscountApprovedBy',
         'PromoCode',
         'VatAmount',
         'BillingDate',
         'DiscountID',
         'SalesTransactionID',
     ];
+
+    /**
+     * The Administrator whose password approved the custom discount.
+     */
+    public function customDiscountApprover()
+    {
+        return $this->belongsTo(User::class, 'CustomDiscountApprovedBy', 'id');
+    }
 
     public function discount()
     {

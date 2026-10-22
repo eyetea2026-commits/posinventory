@@ -207,6 +207,15 @@
             <hr class="rule">
         @endif
 
+        {{-- Custom discount given at the POS with an Administrator's approval. --}}
+        @if(! empty($customDiscountPercent))
+            <div class="total-row">
+                <span>Discount ({{ rtrim(rtrim(number_format($customDiscountPercent, 2, '.', ''), '0'), '.') }}%):</span>
+                <span>-₱{{ number_format($customDiscountAmount, 2) }}</span>
+            </div>
+            <hr class="rule">
+        @endif
+
         {{-- VAT breakdown, styled after the reference's BIR-style summary
              block. Prices are VAT-inclusive throughout this system, so
              "Total" IS the amount charged — VATable Sales/VAT Amount are

@@ -425,6 +425,8 @@ Route::prefix('cashier')->group(function () {
     Route::get('pos/promo-map', [CashierAuthController::class, 'promoMap'])->name('cashier.pos.promo-map')->middleware(['auth', 'role:cashier']);
     Route::post('pos/apply-promo', [CashierAuthController::class, 'applyPromo'])->name('cashier.pos.apply-promo')->middleware(['auth', 'role:cashier']);
     Route::post('pos/process-sale', [CashierAuthController::class, 'processSale'])->name('cashier.process-sale')->middleware(['auth', 'role:cashier']);
+    // Throttled: it checks Administrator passwords.
+    Route::post('pos/custom-discount/approve', [CashierAuthController::class, 'approveCustomDiscount'])->name('cashier.custom-discount.approve')->middleware(['auth', 'role:cashier', 'throttle:5,1']);
     Route::get('transactions', [CashierAuthController::class, 'transactions'])->name('cashier.transactions')->middleware(['auth', 'role:cashier']);
 
     // Return/Refund/Replacement routes

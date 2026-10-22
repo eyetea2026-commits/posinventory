@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\Discount;
 use App\Models\Inventory;
@@ -19,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
@@ -250,6 +252,55 @@ class CashierAuthController extends Controller
             ->all();
     }
 
+    /**
+     * How long an Administrator's approval of a custom discount stays valid
+     * for the sale it was given for.
+     */
+    private const CUSTOM_DISCOUNT_APPROVAL_MINUTES = 15;
+
+    /**
+     * A custom percentage discount at the POS needs an Administrator's
+     * approval: the cashier's screen asks for an Administrator's password,
+     * checked here. On a match the approval (percent + who approved) is kept
+     * in this cashier's session for the next sale only; processSale() refuses
+     * a custom discount without it.
+     */
+    public function approveCustomDiscount(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'percent' => ['required', 'numeric', 'min:0.01', 'max:100'],
+            'admin_password' => ['required', 'string'],
+        ], [
+            'percent.min' => 'Enter a discount above 0%.',
+            'percent.max' => 'The discount cannot be more than 100%.',
+            'admin_password.required' => "Enter an Administrator's password.",
+        ]);
+
+        $approver = User::admins()
+            ->filter(fn (User $admin) => $admin->is_active !== false)
+            ->first(fn (User $admin) => Hash::check($data['admin_password'], $admin->password));
+
+        if (! $approver) {
+            ActivityLog::record('pos.custom_discount_denied', 'Custom discount of '.(float) $data['percent'].'% refused: wrong Administrator password');
+
+            return response()->json(['success' => false, 'message' => 'Incorrect Administrator password.'], 422);
+        }
+
+        $percent = round((float) $data['percent'], 2);
+        $request->session()->put('custom_discount_approval', [
+            'percent' => $percent,
+            'approved_by' => $approver->id,
+            'expires_at' => now()->addMinutes(self::CUSTOM_DISCOUNT_APPROVAL_MINUTES)->timestamp,
+        ]);
+        ActivityLog::record('pos.custom_discount_approved', "Custom discount of {$percent}% approved by \"{$approver->full_name}\"");
+
+        return response()->json([
+            'success' => true,
+            'percent' => $percent,
+            'approved_by' => $approver->full_name,
+        ]);
+    }
+
     public function processSale(Request $request)
     {
         // Cheque/Bank Transfer genuinely need these fields captured — Cash
@@ -270,6 +321,8 @@ class CashierAuthController extends Controller
             'remarks' => 'nullable|string|max:500',
             // 7 whole-peso digits max, matching the POS input's own cap.
             'payment_amount' => 'nullable|numeric|min:0|max:9999999.99',
+            // Needs an Administrator's approval first (approveCustomDiscount()).
+            'custom_discount_percent' => 'nullable|numeric|min:0.01|max:100',
         ], [
             'payment_amount.max' => 'Payment amount cannot exceed ₱9,999,999.99.',
             'reference_number.required' => 'Please enter the reference/cheque number.',
@@ -296,6 +349,24 @@ class CashierAuthController extends Controller
         $paymentTime = $data['payment_time'] ?? null;
         $remarks = $data['remarks'] ?? null;
 
+        // A custom discount must match the percent an Administrator approved
+        // for this cashier, and the approval must not have expired.
+        $customDiscountPercent = isset($data['custom_discount_percent']) ? round((float) $data['custom_discount_percent'], 2) : null;
+        $customDiscountApprovedBy = null;
+        if ($customDiscountPercent !== null) {
+            $approval = $request->session()->get('custom_discount_approval');
+            $approved = is_array($approval)
+                && abs((float) $approval['percent'] - $customDiscountPercent) < 0.001
+                && (int) $approval['expires_at'] >= now()->timestamp;
+            if (! $approved) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The discount needs an Administrator\'s approval. Apply it again and enter an Administrator\'s password.',
+                ], 403);
+            }
+            $customDiscountApprovedBy = (int) $approval['approved_by'];
+        }
+
         // Aggregate requested quantity per product: the cart can list the same
         // product across more than one line, and checking/decrementing stock
         // per line independently would let the combined quantity oversell.
@@ -321,7 +392,8 @@ class CashierAuthController extends Controller
         try {
             $result = DB::transaction(function () use (
                 $items, $quantitiesByProduct, $customerName, $paymentMethod, $paymentAmount,
-                $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user
+                $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user,
+                $customDiscountPercent, $customDiscountApprovedBy
             ) {
                 // Prevent recording the same cheque/reference twice for the
                 // same payment method — a plain exists() check here (backed
@@ -432,6 +504,12 @@ class CashierAuthController extends Controller
 
                 // FORMULA COMPUTATIONS
                 $subtotal = round($subtotal, 2);
+                // The custom discount is a percent of what's left after the
+                // product promos; $discountAmount becomes the sale's whole
+                // discount (promos + custom), as Billing has always stored it.
+                $afterPromos = round($subtotal - $discountAmount, 2);
+                $customDiscountAmount = $customDiscountPercent !== null ? round($afterPromos * $customDiscountPercent / 100, 2) : 0.0;
+                $discountAmount = round($discountAmount + $customDiscountAmount, 2);
                 $total = round($subtotal - $discountAmount, 2);
                 $vatAmount = round($total * 0.12, 2);
 
@@ -475,6 +553,9 @@ class CashierAuthController extends Controller
                     'BillingAmount' => $total,
                     'Subtotal' => $subtotal,
                     'DiscountAmount' => $discountAmount,
+                    'CustomDiscountPercent' => $customDiscountPercent,
+                    'CustomDiscountAmount' => $customDiscountPercent !== null ? $customDiscountAmount : null,
+                    'CustomDiscountApprovedBy' => $customDiscountApprovedBy,
                     'PromoCode' => $discount?->PromoCode,
                     'VatAmount' => $vatAmount,
                     'BillingDate' => now(),
@@ -499,8 +580,23 @@ class CashierAuthController extends Controller
                     'Remarks' => $remarks,
                 ]);
 
+                // The custom discount is split across the lines in proportion
+                // to what each still costs after promos (the last line takes
+                // the rounding remainder), so a later refund of any line pays
+                // back exactly what was paid for it.
+                $customShares = [];
+                $sharedSoFar = 0.0;
+                foreach (array_values($items) as $index => $item) {
+                    $lineAfterPromo = $products->get($item['id'])->Price * $item['qty'] - ($discountPerUnitByProduct[$item['id']] ?? 0) * $item['qty'];
+                    $share = $index === count($items) - 1
+                        ? round($customDiscountAmount - $sharedSoFar, 2)
+                        : ($afterPromos > 0 ? round($customDiscountAmount * $lineAfterPromo / $afterPromos, 2) : 0.0);
+                    $customShares[$index] = $share;
+                    $sharedSoFar = round($sharedSoFar + $share, 2);
+                }
+
                 // Create sales items, priced from the DB, not the request
-                foreach ($items as $item) {
+                foreach (array_values($items) as $index => $item) {
                     $perUnitDiscount = $discountPerUnitByProduct[$item['id']] ?? 0;
                     SalesItem::create([
                         'Quantity' => $item['qty'],
@@ -509,7 +605,7 @@ class CashierAuthController extends Controller
                         // a later return/refund pay out exactly what the
                         // customer paid for the returned quantity instead of
                         // the full undiscounted price.
-                        'DiscountAmount' => round($perUnitDiscount * $item['qty'], 2),
+                        'DiscountAmount' => round($perUnitDiscount * $item['qty'] + $customShares[$index], 2),
                         'ProductID' => $item['id'],
                         'SalesTransactionID' => $transaction->SalesTransactionID,
                     ]);
@@ -536,6 +632,13 @@ class CashierAuthController extends Controller
             ], 400);
         } finally {
             $lock->release();
+        }
+
+        // One approval, one sale.
+        if ($customDiscountPercent !== null) {
+            $request->session()->forget('custom_discount_approval');
+            $approverName = User::find($customDiscountApprovedBy)?->full_name ?? 'an Administrator';
+            ActivityLog::record('pos.custom_discount_used', "Custom discount of {$customDiscountPercent}% given on {$result['receipt_number']} (approved by \"{$approverName}\")");
         }
 
         // Dispatched after the transaction has committed — a notification
@@ -683,7 +786,10 @@ class CashierAuthController extends Controller
             // discounts the one product it's tied to — so the percentage and
             // amount on screen always agree with each other.
             $subtotal = (float) $billing->Subtotal;
-            $discountAmount = (float) $billing->DiscountAmount;
+            // DiscountAmount holds promos + custom discount; the receipt
+            // shows the two on separate lines.
+            $customDiscountAmount = (float) ($billing->CustomDiscountAmount ?? 0);
+            $discountAmount = round((float) $billing->DiscountAmount - $customDiscountAmount, 2);
             $vatAmount = (float) $billing->VatAmount;
             $total = (float) $billing->BillingAmount;
 
@@ -739,6 +845,8 @@ class CashierAuthController extends Controller
             'discountAmount' => $discountAmount,
             'promoCode' => $promoCode,
             'promoProductName' => $promoProductName,
+            'customDiscountPercent' => $billing?->CustomDiscountPercent !== null ? (float) $billing->CustomDiscountPercent : null,
+            'customDiscountAmount' => (float) ($billing?->CustomDiscountAmount ?? 0),
             'vatAmount' => $vatAmount,
             'total' => $total,
             'paymentMethod' => $paymentMethod,
