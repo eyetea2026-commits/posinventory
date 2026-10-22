@@ -202,8 +202,7 @@
 
         <div class="search-tabs">
             <div class="search-tab active" data-mode="receipt" onclick="setSearchMode('receipt')">Receipt #</div>
-            <div class="search-tab" data-mode="customer" onclick="setSearchMode('customer')">Customer Name</div>
-            <div class="search-tab" data-mode="barcode" onclick="setSearchMode('barcode')">SKU / Barcode</div>
+            <div class="search-tab" data-mode="barcode" onclick="setSearchMode('barcode')">QR Code Scan</div>
         </div>
         <div class="form-group">
             <label id="search-label">Receipt Number</label>

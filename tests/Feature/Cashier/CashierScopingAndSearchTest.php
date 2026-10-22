@@ -286,7 +286,8 @@ class CashierScopingAndSearchTest extends TestCase
         $response->assertDontSee('Invoice Number');
         $response->assertDontSee('data-mode="invoice"', false);
         $response->assertSee('data-mode="receipt"', false);
-        $response->assertSee('data-mode="customer"', false);
-        $response->assertSee('data-mode="barcode"', false);
+        $response->assertDontSee('data-mode="customer"', false);
+        $response->assertSee("<div class=\"search-tab\" data-mode=\"barcode\" onclick=\"setSearchMode('barcode')\">QR Code Scan</div>", false);
+        $response->assertDontSee('>SKU / Barcode</div>', false);
     }
 }
