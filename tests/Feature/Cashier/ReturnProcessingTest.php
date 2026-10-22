@@ -372,6 +372,26 @@ class ReturnProcessingTest extends TestCase
         $byBarcode->assertStatus(404);
     }
 
+    // The QR code at the bottom of a receipt holds its receipt number;
+    // scanning it in the SKU / Barcode search opens that receipt.
+    public function test_scanning_a_receipt_qr_in_the_barcode_search_finds_the_receipt(): void
+    {
+        $receipt = 'RCT-'.str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        $this->actingAs($this->cashierUser)->getJson(route('cashier.refunds.search', ['mode' => 'barcode', 'q' => $receipt]))
+            ->assertOk()
+            ->assertJson(['success' => true, 'multiple' => false])
+            ->assertJsonPath('transaction.SalesTransactionID', $this->transaction->SalesTransactionID);
+
+        $this->actingAs($this->cashierUser)->getJson(route('cashier.refunds.search', ['mode' => 'barcode', 'q' => 'RCT-999999']))
+            ->assertNotFound()
+            ->assertJson(['success' => false, 'message' => 'Transaction not found.']);
+
+        $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))
+            ->assertOk()
+            ->assertSee("onkeydown=\"if (event.key === 'Enter' || event.key === 'NumpadEnter') { event.preventDefault(); searchTransaction(); }\"", false);
+    }
+
     public function test_create_refund_rejects_requests_outside_the_return_window(): void
     {
         $oldTransaction = SalesTransaction::create([

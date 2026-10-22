@@ -140,6 +140,20 @@ class CashierReturnController extends Controller
 
         // SKU or barcode
         $product = Product::where('Barcode', $query)->orWhere('SKU', $query)->first();
+
+        // The QR code at the bottom of every receipt holds its receipt
+        // number (e.g. RCT-000066): scanning it here opens that receipt.
+        if (! $product && preg_match('/^RCT-?\d+$/i', $query)) {
+            $transaction = SalesTransaction::with(['items.product.category', 'billing.payment', 'staff.user'])
+                ->find((int) preg_replace('/[^0-9]/', '', $query));
+
+            if (! $transaction) {
+                return response()->json(['success' => false, 'message' => 'Transaction not found.'], 404);
+            }
+
+            return response()->json(['success' => true, 'multiple' => false, 'transaction' => $this->buildTransactionDetails($transaction)]);
+        }
+
         if (! $product) {
             return response()->json(['success' => false, 'message' => 'No product found with that SKU or barcode.'], 404);
         }

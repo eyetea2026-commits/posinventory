@@ -85,7 +85,35 @@ class ThermalReceiptPrintingTest extends TestCase
     private function printedText(): string
     {
         // Drop ESC/POS control sequences so assertions read like the paper.
-        return (string) preg_replace(["/\x1b@/", "/\x1b[aE!]./s", "/\x1d!./s", "/\x1dV.{1,2}/s", "/\x1bd./s", "/\x1bp.../s"], '', $this->capture->bytes);
+        return (string) preg_replace(["/\x1b@/", "/\x1b[aE!]./s", "/\x1d!./s", "/\x1dV.{1,2}/s", "/\x1bd./s", "/\x1bp.../s"], '', $this->withoutQrCommands($this->capture->bytes));
+    }
+
+    /**
+     * Removes the QR code commands (GS ( k pL pH ...), whose data length
+     * is given by the two bytes after "GS ( k".
+     */
+    private function withoutQrCommands(string $bytes): string
+    {
+        while (($start = strpos($bytes, "\x1d(k")) !== false) {
+            $length = ord($bytes[$start + 3]) + ord($bytes[$start + 4]) * 256;
+            $bytes = substr($bytes, 0, $start).substr($bytes, $start + 5 + $length);
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * The content of the QR code the printer was told to store, if any.
+     */
+    private function printedQrContent(): ?string
+    {
+        // Store-data command: GS ( k pL pH cn=49 fn=80 m=48 data...
+        if (! preg_match('/\x1d\(k(.)(.)1P0/s', $this->capture->bytes, $m, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+        $length = ord($m[1][0]) + ord($m[2][0]) * 256;
+
+        return substr($this->capture->bytes, $m[0][1] + 8, $length - 3);
     }
 
     public function test_it_is_refused_when_direct_printing_is_turned_off(): void
@@ -193,6 +221,29 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/[^\x00-\x7F]/', $this->capture->bytes);
         $this->assertStringContainsString('Camara Domo', $text);
         $this->assertStringContainsString('P1,234,567.89', $text);
+    }
+
+    public function test_the_receipt_ends_with_a_qr_code_of_its_receipt_number(): void
+    {
+        $this->enablePrinterWith();
+        $receipt = $this->sellAndGetReceipt();
+
+        $this->actingAs($this->cashier)->postJson(route('cashier.receipt.thermal', $receipt))->assertOk();
+
+        $this->assertSame($receipt, $this->printedQrContent());
+        // After the footer, so it sits at the bottom of the slip.
+        $this->assertGreaterThan(strpos($this->capture->bytes, 'Please come again'), strpos($this->capture->bytes, "\x1d(k"));
+    }
+
+    public function test_the_browser_receipt_shows_the_receipt_number_qr_code(): void
+    {
+        $receipt = $this->sellAndGetReceipt();
+
+        $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))
+            ->assertOk()
+            ->assertSee('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js', false)
+            ->assertSee('<div class="receipt-qr" data-qr="'.$receipt.'"></div>', false)
+            ->assertSee('<div class="receipt-qr pl-qr" data-qr="'.$receipt.'"></div>', false);
     }
 
     public function test_cash_drawer_opens_only_for_a_new_cash_sale_when_enabled(): void

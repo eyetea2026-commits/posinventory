@@ -120,6 +120,9 @@ class PrintBridgeTest extends TestCase
 
         $this->assertNotSame('', $local);
         $this->assertSame($local, $this->capture->bytes);
+        // Including the receipt-number QR code at the bottom.
+        $this->assertStringContainsString('(k', $this->capture->bytes);
+        $this->assertStringContainsString($receipt, $this->capture->bytes);
     }
 
     public function test_preflight_from_the_deployed_site_is_answered(): void

@@ -50,6 +50,7 @@ class PrintBridgeController extends Controller
             'lines.*.center' => ['required', 'boolean'],
             'lines.*.bold' => ['required', 'boolean'],
             'lines.*.tall' => ['required', 'boolean'],
+            'lines.*.qr' => ['sometimes', 'nullable', 'string', 'max:64'],
             'open_drawer' => ['sometimes', 'boolean'],
         ]);
 
@@ -63,6 +64,8 @@ class PrintBridgeController extends Controller
             'center' => (bool) $line['center'],
             'bold' => (bool) $line['bold'],
             'tall' => (bool) $line['tall'],
+            // The receipt-number QR code (printable ASCII only).
+            'qr' => (string) preg_replace('/[^\x20-\x7E]/', '', (string) ($line['qr'] ?? '')),
         ], $validator->validated()['lines']);
 
         $openDrawer = config('services.receipt_printer.open_drawer') && $request->boolean('open_drawer');

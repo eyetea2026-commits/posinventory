@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Receipt - {{ $receiptNumber }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
+    {{-- Draws the receipt-number QR codes below (data-qr). --}}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -59,6 +61,10 @@
         /* Thermal-slip copy of the receipt, used only when printing. */
         .print-text { display: none; }
 
+        /* Receipt-number QR code: scanning it in Refund Requests finds this receipt. */
+        .receipt-qr { display: flex; justify-content: center; margin-top: 10px; }
+        .receipt-qr img { width: 110px; height: 110px; image-rendering: pixelated; }
+
         /* No page margins, so the browser has nowhere to put its own
            header/footer (page URL, title, date) on the slip. */
         @page { margin: 0; }
@@ -86,6 +92,8 @@
             .print-text .pl, .print-text .pl-tail { white-space: pre; margin: 0; font: inherit; }
             .print-text .pl-bold { font-weight: bold; }
             .print-text .pl-tall { transform: scaleY(2); transform-origin: top left; margin-bottom: 3.75mm; }
+            .print-text .pl-qr { margin: 1.5mm 0; justify-content: center; }
+            .print-text .pl-qr img { width: 22mm; height: 22mm; }
         }
     </style>
 </head>
@@ -104,7 +112,11 @@
     @isset($printLines)
         <div class="print-text">
             @foreach($printLines as $line)
-                <div class="pl{{ $line['bold'] ? ' pl-bold' : '' }}{{ $line['tall'] ? ' pl-tall' : '' }}">{{ $line['text'] }}</div>
+                @if(! empty($line['qr']))
+                    <div class="receipt-qr pl-qr" data-qr="{{ $line['qr'] }}"></div>
+                @else
+                    <div class="pl{{ $line['bold'] ? ' pl-bold' : '' }}{{ $line['tall'] ? ' pl-tall' : '' }}">{{ $line['text'] }}</div>
+                @endif
             @endforeach
             <pre class="pl-tail">{{ $printTail }}</pre>
         </div>
@@ -278,6 +290,23 @@
             <p>Thank you for your purchase!</p>
             <p>Please come again</p>
         </div>
+
+        <div class="receipt-qr" data-qr="{{ $receiptNumber }}"></div>
     </div>
+
+    <script>
+        // Runs before the page finishes loading, so the QR codes are in place
+        // when the POS prints this receipt.
+        document.querySelectorAll('[data-qr]').forEach(function (el) {
+            if (typeof qrcode !== 'function') return;
+            const qr = qrcode(0, 'M');
+            qr.addData(el.dataset.qr);
+            qr.make();
+            const img = document.createElement('img');
+            img.src = qr.createDataURL(8, 2);
+            img.alt = 'QR code: ' + el.dataset.qr;
+            el.appendChild(img);
+        });
+    </script>
 </body>
 </html>

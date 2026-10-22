@@ -31,6 +31,13 @@ class ThermalReceiptPrinter
     /** Blank lines printed above the "CCTV Express" header. */
     private const HEAD_LINES = 2;
 
+    /**
+     * Dot size of each QR module (1-16). 8 dots makes the receipt-number QR
+     * about 21mm wide on a 58mm (8 dots/mm) printer: big enough for a
+     * handheld scanner, small enough to keep the slip short.
+     */
+    private const QR_MODULE_SIZE = 8;
+
     private int $width;
 
     /**
@@ -61,7 +68,7 @@ class ThermalReceiptPrinter
      * printReceipt() and by the print bridge, which receives the deployed
      * site's lines so its slip comes out exactly like a local one.
      *
-     * @param  list<array{text: string, center: bool, bold: bool, tall: bool}>  $lines
+     * @param  list<array{text: string, center: bool, bold: bool, tall: bool, qr?: string}>  $lines
      *
      * @throws \Throwable when the printer can't be reached (off, unplugged, not shared).
      */
@@ -124,12 +131,18 @@ class ThermalReceiptPrinter
      * as the direct printout.
      *
      * @param  array<string, mixed>  $r
-     * @return list<array{text: string, bold: bool, tall: bool}>
+     * @return list<array{text: string, bold: bool, tall: bool, qr?: string}>
      */
     public function printLines(array $r): array
     {
         $out = [];
         foreach ($this->lines($r) as $line) {
+            // The browser copy draws the QR code itself (see receipt.blade.php).
+            if (! empty($line['qr'])) {
+                $out[] = ['text' => '', 'bold' => false, 'tall' => false, 'qr' => $line['qr']];
+
+                continue;
+            }
             foreach (explode("\n", rtrim($line['text'], "\n")) as $part) {
                 $out[] = ['text' => $line['center'] ? $this->center($part) : $part, 'bold' => $line['bold'], 'tall' => $line['tall']];
             }
@@ -157,6 +170,15 @@ class ThermalReceiptPrinter
 
         foreach ($lines as $line) {
             $printer->setJustification($line['center'] ? Printer::JUSTIFY_CENTER : Printer::JUSTIFY_LEFT);
+
+            // Drawn by the printer itself (ESC/POS QR command), so it stays sharp.
+            if (! empty($line['qr'])) {
+                $printer->qrCode($line['qr'], Printer::QR_ECLEVEL_M, self::QR_MODULE_SIZE);
+                $printer->text($line['text']);
+
+                continue;
+            }
+
             $printer->setEmphasis($line['bold']);
             $printer->setTextSize(1, $line['tall'] ? 2 : 1);
             $printer->text($line['text']);
@@ -175,7 +197,7 @@ class ThermalReceiptPrinter
      * differ.
      *
      * @param  array<string, mixed>  $r
-     * @return list<array{text: string, center: bool, bold: bool, tall: bool}>
+     * @return list<array{text: string, center: bool, bold: bool, tall: bool, qr?: string}>
      */
     public function lines(array $r): array
     {
@@ -260,6 +282,10 @@ class ThermalReceiptPrinter
         // Footer
         $add('Thank you for your purchase!', center: true);
         $add('Please come again', center: true);
+
+        // QR code of the receipt number: scanning it in Refund Requests
+        // (New Return Request) finds this receipt.
+        $lines[] = ['text' => "\n", 'center' => true, 'bold' => false, 'tall' => false, 'qr' => (string) $r['receiptNumber']];
 
         return $lines;
     }

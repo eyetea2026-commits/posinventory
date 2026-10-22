@@ -208,7 +208,7 @@
         <div class="form-group">
             <label id="search-label">Receipt Number</label>
             <div style="display:flex; gap:8px;">
-                <input type="text" id="transaction-search-input" placeholder="e.g. RCT-000001" style="flex:1;">
+                <input type="text" id="transaction-search-input" placeholder="e.g. RCT-000001" style="flex:1;" onkeydown="if (event.key === 'Enter' || event.key === 'NumpadEnter') { event.preventDefault(); searchTransaction(); }">
                 <button type="button" class="btn-submit" style="width:auto; padding:12px 20px;" onclick="searchTransaction()">Search</button>
             </div>
         </div>
@@ -430,7 +430,7 @@ function closeCreateRefundModal() {
 }
 
 const searchLabels = { receipt: 'Receipt Number', customer: 'Customer Name', barcode: 'Product SKU / Barcode' };
-const searchPlaceholders = { receipt: 'e.g. RCT-000001', customer: 'e.g. Juan Dela Cruz', barcode: 'Scan or type SKU / barcode' };
+const searchPlaceholders = { receipt: 'e.g. RCT-000001', customer: 'e.g. Juan Dela Cruz', barcode: 'Scan or type SKU / barcode, or scan the receipt QR' };
 
 function setSearchMode(mode) {
     searchMode = mode;
