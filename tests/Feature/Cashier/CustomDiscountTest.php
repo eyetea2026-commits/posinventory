@@ -155,5 +155,12 @@ class CustomDiscountTest extends TestCase
         $this->assertNotFalse($field);
         $this->assertLessThan(strpos($html, '<span>Salable Sales</span>'), $field);
         $this->assertStringContainsString('custom_discount_percent: customDiscount ? customDiscount.percent : null,', $html);
+        // Two digits only.
+        $this->assertStringContainsString('<input type="text" id="custom-discount-input" inputmode="numeric" maxlength="2"', $html);
+        // Approval popup in the same design as User Management's "Enter Your Credentials".
+        $this->assertStringContainsString('<h2 id="approval-modal-title"><i class="fas fa-shield-halved"></i> Administrator Approval</h2>', $html);
+        $this->assertStringContainsString('<input type="password" id="approval-password" class="approval-input"', $html);
+        $this->assertStringContainsString('<i class="fas fa-check"></i> Confirm Password', $html);
+        $this->assertStringNotContainsString("title: 'Administrator Approval'", $html);
     }
 }
