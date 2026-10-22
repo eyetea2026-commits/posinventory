@@ -130,6 +130,32 @@
     .custom-discount-btn.remove { background: #4a5568; }
     .custom-discount-status { margin-top: 4px; font-size: 0.74rem; color: #6ee7b7; }
     .custom-discount-status:empty { display: none; }
+
+    /* Administrator approval popup: same design as User Management's
+       "Enter Your Credentials" popup (admin/partials/modal-styles). */
+    .approval-overlay { position: fixed; inset: 0; z-index: 1300; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(2, 6, 23, 0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    .approval-overlay.active { display: flex; }
+    .approval-box { box-sizing: border-box; width: 100%; max-width: 440px; background: #0f172a; border: 1px solid #334155; border-radius: 20px; padding: 18px 22px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5); transform: scale(0.95) translateY(12px); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
+    .approval-overlay.active .approval-box { transform: scale(1) translateY(0); opacity: 1; }
+    .approval-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #334155; }
+    .approval-header h2 { margin: 0; font-size: 1.05rem; color: #f8fafc; font-weight: 600; }
+    .approval-header h2 i { margin-right: 6px; }
+    .approval-close { width: 32px; height: 32px; background: #1e293b; border: none; border-radius: 8px; color: #94a3b8; font-size: 1.2rem; cursor: pointer; }
+    .approval-close:hover { background: #334155; color: #fff; }
+    .approval-label { display: block; font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; }
+    .approval-label .required { color: #ef4444; }
+    .approval-input { box-sizing: border-box; width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #f8fafc; font-size: 0.9rem; }
+    .approval-input:focus { outline: none; border-color: #3b82f6; }
+    .approval-input.error { border-color: #ef4444; }
+    .approval-hint { display: block; margin-top: 6px; color: #94a3b8; font-size: 0.85rem; }
+    .approval-error { display: block; margin-top: 6px; color: #f87171; font-size: 0.82rem; }
+    .approval-error:empty { display: none; }
+    .approval-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #334155; }
+    .approval-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border: none; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+    .approval-btn-secondary { background: rgba(148, 163, 184, 0.15); color: #e2e8f0; }
+    .approval-btn-primary { background: linear-gradient(135deg, #3b82f6, #10b981); color: #fff; }
+    .approval-btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
+    .approval-btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .change-display { padding: 8px 10px; background: #1a1d2d; border: 1px solid #4a5568; color: #34d399; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
     #payment-amount.auto-filled { color: #34d399; cursor: not-allowed; opacity: 0.9; }
     .payment-amount-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.72rem; }
@@ -260,6 +286,27 @@
                 <button type="button" class="custom-discount-btn" id="custom-discount-btn" onclick="applyCustomDiscount()">Apply</button>
             </div>
             <div class="custom-discount-status" id="custom-discount-status"></div>
+        </div>
+
+        <div id="approval-modal" class="approval-overlay" role="dialog" aria-modal="true" aria-labelledby="approval-modal-title" aria-hidden="true">
+            <div class="approval-box">
+                <div class="approval-header">
+                    <h2 id="approval-modal-title"><i class="fas fa-shield-halved"></i> Administrator Approval</h2>
+                    <button type="button" class="approval-close" onclick="closeApprovalModal()" aria-label="Close">&times;</button>
+                </div>
+                <form id="approval-form" onsubmit="event.preventDefault(); confirmApproval();" autocomplete="off">
+                    <label class="approval-label" for="approval-password">Administrator Password <span class="required">*</span></label>
+                    <input type="password" id="approval-password" class="approval-input" autocomplete="new-password">
+                    <span class="approval-hint" id="approval-hint">For security, an Administrator must confirm this discount.</span>
+                    <span class="approval-error" id="approval-error" role="alert"></span>
+                </form>
+                <div class="approval-actions">
+                    <button type="button" class="approval-btn approval-btn-secondary" onclick="closeApprovalModal()">Close</button>
+                    <button type="button" class="approval-btn approval-btn-primary" id="approval-confirm-btn" onclick="confirmApproval()">
+                        <i class="fas fa-check"></i> Confirm Password
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="cart-summary">
@@ -655,7 +702,8 @@
         // processed: the scanner's Enter would otherwise click its
         // confirm button (e.g. "Yes, Complete Sale").
         function scanningBlocked() {
-            return (window.Swal && Swal.isVisible()) || window.receiptPrinting === true;
+            return (window.Swal && Swal.isVisible()) || window.receiptPrinting === true
+                || document.getElementById('approval-modal').classList.contains('active');
         }
 
         function reset() {
@@ -1174,47 +1222,83 @@
             return;
         }
 
-        Swal.fire({
-            title: 'Administrator Approval',
-            text: 'Enter an Administrator\'s password to give a ' + percent + '% discount.',
-            input: 'password',
-            inputPlaceholder: 'Administrator password',
-            inputAttributes: { autocomplete: 'off', autocapitalize: 'off' },
-            showCancelButton: true,
-            confirmButtonText: 'Approve',
-            cancelButtonText: 'Cancel',
-            confirmButtonColor: '#10b981',
-            cancelButtonColor: '#64748b',
-            customClass: { popup: 'swal-compact' },
-            showLoaderOnConfirm: true,
-            preConfirm: function (password) {
-                if (!password) {
-                    Swal.showValidationMessage('Enter the Administrator\'s password.');
-                    return false;
-                }
-                return fetch('{{ route('cashier.custom-discount.approve') }}', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                    body: JSON.stringify({ percent: percent, admin_password: password }),
-                })
-                    .then(function (r) {
-                        return r.json().catch(function () { return {}; }).then(function (body) {
-                            if (r.status === 429) throw new Error('Too many attempts. Please wait a minute and try again.');
-                            if (!r.ok || !body.success) throw new Error(body.message || (body.errors && Object.values(body.errors)[0][0]) || 'Approval failed.');
-                            return body;
-                        });
-                    })
-                    .catch(function (error) {
-                        Swal.showValidationMessage(error.message);
-                        return false;
-                    });
-            },
-        }).then(function (result) {
-            if (result.isConfirmed && result.value) {
-                setCustomDiscount({ percent: result.value.percent, approvedBy: result.value.approved_by });
-            }
-        });
+        openApprovalModal(percent);
     }
+
+    let pendingDiscountPercent = null;
+
+    function openApprovalModal(percent) {
+        pendingDiscountPercent = percent;
+        const modal = document.getElementById('approval-modal');
+        const password = document.getElementById('approval-password');
+        password.value = '';
+        password.classList.remove('error');
+        document.getElementById('approval-error').textContent = '';
+        document.getElementById('approval-hint').textContent = 'For security, an Administrator must confirm this ' + percent + '% discount.';
+        document.getElementById('approval-confirm-btn').disabled = false;
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        setTimeout(function () { password.focus(); }, 50);
+    }
+
+    function closeApprovalModal() {
+        const modal = document.getElementById('approval-modal');
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        document.getElementById('approval-password').value = '';
+        pendingDiscountPercent = null;
+    }
+
+    function showApprovalError(message) {
+        document.getElementById('approval-error').textContent = message;
+        document.getElementById('approval-password').classList.add('error');
+    }
+
+    function confirmApproval() {
+        const password = document.getElementById('approval-password');
+        const button = document.getElementById('approval-confirm-btn');
+        if (!password.value) {
+            showApprovalError('Enter the Administrator\'s password.');
+            password.focus();
+            return;
+        }
+
+        button.disabled = true;
+        fetch('{{ route('cashier.custom-discount.approve') }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ percent: pendingDiscountPercent, admin_password: password.value }),
+        })
+            .then(function (r) {
+                return r.json().catch(function () { return {}; }).then(function (body) {
+                    if (r.status === 429) throw new Error('Too many attempts. Please wait a minute and try again.');
+                    if (!r.ok || !body.success) throw new Error(body.message || (body.errors && Object.values(body.errors)[0][0]) || 'Approval failed.');
+                    return body;
+                });
+            })
+            .then(function (body) {
+                closeApprovalModal();
+                setCustomDiscount({ percent: body.percent, approvedBy: body.approved_by });
+            })
+            .catch(function (error) {
+                button.disabled = false;
+                showApprovalError(error.message);
+                password.select();
+            });
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.getElementById('approval-modal').classList.contains('active')) {
+            closeApprovalModal();
+        }
+    });
+    document.getElementById('approval-modal').addEventListener('mousedown', function (e) {
+        if (e.target === this) closeApprovalModal();
+    });
+    document.getElementById('approval-password').addEventListener('input', function () {
+        this.classList.remove('error');
+        document.getElementById('approval-error').textContent = '';
+    });
 
     function togglePaymentDropdown() {
         document.getElementById('paymentDropdown').classList.toggle('open');
