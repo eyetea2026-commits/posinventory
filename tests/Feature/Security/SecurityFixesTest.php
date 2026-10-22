@@ -178,6 +178,7 @@ class SecurityFixesTest extends TestCase
     {
         $response = $this->actingAs($this->admin)->post(route('admin.users.store'), [
             'first_name' => 'Sneaky', 'last_name' => 'Escalation',
+            'birthdate' => '1995-06-15',
             'contact_number' => '09990000001',
             'name' => 'sneakyadmin',
             'email' => 'sneaky@example.com',
@@ -194,6 +195,7 @@ class SecurityFixesTest extends TestCase
     {
         $response = $this->actingAs($this->admin)->post(route('admin.users.store'), [
             'first_name' => 'New', 'last_name' => 'Cashier',
+            'birthdate' => '1995-06-15',
             'contact_number' => '09990000002',
             'name' => 'newcashier',
             'email' => 'newcashier@example.com',
@@ -212,6 +214,7 @@ class SecurityFixesTest extends TestCase
     {
         $response = $this->actingAs($this->admin)->post(route('admin.users.store'), [
             'first_name' => 'Weak', 'last_name' => 'Password',
+            'birthdate' => '1995-06-15',
             'contact_number' => '09990000003',
             'name' => 'weakpassworduser',
             'email' => 'weakpw@example.com',
@@ -230,6 +233,7 @@ class SecurityFixesTest extends TestCase
     {
         $this->actingAs($this->admin)->post(route('admin.users.store'), [
             'first_name' => 'Logged', 'last_name' => 'User',
+            'birthdate' => '1995-06-15',
             'contact_number' => '09990000004',
             'name' => 'loggeduser',
             'email' => 'loggeduser@example.com',

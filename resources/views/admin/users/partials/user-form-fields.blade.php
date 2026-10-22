@@ -46,10 +46,17 @@
         <span class="form-error" id="error-last_name">@error('last_name'){{ $message }}@enderror</span>
     </div>
 
+    {{-- Birthdate instead of age: the age is worked out from it and shown
+         beside the label, and the latest allowed date keeps users 18+. --}}
+    @php
+        $birthdateValue = old('birthdate', isset($user) && $user->birthdate ? $user->birthdate->toDateString() : null);
+        $latestBirthdate = today()->subYears(18)->toDateString();
+    @endphp
     <div class="form-group">
-        <label class="form-label">Age</label>
-        <input type="number" name="age" class="form-input" value="{{ old('age', $user->age ?? null) }}" min="18" max="150">
-        <span class="form-error" id="error-age">@error('age'){{ $message }}@enderror</span>
+        <label class="form-label">Birthdate @unless(isset($user))<span class="required">*</span>@endunless <span class="birthdate-age" data-birthdate-age style="color:#94a3b8; font-weight:500;">{{ isset($user) && $user->current_age ? '(Age: '.$user->current_age.')' : '' }}</span></label>
+        <input type="date" name="birthdate" class="form-input" value="{{ $birthdateValue }}" max="{{ $latestBirthdate }}" min="{{ today()->subYears(120)->toDateString() }}" @unless(isset($user)) required @endunless
+               oninput="(function (input) { const out = input.closest('.form-group').querySelector('[data-birthdate-age]'); const error = input.closest('.form-group').querySelector('.form-error'); if (!input.value) { out.textContent = ''; error.textContent = ''; return; } const b = new Date(input.value + 'T00:00:00'), t = new Date(); let age = t.getFullYear() - b.getFullYear(); if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--; out.textContent = '(Age: ' + age + ')'; error.textContent = age < 18 ? 'User must be at least 18 years old.' : ''; })(this)">
+        <span class="form-error" id="error-birthdate">@error('birthdate'){{ $message }}@enderror</span>
     </div>
 
     {{-- Scoped via data-role rather than an id since the Add and Edit forms

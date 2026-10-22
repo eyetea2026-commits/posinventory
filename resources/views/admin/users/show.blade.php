@@ -30,7 +30,8 @@
             <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;">
                 <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">First Name</label><span style="color:#f8fafc;">{{ $user->first_name ?? 'N/A' }}</span></div>
                 <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Last Name</label><span style="color:#f8fafc;">{{ $user->last_name ?? 'N/A' }}</span></div>
-                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Age</label><span style="color:#f8fafc;">{{ $user->age ?? 'N/A' }}</span></div>
+                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Birthdate</label><span style="color:#f8fafc;">{{ $user->birthdate?->format('m/d/Y') ?? 'N/A' }}</span></div>
+                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Age</label><span style="color:#f8fafc;">{{ $user->current_age ?? 'N/A' }}</span></div>
                 <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Gender</label><span style="color:#f8fafc;">{{ $user->gender ?? 'N/A' }}</span></div>
                 <div style="grid-column:1 / -1;"><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Address</label><span style="color:#f8fafc;">{{ $user->address ?? 'N/A' }}</span></div>
             </div>

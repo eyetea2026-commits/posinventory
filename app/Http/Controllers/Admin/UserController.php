@@ -12,6 +12,7 @@ use App\Notifications\UserAccountCreated;
 use App\Notifications\UserAccountDeactivated;
 use App\Notifications\UserAccountUpdated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -126,7 +127,8 @@ class UserController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
-            'age' => ['nullable', 'integer', 'min:18', 'max:150'],
+            // The age is worked out from the birthdate; users must be 18+.
+            'birthdate' => self::birthdateRules('required'),
             'address' => ['nullable', 'string', 'max:255'],
             'contact_number' => ['required', 'digits:11', 'unique:users,contact_number'],
             'gender' => ['nullable', 'in:Male,Female,Prefer not to say'],
@@ -141,7 +143,7 @@ class UserController extends Controller
             'email.unique' => 'This email is already registered.',
             'contact_number.digits' => 'Contact number must be exactly 11 digits.',
             'contact_number.unique' => 'This contact number is already registered.',
-            'age.min' => 'User must be at least 18 years old.',
+            ...self::birthdateMessages(),
             'password.confirmed' => 'Password and Confirm Password must match.',
         ]);
 
@@ -173,7 +175,8 @@ class UserController extends Controller
             'first_name' => $data['first_name'],
             'middle_name' => $data['middle_name'] ?? null,
             'last_name' => $data['last_name'],
-            'age' => $data['age'] ?? null,
+            'birthdate' => $data['birthdate'],
+            'age' => Carbon::parse($data['birthdate'])->age,
             'address' => $data['address'] ?? null,
             'contact_number' => $data['contact_number'],
             'gender' => $data['gender'] ?? null,
@@ -225,7 +228,8 @@ class UserController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
-            'age' => ['nullable', 'integer', 'min:18', 'max:150'],
+            // Optional here: users made before birthdates existed may not have one yet.
+            'birthdate' => self::birthdateRules('nullable'),
             'address' => ['nullable', 'string', 'max:255'],
             'contact_number' => ['required', 'digits:11', 'unique:users,contact_number,'.$user->id],
             'gender' => ['nullable', 'in:Male,Female,Prefer not to say'],
@@ -235,7 +239,7 @@ class UserController extends Controller
             'password' => ['nullable', 'confirmed', Password::defaults()],
         ], [
             'contact_number.digits' => 'Contact number must be exactly 11 digits.',
-            'age.min' => 'User must be at least 18 years old.',
+            ...self::birthdateMessages(),
         ]);
 
         // Updating an Administrator account requires the ACTING admin to
@@ -264,6 +268,12 @@ class UserController extends Controller
         // actually submitted.
         $updateData = $data;
         unset($updateData['password']);
+        if (! empty($data['birthdate'])) {
+            $updateData['age'] = Carbon::parse($data['birthdate'])->age;
+        } else {
+            // Leave an older user's saved birthdate/age alone when none is sent.
+            unset($updateData['birthdate']);
+        }
 
         $performUpdate = function (User $target) use ($updateData, $passwordChanged, $data) {
             $target->fill($updateData);
@@ -442,6 +452,35 @@ class UserController extends Controller
     // pattern), re-fetches $user under that same lock, then re-evaluates
     // isProtected() against the locked set before letting the callback run.
     // Returns the callback's return value, or null if blocked.
+    /**
+     * A real date, no later than 18 years ago (the user must be 18+), and
+     * no more than 120 years ago.
+     *
+     * @return list<string>
+     */
+    private static function birthdateRules(string $presence): array
+    {
+        return [
+            $presence,
+            'date',
+            'before_or_equal:'.today()->subYears(18)->toDateString(),
+            'after:'.today()->subYears(120)->toDateString(),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function birthdateMessages(): array
+    {
+        return [
+            'birthdate.required' => 'Birthdate is required.',
+            'birthdate.date' => 'Enter a valid birthdate.',
+            'birthdate.before_or_equal' => 'User must be at least 18 years old.',
+            'birthdate.after' => 'Enter a valid birthdate.',
+        ];
+    }
+
     private function withLastAdminGuard(User $user, string $blockedMessage, \Closure $callback, int $blockedStatus = 403, bool $withInput = false)
     {
         return DB::transaction(function () use ($user, $blockedMessage, $callback, $blockedStatus, $withInput) {
@@ -530,7 +569,8 @@ class UserController extends Controller
                     'last_name' => $user->last_name,
                     'email' => $user->email,
                     'contact_number' => $user->contact_number,
-                    'age' => $user->age,
+                    'age' => $user->current_age,
+                    'birthdate' => $user->birthdate?->format('m/d/Y'),
                     'gender' => $user->gender,
                     'address' => $user->address,
                     'role_name' => $user->role?->role_name,

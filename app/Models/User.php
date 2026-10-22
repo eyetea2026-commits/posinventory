@@ -18,6 +18,7 @@ class User extends Authenticatable
         'middle_name',
         'last_name',
         'age',
+        'birthdate',
         'address',
         'contact_number',
         'gender',
@@ -38,7 +39,17 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'birthdate' => 'date',
         ];
+    }
+
+    /**
+     * Age today, worked out from the birthdate; users saved before
+     * birthdates existed fall back to the age typed in back then.
+     */
+    public function getCurrentAgeAttribute(): ?int
+    {
+        return $this->birthdate ? (int) $this->birthdate->age : $this->age;
     }
 
     public function role()

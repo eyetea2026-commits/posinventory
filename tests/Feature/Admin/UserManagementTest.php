@@ -70,6 +70,7 @@ class UserManagementTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.users.store'), [
             'first_name' => 'Juan',
+            'birthdate' => '1995-06-15',
             'last_name' => 'Dela Cruz',
             'contact_number' => '09171234567',
             'name' => 'juandelacruz',
@@ -123,6 +124,7 @@ class UserManagementTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('admin.users.store'), [
             'first_name' => 'Maria',
+            'birthdate' => '1995-06-15',
             'last_name' => 'Santos',
             'contact_number' => '09171234999',
             'email' => 'maria.santos@example.com',
@@ -144,6 +146,7 @@ class UserManagementTest extends TestCase
         return array_merge([
             'first_name' => 'Test',
             'last_name' => 'Cashier',
+            'birthdate' => '1995-06-15',
             'contact_number' => '09171234567',
             'name' => 'testcashier',
             'password' => 'Password123!',
@@ -159,10 +162,10 @@ class UserManagementTest extends TestCase
 
         $response = $this->actingAs($admin)->post(
             route('admin.users.store'),
-            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'age' => 17])
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'birthdate' => today()->subYears(18)->addDay()->toDateString()])
         );
 
-        $response->assertSessionHasErrors('age');
+        $response->assertSessionHasErrors(['birthdate' => 'User must be at least 18 years old.']);
         $this->assertDatabaseMissing('users', ['name' => 'testcashier']);
     }
 
@@ -174,11 +177,36 @@ class UserManagementTest extends TestCase
 
         $response = $this->actingAs($admin)->post(
             route('admin.users.store'),
-            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'age' => 18])
+            $this->baseCashierPayload(['role_id' => $cashierRole->id, 'birthdate' => today()->subYears(18)->toDateString()])
         );
 
         $response->assertRedirect(route('admin.users.index'));
         $this->assertDatabaseHas('users', ['name' => 'testcashier', 'age' => 18]);
+        $this->assertSame(today()->subYears(18)->toDateString(), User::where('name', 'testcashier')->first()->birthdate->toDateString());
+    }
+
+    public function test_user_store_requires_a_birthdate_and_works_out_the_age(): void
+    {
+        $adminRole = Role::create(['role_name' => 'admin']);
+        $cashierRole = Role::create(['role_name' => 'cashier']);
+        $admin = User::factory()->create(['role_id' => $adminRole->id]);
+
+        $payload = $this->baseCashierPayload(['role_id' => $cashierRole->id]);
+        unset($payload['birthdate']);
+        $this->actingAs($admin)->post(route('admin.users.store'), $payload)
+            ->assertSessionHasErrors(['birthdate' => 'Birthdate is required.']);
+
+        $this->actingAs($admin)->post(route('admin.users.store'), $this->baseCashierPayload(['role_id' => $cashierRole->id, 'birthdate' => today()->subYears(25)->subDays(3)->toDateString()]))
+            ->assertRedirect(route('admin.users.index'));
+        $user = User::where('name', 'testcashier')->first();
+        $this->assertSame(25, $user->age);
+        $this->assertSame(25, $user->current_age);
+
+        // The Add User form asks for a birthdate, not an age.
+        $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()
+            ->assertSee('<input type="date" name="birthdate"', false)
+            ->assertSee('max="'.today()->subYears(18)->toDateString().'"', false)
+            ->assertDontSee('name="age"', false);
     }
 
     public function test_user_store_rejects_a_contact_number_that_is_not_exactly_11_digits(): void

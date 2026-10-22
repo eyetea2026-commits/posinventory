@@ -850,6 +850,10 @@
                             <span>${user.last_name || 'N/A'}</span>
                         </div>
                         <div class="detail-item">
+                            <label>Birthdate</label>
+                            <span>${user.birthdate || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
                             <label>Age</label>
                             <span>${user.age || 'N/A'}</span>
                         </div>
@@ -944,7 +948,7 @@
     });
 
     // ---- Add User modal ----
-    const ADD_USER_FIELD_IDS = ['first_name', 'middle_name', 'last_name', 'age', 'address', 'contact_number', 'gender', 'email', 'role_id', 'name', 'password'];
+    const ADD_USER_FIELD_IDS = ['first_name', 'middle_name', 'last_name', 'birthdate', 'address', 'contact_number', 'gender', 'email', 'role_id', 'name', 'password'];
     let addUserLastFocused = null;
 
     function addUserIsSubmitting() {
