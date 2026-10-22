@@ -12,6 +12,7 @@
 @endsection
 
 @section('content')
+@include('admin.suppliers.partials.supplier-form-validation')
     <!-- REQ081: Search existing supplier profile -->
     <div class="card">
         <div class="toolbar">
@@ -310,8 +311,7 @@
 
         document.getElementById('addSupplierSubmitBtn').addEventListener('click', function () {
             const form = document.getElementById('addSupplierForm');
-            if (!form.checkValidity()) {
-                form.reportValidity();
+            if (!window.validateSupplierForm(form)) {
                 return;
             }
 
@@ -499,8 +499,7 @@
 
         document.getElementById('editSupplierSubmitBtn').addEventListener('click', function () {
             const form = document.getElementById('editSupplierForm');
-            if (!form.checkValidity()) {
-                form.reportValidity();
+            if (!window.validateSupplierForm(form)) {
                 return;
             }
 

@@ -47,7 +47,34 @@ class Phase5PolishTest extends TestCase
         ]);
 
         $response->assertSessionDoesntHaveErrors('ContactNumber');
-        $this->assertDatabaseHas('Supplier', ['SupplierName' => 'Acme Supplies']);
+        // Saved in the 0912-345-6789 format.
+        $this->assertDatabaseHas('Supplier', ['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0912-345-6789']);
+    }
+
+    public function test_supplier_contact_number_drops_letters_and_must_be_an_11_digit_09_number(): void
+    {
+        $base = ['Email' => 'x@example.com', 'Address' => 'N/A'];
+
+        $this->actingAs($this->admin)->post(route('admin.suppliers.store'), $base + ['SupplierName' => 'Letters Co', 'ContactNumber' => '09a12b345c6789'])
+            ->assertSessionDoesntHaveErrors('ContactNumber');
+        $this->assertDatabaseHas('Supplier', ['SupplierName' => 'Letters Co', 'ContactNumber' => '0912-345-6789']);
+
+        foreach (['0912345678', '091234567890', '1912-345-6789', '(082) 227-8531'] as $i => $bad) {
+            $this->actingAs($this->admin)->post(route('admin.suppliers.store'), ['Email' => "bad{$i}@example.com", 'Address' => 'N/A', 'SupplierName' => "Bad {$i}", 'ContactNumber' => $bad])
+                ->assertSessionHasErrors(['ContactNumber' => 'Enter the contact number as 0912-345-6789 (11 digits starting with 09).']);
+        }
+        // Letters only: nothing is left once they're dropped.
+        $this->actingAs($this->admin)->post(route('admin.suppliers.store'), ['Email' => 'abc@example.com', 'Address' => 'N/A', 'SupplierName' => 'Abc', 'ContactNumber' => 'abc'])
+            ->assertSessionHasErrors(['ContactNumber' => 'Contact Number is required.']);
+
+        // The forms format it as it's typed and check every field on Save.
+        $this->actingAs($this->admin)->get(route('admin.suppliers.create'))->assertOk()
+            ->assertSee('placeholder="0912-345-6789"', false)
+            ->assertSee('maxlength="13" inputmode="numeric"', false);
+        $html = $this->actingAs($this->admin)->get(route('admin.suppliers.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('window.validateSupplierForm = function (form)', $html);
+        $this->assertSame(2, substr_count($html, 'if (!window.validateSupplierForm(form)) {'));
+        $this->assertStringNotContainsString('form.reportValidity();', $html);
     }
 
     public function test_admin_layout_logout_form_carries_a_confirm_dialog(): void

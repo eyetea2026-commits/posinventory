@@ -106,16 +106,45 @@ class SupplierController extends Controller
         ]);
     }
 
+    /**
+     * Contact Number: 11 digits starting with 09, saved as 0912-345-6789.
+     * Letters and other characters are dropped first (normalizeContactNumber()).
+     */
+    private const CONTACT_NUMBER_RULES = ['required', 'string', 'regex:/^09\d{2}-\d{3}-\d{4}$/'];
+
+    private const CONTACT_NUMBER_MESSAGES = [
+        'ContactNumber.required' => 'Contact Number is required.',
+        'ContactNumber.regex' => 'Enter the contact number as 0912-345-6789 (11 digits starting with 09).',
+    ];
+
+    /**
+     * Keeps only the digits (a +63 country code becomes the leading 0); 11
+     * of them are written as 0912-345-6789.
+     */
+    private static function normalizeContactNumber(?string $value): string
+    {
+        $digits = preg_replace('/\D/', '', (string) $value);
+        if (strlen($digits) === 12 && str_starts_with($digits, '63')) {
+            $digits = '0'.substr($digits, 2);
+        }
+
+        return strlen($digits) === 11
+            ? substr($digits, 0, 4).'-'.substr($digits, 4, 3).'-'.substr($digits, 7)
+            : $digits;
+    }
+
     public function store(Request $request)
     {
+        $request->merge(['ContactNumber' => self::normalizeContactNumber($request->input('ContactNumber'))]);
+
         $data = $request->validate([
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName'],
             'ContactPerson' => ['nullable', 'string', 'max:150'],
-            'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
+            'ContactNumber' => self::CONTACT_NUMBER_RULES,
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email'],
             'Address' => ['required', 'string', 'max:255'],
             'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
-        ]);
+        ], self::CONTACT_NUMBER_MESSAGES);
 
         $supplier = Supplier::create($data);
 
@@ -278,14 +307,16 @@ class SupplierController extends Controller
 
     public function update(Request $request, Supplier $supplier)
     {
+        $request->merge(['ContactNumber' => self::normalizeContactNumber($request->input('ContactNumber'))]);
+
         $data = $request->validate([
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName,'.$supplier->SupplierID.',SupplierID'],
             'ContactPerson' => ['nullable', 'string', 'max:150'],
-            'ContactNumber' => ['required', 'string', 'max:50', 'regex:/^[0-9+\-\s()]{7,50}$/'],
+            'ContactNumber' => self::CONTACT_NUMBER_RULES,
             'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email,'.$supplier->SupplierID.',SupplierID'],
             'Address' => ['required', 'string', 'max:255'],
             'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
-        ]);
+        ], self::CONTACT_NUMBER_MESSAGES);
 
         $supplier->update($data);
 

@@ -12,6 +12,7 @@
 @endsection
 
 @section('content')
+@include('admin.suppliers.partials.supplier-form-validation')
     <div class="card" style="max-width: 700px; margin: 0 auto;">
         <div class="card-header">
             <div>
@@ -41,7 +42,7 @@
 
                 <div class="form-group">
                     <label class="form-label">Contact Number <span style="color: var(--danger);">*</span></label>
-                    <input type="text" name="ContactNumber" class="form-input" value="{{ old('ContactNumber') }}" required>
+                    <input type="tel" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', null) }}" required maxlength="13" inputmode="numeric" placeholder="0912-345-6789" autocomplete="off">
                     @error('ContactNumber') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 

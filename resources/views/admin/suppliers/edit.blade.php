@@ -12,6 +12,7 @@
 @endsection
 
 @section('content')
+@include('admin.suppliers.partials.supplier-form-validation')
     <div class="card" style="max-width: 700px; margin: 0 auto;">
         <div class="card-header">
             <div>

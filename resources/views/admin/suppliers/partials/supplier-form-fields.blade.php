@@ -15,7 +15,7 @@
 
     <div class="form-group">
         <label class="form-label">Contact Number <span class="required">*</span></label>
-        <input type="text" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', $supplier->ContactNumber ?? null) }}" required maxlength="50">
+        <input type="tel" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', $supplier->ContactNumber ?? null) }}" required maxlength="13" inputmode="numeric" placeholder="0912-345-6789" autocomplete="off">
         <span class="form-error" id="error-ContactNumber">@error('ContactNumber'){{ $message }}@enderror</span>
     </div>
 
