@@ -133,10 +133,16 @@ class CustomDiscountTest extends TestCase
         $this->sell([['id' => $camera->ProductID, 'qty' => 1]], 900, 10)->assertStatus(403);
     }
 
-    public function test_the_percent_must_be_between_zero_and_one_hundred(): void
+    public function test_the_percent_is_a_two_digit_whole_number(): void
     {
-        $this->approve(0)->assertStatus(422)->assertJsonValidationErrors('percent');
-        $this->approve(150)->assertStatus(422)->assertJsonValidationErrors('percent');
+        // (Approvals are limited to 5 tries a minute.)
+        foreach ([0, 100, 12.5] as $percent) {
+            $this->approve($percent)->assertStatus(422)->assertJsonValidationErrors('percent');
+        }
+        $this->approve(99)->assertOk();
+
+        $camera = $this->makeProduct(1000);
+        $this->sell([['id' => $camera->ProductID, 'qty' => 1]], 0, 100)->assertStatus(422);
     }
 
     public function test_the_pos_has_the_discount_field_above_salable_sales_and_the_new_customer_label(): void

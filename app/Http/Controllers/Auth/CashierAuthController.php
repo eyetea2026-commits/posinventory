@@ -268,11 +268,13 @@ class CashierAuthController extends Controller
     public function approveCustomDiscount(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'percent' => ['required', 'numeric', 'min:0.01', 'max:100'],
+            // Two digits: a whole number from 1 to 99.
+            'percent' => ['required', 'integer', 'min:1', 'max:99'],
             'admin_password' => ['required', 'string'],
         ], [
-            'percent.min' => 'Enter a discount above 0%.',
-            'percent.max' => 'The discount cannot be more than 100%.',
+            'percent.integer' => 'Enter a whole-number discount from 1% to 99%.',
+            'percent.min' => 'Enter a discount from 1% to 99%.',
+            'percent.max' => 'Enter a discount from 1% to 99%.',
             'admin_password.required' => "Enter an Administrator's password.",
         ]);
 
@@ -322,7 +324,7 @@ class CashierAuthController extends Controller
             // 7 whole-peso digits max, matching the POS input's own cap.
             'payment_amount' => 'nullable|numeric|min:0|max:9999999.99',
             // Needs an Administrator's approval first (approveCustomDiscount()).
-            'custom_discount_percent' => 'nullable|numeric|min:0.01|max:100',
+            'custom_discount_percent' => 'nullable|integer|min:1|max:99',
         ], [
             'payment_amount.max' => 'Payment amount cannot exceed ₱9,999,999.99.',
             'reference_number.required' => 'Please enter the reference/cheque number.',

@@ -256,7 +256,7 @@
         <div class="form-group custom-discount">
             <label for="custom-discount-input">Discount (%)</label>
             <div class="custom-discount-row">
-                <input type="number" id="custom-discount-input" min="0.01" max="100" step="0.01" placeholder="e.g. 10" oninput="onCustomDiscountInput()">
+                <input type="text" id="custom-discount-input" inputmode="numeric" maxlength="2" pattern="[0-9]{1,2}" placeholder="e.g. 10" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 2); onCustomDiscountInput()">
                 <button type="button" class="custom-discount-btn" id="custom-discount-btn" onclick="applyCustomDiscount()">Apply</button>
             </div>
             <div class="custom-discount-status" id="custom-discount-status"></div>
@@ -1167,9 +1167,10 @@
             return;
         }
 
-        const percent = Math.round(parseFloat(input.value) * 100) / 100;
-        if (!(percent > 0) || percent > 100) {
-            toastWarning('Enter a discount between 0.01% and 100%.');
+        // Two digits: a whole number from 1 to 99.
+        const percent = parseInt(input.value, 10);
+        if (!(percent >= 1 && percent <= 99)) {
+            toastWarning('Enter a discount from 1% to 99%.');
             return;
         }
 
