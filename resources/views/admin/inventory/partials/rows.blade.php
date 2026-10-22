@@ -12,9 +12,12 @@
     @endphp
     <tr>
         <td class="col-product">
-            <div class="product-info">
-                <span class="product-name">{{ $product->ProductName }}</span>
-                <span class="product-model">{{ $product->Model ?? 'N/A' }}</span>
+            <div class="product-cell">
+                @include('partials.product-thumb', ['product' => $product])
+                <div class="product-info">
+                    <span class="product-name">{{ $product->ProductName }}</span>
+                    <span class="product-model">{{ $product->Model ?? 'N/A' }}</span>
+                </div>
             </div>
         </td>
         <td class="col-category">

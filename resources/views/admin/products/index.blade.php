@@ -7,6 +7,7 @@
 @endsection
 
 @section('content')
+@include('partials.product-thumb-styles')
 <style>
     :root {
         --glass-bg: rgba(15, 23, 42, 0.75);

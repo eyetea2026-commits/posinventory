@@ -7,6 +7,7 @@
 @endsection
 
 @section('content')
+@include('partials.product-thumb-styles')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 
@@ -300,7 +301,7 @@
 @endif
 
 <div class="card glass-card">
-    <form method="POST" action="{{ route('admin.products.update', $product) }}" id="productForm">
+    <form method="POST" action="{{ route('admin.products.update', $product) }}" id="productForm" enctype="multipart/form-data">
         @csrf
         @method('PUT')
 

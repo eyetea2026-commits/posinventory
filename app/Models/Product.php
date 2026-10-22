@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ProductImage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -24,6 +25,7 @@ class Product extends Model
         'Price',
         'CostPrice',
         'Description',
+        'ImagePath',
         'BrandID',
         'CategoryID',
         'IsActive',
@@ -61,6 +63,15 @@ class Product extends Model
     public static function generateSku(int $productId): string
     {
         return 'SKU-'.str_pad((string) $productId, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Public URL of the product photo, or null when it has none (pages then
+     * show a placeholder).
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        return ProductImage::url($this->ImagePath);
     }
 
     public function brand()

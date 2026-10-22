@@ -7,6 +7,7 @@
 @endsection
 
 @section('content')
+@include('partials.product-thumb-styles')
 <style>
     .product-detail-card {
         background: rgba(15, 23, 42, 0.75);

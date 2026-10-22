@@ -7,6 +7,8 @@
     @endphp
     <tr class="{{ $product->IsActive ? '' : 'is-inactive' }}">
         <td class="col-product">
+            <div class="product-cell">
+            @include('partials.product-thumb', ['product' => $product])
             <div class="product-info">
                 <span class="product-name">
                     {{ $product->ProductName }}
@@ -18,6 +20,7 @@
                 @if(!empty($product->Description))
                     <span class="product-desc">{{ $product->Description }}</span>
                 @endif
+            </div>
             </div>
         </td>
         <td class="col-category">

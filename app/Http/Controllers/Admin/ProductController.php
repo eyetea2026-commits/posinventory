@@ -12,6 +12,7 @@ use App\Models\ProductCostHistory;
 use App\Models\ProductSupplier;
 use App\Models\User;
 use App\Notifications\ProductUpdated;
+use App\Services\ProductImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -206,6 +207,8 @@ class ProductController extends Controller
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
+            // Any size up to 5 MB is accepted; it's stored shrunk (ProductImage).
+            'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
             // A supplier can't be linked before the Product exists, so the
             // Add Product form's "Suppliers for this Product" panel just
             // collects the chosen suppliers client-side and submits them
@@ -278,11 +281,54 @@ class ProductController extends Controller
             (int) ($data['ReorderThreshold'] ?? 50)
         )['label'];
 
-        $product = DB::transaction(function () use ($data, $brandId, $status) {
+        $imagePath = $request->hasFile('Image') ? ProductImage::store($request->file('Image')) : null;
+
+        try {
+            $product = $this->createProduct($data, $brandId, $status, $imagePath);
+        } catch (Throwable $e) {
+            ProductImage::delete($imagePath);
+
+            throw $e;
+        }
+
+        ActivityLog::record('product.created', "Added product \"{$product->ProductName}\"");
+
+        try {
+            Notification::send(User::admins(), new ProductUpdated($product, 'Created'));
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch ProductUpdated notification', [
+                'product_id' => $product->ProductID,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
+        // The Add Product modal needs a plain "created" answer — following the
+        // redirect would hand it the index's AJAX rows instead.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Product added successfully.',
+                'productId' => $product->ProductID,
+            ], 201);
+        }
+
+        return redirect()->route('admin.products.index')->with('status', 'Product added successfully.');
+    }
+
+    /**
+     * Inserts the product, its SKU, its Inventory row and its supplier links
+     * in one transaction.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function createProduct(array $data, ?int $brandId, string $status, ?string $imagePath): Product
+    {
+        return DB::transaction(function () use ($data, $brandId, $status, $imagePath) {
             $product = Product::create([
                 'ProductName' => $data['ProductName'],
                 'Model' => $data['Model'],
                 'Description' => $data['Description'] ?? null,
+                'ImagePath' => $imagePath,
                 'Barcode' => $data['Barcode'] ?? null,
                 'CostPrice' => $data['CostPrice'],
                 'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
@@ -329,29 +375,6 @@ class ProductController extends Controller
 
             return $product;
         });
-
-        ActivityLog::record('product.created', "Added product \"{$product->ProductName}\"");
-
-        try {
-            Notification::send(User::admins(), new ProductUpdated($product, 'Created'));
-        } catch (Throwable $e) {
-            Log::error('Failed to dispatch ProductUpdated notification', [
-                'product_id' => $product->ProductID,
-                'exception' => $e->getMessage(),
-            ]);
-        }
-
-        // The Add Product modal needs a plain "created" answer — following the
-        // redirect would hand it the index's AJAX rows instead.
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Product added successfully.',
-                'productId' => $product->ProductID,
-            ], 201);
-        }
-
-        return redirect()->route('admin.products.index')->with('status', 'Product added successfully.');
     }
 
     public function edit(Request $request, Product $product)
@@ -391,6 +414,8 @@ class ProductController extends Controller
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
+            'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'RemoveImage' => ['nullable', 'boolean'],
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
@@ -453,7 +478,18 @@ class ProductController extends Controller
 
         $oldCostPrice = $product->CostPrice;
 
+        // A new photo replaces the old one; "Remove photo" clears it. The old
+        // file is deleted only after the product row is saved.
+        $oldImagePath = $product->ImagePath;
+        $imagePath = $oldImagePath;
+        if ($request->hasFile('Image')) {
+            $imagePath = ProductImage::store($request->file('Image'));
+        } elseif ($request->boolean('RemoveImage')) {
+            $imagePath = null;
+        }
+
         $product->update([
+            'ImagePath' => $imagePath,
             'ProductName' => $data['ProductName'],
             'Model' => $data['Model'],
             'Description' => $data['Description'] ?? null,
@@ -463,6 +499,10 @@ class ProductController extends Controller
             'BrandID' => $brandId,
             'CategoryID' => $data['CategoryID'],
         ]);
+
+        if ($oldImagePath !== $imagePath) {
+            ProductImage::delete($oldImagePath);
+        }
 
         ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], ProductCostHistory::SOURCE_PRODUCT_UPDATE);
 

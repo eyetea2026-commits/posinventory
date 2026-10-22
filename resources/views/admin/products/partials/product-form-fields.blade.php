@@ -28,6 +28,30 @@
         <span class="form-error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
     </div>
 
+    <div class="form-group full-width">
+        <label class="form-label">Product Photo</label>
+        <div class="product-cell">
+            <span class="product-thumb thumb-large" data-photo-preview>
+                @if(isset($product) && $product->image_url)
+                    <img src="{{ $product->image_url }}" alt="{{ $product->ProductName }}">
+                @else
+                    <i class="fas fa-box" aria-hidden="true"></i>
+                @endif
+            </span>
+            <div style="display:flex; flex-direction:column; gap:8px; min-width:0;">
+                <input type="file" name="Image" accept="image/jpeg,image/png,image/webp" class="form-input @error('Image') is-invalid @enderror"
+                       onchange="(function (input) { const box = input.closest('.form-group').querySelector('[data-photo-preview]'); const file = input.files && input.files[0]; if (!file) return; box.innerHTML = ''; const img = document.createElement('img'); img.src = URL.createObjectURL(file); box.appendChild(img); const remove = input.closest('.form-group').querySelector('input[name=RemoveImage]'); if (remove) remove.checked = false; })(this)">
+                <small style="color:#94a3b8;">JPG, PNG or WebP, up to 5 MB. It's saved shrunk to a small file automatically.</small>
+                @if(isset($product) && $product->ImagePath)
+                    <label style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:0.85rem;">
+                        <input type="checkbox" name="RemoveImage" value="1"> Remove photo
+                    </label>
+                @endif
+                <span class="form-error" id="error-Image">@error('Image'){{ $message }}@enderror</span>
+            </div>
+        </div>
+    </div>
+
     <div class="form-group">
         <label class="form-label">Category <span class="required">*</span></label>
         <select name="CategoryID" id="CategoryID" class="form-select @error('CategoryID') is-invalid @enderror" required>

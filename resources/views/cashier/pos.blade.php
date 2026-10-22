@@ -3,6 +3,7 @@
 @section('title', 'POS Panel - CCTV Express')
 
 @section('content')
+@include('partials.product-thumb-styles')
 <style>
     .pos-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
     .pos-header h1 { margin: 0; font-size: 1.5rem; }
@@ -205,6 +206,7 @@
                 @endphp
                 <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}" data-product-id="{{ $product->ProductID }}" data-price="{{ $product->Price }}" data-stock="{{ $stock }}"
                      onclick="{{ $stock > 0 ? 'addToCart(' . $product->ProductID . ', ' . json_encode($product->ProductName) . ', ' . $product->Price . ', ' . $stock . ')' : '' }}">
+                    @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-card'])
                     <h3>{{ $product->ProductName }}</h3>
                     <p>{{ $product->Model }}</p>
                     <p class="stock {{ $stockClass }}">{{ $stockText }}</p>

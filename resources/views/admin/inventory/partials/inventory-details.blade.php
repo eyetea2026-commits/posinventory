@@ -92,6 +92,9 @@
 {{-- No outer card wrapper here — the standalone page and the modal each
      provide their own container styling around this same content. --}}
 <div>
+    <div class="product-photo-row">
+        @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-large'])
+    </div>
     <h2 class="section-title">Product Information</h2>
     <div class="detail-row">
         <span class="detail-label">Product Name</span>

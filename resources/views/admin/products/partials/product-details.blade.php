@@ -1,6 +1,9 @@
 {{-- Shared "View Details" content. Included by both the standalone show page
      and the View Details modal. Expects $product (with brand/category/inventory
      loaded), $profit, $margin, $status in scope. --}}
+<div class="product-photo-row">
+    @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-large'])
+</div>
 <table class="detail-table">
     <tbody>
         <tr>
