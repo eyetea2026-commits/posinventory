@@ -656,6 +656,11 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order AAA Plenty Cam"  onchange#', $html);
         // Suggested reorder quantity: (10 - 2) + 10 = 18.
         $this->assertStringContainsString('name="items['.$this->product->ProductID.'][quantity]" min="1" step="1" value="18"', $html);
+        // Dropdown beside the Order Items label: Low Stock (default) / All Products.
+        $this->assertMatchesRegularExpression('#<h3>Order Items</h3>\s*<select id="po-items-view"#', $html);
+        $this->assertStringContainsString('<option value="low" selected>Low Stock</option>', $html);
+        $this->assertStringContainsString('<option value="all">All Products</option>', $html);
+        $this->assertStringContainsString('data-low-stock="0" data-product-name="aaa plenty cam pl-1"', $html);
         // Notes come after the table.
         $this->assertGreaterThan(strpos($html, 'id="order-items"'), strpos($html, 'id="Notes" name="Notes"'));
     }

@@ -12,6 +12,8 @@
 <style>
     .po-items-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
     .po-items-toolbar h3 { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--text-primary, #f8fafc); }
+    .po-items-title { display: flex; align-items: center; gap: 10px; }
+    .po-items-view { width: auto; min-width: 150px; padding: 6px 10px; }
     .po-items-search { flex: 1 1 220px; max-width: 320px; }
     .po-items-summary { color: #94a3b8; font-size: 0.82rem; }
     .po-items-summary strong { color: #e2e8f0; }
@@ -42,8 +44,15 @@
 
 <div class="order-items-section">
     <div class="po-items-toolbar">
-        <h3>Order Items</h3>
-        <input type="text" class="form-input po-items-search" id="po-items-search" placeholder="Search products..." autocomplete="off" oninput="filterOrderItems(this.value)">
+        <div class="po-items-title">
+            <h3>Order Items</h3>
+            {{-- Which products the table lists; low stock first by default. --}}
+            <select id="po-items-view" class="form-select po-items-view" aria-label="Show products" onchange="applyOrderItemsView()">
+                <option value="low" selected>Low Stock</option>
+                <option value="all">All Products</option>
+            </select>
+        </div>
+        <input type="text" class="form-input po-items-search" id="po-items-search" placeholder="Search products..." autocomplete="off" oninput="applyOrderItemsView()">
         <span class="po-items-summary" id="po-items-summary"></span>
     </div>
     <span class="form-error" id="error-products" style="display: block; margin-bottom: 8px;">@error('items'){{ $message }}@enderror</span>
@@ -64,7 +73,7 @@
             <tbody id="order-items">
                 @forelse($orderRows as $row)
                     @php($product = $row['product'])
-                    <tr class="po-item-row" data-product-name="{{ strtolower($product->ProductName.' '.$product->Model) }}" data-supplier="{{ $row['supplier']?->SupplierID }}">
+                    <tr class="po-item-row" data-low-stock="{{ $row['lowStock'] ? '1' : '0' }}" data-product-name="{{ strtolower($product->ProductName.' '.$product->Model) }}" data-supplier="{{ $row['supplier']?->SupplierID }}">
                         <td>
                             <input type="checkbox" class="po-item-check" aria-label="Order {{ $product->ProductName }}" {{ $row['lowStock'] ? 'checked' : '' }} onchange="syncOrderItems()">
                             <input type="hidden" name="items[{{ $product->ProductID }}][product_id]" value="{{ $product->ProductID }}">
@@ -123,10 +132,13 @@
             }
         });
 
+        // Select All reflects the rows currently shown.
+        const shown = rows.filter(function (row) { return !row.classList.contains('is-hidden'); });
+        const shownTicked = shown.filter(function (row) { return row.querySelector('.po-item-check').checked; }).length;
         const selectAll = document.getElementById('po-select-all');
         if (selectAll) {
-            selectAll.checked = rows.length > 0 && selected === rows.length;
-            selectAll.indeterminate = selected > 0 && selected < rows.length;
+            selectAll.checked = shown.length > 0 && shownTicked === shown.length;
+            selectAll.indeterminate = shownTicked > 0 && shownTicked < shown.length;
         }
         const summary = document.getElementById('po-items-summary');
         if (summary) {
@@ -145,11 +157,18 @@
         syncOrderItems();
     }
 
-    function filterOrderItems(query) {
-        const q = query.trim().toLowerCase();
+    // Shows Low Stock or All Products (the dropdown beside Order Items),
+    // narrowed by the search box. A hidden row keeps its tick.
+    function applyOrderItemsView() {
+        const view = document.getElementById('po-items-view');
+        const lowOnly = !view || view.value === 'low';
+        const search = document.getElementById('po-items-search');
+        const q = search ? search.value.trim().toLowerCase() : '';
         document.querySelectorAll('#order-items .po-item-row').forEach(function (row) {
-            row.classList.toggle('is-hidden', q !== '' && !row.dataset.productName.includes(q));
+            const hidden = (lowOnly && row.dataset.lowStock !== '1') || (q !== '' && !row.dataset.productName.includes(q));
+            row.classList.toggle('is-hidden', hidden);
         });
+        syncOrderItems();
     }
 
     // Back to the starting state (low-stock products ticked, suggested
@@ -157,7 +176,9 @@
     function resetOrderItems() {
         const search = document.getElementById('po-items-search');
         if (search) search.value = '';
-        filterOrderItems('');
+        const view = document.getElementById('po-items-view');
+        if (view) view.value = 'low';
+        applyOrderItemsView();
         document.querySelectorAll('#order-items .po-item-row').forEach(function (row) {
             row.dataset.supplier = row.querySelector('.po-item-supplier') ? '' : row.dataset.supplier;
         });
@@ -202,5 +223,8 @@
         return message === '';
     };
 
-    document.addEventListener('DOMContentLoaded', syncOrderItems);
+    document.addEventListener('DOMContentLoaded', function () {
+        applyOrderItemsView();
+        syncOrderItems();
+    });
 </script>
