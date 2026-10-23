@@ -102,6 +102,8 @@
                     const header = document.createElement('li');
                     header.className = 'ss-group';
                     header.textContent = group.label;
+                    // A group can set its own heading colour: <optgroup data-group-color="#10b981">.
+                    if (group.dataset.groupColor) header.style.color = group.dataset.groupColor;
                     list.appendChild(header);
                 }
                 lastGroup = group;

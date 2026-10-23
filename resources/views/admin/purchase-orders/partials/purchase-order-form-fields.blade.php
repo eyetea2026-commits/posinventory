@@ -92,14 +92,14 @@
                             <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">
                                 <option value="" {{ $row['supplier'] ? '' : 'selected' }}>Choose supplier</option>
                                 @if($row['ownSuppliers']->isNotEmpty())
-                                    <optgroup label="This product's suppliers">
+                                    <optgroup label="This product's suppliers" data-group-color="#34d399">
                                         @foreach($row['ownSuppliers'] as $own)
                                             <option value="{{ $own['supplier']->SupplierID }}" {{ $row['supplier']?->SupplierID === $own['supplier']->SupplierID ? 'selected' : '' }}>{{ $own['supplier']->SupplierName }}{{ $own['preferred'] ? ' ★' : '' }}</option>
                                         @endforeach
                                     </optgroup>
                                 @endif
                                 @if($row['otherSuppliers']->isNotEmpty())
-                                    <optgroup label="{{ $row['ownSuppliers']->isNotEmpty() ? 'Other suppliers' : 'Suppliers' }}">
+                                    <optgroup label="{{ $row['ownSuppliers']->isNotEmpty() ? 'Other suppliers' : 'Suppliers' }}" data-group-color="#fbbf24">
                                         @foreach($row['otherSuppliers'] as $other)
                                             <option value="{{ $other->SupplierID }}">{{ $other->SupplierName }}</option>
                                         @endforeach
