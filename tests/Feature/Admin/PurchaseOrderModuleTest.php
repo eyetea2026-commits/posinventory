@@ -605,8 +605,8 @@ class PurchaseOrderModuleTest extends TestCase
             'items' => [
                 ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600],
                 ['product_id' => $cable->ProductID, 'quantity' => 10, 'cost_price' => 50],
-                // A product's own supplier wins over a submitted one.
-                ['product_id' => $dvr->ProductID, 'quantity' => 2, 'cost_price' => 2000, 'supplier_id' => $this->supplier->SupplierID],
+                // Sent without a supplier: its own (only) supplier is used.
+                ['product_id' => $dvr->ProductID, 'quantity' => 2, 'cost_price' => 2000],
                 // No supplier assigned: the one chosen in its row is used.
                 ['product_id' => $noSupplier->ProductID, 'quantity' => 3, 'cost_price' => 120, 'supplier_id' => $otherSupplier->SupplierID],
             ],
@@ -621,6 +621,25 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertSame('Restock', $second->Notes);
         $this->assertNull($first->ExpectedDeliveryDate);
         $response->assertJsonPath('message', '2 purchase orders created, one per supplier: '.$first->PONumber.', '.$second->PONumber.'.');
+    }
+
+    // The preferred supplier is picked by default but can be changed.
+    public function test_a_preferred_supplier_can_be_changed_for_the_order(): void
+    {
+        $otherSupplier = Supplier::create(['SupplierName' => 'KCCC', 'ContactNumber' => '0912-345-6780', 'Email' => 'kccc@mail.com', 'Address' => 'N/A']);
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'IsPreferred' => true]);
+
+        $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('#<option value="'.$this->supplier->SupplierID.'" selected>'.preg_quote($this->supplier->SupplierName, '#').' ★</option>#', $html);
+        $this->assertStringContainsString('<optgroup label="Other suppliers">', $html);
+        $this->assertStringContainsString('<option value="'.$otherSupplier->SupplierID.'">KCCC</option>', $html);
+
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
+            'PurchaseDate' => now()->format('Y-m-d'),
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600, 'supplier_id' => $otherSupplier->SupplierID]],
+        ])->assertRedirect(route('admin.purchase-orders.index'));
+
+        $this->assertSame($otherSupplier->SupplierID, PurchaseOrder::firstOrFail()->SupplierID);
     }
 
     public function test_store_needs_a_supplier_for_a_product_that_has_none(): void

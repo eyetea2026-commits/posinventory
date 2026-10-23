@@ -29,6 +29,7 @@
     .po-items-table input[type="number"], .po-items-table select { width: 100%; min-width: 90px; padding: 6px 8px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.82rem; text-align: center; }
     .po-items-table input:disabled, .po-items-table select:disabled { opacity: 0.45; }
     .po-items-table input.error, .po-items-table select.error { border-color: #ef4444; }
+    .po-items-table select.po-item-supplier { min-width: 200px; text-align: left; }
     .po-items-table input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
     .po-select-all { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
     .po-notes { margin-top: 16px; }
@@ -87,16 +88,24 @@
                         <td><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" step="0.01" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price"></td>
                         <td><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" step="1" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity"></td>
                         <td>
-                            @if($row['supplier'])
-                                {{ $row['supplier']->SupplierName }}
-                            @else
-                                <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">
-                                    <option value="">Choose supplier</option>
-                                    @foreach($row['supplierChoices'] as $choice)
-                                        <option value="{{ $choice->SupplierID }}">{{ $choice->SupplierName }}</option>
-                                    @endforeach
-                                </select>
-                            @endif
+                            {{-- The preferred (or only) supplier is picked already; it can be changed for this order. --}}
+                            <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">
+                                <option value="" {{ $row['supplier'] ? '' : 'selected' }}>Choose supplier</option>
+                                @if($row['ownSuppliers']->isNotEmpty())
+                                    <optgroup label="This product's suppliers">
+                                        @foreach($row['ownSuppliers'] as $own)
+                                            <option value="{{ $own['supplier']->SupplierID }}" {{ $row['supplier']?->SupplierID === $own['supplier']->SupplierID ? 'selected' : '' }}>{{ $own['supplier']->SupplierName }}{{ $own['preferred'] ? ' ★' : '' }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @if($row['otherSuppliers']->isNotEmpty())
+                                    <optgroup label="{{ $row['ownSuppliers']->isNotEmpty() ? 'Other suppliers' : 'Suppliers' }}">
+                                        @foreach($row['otherSuppliers'] as $other)
+                                            <option value="{{ $other->SupplierID }}">{{ $other->SupplierName }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                            </select>
                         </td>
                     </tr>
                 @empty
@@ -180,7 +189,8 @@
         if (view) view.value = 'low';
         applyOrderItemsView();
         document.querySelectorAll('#order-items .po-item-row').forEach(function (row) {
-            row.dataset.supplier = row.querySelector('.po-item-supplier') ? '' : row.dataset.supplier;
+            const supplier = row.querySelector('.po-item-supplier');
+            row.dataset.supplier = supplier ? supplier.value : row.dataset.supplier;
         });
         syncOrderItems();
     }

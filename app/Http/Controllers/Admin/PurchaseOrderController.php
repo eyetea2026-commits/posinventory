@@ -188,8 +188,8 @@ class PurchaseOrderController extends Controller
      * Rows for the Create Purchase Order "Order Items" table: every active
      * product, low-stock ones first (at or below their threshold, ticked by
      * default), each with its threshold, previous price, a starting current
-     * price and quantity, and its supplier (the preferred one, or its only
-     * one). A product without one gets a supplier picker in its row.
+     * price and quantity, and a Supplier dropdown with the preferred (or
+     * only) supplier already picked; it can be changed for this order.
      *
      * @return Collection<int, array<string, mixed>>
      */
@@ -216,12 +216,16 @@ class PurchaseOrderController extends Controller
                     'previousPrice' => $previousPrice,
                     'currentPrice' => $currentPrice,
                     'suggestedQuantity' => max(1, self::suggestedReorderQuantity($quantity, $threshold)),
+                    // Picked by default: the preferred supplier, or the only one.
                     'supplier' => $link?->supplier,
-                    // Choices when no supplier is set: this product's own
-                    // suppliers if it has several, otherwise every active one.
-                    'supplierChoices' => $link ? collect() : ($product->suppliers->isNotEmpty()
-                        ? $product->suppliers->pluck('supplier')->filter()->sortBy('SupplierName')->values()
-                        : $activeSuppliers),
+                    // The Supplier dropdown: this product's own suppliers
+                    // first (preferred marked), then every other active one.
+                    'ownSuppliers' => $product->suppliers
+                        ->filter(fn ($ps) => $ps->supplier)
+                        ->sortBy(fn ($ps) => [$ps->IsPreferred ? 0 : 1, $ps->supplier->SupplierName])
+                        ->map(fn ($ps) => ['supplier' => $ps->supplier, 'preferred' => (bool) $ps->IsPreferred])
+                        ->values(),
+                    'otherSuppliers' => $activeSuppliers->whereNotIn('SupplierID', $product->suppliers->pluck('SupplierID'))->values(),
                 ];
             })
             ->sortBy(fn (array $row) => [$row['lowStock'] ? 0 : 1, strtolower($row['product']->ProductName)])
@@ -253,13 +257,13 @@ class PurchaseOrderController extends Controller
             'items.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
         ]);
 
-        // A product's own supplier (preferred, or its only one) always wins;
-        // the submitted one is used only for a product that has none.
+        // The supplier picked in the row is used; a row sent without one
+        // falls back to the product's preferred (or only) supplier.
         $products = Product::with('suppliers')->whereIn('ProductID', collect($data['items'])->pluck('product_id'))->get()->keyBy('ProductID');
         $groups = [];
         foreach ($data['items'] as $item) {
             $product = $products->get($item['product_id']);
-            $supplierId = $product->resolveReorderSupplier()?->SupplierID ?? ($item['supplier_id'] ?? null);
+            $supplierId = ($item['supplier_id'] ?? null) ?: $product->resolveReorderSupplier()?->SupplierID;
             if (! $supplierId) {
                 throw ValidationException::withMessages([
                     'items' => "Choose a supplier for \"{$product->ProductName}\".",
