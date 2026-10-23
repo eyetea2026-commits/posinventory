@@ -217,7 +217,7 @@
             </div>
             <div class="form-group">
                 <button type="button" class="btn btn-secondary" id="addProductSupplierBtn">
-                    <i class="fas fa-plus"></i> Add / Update Supplier
+                    <i class="fas fa-plus"></i> Add Supplier
                 </button>
             </div>
         </div>

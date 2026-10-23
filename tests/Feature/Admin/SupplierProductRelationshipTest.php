@@ -195,7 +195,7 @@ class SupplierProductRelationshipTest extends TestCase
     public function test_supplier_panel_has_no_cost_price_field(): void
     {
         $html = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()->getContent();
-        preg_match('#Suppliers for this Product(.*?)Add / Update Supplier#s', $html, $panel);
+        preg_match('#Suppliers for this Product(.*?)Add Supplier#s', $html, $panel);
 
         $this->assertNotEmpty($panel);
         $this->assertStringNotContainsString('Cost Price', $panel[1]);
