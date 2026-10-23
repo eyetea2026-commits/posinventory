@@ -60,6 +60,22 @@ class ProductSupplierPanelReachabilityTest extends TestCase
         $this->assertStringContainsString('Acme Supplies', $html);
     }
 
+    // The Add Product popup's supplier box and button share their ids with
+    // the Edit popup's, so the Edit panel must look inside its own form;
+    // looking page-wide read the Add popup's empty box and said "Select a
+    // supplier." even with one chosen.
+    public function test_the_edit_suppliers_panel_reads_its_own_supplier_box(): void
+    {
+        $html = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('window.initProductSuppliersPanel(productId, form);', $html);
+        $this->assertStringContainsString("var supplierSelect = root.querySelector('#newSupplierId');", $html);
+        $this->assertStringNotContainsString("document.getElementById('newSupplierId')", $html);
+
+        $this->actingAs($this->admin)->get(route('admin.products.edit', $this->product))->assertOk()
+            ->assertSee("window.initProductSuppliersPanel({$this->product->ProductID}, document.getElementById('productForm'));", false);
+    }
+
     public function test_standalone_edit_page_shows_the_suppliers_panel_exactly_once(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.products.edit', $this->product));

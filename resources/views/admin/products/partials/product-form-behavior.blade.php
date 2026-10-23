@@ -484,10 +484,15 @@ window.initProductAddForm = function (formId, options) {
 // markup actually exists: directly on page load for the standalone Edit
 // Product page, and from openEditProductModal() after the modal's AJAX
 // fetch injects the form fields (see products/index.blade.php).
-window.initProductSuppliersPanel = function (productId) {
-    var body = document.getElementById('productSuppliersBody');
-    var addBtn = document.getElementById('addProductSupplierBtn');
-    if (!body || !addBtn) return;
+// Pass the form the panel is in: the Add Product popup has a supplier box
+// and button with the same ids, so looking them up page-wide picked the
+// Add popup's empty box and said "Select a supplier." in Edit.
+window.initProductSuppliersPanel = function (productId, root) {
+    root = root || document;
+    var body = root.querySelector('#productSuppliersBody');
+    var addBtn = root.querySelector('#addProductSupplierBtn');
+    var supplierSelect = root.querySelector('#newSupplierId');
+    if (!body || !addBtn || !supplierSelect) return;
 
     function suppliersUrl() {
         return '{{ url('admin/products') }}/' + productId + '/suppliers';
@@ -547,7 +552,7 @@ window.initProductSuppliersPanel = function (productId) {
     };
 
     addBtn.onclick = function () {
-        var supplierId = document.getElementById('newSupplierId').value;
+        var supplierId = supplierSelect.value;
         if (!supplierId) {
             Swal.fire({ title: 'Missing info', text: 'Select a supplier.', icon: 'warning', confirmButtonColor: '#f59e0b' });
             return;
@@ -568,7 +573,6 @@ window.initProductSuppliersPanel = function (productId) {
                 Swal.fire({ title: 'Error', text: message, icon: 'error', confirmButtonColor: '#ef4444' });
                 return;
             }
-            var supplierSelect = document.getElementById('newSupplierId');
             supplierSelect.value = '';
             supplierSelect.dispatchEvent(new Event('change'));
             loadSuppliers();

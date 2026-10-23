@@ -337,7 +337,7 @@
 
     document.getElementById('updateProductSubmitBtn').addEventListener('click', () => productEditForm.confirmSave());
 
-    window.initProductSuppliersPanel({{ $product->ProductID }});
+    window.initProductSuppliersPanel({{ $product->ProductID }}, document.getElementById('productForm'));
 
     @if(session('status'))
         Swal.fire({
