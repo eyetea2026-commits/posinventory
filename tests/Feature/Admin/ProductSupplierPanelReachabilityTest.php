@@ -72,6 +72,11 @@ class ProductSupplierPanelReachabilityTest extends TestCase
         $this->assertStringContainsString("var supplierSelect = root.querySelector('#newSupplierId');", $html);
         $this->assertStringNotContainsString("document.getElementById('newSupplierId')", $html);
 
+        // Suppliers already linked (Edit) or already added (Add) aren't offered again.
+        $this->assertStringContainsString('window.hideLinkedSupplierOptions = function (select, supplierIds) {', $html);
+        $this->assertStringContainsString('window.hideLinkedSupplierOptions(supplierSelect, suppliers.map(function (ps) { return ps.SupplierID; }));', $html);
+        $this->assertStringContainsString('window.hideLinkedSupplierOptions(newSupplierIdSelect, pendingSuppliers.map(function (entry) { return entry.supplierId; }));', $html);
+
         $this->actingAs($this->admin)->get(route('admin.products.edit', $this->product))->assertOk()
             ->assertSee("window.initProductSuppliersPanel({$this->product->ProductID}, document.getElementById('productForm'));", false);
     }

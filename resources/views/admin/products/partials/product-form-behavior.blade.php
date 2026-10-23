@@ -212,6 +212,7 @@ window.initProductAddForm = function (formId, options) {
         var pendingSuppliers = [];
 
         function renderPendingSuppliers() {
+            window.hideLinkedSupplierOptions(newSupplierIdSelect, pendingSuppliers.map(function (entry) { return entry.supplierId; }));
             if (!pendingSuppliers.length) {
                 pendingSuppliersBody.innerHTML = '<tr class="pending-suppliers-empty-row"><td colspan="2" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>';
                 return;
@@ -478,6 +479,21 @@ window.initProductAddForm = function (formId, options) {
     };
 };
 
+// A supplier already linked to the product isn't offered again in the
+// Supplier box: its option is hidden (the searchable dropdown skips hidden
+// options) and disabled. Clears the box if it was showing one of them.
+window.hideLinkedSupplierOptions = function (select, supplierIds) {
+    var linked = supplierIds.map(String);
+    Array.prototype.forEach.call(select.options, function (option) {
+        var isLinked = option.value !== '' && linked.indexOf(option.value) !== -1;
+        option.hidden = isLinked;
+        option.disabled = isLinked;
+    });
+    if (select.value && linked.indexOf(select.value) !== -1) {
+        select.value = '';
+    }
+};
+
 // Wires up the per-product suppliers panel (see the Edit-mode-only block in
 // product-form-fields.blade.php). Safe to call even when that panel
 // isn't in the DOM (Add mode) — it just no-ops. Called once the panel's
@@ -505,6 +521,7 @@ window.initProductSuppliersPanel = function (productId, root) {
     }
 
     function renderSuppliers(suppliers) {
+        window.hideLinkedSupplierOptions(supplierSelect, suppliers.map(function (ps) { return ps.SupplierID; }));
         if (!suppliers.length) {
             body.innerHTML = '<tr><td colspan="3" style="padding:12px; color:#94a3b8;">No suppliers linked yet.</td></tr>';
             return;
