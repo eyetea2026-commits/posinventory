@@ -77,6 +77,19 @@ class Phase5PolishTest extends TestCase
         $this->assertStringNotContainsString('form.reportValidity();', $html);
     }
 
+    // Confirmation popups open fast (0.15s) with their icon already drawn,
+    // instead of SweetAlert2's slower zoom-in and drawing icons.
+    public function test_confirmation_popups_open_quickly_on_admin_and_cashier_pages(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.suppliers.index'))->assertOk()
+            ->assertSee('.swal2-popup.swal2-show { animation-duration: 0.15s !important; }', false)
+            ->assertSee('.swal2-popup .swal2-icon *', false);
+
+        $cashier = User::factory()->create(['role_id' => Role::firstOrCreate(['role_name' => 'cashier'])->id]);
+        $this->actingAs($cashier)->get(route('cashier.transactions'))->assertOk()
+            ->assertSee('.swal2-popup.swal2-show { animation-duration: 0.15s !important; }', false);
+    }
+
     public function test_admin_layout_logout_form_carries_a_confirm_dialog(): void
     {
         // Uses the Suppliers index rather than the dashboard — the
