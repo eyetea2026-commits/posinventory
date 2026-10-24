@@ -51,6 +51,19 @@
     }
     .swal2-popup .swal2-close { font-size: 1.4rem !important; top: 6px !important; right: 6px !important; }
 
+    /* Snappy dialogs. SweetAlert2's own animations (a ~0.3s zoom-in, a
+       fade-out, and icons that draw/pulse for up to ~0.75s) made every
+       confirmation feel slow to appear. The popup now opens in 0.15s,
+       closes in 0.1s, and its icon is shown already drawn. */
+    .swal2-container { transition-duration: 0.1s !important; }
+    .swal2-popup.swal2-show { animation-duration: 0.15s !important; }
+    .swal2-popup.swal2-hide { animation-duration: 0.1s !important; }
+    .swal2-popup .swal2-icon,
+    .swal2-popup .swal2-icon * { animation: none !important; }
+    @media (prefers-reduced-motion: reduce) {
+        .swal2-popup.swal2-show, .swal2-popup.swal2-hide { animation: none !important; }
+    }
+
     /* Below this width a 520px popup no longer fits comfortably (tablets in
        portrait, large phones) — matches the spec's 90-95vw mobile target. */
     @media (max-width: 640px) {
