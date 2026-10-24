@@ -25,6 +25,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LiveUpdatesController;
 use App\Http\Controllers\PrintBridgeController;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Request;
@@ -114,14 +115,27 @@ Route::post('/check-user-role', function (Request $request) {
 // Throttle sized for hands-free scanning: every unit scanned is one request,
 // so a cashier scanning a stack of items one by one easily exceeds 60/min.
 Route::get('/api/products/barcode/{barcode}', function ($barcode) {
-    $product = Product::with('inventory')
-        ->where(function ($query) use ($barcode) {
-            $query->where('Barcode', $barcode)->orWhere('SKU', $barcode);
-        })
-        ->first();
+    // A serial number sticker (SN00001) is that one piece's barcode.
+    $serial = ProductSerial::where('SerialNumber', strtoupper(trim($barcode)))->first();
+    if ($serial && $serial->Status !== ProductSerial::STATUS_IN_STOCK) {
+        return response()->json(['product' => null, 'message' => "Serial number {$serial->SerialNumber} is not in stock ({$serial->Status})."], 404);
+    }
+
+    $product = $serial
+        ? Product::with(['inventory', 'category'])->find($serial->ProductID)
+        : Product::with(['inventory', 'category'])
+            ->where(function ($query) use ($barcode) {
+                $query->where('Barcode', $barcode)->orWhere('SKU', $barcode);
+            })
+            ->first();
 
     if (! $product) {
         return response()->json(['product' => null, 'message' => 'Product Not Found. This barcode is not registered in the system.'], 404);
+    }
+
+    // Serial-numbered products are sold by each piece's own sticker.
+    if (! $serial && $product->tracksSerialNumbers()) {
+        return response()->json(['product' => null, 'message' => "Scan the serial number sticker on the \"{$product->ProductName}\" instead."], 404);
     }
 
     // Deactivated products are hidden from the POS; scanning one must not
@@ -130,7 +144,7 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
         return response()->json(['product' => null, 'message' => "\"{$product->ProductName}\" is no longer available for sale."], 404);
     }
 
-    return response()->json(['product' => $product]);
+    return response()->json(['product' => $product, 'serial' => $serial?->SerialNumber]);
 })->middleware(['auth', 'role:cashier', 'throttle:300,1']);
 
 // Smart post-login landing spot for the "dashboard" route name (nothing in
@@ -208,6 +222,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.products.check-name')->middleware(['auth', 'role:admin']);
     Route::post('products', [ProductController::class, 'store'])
         ->name('admin.products.store')->middleware(['auth', 'role:admin']);
+    Route::get('products/{product}/serial-stickers', [ProductController::class, 'serialStickers'])
+        ->name('admin.products.serial-stickers')->middleware(['auth', 'role:admin']);
     Route::get('products/{product}', [ProductController::class, 'show'])
         ->name('admin.products.show')->middleware(['auth', 'role:admin']);
     Route::get('products/{product}/edit', [ProductController::class, 'edit'])

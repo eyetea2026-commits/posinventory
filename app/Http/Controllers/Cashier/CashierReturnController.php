@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\Replacement;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
@@ -15,6 +16,7 @@ use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\NewRefundRequest;
 use App\Services\ActionNotifier;
+use App\Services\SerialNumbers;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -469,6 +471,8 @@ class CashierReturnController extends Controller
                         );
                     }
 
+                    // The refunded pieces go back with their own serial stickers.
+                    SerialNumbers::returnToStock($salesReturn->SalesTransactionID, $item->ProductID, $item->Quantity);
                     $inventory->Quantity += $item->Quantity;
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     $inventory->save();
@@ -595,7 +599,7 @@ class CashierReturnController extends Controller
 
                 $inventory->Quantity -= $data['quantity'];
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                $inventory->save();
+                SerialNumbers::removingAs(ProductSerial::STATUS_REPLACEMENT, fn () => $inventory->save());
 
                 $slipNumber = 'RPL-'.str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT);
 

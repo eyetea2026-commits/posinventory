@@ -89,6 +89,23 @@ class Product extends Model
         return $this->hasOne(Inventory::class, 'ProductID', 'ProductID');
     }
 
+    /**
+     * One row per piece (SN00001...), in stock or not.
+     */
+    public function serials()
+    {
+        return $this->hasMany(ProductSerial::class, 'ProductID', 'ProductID');
+    }
+
+    /**
+     * Each piece gets its own serial number (its category says so); the
+     * serial sticker is then that piece's barcode at the POS.
+     */
+    public function tracksSerialNumbers(): bool
+    {
+        return (bool) ($this->category ?? $this->category()->first())?->TracksSerialNumbers;
+    }
+
     public function stockReceivings()
     {
         return $this->hasMany(StockReceiving::class, 'ProductID', 'ProductID');

@@ -115,10 +115,13 @@ class CategoryController extends Controller
             'CategoryName.unique' => 'This category already exists.',
         ]);
 
-        $category = DB::transaction(function () use ($data) {
+        $tracksSerialNumbers = $request->boolean('TracksSerialNumbers');
+
+        $category = DB::transaction(function () use ($data, $tracksSerialNumbers) {
             $category = Category::create([
                 'CategoryName' => $data['CategoryName'],
                 'Description' => $data['Description'] ?? null,
+                'TracksSerialNumbers' => $tracksSerialNumbers,
             ]);
 
             // De-duplicate case-insensitively — the client already blocks
@@ -193,6 +196,7 @@ class CategoryController extends Controller
         $category->update([
             'CategoryName' => $request->CategoryName,
             'Description' => $request->Description,
+            ...($request->has('TracksSerialNumbers') ? ['TracksSerialNumbers' => $request->boolean('TracksSerialNumbers')] : []),
         ]);
 
         try {

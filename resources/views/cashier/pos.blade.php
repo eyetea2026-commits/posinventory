@@ -103,6 +103,11 @@
     .remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; font-size: 1rem; margin-left: 8px; }
 
     .cart-item-promo-row { flex-basis: 100%; margin-top: 8px; }
+    .cart-item-serial-qty { font-size: 0.85rem; color: #cbd5e1; padding: 4px 8px; background: #1a1d2d; border-radius: 8px; }
+    .cart-item-serials { flex-basis: 100%; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .serial-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px 2px 8px; background: rgba(59,130,246,0.15); color: #93c5fd; border-radius: 6px; font-size: 0.75rem; font-family: monospace; }
+    .serial-chip button { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.85rem; line-height: 1; padding: 0 2px; }
+    .serial-chip button:hover { color: #f87171; }
     .promo-original-price { text-decoration: line-through; color: #64748b; margin-right: 6px; }
     .promo-discounted-price { color: #6ee7b7; font-weight: 600; }
     .promo-applied-chip {
@@ -238,9 +243,13 @@
                     $stock = $product->inventory?->Quantity ?? 0;
                     $stockClass = $stock <= 0 ? 'out-of-stock' : ($stock <= 10 ? 'low' : '');
                     $stockText = $stock <= 0 ? 'Out of Stock' : ($stock <= 10 ? 'Low Stock: ' . $stock : 'Stock: ' . $stock);
+                    // Serial-numbered products are added by scanning each piece's sticker.
+                    $cardClick = $product->tracksSerialNumbers()
+                        ? 'askToScanSerial(' . json_encode($product->ProductName) . ')'
+                        : 'addToCart(' . $product->ProductID . ', ' . json_encode($product->ProductName) . ', ' . $product->Price . ', ' . $stock . ')';
                 @endphp
                 <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}" data-product-id="{{ $product->ProductID }}" data-price="{{ $product->Price }}" data-stock="{{ $stock }}"
-                     onclick="{{ $stock > 0 ? 'addToCart(' . $product->ProductID . ', ' . json_encode($product->ProductName) . ', ' . $product->Price . ', ' . $stock . ')' : '' }}">
+                     onclick="{{ $stock > 0 ? $cardClick : '' }}">
                     @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-card'])
                     <h3>{{ $product->ProductName }}</h3>
                     <p>{{ $product->Model }}</p>
@@ -639,7 +648,7 @@
                         // its qty instead of pushing a new one, so repeated
                         // scans of the same item just keep adding +1 — clear
                         // the field so it's ready for the next scan.
-                        addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock);
+                        addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock, data.serial || null);
                         input.value = '';
                     } else {
                         toastWarning('Product out of stock!');
@@ -791,8 +800,30 @@
         });
     }
 
-    function addToCart(id, name, price, stock) {
+    // Clicking a serial-numbered product: each piece is added by its sticker.
+    function askToScanSerial(name) {
+        toastWarning('Scan the serial number sticker on the "' + name + '" to add it.');
+        document.getElementById('barcode-input').focus();
+    }
+
+    function addToCart(id, name, price, stock, serial) {
         const existingItem = cart.find(item => item.id === id);
+        if (serial) {
+            if (existingItem && existingItem.serials && existingItem.serials.indexOf(serial) !== -1) {
+                toastWarning(serial + ' is already in the cart.');
+                return;
+            }
+            if (existingItem) {
+                existingItem.serials.push(serial);
+                existingItem.qty = existingItem.serials.length;
+                existingItem.stock = stock;
+            } else {
+                cart.push({ id, name, price, qty: 1, stock, serials: [serial] });
+            }
+            cartFocusItemId = id;
+            renderCart();
+            return;
+        }
         if (existingItem) {
             if (existingItem.qty < stock) {
                 existingItem.qty++;
@@ -845,6 +876,30 @@
     function removeFromCart(id) {
         cart = cart.filter(item => item.id !== id);
         renderCart();
+    }
+
+    // The x on a serial number chip: takes that one piece out of the sale.
+    function confirmRemoveSerial(id, serial) {
+        const item = cart.find(line => line.id === id);
+        if (!item) return;
+
+        window.confirmAction({
+            title: 'Remove Product',
+            text: 'Remove "' + item.name + '" (' + serial + ') from the current sale?',
+            icon: 'warning',
+            confirmText: 'Remove',
+            cancelText: 'Keep',
+            confirmColor: '#ef4444',
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            item.serials = item.serials.filter(s => s !== serial);
+            item.qty = item.serials.length;
+            if (item.qty === 0) {
+                removeFromCart(id);
+            } else {
+                renderCart();
+            }
+        });
     }
 
     // Trash icon on a cart line: asks first, naming the product, so a
@@ -957,6 +1012,9 @@
                     <div class="cart-item-info">
                         ${priceLineHtml}
                     </div>
+                    ${item.serials ? `
+                    <div class="cart-item-serial-qty">Qty: ${item.qty}</div>
+                    ` : `
                     <div class="cart-item-qty">
                         <button class="qty-btn" data-item-id="${item.id}" data-step="-1" ${item.qty <= 1 ? 'disabled' : ''}>-</button>
                         <input type="number" class="qty-input" value="${item.qty}" min="1" max="${item.stock}"
@@ -964,10 +1022,16 @@
                                onkeydown="if (event.key === 'Enter') this.blur();">
                         <button class="qty-btn" data-item-id="${item.id}" data-step="1" ${item.qty >= item.stock ? 'disabled' : ''}>+</button>
                     </div>
+                    `}
                     <div class="cart-item-price">
                         <div class="item-total">${window.formatPeso(roundMoney(lineTotal))}</div>
                     </div>
                     ${promoRowHtml}
+                    ${item.serials ? `
+                    <div class="cart-item-serials">
+                        ${item.serials.map(sn => `<span class="serial-chip">${escapeHtml(sn)}<button type="button" title="Remove ${escapeHtml(sn)}" onclick="confirmRemoveSerial(${item.id}, '${escapeHtml(sn)}')">&times;</button></span>`).join('')}
+                    </div>
+                    ` : ''}
                 </div>
             `;
         });

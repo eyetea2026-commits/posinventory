@@ -15,6 +15,18 @@
     <span class="error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
 </div>
 
+{{-- Serial numbers: one per piece, printed as that piece's barcode sticker.
+     Off for consumables and wires (sold with the product barcode). --}}
+<div class="form-group">
+    <input type="hidden" name="TracksSerialNumbers" value="0">
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:normal;">
+        <input type="checkbox" name="TracksSerialNumbers" value="1"
+               {{ old('TracksSerialNumbers', isset($category) ? (int) $category->TracksSerialNumbers : 1) ? 'checked' : '' }}>
+        Give each piece a serial number (its barcode sticker)
+    </label>
+    <small style="color:#94a3b8;">Untick for consumables and wires, which use the product barcode.</small>
+</div>
+
 {{-- Brands panel: in Edit mode (a real CategoryID exists), adding/removing a
      brand chip is an immediate AJAX call against that category. In Add mode
      (no CategoryID yet), chips are held client-side only as "Brands[]"

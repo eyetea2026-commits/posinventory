@@ -9,6 +9,7 @@ use App\Models\Discount;
 use App\Models\Inventory;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\SalesItem;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
@@ -65,7 +66,7 @@ class CashierAuthController extends Controller
     public function pos()
     {
         // Newest product first on the POS grid.
-        $products = Product::active()->with('inventory')->orderByDesc('ProductID')->get()->filter(function ($product) {
+        $products = Product::active()->with(['inventory', 'category'])->orderByDesc('ProductID')->get()->filter(function ($product) {
             return $product->inventory && $product->inventory->Quantity > 0;
         });
 
@@ -315,6 +316,9 @@ class CashierAuthController extends Controller
             'items' => 'required|array|min:1',
             'items.*.id' => 'required|integer|exists:Product,ProductID',
             'items.*.qty' => 'required|integer|min:1',
+            // Serial-numbered products: the scanned sticker of each piece.
+            'items.*.serials' => 'nullable|array',
+            'items.*.serials.*' => 'string|max:20',
             'payment_method' => 'required|in:cash,gcash,bank,cheque',
             'reference_number' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:50'],
             'bank_name' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'string', 'max:100'],
@@ -413,7 +417,7 @@ class CashierAuthController extends Controller
                     ->get()
                     ->keyBy('ProductID');
 
-                $products = Product::whereIn('ProductID', array_keys($quantitiesByProduct))
+                $products = Product::with('category')->whereIn('ProductID', array_keys($quantitiesByProduct))
                     ->get()
                     ->keyBy('ProductID');
 
@@ -431,6 +435,38 @@ class CashierAuthController extends Controller
                         $product = $products->get($productId);
                         throw new \RuntimeException('Insufficient stock for '.($product?->ProductName ?? 'product').'. Available: '.($inventory?->Quantity ?? 0));
                     }
+                }
+
+                // Serial-numbered products sell by their scanned stickers:
+                // one in-stock serial of that product per piece sold.
+                $scannedSerials = [];
+                foreach ($items as $item) {
+                    foreach ($item['serials'] ?? [] as $serialNumber) {
+                        $scannedSerials[$item['id']][] = strtoupper(trim($serialNumber));
+                    }
+                }
+                $serialsToSell = [];
+                foreach ($quantitiesByProduct as $productId => $qty) {
+                    $product = $products->get($productId);
+                    if (! $product->tracksSerialNumbers()) {
+                        continue;
+                    }
+
+                    $serialNumbers = array_values(array_unique($scannedSerials[$productId] ?? []));
+                    if (count($serialNumbers) !== $qty) {
+                        throw new \RuntimeException("Scan the serial number sticker of each \"{$product->ProductName}\" ({$qty} needed, ".count($serialNumbers).' scanned).');
+                    }
+
+                    $serials = ProductSerial::where('ProductID', $productId)
+                        ->whereIn('SerialNumber', $serialNumbers)
+                        ->where('Status', ProductSerial::STATUS_IN_STOCK)
+                        ->lockForUpdate()
+                        ->get();
+                    if ($serials->count() !== $qty) {
+                        $unavailable = array_diff($serialNumbers, $serials->pluck('SerialNumber')->all());
+                        throw new \RuntimeException('Serial number '.implode(', ', $unavailable)." is not an in-stock \"{$product->ProductName}\". Remove it from the cart.");
+                    }
+                    $serialsToSell[$productId] = $serials;
                 }
 
                 // Recompute totals from the DB product prices — never trust
@@ -612,6 +648,16 @@ class CashierAuthController extends Controller
                         'ProductID' => $item['id'],
                         'SalesTransactionID' => $transaction->SalesTransactionID,
                     ]);
+                }
+
+                foreach ($serialsToSell as $serials) {
+                    foreach ($serials as $serial) {
+                        $serial->update([
+                            'Status' => ProductSerial::STATUS_SOLD,
+                            'SalesTransactionID' => $transaction->SalesTransactionID,
+                            'StatusDate' => now(),
+                        ]);
+                    }
                 }
 
                 // Update inventory using the aggregated per-product quantity

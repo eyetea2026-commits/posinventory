@@ -9,11 +9,13 @@ use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductCostHistory;
+use App\Models\ProductSerial;
 use App\Models\ProductSupplier;
 use App\Models\User;
 use App\Notifications\ProductUpdated;
 use App\Services\ActionNotifier;
 use App\Services\ProductImage;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -107,7 +109,7 @@ class ProductController extends Controller
 
     public function show(Request $request, Product $product)
     {
-        $product->load(['brand', 'category', 'inventory']);
+        $product->load(['brand', 'category', 'inventory', 'serials' => fn ($query) => $query->with('salesTransaction')->orderByDesc('ProductSerialID')]);
 
         $quantity = $product->inventory?->Quantity ?? 0;
         $threshold = $product->inventory?->ReorderThreshold ?? 50;
@@ -135,6 +137,35 @@ class ProductController extends Controller
         }
 
         return view('admin.products.show', $viewData);
+    }
+
+    /**
+     * Serial number stickers for A4 sticker paper, 4 x 10 per page (52.5 x
+     * 29.7 mm each): the ticked serials, or every piece in stock.
+     */
+    public function serialStickers(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'serials' => ['nullable', 'array'],
+            'serials.*' => ['integer'],
+        ]);
+
+        $serials = $product->serials()
+            ->where('Status', ProductSerial::STATUS_IN_STOCK)
+            ->when(! empty($data['serials']), fn ($query) => $query->whereIn('ProductSerialID', $data['serials']))
+            ->orderBy('ProductSerialID')
+            ->get();
+
+        if ($serials->isEmpty()) {
+            return back()->with('error', 'There are no in-stock serial numbers to print for this product.');
+        }
+
+        $pages = $serials->chunk(40);
+        $fileName = 'Serial-Stickers-'.preg_replace('/[^A-Za-z0-9]+/', '-', $product->ProductName).'.pdf';
+
+        return Pdf::loadView('admin.products.serial-stickers-pdf', ['product' => $product, 'pages' => $pages])
+            ->setPaper('a4')
+            ->stream($fileName);
     }
 
     public function create()

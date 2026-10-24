@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Models\Inventory;
 use App\Models\User;
 use App\Notifications\LowStockAlert;
+use App\Services\SerialNumbers;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Throwable;
@@ -17,6 +18,9 @@ class InventoryObserver
     // each call site avoids duplicating the trigger condition everywhere.
     public function saved(Inventory $inventory): void
     {
+        // Same choke point keeps one serial number per piece in stock.
+        SerialNumbers::syncWithStock($inventory);
+
         if (! $inventory->wasChanged('Status')) {
             return;
         }

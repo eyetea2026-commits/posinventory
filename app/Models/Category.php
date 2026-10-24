@@ -15,13 +15,13 @@ class Category extends Model
 
     protected $primaryKey = 'CategoryID';
 
-    protected $fillable = ['CategoryName', 'Description', 'IsActive'];
+    protected $fillable = ['CategoryName', 'Description', 'IsActive', 'TracksSerialNumbers'];
 
     protected $attributes = ['IsActive' => true];
 
     protected function casts(): array
     {
-        return ['IsActive' => 'boolean'];
+        return ['IsActive' => 'boolean', 'TracksSerialNumbers' => 'boolean'];
     }
 
     public function products()

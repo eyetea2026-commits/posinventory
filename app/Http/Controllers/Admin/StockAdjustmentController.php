@@ -7,10 +7,12 @@ use App\Models\ActivityLog;
 use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockAdjustment;
 use App\Models\User;
 use App\Notifications\StockAdjustmentRecorded;
+use App\Services\SerialNumbers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -110,7 +112,7 @@ class StockAdjustmentController extends Controller
 
                 $inventory->Quantity = $newQty;
                 $inventory->Status = Inventory::resolveStatus($newQty, $inventory->ReorderThreshold);
-                $inventory->save();
+                SerialNumbers::removingAs(ProductSerial::STATUS_ADJUSTED_OUT, fn () => $inventory->save());
 
                 // A decrease recorded as "Damaged" is a loss the Damage
                 // module needs to track (supplier return / disposal) —
