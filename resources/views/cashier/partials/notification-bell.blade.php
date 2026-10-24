@@ -14,7 +14,7 @@
         <div class="notif-dropdown-header">
             <span>Notifications</span>
             @if(($headerUnreadCount ?? 0) > 0)
-                <form method="POST" action="{{ route('cashier.notifications.read-all') }}">
+                <form method="POST" action="{{ route('cashier.notifications.read-all') }}" class="js-confirm-submit" data-confirm-title="Mark All as Read" data-confirm-text="Mark all notifications as read?">
                     @csrf
                     <button type="submit">Mark all read</button>
                 </form>
@@ -23,7 +23,7 @@
         <div class="notif-items">
             @forelse(($headerUnreadNotifications ?? collect()) as $notification)
                 <a href="{{ route('cashier.notifications.read', $notification->id) }}"
-                   onclick="event.preventDefault(); this.nextElementSibling.submit();"
+                   onclick="event.preventDefault(); var f = this.nextElementSibling; window.confirmAction({ title: 'Open Notification', text: 'Mark this notification as read and open it?' }).then(function (r) { if (r.isConfirmed) f.submit(); });"
                    class="notif-item">
                     {{ $notification->data['title'] ?? 'Notification' }}
                     <br><small>{{ Str::limit($notification->data['description'] ?? '', 60) }}</small>

@@ -617,6 +617,13 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
     const transactionId = this.dataset.transactionId;
     const returnType = document.querySelector('input[name="return_type"]').value;
 
+    window.confirmAction({
+        title: 'Submit Return Request',
+        text: 'Send this return request to the admin for approval?',
+        confirmText: 'Submit',
+    }).then(function (result) {
+    if (!result.isConfirmed) return;
+
     const idleLabel = submitBtn.innerHTML;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
@@ -649,6 +656,7 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
         toastError('Error submitting return request');
         submitBtn.disabled = false;
         submitBtn.innerHTML = idleLabel;
+    });
     });
 });
 

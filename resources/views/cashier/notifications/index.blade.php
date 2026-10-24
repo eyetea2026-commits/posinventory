@@ -29,7 +29,7 @@
 
 <div class="content-header">
     <h1>Notifications</h1>
-    <form method="POST" action="{{ route('cashier.notifications.read-all') }}">
+    <form method="POST" action="{{ route('cashier.notifications.read-all') }}" class="js-confirm-submit" data-confirm-title="Mark All as Read" data-confirm-text="Mark all notifications as read?">
         @csrf
         <button type="submit" class="btn-mark-all"><i class="fas fa-check-double"></i> Mark all as read</button>
     </form>
@@ -73,7 +73,7 @@
                     <td>{{ $notification->data['description'] ?? '' }}</td>
                     <td>{{ $notification->created_at->format('m/d/Y g:i A') }}</td>
                     <td>
-                        <form method="POST" action="{{ route('cashier.notifications.read', $notification->id) }}">
+                        <form method="POST" action="{{ route('cashier.notifications.read', $notification->id) }}" class="js-confirm-submit" data-confirm-title="Open Notification" data-confirm-text="Mark this notification as read and open it?">
                             @csrf
                             <button type="submit" class="btn-view" title="View">
                                 <i class="fas fa-arrow-up-right-from-square"></i>

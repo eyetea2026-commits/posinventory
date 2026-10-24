@@ -201,7 +201,7 @@
                 <h3 class="modal-title">Decline Return Request</h3>
                 <button type="button" class="modal-close" onclick="closeDeclineModal()"><i class="fas fa-times"></i></button>
             </div>
-            <form id="declineForm" method="POST">
+            <form id="declineForm" method="POST" class="js-confirm-submit" data-confirm-title="Decline Return Request" data-confirm-text="Decline this return request? The cashier will see your reason." data-confirm-icon="warning" data-confirm-color="#ef4444">
                 @csrf
                 <div class="form-group">
                     <label class="form-label">Decline Reason <span style="color: var(--danger);">*</span></label>

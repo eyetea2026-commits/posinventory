@@ -10,7 +10,7 @@
 @endsection
 
 @section('header-actions')
-    <form method="POST" action="{{ route('admin.notifications.read-all') }}">
+    <form method="POST" action="{{ route('admin.notifications.read-all') }}" class="js-confirm-submit" data-confirm-title="Mark All as Read" data-confirm-text="Mark all notifications as read?">
         @csrf
         <button type="submit" class="btn btn-secondary"><i class="fas fa-check-double"></i> Mark all as read</button>
     </form>
@@ -58,7 +58,7 @@
                             <td>{{ $notification->created_at->format('m/d/Y g:i A') }}</td>
                             <td>
                                 <div class="actions-group">
-                                    <form method="POST" action="{{ route('admin.notifications.read', $notification->id) }}">
+                                    <form method="POST" action="{{ route('admin.notifications.read', $notification->id) }}" class="js-confirm-submit" data-confirm-title="Open Notification" data-confirm-text="Mark this notification as read and open it?">
                                         @csrf
                                         <button type="submit" class="action-btn" title="View Details">
                                             <i class="fas fa-arrow-up-right-from-square"></i>

@@ -97,6 +97,28 @@ class Phase5PolishTest extends TestCase
             ->assertSee("options.icon === 'success' && options.timer", false);
     }
 
+    // Actions that used to save straight away now ask first.
+    public function test_actions_that_used_to_save_straight_away_now_ask_first(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.sales-returns.index'))->assertOk()
+            ->assertSee('data-confirm-title="Decline Return Request"', false);
+        $this->actingAs($this->admin)->get(route('admin.notifications.index'))->assertOk()
+            ->assertSee('data-confirm-title="Mark All as Read"', false);
+        $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()
+            ->assertSee("title: 'Add Supplier', text: 'Add this supplier to this product?'", false)
+            ->assertSee("title: 'Make Preferred'", false)
+            ->assertSee("title: 'Remove Supplier'", false)
+            ->assertSee("window.confirmAction({ title: 'Add Brand', text: 'Add \"' + brandName + '\" as a new brand?' })", false);
+        $this->actingAs($this->admin)->get(route('admin.categories.index'))->assertOk()
+            ->assertSee("window.confirmAction({ title: 'Add Brand', text: 'Add \"' + brandName + '\" to this category?' })", false);
+
+        $cashier = User::factory()->create(['role_id' => Role::firstOrCreate(['role_name' => 'cashier'])->id]);
+        $this->actingAs($cashier)->get(route('cashier.refunds'))->assertOk()
+            ->assertSee("title: 'Submit Return Request'", false);
+        $this->actingAs($cashier)->get(route('cashier.notifications.index'))->assertOk()
+            ->assertSee('data-confirm-title="Mark All as Read"', false);
+    }
+
     public function test_admin_layout_logout_form_carries_a_confirm_dialog(): void
     {
         // Uses the Suppliers index rather than the dashboard — the

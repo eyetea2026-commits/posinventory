@@ -106,6 +106,9 @@
             return;
         }
 
+        window.confirmAction({ title: 'Add Brand', text: 'Add "' + brandName + '" to this category?' }).then(function (result) {
+        if (!result.isConfirmed) return;
+
         addBtn.disabled = true;
 
         fetch('{{ url('admin/categories') }}/' + categoryId + '/brands', {
@@ -134,6 +137,7 @@
             .finally(function () {
                 addBtn.disabled = false;
             });
+        });
     };
 
     document.addEventListener('keydown', function (e) {

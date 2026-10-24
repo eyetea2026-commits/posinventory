@@ -141,6 +141,9 @@ window.initProductAddForm = function (formId, options) {
                     return;
                 }
 
+                window.confirmAction({ title: 'Add Brand', text: 'Add "' + brandName + '" as a new brand?' }).then(function (result) {
+                if (!result.isConfirmed) return;
+
                 confirmAddBrandBtn.disabled = true;
 
                 fetch('{{ url('admin/categories') }}/' + categorySelect.value + '/brands', {
@@ -183,6 +186,7 @@ window.initProductAddForm = function (formId, options) {
                     .finally(function () {
                         confirmAddBrandBtn.disabled = false;
                     });
+                });
             }
 
             confirmAddBrandBtn.addEventListener('click', submitNewBrand);
@@ -552,18 +556,24 @@ window.initProductSuppliersPanel = function (productId, root) {
     body.onclick = function (e) {
         var preferBtn = e.target.closest('[data-prefer-id]');
         if (preferBtn) {
-            fetch('{{ url('admin/product-suppliers') }}/' + preferBtn.dataset.preferId + '/prefer', {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-            }).then(loadSuppliers);
+            window.confirmAction({ title: 'Make Preferred', text: 'Make this the preferred supplier for this product?' }).then(function (result) {
+                if (!result.isConfirmed) return;
+                fetch('{{ url('admin/product-suppliers') }}/' + preferBtn.dataset.preferId + '/prefer', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                }).then(loadSuppliers);
+            });
             return;
         }
         var removeBtn = e.target.closest('[data-remove-id]');
         if (removeBtn) {
-            fetch('{{ url('admin/product-suppliers') }}/' + removeBtn.dataset.removeId, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-            }).then(loadSuppliers);
+            window.confirmAction({ title: 'Remove Supplier', text: 'Remove this supplier from this product?', icon: 'warning', confirmText: 'Remove', confirmColor: '#ef4444' }).then(function (result) {
+                if (!result.isConfirmed) return;
+                fetch('{{ url('admin/product-suppliers') }}/' + removeBtn.dataset.removeId, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                }).then(loadSuppliers);
+            });
             return;
         }
     };
@@ -574,6 +584,8 @@ window.initProductSuppliersPanel = function (productId, root) {
             Swal.fire({ title: 'Missing info', text: 'Select a supplier.', icon: 'warning', confirmButtonColor: '#f59e0b' });
             return;
         }
+        window.confirmAction({ title: 'Add Supplier', text: 'Add this supplier to this product?' }).then(function (confirmResult) {
+        if (!confirmResult.isConfirmed) return;
         fetch(suppliersUrl(), {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -593,6 +605,7 @@ window.initProductSuppliersPanel = function (productId, root) {
             supplierSelect.value = '';
             supplierSelect.dispatchEvent(new Event('change'));
             loadSuppliers();
+        });
         });
     };
 

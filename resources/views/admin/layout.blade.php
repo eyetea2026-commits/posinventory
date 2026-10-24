@@ -268,7 +268,7 @@
                             <div class="header-dropdown-header" data-live-region="admin-notif-header" data-live-topics="notifications" style="display:flex;align-items:center;justify-content:space-between;">
                                 <span>Notifications</span>
                                 @if($headerUnreadCount > 0)
-                                    <form method="POST" action="{{ route('admin.notifications.read-all') }}">
+                                    <form method="POST" action="{{ route('admin.notifications.read-all') }}" class="js-confirm-submit" data-confirm-title="Mark All as Read" data-confirm-text="Mark all notifications as read?">
                                         @csrf
                                         <button type="submit" style="background:none;border:none;color:var(--text-secondary);font-size:.75rem;cursor:pointer;">Mark all read</button>
                                     </form>
@@ -300,7 +300,7 @@
                                             $__icon = $__notifIcons[$notification->data['icon'] ?? ''] ?? 'fa-circle-info';
                                         @endphp
                                         <a href="{{ route('admin.notifications.read', $notification->id) }}"
-                                           onclick="event.preventDefault(); document.getElementById('notif-read-{{ $notification->id }}').submit();"
+                                           onclick="event.preventDefault(); window.confirmAction({ title: 'Open Notification', text: 'Mark this notification as read and open it?' }).then(function (r) { if (r.isConfirmed) document.getElementById('notif-read-{{ $notification->id }}').submit(); });"
                                            class="header-dropdown-item">
                                             <span><i class="fas {{ $__icon }}" style="color:{{ $__color }};"></i> {{ $notification->data['title'] ?? 'Notification' }}
                                                 <br><small style="color:var(--text-secondary);">{{ Str::limit($notification->data['description'] ?? '', 60) }}</small>
