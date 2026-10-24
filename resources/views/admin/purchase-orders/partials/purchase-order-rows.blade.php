@@ -43,7 +43,7 @@
                     {{-- Safe to repeat: printPreview() only changes anything
                          while a PO is still a Draft; for an already-printed PO
                          it just re-renders the document. --}}
-                    <a href="{{ route('admin.purchase-orders.print', $order) }}" target="_blank" class="action-btn print" title="Reprint">
+                    <a href="{{ route('admin.purchase-orders.print', $order) }}" target="_blank" class="action-btn print js-confirm-link" data-confirm-title="Reprint Purchase Order" data-confirm-text="Open this purchase order for printing?" title="Reprint">
                         <i class="fas fa-print"></i>
                     </a>
                 @endif

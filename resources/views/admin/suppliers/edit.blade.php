@@ -24,7 +24,7 @@
             </a>
         </div>
 
-        <form method="POST" action="{{ route('admin.suppliers.update', $supplier) }}" id="supplierForm">
+        <form method="POST" action="{{ route('admin.suppliers.update', $supplier) }}" id="supplierForm" class="js-confirm-submit" data-confirm-title="Confirm Update" data-confirm-text="Save changes to this supplier?">
             @csrf
             @method('PUT')
 

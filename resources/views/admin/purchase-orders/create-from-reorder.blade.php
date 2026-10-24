@@ -27,7 +27,7 @@
             </a>
         </div>
 
-        <form method="POST" action="{{ route('admin.purchase-orders.store-from-reorder', $product) }}" id="reorderPurchaseOrderForm">
+        <form method="POST" action="{{ route('admin.purchase-orders.store-from-reorder', $product) }}" id="reorderPurchaseOrderForm" class="js-confirm-submit" data-confirm-title="Confirm Save" data-confirm-text="Create this purchase order?">
             @csrf
 
             @include('admin.purchase-orders.partials.reorder-form-fields', [

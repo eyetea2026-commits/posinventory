@@ -25,7 +25,7 @@
             </a>
         </div>
 
-        <form method="POST" action="{{ route('admin.stock-adjustments.store') }}" id="adjustmentForm">
+        <form method="POST" action="{{ route('admin.stock-adjustments.store') }}" id="adjustmentForm" class="js-confirm-submit" data-confirm-title="Confirm Save" data-confirm-text="Save this stock adjustment?">
             @csrf
 
             @include('admin.stock-adjustments.partials.stock-adjustment-form-fields')

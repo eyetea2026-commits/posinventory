@@ -152,10 +152,10 @@
     @include('admin.purchase-orders.partials.purchase-order-details', ['purchaseOrder' => $purchaseOrder, 'showStatus' => true])
 
     <div class="detail-actions">
-        <a href="{{ route('admin.purchase-orders.print', $purchaseOrder) }}" target="_blank" class="btn btn-secondary">
+        <a href="{{ route('admin.purchase-orders.print', $purchaseOrder) }}" target="_blank" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Purchase Order" data-confirm-text="Open this purchase order for printing?">
             <i class="fas fa-print"></i> Print
         </a>
-        <a href="{{ route('admin.purchase-orders.export', $purchaseOrder) }}" class="btn btn-secondary">
+        <a href="{{ route('admin.purchase-orders.export', $purchaseOrder) }}" class="btn btn-secondary js-confirm-link" data-confirm-title="Export Purchase Order" data-confirm-text="Download this purchase order?">
             <i class="fas fa-file-pdf"></i> Export PDF
         </a>
         @if($purchaseOrder->Status === \App\Models\PurchaseOrder::STATUS_DRAFT)

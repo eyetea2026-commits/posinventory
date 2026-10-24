@@ -119,6 +119,37 @@ class Phase5PolishTest extends TestCase
             ->assertSee('data-confirm-title="Mark All as Read"', false);
     }
 
+    // Downloads, exports, prints, the full-page forms and removing a POS
+    // discount ask first too.
+    public function test_downloads_prints_and_full_page_forms_ask_first(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.reports.index'))->assertOk()
+            ->assertSee('id="exportPdfLink" class="js-confirm-link" data-confirm-title="Export as PDF"', false)
+            ->assertSee('id="exportCsvLink" class="js-confirm-link"', false)
+            ->assertSee('id="exportExcelLink" class="js-confirm-link"', false)
+            ->assertSee('id="printPreviewLink" class="js-confirm-link"', false)
+            ->assertSee("window.confirmAction({ title: 'Print Report', text: 'Print this report?' })", false)
+            // Links are confirmed by one shared handler; a form's own validation runs first.
+            ->assertSee("const link = e.target.closest('a.js-confirm-link');", false)
+            ->assertSee("form.dataset.confirmed === 'true' || e.defaultPrevented) return;", false);
+
+        $po = $this->makeOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.show', $po))->assertOk()
+            ->assertSee('data-confirm-title="Print Purchase Order"', false)
+            ->assertSee('data-confirm-title="Export Purchase Order"', false);
+
+        $this->actingAs($this->admin)->get(route('admin.suppliers.create'))->assertOk()
+            ->assertSee('id="supplierForm" class="js-confirm-submit"', false);
+        $this->actingAs($this->admin)->get(route('admin.stock-adjustments.create'))->assertOk()
+            ->assertSee('id="adjustmentForm" class="js-confirm-submit"', false);
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.create'))->assertOk()
+            ->assertSee('id="purchaseOrderForm" class="js-confirm-submit"', false);
+
+        $cashier = User::factory()->create(['role_id' => Role::firstOrCreate(['role_name' => 'cashier'])->id]);
+        $this->actingAs($cashier)->get(route('cashier.pos'))->assertOk()
+            ->assertSee("title: 'Remove Discount'", false);
+    }
+
     public function test_admin_layout_logout_form_carries_a_confirm_dialog(): void
     {
         // Uses the Suppliers index rather than the dashboard — the

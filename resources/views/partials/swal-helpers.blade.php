@@ -161,7 +161,8 @@
     // replaced via innerHTML.
     document.addEventListener('submit', function (e) {
         const form = e.target.closest('form.js-confirm-submit');
-        if (!form || form.dataset.confirmed === 'true') return;
+        // Skip when the page's own validation already stopped the submit.
+        if (!form || form.dataset.confirmed === 'true' || e.defaultPrevented) return;
 
         e.preventDefault();
         window.confirmAction({
@@ -174,6 +175,30 @@
                 form.dataset.confirmed = 'true';
                 form.submit();
             }
+        });
+    });
+
+    // Same idea for download/print links:
+    //   <a href="..." class="js-confirm-link" data-confirm-title="..." data-confirm-text="...">
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('a.js-confirm-link');
+        if (!link || !link.href || link.getAttribute('href') === '#') return;
+
+        e.preventDefault();
+        window.confirmAction({
+            title: link.dataset.confirmTitle || 'Are you sure?',
+            text: link.dataset.confirmText || '',
+            icon: link.dataset.confirmIcon || 'question',
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            // A copy without the class, so this handler lets it through.
+            const go = document.createElement('a');
+            go.href = link.href;
+            go.target = link.target;
+            if (link.target === '_blank') go.rel = 'noopener';
+            document.body.appendChild(go);
+            go.click();
+            go.remove();
         });
     });
 </script>

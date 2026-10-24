@@ -23,7 +23,7 @@
             </a>
         </div>
 
-        <form method="POST" action="{{ route('admin.purchase-orders.store') }}" id="purchaseOrderForm" onsubmit="return window.validateOrderItems();">
+        <form method="POST" action="{{ route('admin.purchase-orders.store') }}" id="purchaseOrderForm" class="js-confirm-submit" data-confirm-title="Confirm Save" data-confirm-text="Create the purchase order(s) for the ticked items?" onsubmit="return window.validateOrderItems();">
             @csrf
 
             @include('admin.purchase-orders.partials.purchase-order-form-fields')

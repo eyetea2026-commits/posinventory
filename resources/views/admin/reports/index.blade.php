@@ -76,10 +76,10 @@
                         <i class="fas fa-download"></i> Download
                     </button>
                     <div id="downloadMenu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:#0f172a; border:1px solid #334155; border-radius:10px; min-width:180px; z-index:20; box-shadow: 0 12px 28px rgba(0,0,0,0.4);">
-                        <a href="#" id="printPreviewLink" target="_blank" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-print"></i> Print Preview</a>
-                        <a href="#" id="exportPdfLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-pdf"></i> Export as PDF</a>
-                        <a href="#" id="exportCsvLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-csv"></i> Export as CSV</a>
-                        <a href="#" id="exportExcelLink" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-excel"></i> Export as Excel</a>
+                        <a href="#" id="printPreviewLink" class="js-confirm-link" data-confirm-title="Print Preview" data-confirm-text="Open the print preview of this report?" target="_blank" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-print"></i> Print Preview</a>
+                        <a href="#" id="exportPdfLink" class="js-confirm-link" data-confirm-title="Export as PDF" data-confirm-text="Download this report as a PDF file?" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-pdf"></i> Export as PDF</a>
+                        <a href="#" id="exportCsvLink" class="js-confirm-link" data-confirm-title="Export as CSV" data-confirm-text="Download this report as a CSV file?" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-csv"></i> Export as CSV</a>
+                        <a href="#" id="exportExcelLink" class="js-confirm-link" data-confirm-title="Export as Excel" data-confirm-text="Download this report as an Excel file?" style="display:flex; align-items:center; gap:8px; padding:10px 14px; color:#f8fafc; text-decoration:none;"><i class="fas fa-file-excel"></i> Export as Excel</a>
                     </div>
                 </div>
             </div>
@@ -298,8 +298,11 @@
         }
 
         function printReportDetails() {
-            document.body.classList.add('printing-report-details');
-            window.print();
+            window.confirmAction({ title: 'Print Report', text: 'Print this report?' }).then(function (result) {
+                if (!result.isConfirmed) return;
+                document.body.classList.add('printing-report-details');
+                window.print();
+            });
         }
 
         window.addEventListener('afterprint', function () {

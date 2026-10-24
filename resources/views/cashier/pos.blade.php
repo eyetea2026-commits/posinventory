@@ -1210,8 +1210,11 @@
     function applyCustomDiscount() {
         const input = document.getElementById('custom-discount-input');
         if (customDiscount) {
-            input.value = '';
-            setCustomDiscount(null);
+            window.confirmAction({ title: 'Remove Discount', text: 'Remove the ' + customDiscount.percent + '% discount from this sale?', icon: 'warning', confirmText: 'Remove', confirmColor: '#ef4444' }).then(function (result) {
+                if (!result.isConfirmed) return;
+                input.value = '';
+                setCustomDiscount(null);
+            });
             return;
         }
 

@@ -24,7 +24,7 @@
             </a>
         </div>
 
-        <form method="POST" action="{{ route('admin.suppliers.store') }}" id="supplierForm">
+        <form method="POST" action="{{ route('admin.suppliers.store') }}" id="supplierForm" class="js-confirm-submit" data-confirm-title="Confirm Save" data-confirm-text="Add this supplier?">
             @csrf
 
             <div class="form-grid">
