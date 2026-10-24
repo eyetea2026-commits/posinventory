@@ -83,7 +83,11 @@ class Phase5PolishTest extends TestCase
     {
         $this->actingAs($this->admin)->get(route('admin.suppliers.index'))->assertOk()
             ->assertSee('.swal2-popup.swal2-show { animation-duration: 0.15s !important; }', false)
-            ->assertSee('.swal2-popup .swal2-icon *', false);
+            ->assertSee('.swal2-popup .swal2-icon *', false)
+            // Slightly smaller popup; icon scaled as a whole so the checkmark keeps its shape, in a clearer green.
+            ->assertSee('width: 440px !important;', false)
+            ->assertSee('.swal2-popup .swal2-icon { margin-top: 0.2rem !important; margin-bottom: 0.15rem !important; font-size: 11.2px !important; }', false)
+            ->assertSee(".swal2-popup .swal2-icon.swal2-success [class^='swal2-success-line'] { background-color: #16a34a !important; }", false);
 
         $cashier = User::factory()->create(['role_id' => Role::firstOrCreate(['role_name' => 'cashier'])->id]);
         $this->actingAs($cashier)->get(route('cashier.transactions'))->assertOk()

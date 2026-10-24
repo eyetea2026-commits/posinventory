@@ -33,21 +33,28 @@
        just the handful of box-model properties this needs to change. */
     .swal2-popup {
         border-radius: 14px !important;
-        padding: 1rem 1.6rem 1.3rem !important;
-        width: 520px !important;
+        padding: 0.85rem 1.3rem 1.1rem !important;
+        width: 440px !important;
         max-width: 92vw !important;
         font-family: inherit !important;
     }
-    .swal2-popup .swal2-title { font-size: 1.3rem !important; margin: 0.2rem 0.2rem 0.3rem !important; padding: 0 !important; line-height: 1.3 !important; }
-    .swal2-popup .swal2-html-container { font-size: 0.9rem !important; line-height: 1.5 !important; margin: 0.2rem 0.3rem 0.1rem !important; }
-    .swal2-popup .swal2-icon { margin-top: 0.3rem !important; margin-bottom: 0.2rem !important; width: 68px !important; height: 68px !important; }
-    .swal2-popup .swal2-actions { margin-top: 0.9rem !important; margin-bottom: 0 !important; gap: 10px !important; }
+    .swal2-popup .swal2-title { font-size: 1.15rem !important; margin: 0.2rem 0.2rem 0.3rem !important; padding: 0 !important; line-height: 1.3 !important; }
+    .swal2-popup .swal2-html-container { font-size: 0.86rem !important; line-height: 1.5 !important; margin: 0.2rem 0.3rem 0.1rem !important; }
+    /* The icon (and the check/cross/! drawn inside it) is sized in em, so
+       it's scaled with font-size: setting only width/height left the
+       checkmark's pieces at full size and misshapen. 11.2px x 5em = 56px. */
+    .swal2-popup .swal2-icon { margin-top: 0.2rem !important; margin-bottom: 0.15rem !important; font-size: 11.2px !important; }
+    /* A clearer checkmark: a stronger green than SweetAlert2's pale default. */
+    .swal2-popup .swal2-icon.swal2-success { border-color: #16a34a !important; }
+    .swal2-popup .swal2-icon.swal2-success [class^='swal2-success-line'] { background-color: #16a34a !important; }
+    .swal2-popup .swal2-icon.swal2-success .swal2-success-ring { border-color: rgba(22, 163, 74, 0.35) !important; }
+    .swal2-popup .swal2-actions { margin-top: 0.75rem !important; margin-bottom: 0 !important; gap: 10px !important; }
     .swal2-popup .swal2-styled {
         border-radius: 8px !important;
-        padding: 0.5em 1.4em !important;
-        min-height: 2.3em !important;
+        padding: 0.45em 1.3em !important;
+        min-height: 2.15em !important;
         font-weight: 600 !important;
-        font-size: 0.92rem !important;
+        font-size: 0.88rem !important;
     }
     .swal2-popup .swal2-close { font-size: 1.4rem !important; top: 6px !important; right: 6px !important; }
 
@@ -64,12 +71,12 @@
         .swal2-popup.swal2-show, .swal2-popup.swal2-hide { animation: none !important; }
     }
 
-    /* Below this width a 520px popup no longer fits comfortably (tablets in
+    /* Below this width a 440px popup no longer fits comfortably (tablets in
        portrait, large phones) — matches the spec's 90-95vw mobile target. */
     @media (max-width: 640px) {
         .swal2-popup { width: 94vw !important; padding: 0.85rem 1.1rem 1rem !important; }
-        .swal2-popup .swal2-title { font-size: 1.15rem !important; }
-        .swal2-popup .swal2-icon { width: 56px !important; height: 56px !important; }
+        .swal2-popup .swal2-title { font-size: 1.05rem !important; }
+        .swal2-popup .swal2-icon { font-size: 10px !important; }
         .swal2-popup .swal2-actions { flex-wrap: wrap !important; }
         .swal2-popup .swal2-styled { flex: 1 1 auto !important; }
     }
