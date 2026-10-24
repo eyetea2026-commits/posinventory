@@ -14,6 +14,7 @@ use App\Notifications\UserAccountUpdated;
 use App\Services\ActionNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -59,6 +60,7 @@ class UserController extends Controller
             })
             // Administrator accounts always stay on top; every other account
             // follows, newest first.
+            ->orderByDesc('is_super_admin')
             ->orderByRaw('CASE WHEN role_id = ? THEN 0 ELSE 1 END', [$adminRoleId ?? 0])
             ->orderByDesc('id')
             ->paginate(15)
@@ -67,13 +69,14 @@ class UserController extends Controller
         return view('admin.users.index', [
             'users' => $users,
             'search' => $search,
+            'assignableRoles' => $this->assignableRoles(),
         ]);
     }
 
     public function create()
     {
-        // Only allow creating Cashier role (role_id = 2)
-        $roles = Role::where('role_name', 'cashier')->get();
+        // Cashier, plus Administrator for the Super Admin.
+        $roles = $this->assignableRoles();
 
         return view('admin.users.create', [
             'roles' => $roles,
@@ -117,12 +120,11 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        // This endpoint only ever creates Cashier accounts (the create() form
-        // only offers that option) — validated here server-side too, so a
-        // crafted request with a different role_id can't create an
-        // unauthorized Administrator account. Never rely on the dropdown
-        // alone to enforce this.
-        $cashierRoleId = Role::where('role_name', 'cashier')->value('id');
+        // Cashier accounts, plus Administrator accounts for the Super Admin
+        // only — validated here server-side too, so a crafted request with a
+        // different role_id can't create an unauthorized Administrator
+        // account. Never rely on the dropdown alone to enforce this.
+        $assignableRoleIds = $this->assignableRoles()->pluck('id')->all();
 
         $data = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
@@ -135,10 +137,10 @@ class UserController extends Controller
             'gender' => ['nullable', 'in:Male,Female,Prefer not to say'],
             'name' => ['required', 'string', 'max:255', 'unique:users,name'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
-            'role_id' => ['required', 'integer', Rule::in(array_filter([$cashierRoleId]))],
+            'role_id' => ['required', 'integer', Rule::in($assignableRoleIds)],
             'password' => ['required', 'confirmed', Password::defaults()],
         ], [
-            'role_id.in' => 'Only Cashier accounts can be created here.',
+            'role_id.in' => auth()->user()->isSuperAdmin() ? 'Select a valid role.' : 'Only the Super Admin can add Administrator accounts.',
             'name.required' => 'Username is required.',
             'name.unique' => 'This username is already taken.',
             'email.unique' => 'This email is already registered.',
@@ -187,7 +189,7 @@ class UserController extends Controller
             'is_active' => true,
         ]);
 
-        ActivityLog::record('user.created', "Created user \"{$newUser->name}\" (Cashier)");
+        ActivityLog::record('user.created', "Created user \"{$newUser->name}\" ({$newUser->role_label})");
 
         try {
             Notification::send(User::admins(), new UserAccountCreated($newUser));
@@ -203,8 +205,13 @@ class UserController extends Controller
 
     public function edit(Request $request, User $user)
     {
-        $roles = Role::orderBy('role_name')->get();
+        if (! auth()->user()->canEditAccountOf($user)) {
+            return $this->denyAccountAction('Only the Super Admin can edit Administrator accounts.');
+        }
+
         $user->load('role');
+        // The roles this admin may give, plus the account's current one.
+        $roles = $this->assignableRoles()->push($user->role)->filter()->unique('id')->sortBy('role_name')->values();
 
         // Edit User modal: return just the rendered form fields instead of a
         // full page, so the modal can inject it without navigating.
@@ -225,6 +232,10 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        if (! auth()->user()->canEditAccountOf($user)) {
+            return $this->denyAccountAction('Only the Super Admin can edit Administrator accounts.');
+        }
+
         $data = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
@@ -259,6 +270,20 @@ class UserController extends Controller
         }
 
         $roleChanged = (int) $data['role_id'] !== (int) $user->role_id;
+
+        // Making someone an Administrator, or taking it away, is the Super
+        // Admin's call; the Super Admin's own role never changes.
+        if ($roleChanged) {
+            $adminRoleId = (int) Role::whereRaw('LOWER(role_name) = ?', ['admin'])->value('id');
+
+            if ($user->isSuperAdmin()) {
+                throw ValidationException::withMessages(['role_id' => 'The Super Admin account must stay an Administrator.']);
+            }
+
+            if (($user->isAdmin() || (int) $data['role_id'] === $adminRoleId) && ! auth()->user()->isSuperAdmin()) {
+                throw ValidationException::withMessages(['role_id' => 'Only the Super Admin can give or remove the Administrator role.']);
+            }
+        }
         $passwordChanged = ! empty($data['password']);
         $oldRoleName = $user->role?->role_name;
 
@@ -398,6 +423,10 @@ class UserController extends Controller
 
     public function deactivate(User $user)
     {
+        if (! auth()->user()->canManageAccountStatusOf($user)) {
+            return $this->denyAccountAction($this->accountStatusDeniedMessage($user, 'deactivate'));
+        }
+
         $blocked = $this->withLastAdminGuard(
             $user,
             'Cannot deactivate the last active Administrator account.',
@@ -433,6 +462,10 @@ class UserController extends Controller
 
     public function activate(User $user)
     {
+        if (! auth()->user()->canManageAccountStatusOf($user)) {
+            return $this->denyAccountAction($this->accountStatusDeniedMessage($user, 'activate'));
+        }
+
         $user->update(['is_active' => true]);
         ActivityLog::record('user.activated', "Activated user \"{$user->name}\"");
         ActionNotifier::toAdmins('User Account Activated', "The account \"{$user->name}\" has been activated.", route('admin.users.index'), 'user-plus', 'success');
@@ -510,6 +543,36 @@ class UserController extends Controller
     }
 
     /**
+     * Cashier for every Administrator; Administrator too for the Super Admin.
+     *
+     * @return Collection<int, Role>
+     */
+    private function assignableRoles()
+    {
+        $roleNames = auth()->user()->isSuperAdmin() ? ['admin', 'cashier'] : ['cashier'];
+
+        return Role::whereIn('role_name', $roleNames)->orderBy('role_name')->get();
+    }
+
+    private function accountStatusDeniedMessage(User $user, string $action): string
+    {
+        if ($user->isSuperAdmin()) {
+            return "The Super Admin account cannot be {$action}d.";
+        }
+
+        return "Only the Super Admin can {$action} Administrator accounts.";
+    }
+
+    private function denyAccountAction(string $message)
+    {
+        if ($this->isAjaxRequest()) {
+            return response()->json(['error' => $message], 403);
+        }
+
+        return back()->with('error', $message);
+    }
+
+    /**
      * Check if the request is an AJAX request
      * Works with both traditional X-Requested-With header and Accept header
      */
@@ -522,6 +585,10 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
+        if (! auth()->user()->canManageAccountStatusOf($user)) {
+            return $this->denyAccountAction($this->accountStatusDeniedMessage($user, 'delete'));
+        }
+
         $staff = Staff::where('UserID', $user->id)->first();
         if ($staff && SalesTransaction::where('StaffID', $staff->StaffID)->exists()) {
             $message = 'Cannot delete this cashier — they have recorded sales. Deactivate the account instead.';
@@ -577,6 +644,9 @@ class UserController extends Controller
                     'gender' => $user->gender,
                     'address' => $user->address,
                     'role_name' => $user->role?->role_name,
+                    'role_label' => $user->role_label,
+                    'is_super_admin' => $user->isSuperAdmin(),
+                    'can_edit' => auth()->user()->canEditAccountOf($user),
                     'role' => $user->role,
                     'is_active' => $user->is_active,
                     'created_at' => $user->created_at,

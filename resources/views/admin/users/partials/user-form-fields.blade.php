@@ -104,7 +104,7 @@
         <select name="role_id" class="form-select" {{ $roleDisabledAttr }} required>
             <option value="">Select Role</option>
             @foreach($roles as $role)
-                <option value="{{ $role->id }}" {{ old('role_id', $user->role_id ?? null) == $role->id ? 'selected' : '' }}>{{ ucfirst($role->role_name) }}</option>
+                <option value="{{ $role->id }}" {{ old('role_id', $user->role_id ?? null) == $role->id ? 'selected' : '' }}>{{ strtolower($role->role_name) === 'admin' ? 'Administrator' : ucfirst($role->role_name) }}</option>
             @endforeach
         </select>
         <span class="form-error" id="error-role_id">@error('role_id'){{ $message }}@enderror</span>

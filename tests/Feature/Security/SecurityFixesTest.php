@@ -652,8 +652,10 @@ class SecurityFixesTest extends TestCase
         $response->assertJsonValidationErrors('current_password');
     }
 
+    // By the Super Admin: only the Super Admin manages Administrator accounts.
     public function test_second_admin_account_can_be_deactivated_normally(): void
     {
+        $this->admin->forceFill(['is_super_admin' => true])->save();
         $secondAdmin = User::factory()->create([
             'name' => 'admin2', 'email' => 'admin2@example.com', 'role_id' => $this->adminRole->id,
             'first_name' => 'Second', 'last_name' => 'Admin',
@@ -690,7 +692,8 @@ class SecurityFixesTest extends TestCase
             'role_id' => $cashierRoleId,
             'current_password' => 'password',
         ]);
-        $roleChangeResponse->assertSessionHas('error');
+        // (Only the Super Admin may remove the Administrator role.)
+        $roleChangeResponse->assertSessionHasErrors('role_id');
         $this->assertDatabaseHas('users', ['id' => $this->admin->id, 'role_id' => $this->adminRole->id]);
     }
 

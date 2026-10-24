@@ -18,9 +18,11 @@
             <a href="{{ route('admin.users.index') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Users
             </a>
+            @if(auth()->user()->canEditAccountOf($user))
             <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-warning">
                 <i class="fas fa-edit"></i> Update User
             </a>
+            @endif
         </div>
     </div>
 
@@ -42,7 +44,7 @@
             <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;">
                 <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Username</label><span style="color:#f8fafc;">{{ $user->name }}</span></div>
                 <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Email</label><span style="color:#f8fafc;">{{ $user->email }}</span></div>
-                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Role</label><span class="badge {{ $user->isAdmin() ? 'badge-admin' : 'badge-cashier' }}">{{ $user->role?->role_name ?? 'N/A' }}</span></div>
+                <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Role</label><span class="badge {{ $user->isAdmin() ? 'badge-admin' : 'badge-cashier' }}">{{ $user->role_label }}</span></div>
                 <div><label style="display:block; font-size:0.7rem; text-transform:uppercase; color:#64748b;">Status</label><span class="status-badge {{ $user->is_active ? 'status-active' : 'status-inactive' }}">{{ $user->is_active ? 'Active' : 'Inactive' }}</span></div>
             </div>
         </div>

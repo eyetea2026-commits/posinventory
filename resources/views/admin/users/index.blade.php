@@ -151,6 +151,7 @@
     }
 
     .badge-admin { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+    .badge-super-admin { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
     .badge-cashier { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
 
     .toggle-switch {
@@ -520,14 +521,18 @@
                         <td>{{ $user->email }}</td>
                         <td><code style="background: rgba(59,130,246,0.15); padding: 4px 8px; border-radius: 6px; font-size: 0.85rem;">{{ $user->name }}</code></td>
                         <td>
-                            <span class="badge {{ $user->isAdmin() ? 'badge-admin' : 'badge-cashier' }}">
-                                {{ $user->role?->role_name ?? 'N/A' }}
+                            <span class="badge {{ $user->isSuperAdmin() ? 'badge-super-admin' : ($user->isAdmin() ? 'badge-admin' : 'badge-cashier') }}">
+                                {{ $user->role_label }}
                             </span>
                         </td>
                         <td>
                             @if($user->isProtected())
                                 <span class="protected-badge" title="Protected account — this status is informational only">
                                     <i class="fas fa-lock"></i> Locked
+                                </span>
+                            @elseif(! auth()->user()->canManageAccountStatusOf($user))
+                                <span class="protected-badge" title="{{ $user->isSuperAdmin() ? 'The Super Admin account cannot be deactivated' : 'Only the Super Admin can activate or deactivate Administrator accounts' }}">
+                                    <i class="fas fa-lock"></i> {{ $user->isSuperAdmin() ? 'Locked' : 'Super Admin only' }}
                                 </span>
                             @else
                                 <label class="toggle-switch">
@@ -620,7 +625,7 @@
                  same page (Blade @include merges parent scope for any key not
                  in this array — without this, the Add modal would render in
                  "Edit" mode using whichever user was last in the table). --}}
-            @include('admin.users.partials.user-form-fields', ['roles' => \App\Models\Role::where('role_name', 'cashier')->get(), 'user' => null])
+            @include('admin.users.partials.user-form-fields', ['roles' => $assignableRoles, 'user' => null])
         </form>
 
         <div class="modal-actions add-user-modal-actions">
@@ -833,8 +838,10 @@
 
             const protectedNotice = user.role_name === 'admin' ?
                 '<div class="detail-item full-width" style="background: rgba(239,68,68,0.15);">' +
-                    '<span class="protected-badge"><i class="fas fa-shield-alt"></i> Protected Administrator</span>' +
+                    '<span class="protected-badge"><i class="fas fa-shield-alt"></i> ' + (user.is_super_admin ? 'Super Admin' : 'Protected Administrator') + '</span>' +
                 '</div>' : '';
+            // Other Administrators' accounts are the Super Admin's to edit.
+            updateBtn.style.display = user.can_edit ? '' : 'none';
 
             detailsContainer.innerHTML = `
                 ${protectedNotice}
@@ -885,7 +892,7 @@
                         </div>
                         <div class="detail-item">
                             <label>Role</label>
-                            <span class="badge ${user.role_name === 'admin' ? 'badge-admin' : 'badge-cashier'}">${user.role_name || 'N/A'}</span>
+                            <span class="badge ${user.is_super_admin ? 'badge-super-admin' : (user.role_name === 'admin' ? 'badge-admin' : 'badge-cashier')}">${user.role_label || 'N/A'}</span>
                         </div>
                         <div class="detail-item">
                             <label>Status</label>

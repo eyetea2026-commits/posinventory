@@ -41,6 +41,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'is_super_admin' => 'boolean',
             'birthdate' => 'date',
         ];
     }
@@ -89,6 +90,58 @@ class User extends Authenticatable
         }
 
         return $this->role && strtolower($this->role->role_name) === 'admin';
+    }
+
+    /**
+     * The Administrator who can also add Administrators and activate or
+     * deactivate them. Set only by the migration, never through a form.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->isAdmin() && (bool) $this->is_super_admin;
+    }
+
+    /**
+     * "Super Admin", "Admin" or "Cashier", for badges.
+     */
+    public function getRoleLabelAttribute(): string
+    {
+        if ($this->isSuperAdmin()) {
+            return 'Super Admin';
+        }
+
+        return $this->isAdmin() ? 'Admin' : ucfirst($this->role?->role_name ?? 'N/A');
+    }
+
+    /**
+     * Whether this user may activate, deactivate or delete $target: the
+     * Super Admin manages Administrator accounts; any Administrator manages
+     * Cashier accounts; nobody manages the Super Admin account.
+     */
+    public function canManageAccountStatusOf(User $target): bool
+    {
+        if (! $this->isAdmin() || $target->isSuperAdmin()) {
+            return false;
+        }
+
+        return $target->isAdmin() ? $this->isSuperAdmin() : true;
+    }
+
+    /**
+     * Whether this user may edit $target's profile: Administrator accounts
+     * other than your own are the Super Admin's to edit.
+     */
+    public function canEditAccountOf(User $target): bool
+    {
+        if (! $this->isAdmin()) {
+            return false;
+        }
+
+        if ($target->isAdmin() && $target->id !== $this->id) {
+            return $this->isSuperAdmin() && ! $target->isSuperAdmin();
+        }
+
+        return true;
     }
 
     public function isCashier(): bool
