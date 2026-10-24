@@ -82,6 +82,23 @@
     }
 </style>
 <script>
+    // Success messages close by themselves after SUCCESS_POPUP_MS (they used
+    // to stay 2-3 seconds, set separately on each page). Applied here, once,
+    // to every Swal.fire({ icon: 'success', timer: ... }) on admin and
+    // cashier pages, including future ones.
+    (function () {
+        const SUCCESS_POPUP_MS = 1200;
+        if (!window.Swal || Swal.__fastSuccess) return;
+        const fire = Swal.fire.bind(Swal);
+        Swal.fire = function (options) {
+            if (options && typeof options === 'object' && options.icon === 'success' && options.timer) {
+                options = Object.assign({}, options, { timer: Math.min(options.timer, SUCCESS_POPUP_MS) });
+            }
+            return fire.apply(Swal, [options].concat(Array.prototype.slice.call(arguments, 1)));
+        };
+        Swal.__fastSuccess = true;
+    })();
+
     // window.confirmAction({ title, text, icon, confirmText, cancelText, confirmColor }) -> Promise<SweetAlertResult>
     window.confirmAction = function (options) {
         options = options || {};
@@ -113,7 +130,7 @@
     window.toastSuccess = function (text, title) {
         return Swal.fire({
             title: title || 'Success', text: text || '', icon: 'success',
-            confirmButtonColor: '#10b981', timer: 2500, showConfirmButton: false,
+            confirmButtonColor: '#10b981', timer: 1200, showConfirmButton: false,
             customClass: { popup: 'swal-compact' },
         });
     };

@@ -91,7 +91,10 @@ class Phase5PolishTest extends TestCase
 
         $cashier = User::factory()->create(['role_id' => Role::firstOrCreate(['role_name' => 'cashier'])->id]);
         $this->actingAs($cashier)->get(route('cashier.transactions'))->assertOk()
-            ->assertSee('.swal2-popup.swal2-show { animation-duration: 0.15s !important; }', false);
+            ->assertSee('.swal2-popup.swal2-show { animation-duration: 0.15s !important; }', false)
+            // Success messages close after 1.2s on every page (they were 2-3s).
+            ->assertSee('const SUCCESS_POPUP_MS = 1200;', false)
+            ->assertSee("options.icon === 'success' && options.timer", false);
     }
 
     public function test_admin_layout_logout_form_carries_a_confirm_dialog(): void
