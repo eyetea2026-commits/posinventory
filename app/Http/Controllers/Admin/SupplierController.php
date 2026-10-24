@@ -107,30 +107,47 @@ class SupplierController extends Controller
     }
 
     /**
-     * Contact Number: 11 digits starting with 09, saved as 0912-345-6789.
+     * Contact Number: up to three numbers separated by " / ", each a mobile
+     * (0912-345-6789) or a landline ((02) 8123-4567, (082) 295-7595).
      * Letters and other characters are dropped first (normalizeContactNumber()).
      */
-    private const CONTACT_NUMBER_RULES = ['required', 'string', 'regex:/^09\d{2}-\d{3}-\d{4}$/'];
+    private const CONTACT_NUMBER_RULES = [
+        'required', 'string', 'max:50',
+        'regex:/^(09\d{2}-\d{3}-\d{4}|\(02\) \d{4}-\d{4}|\(0[1-8]\d\) \d{3}-\d{4})( \/ (09\d{2}-\d{3}-\d{4}|\(02\) \d{4}-\d{4}|\(0[1-8]\d\) \d{3}-\d{4})){0,2}$/',
+    ];
 
     private const CONTACT_NUMBER_MESSAGES = [
         'ContactNumber.required' => 'Contact Number is required.',
-        'ContactNumber.regex' => 'Enter the contact number as 0912-345-6789 (11 digits starting with 09).',
+        'ContactNumber.max' => 'Enter at most three contact numbers.',
+        'ContactNumber.regex' => 'Enter a mobile number as 0912-345-6789 or a landline as (02) 8123-4567. Separate two numbers with "/".',
     ];
 
     /**
-     * Keeps only the digits (a +63 country code becomes the leading 0); 11
-     * of them are written as 0912-345-6789.
+     * Each number (split on "/") keeps only its digits, then is written as
+     * 0912-345-6789 (mobile; +63 becomes the leading 0), (02) 8123-4567
+     * (Metro Manila landline) or (082) 295-7595 (provincial landline).
      */
     private static function normalizeContactNumber(?string $value): string
     {
-        $digits = preg_replace('/\D/', '', (string) $value);
-        if (strlen($digits) === 12 && str_starts_with($digits, '63')) {
-            $digits = '0'.substr($digits, 2);
+        $numbers = [];
+        foreach (preg_split('/[\/,;]/', (string) $value) as $part) {
+            $digits = preg_replace('/\D/', '', $part);
+            if ($digits === '') {
+                continue;
+            }
+            if (strlen($digits) === 12 && str_starts_with($digits, '63')) {
+                $digits = '0'.substr($digits, 2);
+            }
+
+            $numbers[] = match (true) {
+                strlen($digits) === 11 && str_starts_with($digits, '09') => substr($digits, 0, 4).'-'.substr($digits, 4, 3).'-'.substr($digits, 7),
+                strlen($digits) === 10 && str_starts_with($digits, '02') => '(02) '.substr($digits, 2, 4).'-'.substr($digits, 6),
+                strlen($digits) === 10 && str_starts_with($digits, '0') && ! str_starts_with($digits, '09') => '('.substr($digits, 0, 3).') '.substr($digits, 3, 3).'-'.substr($digits, 6),
+                default => $digits,
+            };
         }
 
-        return strlen($digits) === 11
-            ? substr($digits, 0, 4).'-'.substr($digits, 4, 3).'-'.substr($digits, 7)
-            : $digits;
+        return implode(' / ', $numbers);
     }
 
     public function store(Request $request)
@@ -141,7 +158,7 @@ class SupplierController extends Controller
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName'],
             'ContactPerson' => ['nullable', 'string', 'max:150'],
             'ContactNumber' => self::CONTACT_NUMBER_RULES,
-            'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email'],
+            'Email' => ['nullable', 'email', 'max:100', 'unique:Supplier,Email'],
             'Address' => ['required', 'string', 'max:255'],
             'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
         ], self::CONTACT_NUMBER_MESSAGES);
@@ -313,7 +330,7 @@ class SupplierController extends Controller
             'SupplierName' => ['required', 'string', 'max:150', 'unique:Supplier,SupplierName,'.$supplier->SupplierID.',SupplierID'],
             'ContactPerson' => ['nullable', 'string', 'max:150'],
             'ContactNumber' => self::CONTACT_NUMBER_RULES,
-            'Email' => ['required', 'email', 'max:150', 'unique:Supplier,Email,'.$supplier->SupplierID.',SupplierID'],
+            'Email' => ['nullable', 'email', 'max:100', 'unique:Supplier,Email,'.$supplier->SupplierID.',SupplierID'],
             'Address' => ['required', 'string', 'max:255'],
             'Status' => ['nullable', 'string', 'in:'.Supplier::STATUS_ACTIVE.','.Supplier::STATUS_INACTIVE],
         ], self::CONTACT_NUMBER_MESSAGES);

@@ -42,13 +42,13 @@
 
                 <div class="form-group">
                     <label class="form-label">Contact Number <span style="color: var(--danger);">*</span></label>
-                    <input type="tel" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', null) }}" required maxlength="13" inputmode="numeric" placeholder="0912-345-6789" autocomplete="off">
+                    <input type="tel" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', null) }}" required maxlength="50" placeholder="0912-345-6789 / (02) 8123-4567" autocomplete="off">
                     @error('ContactNumber') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Email <span style="color: var(--danger);">*</span></label>
-                    <input type="email" name="Email" id="Email" class="form-input" value="{{ old('Email') }}" required>
+                    <label class="form-label">Email</label>
+                    <input type="email" name="Email" id="Email" class="form-input" value="{{ old('Email') }}" maxlength="100">
                     <span class="form-error" id="error-Email">@error('Email'){{ $message }}@enderror</span>
                 </div>
 

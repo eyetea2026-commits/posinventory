@@ -1,9 +1,9 @@
 {{-- Supplier form checks, run when Save is clicked (Add/Edit Supplier popups
      and the standalone pages). Each problem is shown under its field in red
-     and the form isn't sent. The Contact Number box also formats itself as
-     it's typed: digits only (letters are dropped), shown as 0912-345-6789.
-     The server checks the same rules (SupplierController). Include once per
-     page. --}}
+     and the form isn't sent. The Contact Number box drops letters as it's
+     typed; on Save each number (split on "/") is written as 0912-345-6789,
+     (02) 8123-4567 or (082) 295-7595. The server checks the same rules
+     (SupplierController). Include once per page. --}}
 <style>
     .supplier-field-invalid { border-color: #ef4444 !important; background: rgba(239, 68, 68, 0.12) !important; }
 </style>
@@ -12,12 +12,25 @@
         const SUPPLIER_FORMS = ['addSupplierForm', 'editSupplierForm', 'supplierForm'];
         const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-        // Keeps digits only (at most 11) and adds the dashes: 0912-345-6789.
+        const PHONE = '(09\\d{2}-\\d{3}-\\d{4}|\\(02\\) \\d{4}-\\d{4}|\\(0[1-8]\\d\\) \\d{3}-\\d{4})';
+        const CONTACT_NUMBER_PATTERN = new RegExp('^' + PHONE + '( / ' + PHONE + '){0,2}$');
+
+        // While typing: letters are dropped, everything else stays as typed.
+        window.cleanSupplierContactNumber = function (value) {
+            return String(value || '').replace(/[^0-9+()\-\/ ]/g, '');
+        };
+
+        // On Save: each number written as 0912-345-6789, (02) 8123-4567 or
+        // (082) 295-7595, joined with " / " (same as the server).
         window.formatSupplierContactNumber = function (value) {
-            const digits = String(value || '').replace(/\D/g, '').slice(0, 11);
-            if (digits.length <= 4) return digits;
-            if (digits.length <= 7) return digits.slice(0, 4) + '-' + digits.slice(4);
-            return digits.slice(0, 4) + '-' + digits.slice(4, 7) + '-' + digits.slice(7);
+            return String(value || '').split(/[\/,;]/).map(function (part) {
+                let digits = part.replace(/\D/g, '');
+                if (digits.length === 12 && digits.indexOf('63') === 0) digits = '0' + digits.slice(2);
+                if (digits.length === 11 && digits.indexOf('09') === 0) return digits.slice(0, 4) + '-' + digits.slice(4, 7) + '-' + digits.slice(7);
+                if (digits.length === 10 && digits.indexOf('02') === 0) return '(02) ' + digits.slice(2, 6) + '-' + digits.slice(6);
+                if (digits.length === 10 && digits[0] === '0' && digits.indexOf('09') !== 0) return '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
+                return digits;
+            }).filter(Boolean).join(' / ');
         };
 
         function messageFor(name, value) {
@@ -27,9 +40,10 @@
                     return v === '' ? 'Supplier Name is required.' : '';
                 case 'ContactNumber':
                     if (v === '') return 'Contact Number is required.';
-                    return /^09\d{2}-\d{3}-\d{4}$/.test(v) ? '' : 'Enter the contact number as 0912-345-6789 (11 digits starting with 09).';
+                    return CONTACT_NUMBER_PATTERN.test(v) ? '' : 'Enter a mobile number as 0912-345-6789 or a landline as (02) 8123-4567. Separate two numbers with "/".';
                 case 'Email':
-                    if (v === '') return 'Email is required.';
+                    // Optional; checked only when filled in.
+                    if (v === '') return '';
                     return EMAIL_PATTERN.test(v) ? '' : 'Please enter a valid email address.';
                 case 'Address':
                     return v === '' ? 'Address is required.' : '';
@@ -84,7 +98,7 @@
             const field = e.target;
             if (!field.form || !isSupplierForm(field.form)) return;
             if (field.name === 'ContactNumber') {
-                field.value = window.formatSupplierContactNumber(field.value);
+                field.value = window.cleanSupplierContactNumber(field.value);
             }
             if (field.classList.contains('supplier-field-invalid')) {
                 showFieldMessage(field.form, field, messageFor(field.name, field.value));

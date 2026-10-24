@@ -15,13 +15,13 @@
 
     <div class="form-group">
         <label class="form-label">Contact Number <span class="required">*</span></label>
-        <input type="tel" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', $supplier->ContactNumber ?? null) }}" required maxlength="13" inputmode="numeric" placeholder="0912-345-6789" autocomplete="off">
+        <input type="tel" name="ContactNumber" class="form-input" value="{{ old('ContactNumber', $supplier->ContactNumber ?? null) }}" required maxlength="50" placeholder="0912-345-6789 / (02) 8123-4567" autocomplete="off">
         <span class="form-error" id="error-ContactNumber">@error('ContactNumber'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
-        <label class="form-label">Email <span class="required">*</span></label>
-        <input type="email" name="Email" id="Email" class="form-input" value="{{ old('Email', $supplier->Email ?? null) }}" required maxlength="150">
+        <label class="form-label">Email</label>
+        <input type="email" name="Email" id="Email" class="form-input" value="{{ old('Email', $supplier->Email ?? null) }}" maxlength="100">
         <span class="form-error" id="error-Email">@error('Email'){{ $message }}@enderror</span>
     </div>
 
