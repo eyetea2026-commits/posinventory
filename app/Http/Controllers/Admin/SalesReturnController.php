@@ -11,6 +11,7 @@ use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Notifications\ReturnRequestApproved;
 use App\Notifications\ReturnRequestDeclined;
+use App\Services\ActionNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -232,6 +233,7 @@ class SalesReturnController extends Controller
         );
 
         $this->notifyCashier($salesReturn, new ReturnRequestApproved($salesReturn));
+        ActionNotifier::toAdmins('Return Request Approved', 'Return request #'.str_pad((string) $salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT).' has been approved.', route('admin.sales-returns.index'), 'circle-check', 'success');
 
         return back()->with('status', 'Return approved. The cashier can now process it.');
     }
@@ -294,6 +296,7 @@ class SalesReturnController extends Controller
         }
 
         $this->notifyCashier($salesReturn, new ReturnRequestDeclined($salesReturn));
+        ActionNotifier::toAdmins('Return Request Declined', 'Return request #'.str_pad((string) $salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT).' has been declined.', route('admin.sales-returns.index'), 'circle-x', 'danger');
 
         return back()->with('status', 'Return request declined.');
     }

@@ -14,6 +14,7 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\SaleCompleted;
+use App\Services\ActionNotifier;
 use App\Services\ThermalReceiptPrinter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -641,6 +642,7 @@ class CashierAuthController extends Controller
             $request->session()->forget('custom_discount_approval');
             $approverName = User::find($customDiscountApprovedBy)?->full_name ?? 'an Administrator';
             ActivityLog::record('pos.custom_discount_used', "Custom discount of {$customDiscountPercent}% given on {$result['receipt_number']} (approved by \"{$approverName}\")");
+            ActionNotifier::toAdmins('Custom Discount Given', "A {$customDiscountPercent}% discount was given on {$result['receipt_number']} (approved by {$approverName}).", route('admin.reports.index'), 'percent', 'warning');
         }
 
         // Dispatched after the transaction has committed — a notification
@@ -656,6 +658,8 @@ class CashierAuthController extends Controller
                 'exception' => $e->getMessage(),
             ]);
         }
+
+        ActionNotifier::toUser(auth()->user(), 'Sale Completed', "Sale {$result['receipt_number']} of ₱".number_format((float) $result['total'], 2).' has been completed.', route('cashier.transactions'), 'circle-check', 'success');
 
         return response()->json([
             'success' => true,

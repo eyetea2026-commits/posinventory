@@ -15,6 +15,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Notifications\PurchaseOrderApproved;
 use App\Notifications\PurchaseOrderCancelled;
+use App\Services\ActionNotifier;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -309,6 +310,7 @@ class PurchaseOrderController extends Controller
 
         foreach ($purchaseOrders as $purchaseOrder) {
             ActivityLog::record('purchase_order.created', "Created PO #{$purchaseOrder->PONumber} for \"{$purchaseOrder->supplier?->SupplierName}\"");
+            ActionNotifier::toAdmins('Purchase Order Created', "Purchase order {$purchaseOrder->PONumber} for \"{$purchaseOrder->supplier?->SupplierName}\" has been created as a Draft.", route('admin.purchase-orders.index'), 'clipboard-check', 'success');
         }
 
         $numbers = collect($purchaseOrders)->pluck('PONumber')->implode(', ');
@@ -414,6 +416,7 @@ class PurchaseOrderController extends Controller
 
         $supplier = Supplier::find($data['SupplierID']);
         ActivityLog::record('purchase_order.created', "Created PO #{$purchaseOrder->PONumber} for \"{$supplier?->SupplierName}\" from a low-stock reorder");
+        ActionNotifier::toAdmins('Purchase Order Created', "Purchase order {$purchaseOrder->PONumber} for \"{$supplier?->SupplierName}\" has been created from a low-stock reorder.", route('admin.purchase-orders.index'), 'clipboard-check', 'success');
 
         return redirect()->route('admin.purchase-orders.index')->with('success', "Purchase order {$purchaseOrder->PONumber} created successfully.");
     }
@@ -556,6 +559,7 @@ class PurchaseOrderController extends Controller
 
             if ($purchaseOrder) {
                 ActivityLog::record('purchase_order.auto_drafted', "Automatically drafted PO #{$purchaseOrder->PONumber} for \"{$product->ProductName}\" (Low Stock)");
+                ActionNotifier::toAdmins('Purchase Order Drafted', "Purchase order {$purchaseOrder->PONumber} was drafted automatically for \"{$product->ProductName}\" (Low Stock).", route('admin.purchase-orders.index'), 'clipboard-check', 'warning');
             }
         }
     }
@@ -592,6 +596,7 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->update($data);
 
         ActivityLog::record('purchase_order.updated', "Updated PO #{$purchaseOrder->PONumber}");
+        ActionNotifier::toAdmins('Purchase Order Updated', "Purchase order {$purchaseOrder->PONumber} has been updated.", route('admin.purchase-orders.index'), 'clipboard-check');
 
         return redirect()->route('admin.purchase-orders.index')->with('success', 'Purchase order updated successfully.');
     }
@@ -619,6 +624,7 @@ class PurchaseOrderController extends Controller
                 $locked->update(['Status' => PurchaseOrder::STATUS_PENDING]);
             });
             ActivityLog::record('purchase_order.submitted', "Submitted PO #{$purchaseOrder->PONumber}");
+            ActionNotifier::toAdmins('Purchase Order Submitted', "Purchase order {$purchaseOrder->PONumber} has been submitted and is waiting for approval.", route('admin.purchase-orders.index'), 'clipboard-check', 'warning');
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         } catch (Throwable $e) {

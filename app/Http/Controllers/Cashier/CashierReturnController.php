@@ -14,6 +14,7 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\NewRefundRequest;
+use App\Services\ActionNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -387,6 +388,8 @@ class CashierReturnController extends Controller
             ]);
         }
 
+        ActionNotifier::toUser(auth()->user(), 'Return Request Submitted', 'Return request #'.str_pad((string) $salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT).' has been sent to the Administrator for approval.', route('cashier.refunds'), 'rotate-ccw');
+
         return response()->json([
             'success' => true,
             'message' => 'Return request submitted successfully. Awaiting admin approval.',
@@ -487,6 +490,9 @@ class CashierReturnController extends Controller
         }
 
         ActivityLog::record('return.refund_processed', "Processed refund #{$salesReturnId} — ₱".number_format((float) $refundAmount, 2)." via {$data['refund_method']} (Txn #{$salesReturn->SalesTransactionID})");
+        $refundText = 'Refund #'.str_pad((string) $salesReturnId, 6, '0', STR_PAD_LEFT).' of ₱'.number_format((float) $refundAmount, 2)." has been processed via {$data['refund_method']}.";
+        ActionNotifier::toAdmins('Refund Processed', $refundText, route('admin.sales-returns.index'), 'rotate-ccw', 'success');
+        ActionNotifier::toUser(auth()->user(), 'Refund Processed', $refundText, route('cashier.refunds'), 'rotate-ccw', 'success');
 
         return response()->json([
             'success' => true,
@@ -616,6 +622,9 @@ class CashierReturnController extends Controller
 
         $replacementProduct = Product::find($data['replacement_product_id']);
         ActivityLog::record('return.replacement_processed', "Processed replacement for return #{$salesReturn->SalesReturnID}: {$data['quantity']} x \"{$replacementProduct?->ProductName}\" (slip {$replacement->SlipNumber})");
+        $replacementText = "Replacement of {$data['quantity']} x \"{$replacementProduct?->ProductName}\" has been processed (slip {$replacement->SlipNumber}).";
+        ActionNotifier::toAdmins('Replacement Processed', $replacementText, route('admin.sales-returns.index'), 'rotate-ccw', 'success');
+        ActionNotifier::toUser(auth()->user(), 'Replacement Processed', $replacementText, route('cashier.refunds'), 'rotate-ccw', 'success');
 
         return response()->json([
             'success' => true,

@@ -9,6 +9,7 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Services\ActionNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -342,6 +343,7 @@ class DamageController extends Controller
         }
 
         ActivityLog::record('damage.updated', "Updated damage record #{$damage->DamageID}");
+        ActionNotifier::toAdmins('Damage Record Updated', "Damage record #{$damage->DamageID} (\"{$damage->product?->ProductName}\") has been updated.", route('admin.damages.index'), 'triangle-alert');
 
         return redirect()->route('admin.damages.index')->with('success', 'Damaged product record updated successfully.');
     }
@@ -369,6 +371,7 @@ class DamageController extends Controller
         });
 
         ActivityLog::record('damage.deleted', "Deleted damage record #{$damageId} for \"{$productName}\"");
+        ActionNotifier::toAdmins('Damage Record Deleted', "Damage record #{$damageId} for \"{$productName}\" has been deleted and its quantity restored to inventory.", route('admin.damages.index'), 'triangle-alert', 'danger');
 
         return redirect()->route('admin.damages.index')->with('success', 'Damaged product record deleted successfully.');
     }
@@ -381,6 +384,7 @@ class DamageController extends Controller
 
         $damage->update(['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]);
         ActivityLog::record('damage.marked_for_supplier_return', "Marked damage #{$damage->DamageID} for supplier return");
+        ActionNotifier::toAdmins('Damage Marked for Supplier Return', "Damage record #{$damage->DamageID} (\"{$damage->product?->ProductName}\") is now pending supplier return.", route('admin.damages.index'), 'truck', 'warning');
 
         return back()->with('success', 'Damage record marked for supplier return.');
     }
@@ -397,6 +401,7 @@ class DamageController extends Controller
             'ResolvedDate' => now(),
         ]);
         ActivityLog::record('damage.returned_to_supplier', "Confirmed damage #{$damage->DamageID} returned to supplier");
+        ActionNotifier::toAdmins('Damage Returned to Supplier', "Damage record #{$damage->DamageID} (\"{$damage->product?->ProductName}\") has been returned to the supplier.", route('admin.damages.index'), 'truck');
 
         return back()->with('success', 'Damage record confirmed as returned to supplier.');
     }
@@ -413,6 +418,7 @@ class DamageController extends Controller
             'ResolvedDate' => now(),
         ]);
         ActivityLog::record('damage.disposed', "Disposed of damage #{$damage->DamageID}");
+        ActionNotifier::toAdmins('Damage Record Disposed', "Damage record #{$damage->DamageID} (\"{$damage->product?->ProductName}\") has been marked as disposed.", route('admin.damages.index'), 'triangle-alert', 'danger');
 
         return back()->with('success', 'Damage record marked as disposed.');
     }
@@ -453,6 +459,8 @@ class DamageController extends Controller
         if ($count === 0) {
             return back()->with('error', 'None of the selected records were eligible — they may have already been processed.');
         }
+
+        ActionNotifier::toAdmins('Damage Returned to Supplier', "{$count} damage record(s) have been returned to the supplier.", route('admin.damages.index'), 'truck');
 
         return back()->with('success', "{$count} damage record(s) confirmed returned to supplier.");
     }
@@ -514,6 +522,7 @@ class DamageController extends Controller
             'damage.replacement_received',
             "Received {$qty} x replacement for \"{$damage->product?->ProductName}\" (Damage #{$damage->DamageID}) — inventory increased"
         );
+        ActionNotifier::toAdmins('Supplier Replacement Received', "Received {$qty} x replacement for \"{$damage->product?->ProductName}\" (Damage #{$damage->DamageID}). Inventory has been updated.", route('admin.damages.index'), 'package', 'success');
 
         return back()->with('success', 'Replacement received and inventory updated.');
     }
@@ -565,6 +574,7 @@ class DamageController extends Controller
         }
 
         ActivityLog::record('damage.cancelled', "Cancelled damage #{$damage->DamageID} ({$damage->Quantity} x \"{$damage->product?->ProductName}\") — restored to inventory");
+        ActionNotifier::toAdmins('Damage Record Cancelled', "Damage record #{$damage->DamageID} ({$damage->Quantity} x \"{$damage->product?->ProductName}\") has been cancelled and restored to inventory.", route('admin.damages.index'), 'rotate-ccw');
 
         return back()->with('success', 'Damage record cancelled and quantity restored to inventory.');
     }

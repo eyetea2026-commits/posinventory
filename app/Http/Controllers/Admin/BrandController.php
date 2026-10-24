@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Services\ActionNotifier;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -72,6 +73,8 @@ class BrandController extends Controller
             throw $e;
         }
 
+        ActionNotifier::toAdmins('Brand Added', "The brand \"{$brand->BrandName}\" has been added to \"{$category->CategoryName}\".", route('admin.categories.index'), 'tag', 'success');
+
         return response()->json([
             'success' => true,
             'brand' => ['BrandID' => $brand->BrandID, 'BrandName' => $brand->BrandName],
@@ -90,6 +93,8 @@ class BrandController extends Controller
         }
 
         $brand->delete();
+
+        ActionNotifier::toAdmins('Brand Removed', "The brand \"{$brand->BrandName}\" has been removed.", route('admin.categories.index'), 'tag', 'danger');
 
         return response()->json(['success' => true]);
     }

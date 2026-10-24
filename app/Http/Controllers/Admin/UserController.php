@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\UserAccountCreated;
 use App\Notifications\UserAccountDeactivated;
 use App\Notifications\UserAccountUpdated;
+use App\Services\ActionNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -434,6 +435,7 @@ class UserController extends Controller
     {
         $user->update(['is_active' => true]);
         ActivityLog::record('user.activated', "Activated user \"{$user->name}\"");
+        ActionNotifier::toAdmins('User Account Activated', "The account \"{$user->name}\" has been activated.", route('admin.users.index'), 'user-plus', 'success');
 
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User account activated.']);
@@ -547,6 +549,7 @@ class UserController extends Controller
         }
 
         ActivityLog::record('user.deleted', "Deleted user \"{$deletedName}\"");
+        ActionNotifier::toAdmins('User Account Deleted', "The account \"{$deletedName}\" has been deleted.", route('admin.users.index'), 'user-x', 'danger');
 
         if ($this->isAjaxRequest()) {
             return response()->json(['status' => 'User deleted successfully.']);

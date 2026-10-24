@@ -9,6 +9,7 @@ use App\Models\Discount;
 use App\Models\Product;
 use App\Models\User;
 use App\Notifications\DiscountUpdated;
+use App\Services\ActionNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -367,6 +368,7 @@ class DiscountController extends Controller
         $discount->delete();
 
         ActivityLog::record('discount.deleted', "Deleted promo \"{$discount->PromoCode}\"");
+        ActionNotifier::toAdmins('Promo Code Deleted', "The promo code \"{$discount->PromoCode}\" has been deleted.", route('admin.discounts.index'), 'percent', 'danger');
 
         return redirect()->route('admin.discounts.index')->with('success', 'Promo code deleted successfully.');
     }
@@ -459,6 +461,10 @@ class DiscountController extends Controller
         }
 
         $message = count($assigned).' product(s) assigned.';
+        if (count($assigned) > 0) {
+            ActionNotifier::toAdmins('Promo Products Assigned', count($assigned)." product(s) have been added to the promo code \"{$discount->PromoCode}\".", route('admin.discounts.index'), 'percent', 'success');
+        }
+
         if (! empty($rejected)) {
             $message .= ' '.count($rejected).' skipped — already covered by another promo in an overlapping date range.';
         }
@@ -489,6 +495,7 @@ class DiscountController extends Controller
         $discount->products()->detach($product->ProductID);
 
         ActivityLog::record('discount.product_detached', "Removed product #{$product->ProductID} from promo \"{$discount->PromoCode}\"");
+        ActionNotifier::toAdmins('Promo Product Removed', "\"{$product->ProductName}\" has been removed from the promo code \"{$discount->PromoCode}\".", route('admin.discounts.index'), 'percent', 'warning');
 
         return response()->json(['success' => true]);
     }

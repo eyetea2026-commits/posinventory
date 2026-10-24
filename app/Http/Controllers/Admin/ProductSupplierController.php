@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductCostHistory;
 use App\Models\ProductSupplier;
+use App\Services\ActionNotifier;
 use Illuminate\Http\Request;
 
 class ProductSupplierController extends Controller
@@ -56,6 +57,8 @@ class ProductSupplierController extends Controller
             ProductCostHistory::log($product, $productSupplier->supplier, $oldCost, (float) $newCost, ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE);
         }
 
+        ActionNotifier::toAdmins('Product Supplier Added', "\"{$productSupplier->supplier?->SupplierName}\" is now a supplier of \"{$product->ProductName}\".", route('admin.products.index'), 'truck', 'success');
+
         return response()->json(['success' => true, 'productSupplier' => $productSupplier->load('supplier')]);
     }
 
@@ -63,12 +66,16 @@ class ProductSupplierController extends Controller
     {
         $productSupplier->markPreferred();
 
+        ActionNotifier::toAdmins('Preferred Supplier Changed', "\"{$productSupplier->supplier?->SupplierName}\" is now the preferred supplier of \"{$productSupplier->product?->ProductName}\".", route('admin.products.index'), 'truck');
+
         return response()->json(['success' => true]);
     }
 
     public function destroy(ProductSupplier $productSupplier)
     {
         $productSupplier->delete();
+
+        ActionNotifier::toAdmins('Product Supplier Removed', "\"{$productSupplier->supplier?->SupplierName}\" is no longer a supplier of \"{$productSupplier->product?->ProductName}\".", route('admin.products.index'), 'truck', 'danger');
 
         return response()->json(['success' => true]);
     }

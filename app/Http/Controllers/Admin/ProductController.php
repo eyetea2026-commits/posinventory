@@ -12,6 +12,7 @@ use App\Models\ProductCostHistory;
 use App\Models\ProductSupplier;
 use App\Models\User;
 use App\Notifications\ProductUpdated;
+use App\Services\ActionNotifier;
 use App\Services\ProductImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -540,9 +541,11 @@ class ProductController extends Controller
 
         if ($product->IsActive) {
             ActivityLog::record('product.activated', "Activated product \"{$product->ProductName}\"");
+            ActionNotifier::toAdmins('Product Activated', "The product \"{$product->ProductName}\" is active again.", route('admin.products.index'), 'package', 'success');
             $message = "\"{$product->ProductName}\" is active again.";
         } else {
             ActivityLog::record('product.deactivated', "Deactivated product \"{$product->ProductName}\"");
+            ActionNotifier::toAdmins('Product Deactivated', "The product \"{$product->ProductName}\" has been deactivated.", route('admin.products.index'), 'package', 'danger');
             $message = "\"{$product->ProductName}\" has been deactivated.";
         }
 
