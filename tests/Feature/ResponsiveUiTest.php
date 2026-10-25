@@ -50,6 +50,10 @@ class ResponsiveUiTest extends TestCase
         $this->assertStringContainsString('--tap-size: 44px;', $html);
         // Extra-small screens (JioPhone 2, folded Galaxy Z Fold).
         $this->assertStringContainsString('@media (max-width: 359px) {', $html);
+        // The screen-width cap carries no weight (:where), so each pop-up's
+        // own max-width (600px, 760px...) still applies on large screens;
+        // it used to override them and stretch pop-ups across the screen.
+        $this->assertStringContainsString(":where(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {\n        max-width: calc(100vw - 2 * var(--modal-gutter));", str_replace("\r\n", "\n", $html));
     }
 
     // A misplaced </div> in the pagination block left the user list's

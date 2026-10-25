@@ -117,6 +117,8 @@ class UserManagementTest extends TestCase
         $this->assertStringContainsString('<textarea name="address" class="form-input user-address-input" rows="2" maxlength="255">', $html);
         $this->assertStringContainsString('resize: vertical;', $html);
         $this->assertStringContainsString('<div class="form-group user-row-start">', $html);
+        // The pop-up is 860px at most, not the full screen width.
+        $this->assertMatchesRegularExpression('/\.modal-content\.form-modal-content \{\s+max-width: 860px;/', $html);
 
         $form = substr($html, strpos($html, 'id="addUserForm"'));
         $order = array_map(fn (string $field) => strpos($form, 'name="'.$field.'"'), [

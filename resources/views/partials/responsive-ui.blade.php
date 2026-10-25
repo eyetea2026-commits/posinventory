@@ -214,9 +214,13 @@
        content scrolling inside. Each box keeps its own width and max width
        (e.g. 560px, 760px); the script trims any box that would still be
        wider than the screen. */
+    /* Fallback only: :where() has no weight, so each pop-up's own
+       max-width (600px, 760px...) still wins on large screens. */
+    :where(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {
+        max-width: calc(100vw - 2 * var(--modal-gutter));
+    }
     html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {
         box-sizing: border-box;
-        max-width: calc(100vw - 2 * var(--modal-gutter));
         /* 90% of the screen, minus the backdrop's padding and notch areas. */
         max-height: min(90vh, calc(100vh - 2 * var(--modal-gutter) - var(--safe-top) - var(--safe-bottom))) !important;
         max-height: min(90dvh, calc(100dvh - 2 * var(--modal-gutter) - var(--safe-top) - var(--safe-bottom))) !important;

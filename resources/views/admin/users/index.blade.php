@@ -398,13 +398,18 @@
     }
 
     .form-modal-content {
-        max-width: 600px;
         width: 92%;
         max-height: 88vh;
         padding: 18px 22px;
         transform: scale(0.95) translateY(12px);
         opacity: 0;
         transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    /* Room for three fields per row (see user-form-styles); doubled class
+       so it wins over the shared 600px .modal-content rule. */
+    .modal-content.form-modal-content {
+        max-width: 860px;
     }
 
     .form-modal-overlay.active .form-modal-content {
