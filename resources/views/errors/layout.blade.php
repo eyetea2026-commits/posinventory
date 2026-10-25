@@ -6,7 +6,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>@yield('title') - CCTV Express Solution Tacurong</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
@@ -72,6 +72,7 @@
         .error-btn-secondary { background: rgba(148, 163, 184, 0.1); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.2); }
         .error-btn:hover { filter: brightness(1.1); }
     </style>
+    @include('partials.responsive-ui')
 </head>
 <body>
     <main class="error-card">

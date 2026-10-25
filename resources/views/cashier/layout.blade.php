@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Cashier - {{ config('app.name') }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <link rel="stylesheet" href="{{ asset('Administrator/Dashboard.css') }}">
@@ -324,6 +324,7 @@
         .notif-empty { padding: 20px 16px; color: #94a3b8; font-size: 0.85rem; text-align: center; }
         .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; flex-shrink: 0; }
     </style>
+    @include('partials.responsive-ui')
 </head>
 <body>
     <div class="mobile-header">

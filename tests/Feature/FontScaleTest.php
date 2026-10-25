@@ -7,13 +7,14 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Only the admin pages get the bigger base text size (partials/font-scale);
+// Only the admin pages get the bigger base text size (partials/font-scale,
+// fluid: 16px on phones up to 18px on large screens);
 // the cashier side and the login pages keep the original size.
 class FontScaleTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const FONT_SCALE_RULE = 'html { font-size: 112.5%; }';
+    private const FONT_SCALE_RULE = 'html { font-size: clamp(100%, 85% + 0.45vw, 112.5%); }';
 
     public function test_admin_pages_use_the_bigger_base_font(): void
     {

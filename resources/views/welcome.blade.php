@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>System Login</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    @include('partials.responsive-ui')
 </head>
 <body>
     <div class="lv2-page">
@@ -366,6 +367,7 @@
         }
         .lv2-field input {
             flex: 1;
+            min-width: 0;
             border: none;
             background: transparent;
             outline: none;
@@ -680,9 +682,12 @@
         }
         @media (max-width: 960px) {
             .lv2-frame {
-                grid-template-columns: 1fr;
+                /* minmax(0, 1fr): the column shrinks to the screen instead
+                   of growing to fit the fields, which cut them off on phones. */
+                grid-template-columns: minmax(0, 1fr);
                 padding: 16px;
             }
+            .lv2-left { min-width: 0; }
             .lv2-right { display: none; }
         }
         @media (max-width: 480px) {

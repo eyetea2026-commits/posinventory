@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Admin OTP Verification - CCTV Express TACURONG</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <link rel="stylesheet" href="{{ asset('Administrator/Login.css') }}">
@@ -39,6 +39,7 @@
             .otp-bubble { width: 40px; height: 50px; font-size: 1.25rem; }
         }
     </style>
+    @include('partials.responsive-ui')
 </head>
 <body>
     <div class="login-background">

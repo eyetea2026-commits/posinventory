@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     @include('partials.font-scale')
     <title>@yield('title', 'Admin - ' . config('app.name'))</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
@@ -219,6 +219,7 @@
             background: rgba(59, 130, 246, 0.5);
         }
     </style>
+    @include('partials.responsive-ui')
 </head>
 <body x-data="{ sidebarOpen: false }">
     {{-- Mobile/tablet top bar: hamburger button to open the sidebar drawer --}}

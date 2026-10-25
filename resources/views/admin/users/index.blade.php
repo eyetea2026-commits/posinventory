@@ -575,7 +575,6 @@
             @else
                 <a href="{{ $users->previousPageUrl() }}"><i class="fas fa-chevron-left"></i></a>
             @endif
-    </div>
 
             @foreach($users->getUrlRange(1, min(5, $users->lastPage())) as $page => $url)
                 <a href="{{ $url }}" class="{{ $page == $users->currentPage() ? 'active' : '' }}" style="{{ $page == $users->currentPage() ? 'background: var(--primary);' : '' }}">{{ $page }}</a>
@@ -588,6 +587,7 @@
             @endif
         </div>
     @endif
+    </div>
 </div>
 
 <!-- View User Modal -->
