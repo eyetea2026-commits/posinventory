@@ -10,6 +10,22 @@
     .form-group { margin-bottom: 0; }
     .form-group.full-width { grid-column: 1 / -1; }
 
+    /* Add/Edit User: three fields per row - First / Middle / Last Name;
+       Birthdate / Contact Number / Email; Address on its own row; Gender /
+       Role; Username / Password / Confirm Password. */
+    .form-grid.user-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .form-grid.user-form-grid .user-row-start { grid-column-start: 1; }
+    /* Address can be dragged taller (not wider). */
+    textarea.user-address-input {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        max-height: 220px;
+        resize: vertical;
+        line-height: 1.45;
+        font-family: inherit;
+    }
+
     .form-label {
         display: block;
         margin-bottom: 8px;
@@ -130,7 +146,12 @@
 
     @keyframes user-form-spin { to { transform: rotate(360deg); } }
 
+    @media (max-width: 899px) {
+        .form-grid.user-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
     @media (max-width: 600px) {
-        .form-grid { grid-template-columns: 1fr; }
+        .form-grid,
+        .form-grid.user-form-grid { grid-template-columns: 1fr; }
     }
 </style>

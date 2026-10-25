@@ -104,6 +104,30 @@ class UserManagementTest extends TestCase
         $response->assertSee('name="email"', false);
     }
 
+    // Three fields per row: First / Middle / Last Name; Birthdate / Contact
+    // Number / Email; Address on its own row (a box that can be dragged
+    // taller); Gender / Role; Username / Password / Confirm Password.
+    public function test_add_user_form_lays_the_fields_out_three_per_row(): void
+    {
+        $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
+
+        $html = $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('.form-grid.user-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }', $html);
+        $this->assertStringContainsString('<textarea name="address" class="form-input user-address-input" rows="2" maxlength="255">', $html);
+        $this->assertStringContainsString('resize: vertical;', $html);
+        $this->assertStringContainsString('<div class="form-group user-row-start">', $html);
+
+        $form = substr($html, strpos($html, 'id="addUserForm"'));
+        $order = array_map(fn (string $field) => strpos($form, 'name="'.$field.'"'), [
+            'first_name', 'middle_name', 'last_name', 'birthdate', 'contact_number', 'email', 'address',
+            'gender', 'role_id', 'name', 'password', 'password_confirmation',
+        ]);
+        $sorted = $order;
+        sort($sorted);
+        $this->assertSame($sorted, $order);
+    }
+
     public function test_add_user_popup_checks_the_email_while_typing(): void
     {
         $adminRole = Role::create(['role_name' => 'admin']);

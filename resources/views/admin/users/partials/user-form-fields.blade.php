@@ -18,7 +18,7 @@
     // password is never resettable through this UI.
     $canResetPassword = isset($user) && ! $user->isAdmin();
 @endphp
-<div class="form-grid">
+<div class="form-grid user-form-grid">
     @if($isProtected)
         <div class="form-group full-width">
             <div class="protected-notice">
@@ -46,6 +46,15 @@
         <span class="form-error" id="error-last_name">@error('last_name'){{ $message }}@enderror</span>
     </div>
 
+    {{-- Scoped via data-role rather than an id since the Add and Edit forms
+         both render this same partial and exist in the DOM at the same
+         time. Hidden by default so this row doesn't reserve a full grid
+         row (and its gap) when there's no duplicate-name error to show —
+         the JS below toggles this wrapper's display, not just the span's. --}}
+    <div class="form-group full-width" data-role="name-duplicate-error-row" style="display: none;">
+        <span data-role="name-duplicate-error" class="form-error"></span>
+    </div>
+
     {{-- Birthdate instead of age: the age is worked out from it and shown
          beside the label, and the latest allowed date keeps users 18+. --}}
     @php
@@ -57,21 +66,6 @@
         <input type="date" name="birthdate" class="form-input" value="{{ $birthdateValue }}" max="{{ $latestBirthdate }}" min="{{ today()->subYears(120)->toDateString() }}" @unless(isset($user)) required @endunless
                oninput="(function (input) { const out = input.closest('.form-group').querySelector('[data-birthdate-age]'); const error = input.closest('.form-group').querySelector('.form-error'); if (!input.value) { out.textContent = ''; error.textContent = ''; return; } const b = new Date(input.value + 'T00:00:00'), t = new Date(); let age = t.getFullYear() - b.getFullYear(); if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--; out.textContent = '(Age: ' + age + ')'; error.textContent = age < 18 ? 'User must be at least 18 years old.' : ''; })(this)">
         <span class="form-error" id="error-birthdate">@error('birthdate'){{ $message }}@enderror</span>
-    </div>
-
-    {{-- Scoped via data-role rather than an id since the Add and Edit forms
-         both render this same partial and exist in the DOM at the same
-         time. Hidden by default so this row doesn't reserve a full grid
-         row (and its gap) when there's no duplicate-name error to show —
-         the JS below toggles this wrapper's display, not just the span's. --}}
-    <div class="form-group full-width" data-role="name-duplicate-error-row" style="display: none;">
-        <span data-role="name-duplicate-error" class="form-error"></span>
-    </div>
-
-    <div class="form-group">
-        <label class="form-label">Address</label>
-        <input type="text" name="address" class="form-input" value="{{ old('address', $user->address ?? null) }}">
-        <span class="form-error" id="error-address">@error('address'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
@@ -86,6 +80,13 @@
         <label class="form-label">Email</label>
         <input type="email" name="email" class="form-input" value="{{ old('email', $user->email ?? null) }}">
         <span class="form-error" id="error-email">@error('email'){{ $message }}@enderror</span>
+    </div>
+
+    {{-- Address on its own row; the box can be dragged taller for long addresses. --}}
+    <div class="form-group full-width">
+        <label class="form-label">Address</label>
+        <textarea name="address" class="form-input user-address-input" rows="2" maxlength="255">{{ old('address', $user->address ?? null) }}</textarea>
+        <span class="form-error" id="error-address">@error('address'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
@@ -110,7 +111,7 @@
         <span class="form-error" id="error-role_id">@error('role_id'){{ $message }}@enderror</span>
     </div>
 
-    <div class="form-group full-width">
+    <div class="form-group user-row-start">
         <label class="form-label">Username <span class="required">*</span></label>
         <input type="text" name="name" class="form-input" value="{{ old('name', $user->name ?? null) }}" required>
         <span class="form-error" id="error-name">@error('name'){{ $message }}@enderror</span>
