@@ -97,11 +97,22 @@
         list-style: none;
         margin: 8px 0 0;
         padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
+        /* Two rules per column: 8 characters / uppercase, then number / special. */
+        display: grid;
+        /* First column only as wide as its text, so the longer "special
+           character" rule gets the rest and stays on one line. */
+        grid-template-columns: max-content minmax(0, 1fr);
+        grid-template-rows: repeat(2, auto);
+        grid-auto-flow: column;
+        gap: 4px 28px;
         font-size: 0.8rem;
     }
+    /* Add User: the list sits right under Password + Confirm Password. */
+    .form-grid.user-form-grid .password-requirements-row {
+        grid-column: 2 / span 2;
+        margin-top: -8px;
+    }
+    .password-requirements-row .password-requirements { margin-top: 0; }
     .password-requirements li {
         display: flex;
         align-items: center;
@@ -148,6 +159,15 @@
 
     @media (max-width: 899px) {
         .form-grid.user-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .form-grid.user-form-grid .password-requirements-row { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 479px) {
+        .password-requirements {
+            grid-template-columns: 1fr;
+            grid-template-rows: none;
+            grid-auto-flow: row;
+        }
     }
 
     @media (max-width: 600px) {

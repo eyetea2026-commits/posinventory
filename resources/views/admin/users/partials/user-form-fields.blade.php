@@ -150,15 +150,6 @@
                     <i class="fas fa-eye"></i>
                 </button>
             </div>
-            {{-- Live-updated by user-form-behavior.blade.php as the admin types;
-                 server-side enforcement is the single Password::defaults()
-                 policy in AppServiceProvider — this list just mirrors it. --}}
-            <ul class="password-requirements" id="password-requirements">
-                <li data-rule="length">At least 8 characters</li>
-                <li data-rule="uppercase">At least one uppercase letter</li>
-                <li data-rule="number">At least one number</li>
-                <li data-rule="special">At least one special character (e.g. _ ! @ #)</li>
-            </ul>
             <span class="form-error" id="error-password">@error('password'){{ $message }}@enderror</span>
         </div>
 
@@ -170,6 +161,19 @@
                     <i class="fas fa-eye"></i>
                 </button>
             </div>
+        </div>
+
+        {{-- Under both password boxes, two rules per column. Live-updated by
+             user-form-behavior.blade.php as the admin types; server-side
+             enforcement is the single Password::defaults() policy in
+             AppServiceProvider — this list just mirrors it. --}}
+        <div class="form-group password-requirements-row">
+            <ul class="password-requirements" id="password-requirements">
+                <li data-rule="length">At least 8 characters</li>
+                <li data-rule="uppercase">At least one uppercase letter</li>
+                <li data-rule="number">At least one number</li>
+                <li data-rule="special">At least one special character (e.g. _ ! @ #)</li>
+            </ul>
         </div>
     @endif
 </div>

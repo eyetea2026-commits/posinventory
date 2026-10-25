@@ -117,6 +117,10 @@ class UserManagementTest extends TestCase
         $this->assertStringContainsString('<textarea name="address" class="form-input user-address-input" rows="2" maxlength="255">', $html);
         $this->assertStringContainsString('resize: vertical;', $html);
         $this->assertStringContainsString('<div class="form-group user-row-start">', $html);
+        // Password rules: two per column, right under both password boxes.
+        $this->assertStringContainsString('<div class="form-group password-requirements-row">', $html);
+        $this->assertStringContainsString('grid-template-columns: max-content minmax(0, 1fr);', $html);
+        $this->assertStringContainsString('grid-auto-flow: column;', $html);
         // The pop-up is 860px at most, not the full screen width.
         $this->assertMatchesRegularExpression('/\.modal-content\.form-modal-content \{\s+max-width: 860px;/', $html);
 
@@ -128,6 +132,8 @@ class UserManagementTest extends TestCase
         $sorted = $order;
         sort($sorted);
         $this->assertSame($sorted, $order);
+        // ...and the rules list comes after Confirm Password.
+        $this->assertLessThan(strpos($form, 'id="password-requirements"'), strpos($form, 'name="password_confirmation"'));
     }
 
     public function test_add_user_popup_checks_the_email_while_typing(): void
