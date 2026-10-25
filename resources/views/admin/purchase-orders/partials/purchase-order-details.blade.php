@@ -9,42 +9,44 @@
     $showStatus = $showStatus ?? false;
 @endphp
 <div class="section-title" style="margin-top:0;">Order Information</div>
-<div class="detail-row">
-    <span class="detail-label">Order Date</span>
-    <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('m/d/Y') }}</span>
-</div>
-<div class="detail-row">
-    <span class="detail-label">Supplier</span>
-    <span class="detail-value">{{ $purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</span>
-</div>
-<div class="detail-row">
-    <span class="detail-label">Expected Delivery</span>
-    <span class="detail-value">{{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</span>
-</div>
-@if($showStatus)
+<div class="ui-kv-grid">
     <div class="detail-row">
-        <span class="detail-label">Status</span>
-        <span class="detail-value">
-            @php
-                $statusClass = match($purchaseOrder->Status) {
-                    \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-completed',
-                    \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-pending',
-                    \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-approved',
-                    \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-cancelled',
-                    \App\Models\PurchaseOrder::STATUS_DRAFT => 'badge-draft',
-                    default => 'badge-other',
-                };
-            @endphp
-            <span class="badge {{ $statusClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? ucfirst($purchaseOrder->Status) }}</span>
-        </span>
+        <span class="detail-label">Order Date</span>
+        <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($purchaseOrder->PurchaseDate)->format('m/d/Y') }}</span>
     </div>
+    <div class="detail-row">
+        <span class="detail-label">Supplier</span>
+        <span class="detail-value">{{ $purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Expected Delivery</span>
+        <span class="detail-value">{{ $purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</span>
+    </div>
+@if($showStatus)
+        <div class="detail-row">
+            <span class="detail-label">Status</span>
+            <span class="detail-value">
+                @php
+                    $statusClass = match($purchaseOrder->Status) {
+                        \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-completed',
+                        \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-pending',
+                        \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-approved',
+                        \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-cancelled',
+                        \App\Models\PurchaseOrder::STATUS_DRAFT => 'badge-draft',
+                        default => 'badge-other',
+                    };
+                @endphp
+                <span class="badge {{ $statusClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? ucfirst($purchaseOrder->Status) }}</span>
+            </span>
+        </div>
 @endif
 @if($purchaseOrder->Notes)
-    <div class="detail-row">
-        <span class="detail-label">Notes</span>
-        <span class="detail-value">{{ $purchaseOrder->Notes }}</span>
-    </div>
+        <div class="detail-row ui-kv-wide">
+            <span class="detail-label">Notes</span>
+            <span class="detail-value">{{ $purchaseOrder->Notes }}</span>
+        </div>
 @endif
+</div>
 
 <div class="section-title">Order Items</div>
 <div style="overflow-x: auto;">

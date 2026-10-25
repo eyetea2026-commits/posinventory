@@ -65,7 +65,8 @@
 
         <form id="resetPasswordForm" onsubmit="return false;">
             <div class="form-grid">
-                <div class="form-group full-width">
+                {{-- New | Confirm side by side, the rules under both. --}}
+                <div class="form-group">
                     <label class="form-label">New Password <span class="required">*</span></label>
                     <div class="password-input-wrapper">
                         <input type="password" id="resetPasswordNew" class="form-input" required>
@@ -73,15 +74,9 @@
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
-                    <ul class="password-requirements" id="reset-password-requirements">
-                        <li data-rule="length">At least 8 characters</li>
-                        <li data-rule="uppercase">At least one uppercase letter</li>
-                        <li data-rule="number">At least one number</li>
-                        <li data-rule="special">At least one special character (e.g. _ ! @ #)</li>
-                    </ul>
                     <span class="form-error" id="error-reset-password"></span>
                 </div>
-                <div class="form-group full-width">
+                <div class="form-group">
                     <label class="form-label">Confirm Password <span class="required">*</span></label>
                     <div class="password-input-wrapper">
                         <input type="password" id="resetPasswordConfirm" class="form-input" required>
@@ -89,6 +84,14 @@
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
+                </div>
+                <div class="form-group full-width" style="margin-top:-8px;">
+                    <ul class="password-requirements" id="reset-password-requirements">
+                        <li data-rule="length">At least 8 characters</li>
+                        <li data-rule="uppercase">At least one uppercase letter</li>
+                        <li data-rule="number">At least one number</li>
+                        <li data-rule="special">At least one special character (e.g. _ ! @ #)</li>
+                    </ul>
                 </div>
             </div>
         </form>

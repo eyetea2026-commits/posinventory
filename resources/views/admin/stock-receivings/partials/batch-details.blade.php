@@ -14,32 +14,34 @@
     // whole kept them on the product lines.
     $receiptNumber = $batch->ReceiptNumber ?? $po->items->pluck('ReceiptNumber')->filter()->first();
 @endphp
-<div class="detail-row">
-    <span class="detail-label">PO Number</span>
-    <span class="detail-value">{{ $po->PONumber }}</span>
-</div>
-<div class="detail-row">
-    <span class="detail-label">Supplier</span>
-    <span class="detail-value">{{ $po->supplier?->SupplierName ?? 'Unknown' }}</span>
-</div>
-<div class="detail-row">
-    <span class="detail-label">Order Date</span>
-    <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($po->PurchaseDate)->format('m/d/Y') }}</span>
-</div>
-<div class="detail-row">
-    <span class="detail-label">Expected Delivery</span>
-    <span class="detail-value">{{ $po->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($po->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</span>
-</div>
+<div class="ui-kv-grid">
+    <div class="detail-row">
+        <span class="detail-label">PO Number</span>
+        <span class="detail-value">{{ $po->PONumber }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Supplier</span>
+        <span class="detail-value">{{ $po->supplier?->SupplierName ?? 'Unknown' }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Order Date</span>
+        <span class="detail-value">{{ \Illuminate\Support\Carbon::parse($po->PurchaseDate)->format('m/d/Y') }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Expected Delivery</span>
+        <span class="detail-value">{{ $po->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($po->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</span>
+    </div>
 @if(!$isPending)
-    <div class="detail-row">
-        <span class="detail-label">Completed</span>
-        <span class="detail-value">{{ $batch->CompletedAt?->format('m/d/Y g:i A') ?? 'N/A' }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Receipt Number</span>
-        <span class="detail-value">{{ $receiptNumber ?? 'N/A' }}</span>
-    </div>
+        <div class="detail-row">
+            <span class="detail-label">Completed</span>
+            <span class="detail-value">{{ $batch->CompletedAt?->format('m/d/Y g:i A') ?? 'N/A' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Receipt Number</span>
+            <span class="detail-value">{{ $receiptNumber ?? 'N/A' }}</span>
+        </div>
 @endif
+</div>
 
 <form id="batchReceivingForm" method="POST" action="{{ route('admin.stock-receivings.batches.add-to-inventory', $batch) }}">
     @csrf

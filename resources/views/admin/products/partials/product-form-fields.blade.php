@@ -5,7 +5,25 @@
      all fields start blank). Error spans carry a predictable id="error-{field}"
      so modal JS can inject a 422 validation message into the same slot the
      @error directive fills on a real (non-AJAX) page submission. --}}
-<div class="form-grid">
+{{-- Three per row in the pop-up: Name / Model / Category; Brand / Cost /
+     Selling Price; Reorder Threshold / (SKU) / Barcode; Pricing Calculations;
+     Description (two wide) / Photo. Two per row on tablets, one on phones. --}}
+<style>
+    .form-grid.product-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .form-grid.product-form-grid .product-span-2 { grid-column: span 2; }
+    .product-form-grid textarea[name="Description"] { min-height: 132px; }
+    .product-photo-field .product-cell { flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+    .product-photo-field .product-cell > div { flex: 1 1 150px; }
+    .product-form-grid .barcode-input-row input { min-width: 0; }
+    @media (max-width: 899px) {
+        .form-grid.product-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 600px) {
+        .form-grid.product-form-grid { grid-template-columns: 1fr; }
+        .form-grid.product-form-grid .product-span-2 { grid-column: auto; }
+    }
+</style>
+<div class="form-grid product-form-grid">
     <div class="form-group">
         <label class="form-label">Product Name <span class="required">*</span></label>
         <input type="text" name="ProductName" id="ProductName" class="form-input @error('ProductName') is-invalid @enderror"
@@ -20,36 +38,6 @@
                value="{{ old('Model', $product->Model ?? null) }}" required placeholder="e.g., GWHWY245367">
         <span class="form-error" id="error-Model">@error('Model'){{ $message }}@enderror</span>
         <span id="modelDuplicateError" class="form-error" style="display: none;"></span>
-    </div>
-
-    <div class="form-group full-width">
-        <label class="form-label">Specifications / Description</label>
-        <textarea name="Description" class="form-input @error('Description') is-invalid @enderror">{{ old('Description', $product->Description ?? null) }}</textarea>
-        <span class="form-error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
-    </div>
-
-    <div class="form-group full-width">
-        <label class="form-label">Product Photo</label>
-        <div class="product-cell">
-            <span class="product-thumb thumb-large" data-photo-preview>
-                @if(isset($product) && $product->image_url)
-                    <img src="{{ $product->image_url }}" alt="{{ $product->ProductName }}">
-                @else
-                    <i class="fas fa-box" aria-hidden="true"></i>
-                @endif
-            </span>
-            <div style="display:flex; flex-direction:column; gap:8px; min-width:0;">
-                <input type="file" name="Image" accept="image/jpeg,image/png,image/webp" class="form-input @error('Image') is-invalid @enderror"
-                       onchange="(function (input) { const box = input.closest('.form-group').querySelector('[data-photo-preview]'); const file = input.files && input.files[0]; if (!file) return; box.innerHTML = ''; const img = document.createElement('img'); img.src = URL.createObjectURL(file); box.appendChild(img); const remove = input.closest('.form-group').querySelector('input[name=RemoveImage]'); if (remove) remove.checked = false; })(this)">
-                <small style="color:#94a3b8;">JPG, PNG or WebP, up to 5 MB. It's saved shrunk to a small file automatically.</small>
-                @if(isset($product) && $product->ImagePath)
-                    <label style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:0.85rem;">
-                        <input type="checkbox" name="RemoveImage" value="1"> Remove photo
-                    </label>
-                @endif
-                <span class="form-error" id="error-Image">@error('Image'){{ $message }}@enderror</span>
-            </div>
-        </div>
     </div>
 
     <div class="form-group">
@@ -101,13 +89,6 @@
     </div>
 
     <div class="form-group">
-        <label class="form-label">Reorder Threshold</label>
-        <input type="number" name="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
-               value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" placeholder="e.g., 10">
-        <span class="form-error" id="error-ReorderThreshold">@error('ReorderThreshold'){{ $message }}@enderror</span>
-    </div>
-
-    <div class="form-group">
         <label class="form-label">Cost Price (₱) <span class="required">*</span></label>
         <input type="text" name="CostPrice" id="CostPrice" class="form-input @error('CostPrice') is-invalid @enderror"
                value="{{ old('CostPrice', $product->CostPrice ?? null) }}" required placeholder="e.g., 12,000.00">
@@ -120,6 +101,13 @@
         <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
     </div>
 
+    <div class="form-group">
+        <label class="form-label">Reorder Threshold</label>
+        <input type="number" name="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
+               value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" placeholder="e.g., 10">
+        <span class="form-error" id="error-ReorderThreshold">@error('ReorderThreshold'){{ $message }}@enderror</span>
+    </div>
+
     @if(isset($product))
         <div class="form-group">
             <label class="form-label">SKU</label>
@@ -127,7 +115,7 @@
         </div>
     @endif
 
-    <div class="form-group full-width">
+    <div class="form-group{{ isset($product) ? '' : ' product-span-2' }}">
         <label class="form-label">Product Barcode <span class="required">*</span></label>
         <div class="barcode-input-row">
             <input type="text" name="Barcode" id="Barcode" class="form-input @error('Barcode') is-invalid @enderror"
@@ -153,6 +141,36 @@
             <div class="computed-field">
                 <label for="ProfitMargin">Profit Margin (%)</label>
                 <input type="text" id="ProfitMargin" class="value-input" value="45.0" inputmode="decimal">
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group product-span-2">
+        <label class="form-label">Specifications / Description</label>
+        <textarea name="Description" class="form-input @error('Description') is-invalid @enderror">{{ old('Description', $product->Description ?? null) }}</textarea>
+        <span class="form-error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
+    </div>
+
+    <div class="form-group product-photo-field">
+        <label class="form-label">Product Photo</label>
+        <div class="product-cell">
+            <span class="product-thumb thumb-large" data-photo-preview>
+                @if(isset($product) && $product->image_url)
+                    <img src="{{ $product->image_url }}" alt="{{ $product->ProductName }}">
+                @else
+                    <i class="fas fa-box" aria-hidden="true"></i>
+                @endif
+            </span>
+            <div style="display:flex; flex-direction:column; gap:8px; min-width:0;">
+                <input type="file" name="Image" accept="image/jpeg,image/png,image/webp" class="form-input @error('Image') is-invalid @enderror"
+                       onchange="(function (input) { const box = input.closest('.form-group').querySelector('[data-photo-preview]'); const file = input.files && input.files[0]; if (!file) return; box.innerHTML = ''; const img = document.createElement('img'); img.src = URL.createObjectURL(file); box.appendChild(img); const remove = input.closest('.form-group').querySelector('input[name=RemoveImage]'); if (remove) remove.checked = false; })(this)">
+                <small style="color:#94a3b8;">JPG, PNG or WebP, up to 5 MB. It's saved shrunk to a small file automatically.</small>
+                @if(isset($product) && $product->ImagePath)
+                    <label style="display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:0.85rem;">
+                        <input type="checkbox" name="RemoveImage" value="1"> Remove photo
+                    </label>
+                @endif
+                <span class="form-error" id="error-Image">@error('Image'){{ $message }}@enderror</span>
             </div>
         </div>
     </div>

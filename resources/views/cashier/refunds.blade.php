@@ -669,21 +669,26 @@ function viewRefundDetails(refundId) {
                 const itemsHtml = (r.items || []).map(item => `
                     <div class="refund-details-row"><span>${escapeHtml(item.product_name)} (x${Number(item.quantity)})</span><span>${escapeHtml(item.reason)} — ${window.formatPeso(item.line_total)}</span></div>
                 `).join('');
+                // Label above value, three per row (shared .ui-kv-grid); the
+                // returned products keep their own list below.
+                const kv = (label, value, wide) => `<div${wide ? ' class="ui-kv-wide"' : ''}><span>${label}</span><span>${value}</span></div>`;
                 document.getElementById('refund-details-content').innerHTML = `
+                    <div class="ui-kv-grid">
+                        ${kv('Request ID', '#' + String(Number(r.id)).padStart(6, '0'))}
+                        ${kv('Transaction ID', '#' + String(Number(r.transaction_id)).padStart(6, '0'))}
+                        ${kv('Return Type', escapeHtml(r.return_type))}
+                        ${kv('Return Date', escapeHtml(r.return_date))}
+                        ${kv('Status', `<span class="status status-${escapeHtml(r.status.toLowerCase())}">${escapeHtml(r.status)}</span>`)}
+                        ${r.return_type === 'refund' ? kv('Refund Amount', `<span style="color:#10b981;">${window.formatPeso(r.refund_amount)}</span>`) : ''}
+                        ${r.refund_method ? kv('Refund Method', escapeHtml(r.refund_method)) : ''}
+                        ${r.refund_date ? kv('Refund Date', escapeHtml(r.refund_date)) : ''}
+                        ${r.replacement ? kv('Replacement', `${Number(r.replacement.quantity)} x ${escapeHtml(r.replacement.product_name)} (Slip ${escapeHtml(r.replacement.slip_number)})`, true) : ''}
+                        ${r.remarks ? kv('Remarks', escapeHtml(r.remarks), true) : ''}
+                        ${r.decline_reason ? kv('Decline Reason', escapeHtml(r.decline_reason), true) : ''}
+                    </div>
                     <div class="refund-details">
-                        <div class="refund-details-row"><span>Request ID:</span><span>#${String(Number(r.id)).padStart(6, '0')}</span></div>
-                        <div class="refund-details-row"><span>Transaction ID:</span><span>#${String(Number(r.transaction_id)).padStart(6, '0')}</span></div>
-                        <div class="refund-details-row"><span>Return Type:</span><span>${escapeHtml(r.return_type)}</span></div>
-                        <p style="margin: 10px 0 6px; color: #94a3b8; font-size: 0.85rem;">Returned Product(s)</p>
+                        <p style="margin: 0 0 6px; color: #94a3b8; font-size: 0.85rem;">Returned Product(s)</p>
                         ${itemsHtml}
-                        ${r.remarks ? `<div class="refund-details-row"><span>Remarks:</span><span>${escapeHtml(r.remarks)}</span></div>` : ''}
-                        <div class="refund-details-row"><span>Return Date:</span><span>${escapeHtml(r.return_date)}</span></div>
-                        <div class="refund-details-row"><span>Status:</span><span class="status status-${escapeHtml(r.status.toLowerCase())}">${escapeHtml(r.status)}</span></div>
-                        ${r.decline_reason ? `<div class="refund-details-row"><span>Decline Reason:</span><span>${escapeHtml(r.decline_reason)}</span></div>` : ''}
-                        ${r.return_type === 'refund' ? `<div class="refund-details-row total"><span>Refund Amount:</span><span>${window.formatPeso(r.refund_amount)}</span></div>` : ''}
-                        ${r.refund_method ? `<div class="refund-details-row"><span>Refund Method:</span><span>${escapeHtml(r.refund_method)}</span></div>` : ''}
-                        ${r.refund_date ? `<div class="refund-details-row"><span>Refund Date:</span><span>${escapeHtml(r.refund_date)}</span></div>` : ''}
-                        ${r.replacement ? `<div class="refund-details-row"><span>Replacement:</span><span>${Number(r.replacement.quantity)} x ${escapeHtml(r.replacement.product_name)} (Slip ${escapeHtml(r.replacement.slip_number)})</span></div>` : ''}
                     </div>
                 `;
                 document.getElementById('view-refund-modal').classList.add('active');

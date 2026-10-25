@@ -236,9 +236,10 @@
                     : '';
 
                 if (section.fields && section.fields.length) {
-                    html += '<div class="report-detail-lines">';
+                    // Label above value, three per row (shared .ui-kv-grid).
+                    html += '<div class="report-detail-lines ui-kv-grid">';
                     section.fields.forEach(function (f) {
-                        html += `<div class="report-detail-line"><label>${escapeReportDetailHtml(f.label)}:</label><span>${escapeReportDetailHtml(f.value)}</span></div>`;
+                        html += `<div class="report-detail-line"><label>${escapeReportDetailHtml(f.label)}</label><span>${escapeReportDetailHtml(f.value)}</span></div>`;
                     });
                     html += '</div>';
                 }

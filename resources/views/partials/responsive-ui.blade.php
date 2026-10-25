@@ -39,6 +39,8 @@
         --tap-size: 44px;
         --page-gutter: clamp(12px, 3.2vw, 40px);
         --modal-gutter: clamp(8px, 3vw, 24px);
+        /* Every pop-up window is this wide (the User Management size). */
+        --modal-width: 860px;
 
         --safe-top: env(safe-area-inset-top, 0px);
         --safe-right: env(safe-area-inset-right, 0px);
@@ -214,10 +216,11 @@
        content scrolling inside. Each box keeps its own width and max width
        (e.g. 560px, 760px); the script trims any box that would still be
        wider than the screen. */
-    /* Fallback only: :where() has no weight, so each pop-up's own
-       max-width (600px, 760px...) still wins on large screens. */
-    :where(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {
-        max-width: calc(100vw - 2 * var(--modal-gutter));
+    /* One size for every pop-up window: 860px (the User Management pop-up),
+       or the whole screen width minus the gutters on smaller screens. */
+    html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {
+        width: var(--modal-width) !important;
+        max-width: calc(100vw - 2 * var(--modal-gutter)) !important;
     }
     html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {
         box-sizing: border-box;
@@ -319,6 +322,103 @@
         html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content) {
             max-height: 94vh !important;
             max-height: 94dvh !important;
+        }
+    }
+
+    /* Details in pop-ups (Product, Inventory, Delivery, Purchase Order,
+       Damage, Report): each label/value pair is a small card with the label
+       above the value, as many columns as fit - four in an 860px pop-up,
+       one on phones - instead of one long row per value with the label far
+       left and the value far right. Markup: .ui-kv-grid > item > label, value
+       (an item can be a div, or a table row with th + td). */
+    html body .ui-kv-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+        gap: var(--space-2);
+        margin: 0 0 var(--space-4);
+        padding: 0;
+        border: 0;
+    }
+    html body table:has(> tbody.ui-kv-grid) {
+        display: block;
+        width: 100%;
+        border: 0;
+    }
+    html body .ui-kv-grid > * {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
+        min-width: 0;
+        margin: 0;
+        padding: var(--space-2) var(--space-3);
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 10px;
+        text-align: left;
+    }
+    html body .ui-kv-grid > .ui-kv-wide {
+        grid-column: 1 / -1;
+    }
+    /* A product photo takes the first cell of the first two rows. */
+    html body .ui-kv-grid > .ui-kv-photo {
+        grid-row: span 2;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-2);
+    }
+    html body .ui-kv-grid > .ui-kv-photo > * {
+        max-width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1;
+    }
+    html body .ui-kv-grid > :not(.ui-kv-photo) > * {
+        flex: 0 0 auto;   /* old row layouts gave labels a fixed width (180px) */
+        width: auto;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        text-align: left;
+    }
+    html body .ui-kv-grid > :not(.ui-kv-photo) > :first-child {
+        font-size: var(--text-caption);
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #94a3b8;
+    }
+    html body .ui-kv-grid > :not(.ui-kv-photo) > :last-child:not(:first-child) {
+        font-size: var(--text-body);
+        font-weight: 600;
+        color: #f1f5f9;
+        overflow-wrap: anywhere;
+    }
+    html body .ui-kv-title {
+        margin: var(--space-4) 0 var(--space-2);
+        font-size: var(--text-caption);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #cbd5e1;
+    }
+    html body .ui-kv-title:first-child {
+        margin-top: 0;
+    }
+    /* Phones: two detail cards per row (one below 360px). */
+    @media (min-width: 360px) and (max-width: 599px) {
+        html body .ui-kv-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media print {
+        html body .ui-kv-grid > * {
+            background: none;
+            border-color: #cbd5e1;
+        }
+        html body .ui-kv-grid > :not(.ui-kv-photo) > :last-child:not(:first-child) {
+            color: #0f172a;
         }
     }
 

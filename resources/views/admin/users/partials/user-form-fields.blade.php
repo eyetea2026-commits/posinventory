@@ -111,7 +111,7 @@
         <span class="form-error" id="error-role_id">@error('role_id'){{ $message }}@enderror</span>
     </div>
 
-    <div class="form-group user-row-start">
+    <div class="form-group{{ isset($user) ? '' : ' user-row-start' }}">
         <label class="form-label">Username <span class="required">*</span></label>
         <input type="text" name="name" class="form-input" value="{{ old('name', $user->name ?? null) }}" required>
         <span class="form-error" id="error-name">@error('name'){{ $message }}@enderror</span>

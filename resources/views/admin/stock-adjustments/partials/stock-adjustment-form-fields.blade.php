@@ -1,6 +1,13 @@
 {{-- Shared "New Stock Adjustment" field markup. Included by both the
-     standalone create page and the Add Stock Adjustment modal. --}}
-<div class="form-grid">
+     standalone create page and the Add Stock Adjustment modal.
+     Product across the full width; Quantity / Date / Reason on one row;
+     Remarks across the full width. --}}
+<style>
+    .form-grid.adjustment-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (max-width: 899px) { .form-grid.adjustment-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { .form-grid.adjustment-form-grid { grid-template-columns: 1fr; } }
+</style>
+<div class="form-grid adjustment-form-grid">
     @php
         // For re-showing the typed product name if the form re-renders
         // after a validation error (old('ProductID') is still the ID).
@@ -61,7 +68,7 @@
         <span class="form-error" id="error-Date">@error('Date'){{ $message }}@enderror</span>
     </div>
 
-    <div class="form-group full-width">
+    <div class="form-group">
         <label class="form-label" for="Reason">Reason <span style="color: var(--danger);">*</span></label>
         <select id="Reason" name="Reason" class="form-select" required onchange="window.syncStockAdjustmentReason && window.syncStockAdjustmentReason(this);">
             <option value="">Select Reason</option>

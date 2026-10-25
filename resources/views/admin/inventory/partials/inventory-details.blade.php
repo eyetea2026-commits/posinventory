@@ -92,81 +92,87 @@
 {{-- No outer card wrapper here — the standalone page and the modal each
      provide their own container styling around this same content. --}}
 <div>
-    <div class="product-photo-row">
-        @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-large'])
-    </div>
     <h2 class="section-title">Product Information</h2>
-    <div class="detail-row">
-        <span class="detail-label">Product Name</span>
-        <span class="detail-value"><strong>{{ $product->ProductName }}</strong></span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Model</span>
-        <span class="detail-value">{{ $product->Model ?? 'N/A' }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">SKU</span>
-        <span class="detail-value"><code>{{ $product->SKU ?? '-' }}</code></span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Barcode</span>
-        <span class="detail-value"><code>{{ $product->Barcode ?? '-' }}</code></span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Category</span>
-        <span class="detail-value">{{ $product->category?->CategoryName ?? 'Uncategorized' }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Brand</span>
-        <span class="detail-value">{{ $product->brand?->BrandName ?? 'N/A' }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Description</span>
-        <span class="detail-value">{{ $product->Description ?? 'No description provided.' }}</span>
+    <div class="ui-kv-grid">
+        <div class="ui-kv-photo">
+            @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-large'])
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Product Name</span>
+            <span class="detail-value"><strong>{{ $product->ProductName }}</strong></span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Model</span>
+            <span class="detail-value">{{ $product->Model ?? 'N/A' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">SKU</span>
+            <span class="detail-value"><code>{{ $product->SKU ?? '-' }}</code></span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Barcode</span>
+            <span class="detail-value"><code>{{ $product->Barcode ?? '-' }}</code></span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Category</span>
+            <span class="detail-value">{{ $product->category?->CategoryName ?? 'Uncategorized' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Brand</span>
+            <span class="detail-value">{{ $product->brand?->BrandName ?? 'N/A' }}</span>
+        </div>
+        <div class="detail-row ui-kv-wide">
+            <span class="detail-label">Description</span>
+            <span class="detail-value">{{ $product->Description ?? 'No description provided.' }}</span>
+        </div>
     </div>
 
     <h2 class="section-title">Pricing</h2>
-    <div class="detail-row">
-        <span class="detail-label">Cost Price</span>
-        <span class="detail-value">₱{{ number_format($product->CostPrice ?? 0, 2) }}</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Selling Price</span>
-        <span class="detail-value">₱{{ number_format($product->Price, 2) }}</span>
+    <div class="ui-kv-grid">
+        <div class="detail-row">
+            <span class="detail-label">Cost Price</span>
+            <span class="detail-value">₱{{ number_format($product->CostPrice ?? 0, 2) }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Selling Price</span>
+            <span class="detail-value">₱{{ number_format($product->Price, 2) }}</span>
+        </div>
     </div>
 
     <h2 class="section-title">Inventory</h2>
-    <div class="detail-row">
-        <span class="detail-label">Current Stock</span>
-        <span class="detail-value">{{ $product->inventory?->Quantity ?? 0 }} units</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Reorder Threshold</span>
-        <span class="detail-value">{{ $product->inventory?->ReorderThreshold ?? 0 }} units</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Stock Status</span>
-        <span class="detail-value">
-            <span class="badge {{ $stock['class'] }}">
-                <i class="fas {{ $stock['icon'] }}"></i> {{ $stock['label'] }}
+    <div class="ui-kv-grid">
+        <div class="detail-row">
+            <span class="detail-label">Current Stock</span>
+            <span class="detail-value">{{ $product->inventory?->Quantity ?? 0 }} units</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Reorder Threshold</span>
+            <span class="detail-value">{{ $product->inventory?->ReorderThreshold ?? 0 }} units</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Stock Status</span>
+            <span class="detail-value">
+                <span class="badge {{ $stock['class'] }}">
+                    <i class="fas {{ $stock['icon'] }}"></i> {{ $stock['label'] }}
+                </span>
             </span>
-        </span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">30-Day Sales</span>
-        <span class="detail-value">{{ $velocity }} units</span>
-    </div>
-    <div class="detail-row">
-        <span class="detail-label">Sales Velocity</span>
-        <span class="detail-value">
-            @if($velocityLabel === 'fast-moving')
-                <span class="velocity-tag fast-moving"><i class="fas fa-bolt"></i> Fast-Moving</span>
-            @elseif($velocityLabel === 'slow-moving')
-                <span class="velocity-tag slow-moving"><i class="fas fa-hourglass-half"></i> Slow-Moving</span>
-            @else
-                <span class="velocity-tag normal"><i class="fas fa-minus-circle"></i> Normal</span>
-            @endif
-        </span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">30-Day Sales</span>
+            <span class="detail-value">{{ $velocity }} units</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Sales Velocity</span>
+            <span class="detail-value">
+                @if($velocityLabel === 'fast-moving')
+                    <span class="velocity-tag fast-moving"><i class="fas fa-bolt"></i> Fast-Moving</span>
+                @elseif($velocityLabel === 'slow-moving')
+                    <span class="velocity-tag slow-moving"><i class="fas fa-hourglass-half"></i> Slow-Moving</span>
+                @else
+                    <span class="velocity-tag normal"><i class="fas fa-minus-circle"></i> Normal</span>
+                @endif
+            </span>
+        </div>
     </div>
 
 </div>

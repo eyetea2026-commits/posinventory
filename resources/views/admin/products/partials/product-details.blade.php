@@ -1,69 +1,29 @@
 {{-- Shared "View Details" content. Included by both the standalone show page
      and the View Details modal. Expects $product (with brand/category/inventory
      loaded), $profit, $margin, $status in scope. --}}
-<div class="product-photo-row">
-    @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-large'])
+{{-- Label above value, three per row in the pop-up (shared .ui-kv-grid in
+     partials/responsive-ui); the photo fills the first two rows' first cell. --}}
+<div class="ui-kv-grid">
+    <div class="ui-kv-photo">
+        @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-large'])
+    </div>
+    <div><span>Product Name</span><strong>{{ $product->ProductName }}</strong></div>
+    <div><span>Model</span><span>{{ $product->Model ?? 'N/A' }}</span></div>
+    <div><span>SKU</span><code>{{ $product->SKU ?? '-' }}</code></div>
+    <div><span>Barcode</span><code>{{ $product->Barcode ?? '-' }}</code></div>
+    <div><span>Category</span><span>{{ $product->category?->CategoryName ?? 'Uncategorized' }}</span></div>
+    <div><span>Brand</span><span>{{ $product->brand?->BrandName ?? 'N/A' }}</span></div>
+    <div><span>Cost Price</span><span>₱{{ number_format($product->CostPrice ?? 0, 2) }}</span></div>
+    <div><span>Selling Price</span><span>₱{{ number_format($product->Price, 2) }}</span></div>
+    <div><span>Profit</span><span>₱{{ number_format($profit, 2) }} ({{ number_format($margin, 1) }}%)</span></div>
+    <div><span>Quantity</span><span>{{ $product->inventory?->Quantity ?? 0 }}</span></div>
+    <div><span>Reorder Threshold</span><span>{{ $product->inventory?->ReorderThreshold ?? 0 }}</span></div>
+    <div>
+        <span>Stock Status</span>
+        <span class="badge {{ $status['class'] }}"><i class="fas {{ $status['icon'] }}"></i> {{ $status['label'] }}</span>
+    </div>
+    <div class="ui-kv-wide"><span>Description</span><span>{{ $product->Description ?? 'No description provided.' }}</span></div>
 </div>
-<table class="detail-table">
-    <tbody>
-        <tr>
-            <th>Product Name</th>
-            <td><strong>{{ $product->ProductName }}</strong></td>
-        </tr>
-        <tr>
-            <th>Model</th>
-            <td>{{ $product->Model ?? 'N/A' }}</td>
-        </tr>
-        <tr>
-            <th>SKU</th>
-            <td><code>{{ $product->SKU ?? '-' }}</code></td>
-        </tr>
-        <tr>
-            <th>Barcode</th>
-            <td><code>{{ $product->Barcode ?? '-' }}</code></td>
-        </tr>
-        <tr>
-            <th>Category</th>
-            <td>{{ $product->category?->CategoryName ?? 'Uncategorized' }}</td>
-        </tr>
-        <tr>
-            <th>Brand</th>
-            <td>{{ $product->brand?->BrandName ?? 'N/A' }}</td>
-        </tr>
-        <tr>
-            <th>Description</th>
-            <td>{{ $product->Description ?? 'No description provided.' }}</td>
-        </tr>
-        <tr>
-            <th>Cost Price</th>
-            <td>₱{{ number_format($product->CostPrice ?? 0, 2) }}</td>
-        </tr>
-        <tr>
-            <th>Selling Price</th>
-            <td>₱{{ number_format($product->Price, 2) }}</td>
-        </tr>
-        <tr>
-            <th>Profit</th>
-            <td>₱{{ number_format($profit, 2) }} ({{ number_format($margin, 1) }}%)</td>
-        </tr>
-        <tr>
-            <th>Quantity</th>
-            <td>{{ $product->inventory?->Quantity ?? 0 }}</td>
-        </tr>
-        <tr>
-            <th>Reorder Threshold</th>
-            <td>{{ $product->inventory?->ReorderThreshold ?? 0 }}</td>
-        </tr>
-        <tr>
-            <th>Stock Status</th>
-            <td>
-                <span class="badge {{ $status['class'] }}">
-                    <i class="fas {{ $status['icon'] }}"></i> {{ $status['label'] }}
-                </span>
-            </td>
-        </tr>
-    </tbody>
-</table>
 
 @if($product->tracksSerialNumbers())
     {{-- One serial number per piece; each sticker is that piece's barcode at the POS. --}}

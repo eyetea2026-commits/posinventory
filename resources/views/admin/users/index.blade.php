@@ -329,7 +329,8 @@
         margin-bottom: 10px;
     }
 
-    .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    /* Three cards per row in the 860px pop-up, fewer on smaller screens. */
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 10px; }
 
     .detail-item {
         padding: 12px;
@@ -337,7 +338,7 @@
         border-radius: 10px;
     }
 
-    .detail-item.full-width { grid-column: span 2; }
+    .detail-item.full-width { grid-column: 1 / -1; }
     .detail-item label {
         display: block;
         font-size: 0.65rem;
@@ -385,7 +386,7 @@
 
     @media (max-width: 768px) {
         .detail-grid { grid-template-columns: 1fr; }
-        .detail-item.full-width { grid-column: span 1; }
+        .detail-item.full-width { grid-column: 1 / -1; }
     }
 
     /* Add User Modal */
@@ -862,6 +863,10 @@
                             <span>${user.last_name || 'N/A'}</span>
                         </div>
                         <div class="detail-item">
+                            <label>Contact</label>
+                            <span>${user.contact_number || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
                             <label>Birthdate</label>
                             <span>${user.birthdate || 'N/A'}</span>
                         </div>
@@ -876,10 +881,6 @@
                         <div class="detail-item full-width">
                             <label>Address</label>
                             <span>${user.address || 'N/A'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <label>Contact</label>
-                            <span>${user.contact_number || 'N/A'}</span>
                         </div>
                     </div>
                 </div>

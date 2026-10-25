@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
+use App\Models\Inventory;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -50,10 +53,38 @@ class ResponsiveUiTest extends TestCase
         $this->assertStringContainsString('--tap-size: 44px;', $html);
         // Extra-small screens (JioPhone 2, folded Galaxy Z Fold).
         $this->assertStringContainsString('@media (max-width: 359px) {', $html);
-        // The screen-width cap carries no weight (:where), so each pop-up's
-        // own max-width (600px, 760px...) still applies on large screens;
-        // it used to override them and stretch pop-ups across the screen.
-        $this->assertStringContainsString(":where(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {\n        max-width: calc(100vw - 2 * var(--modal-gutter));", str_replace("\r\n", "\n", $html));
+        // Every pop-up window is the User Management width (860px), or the
+        // screen width minus the gutters on smaller screens.
+        $this->assertStringContainsString('--modal-width: 860px;', $html);
+        $this->assertStringContainsString("width: var(--modal-width) !important;\n        max-width: calc(100vw - 2 * var(--modal-gutter)) !important;", str_replace("\r\n", "\n", $html));
+        // Details inside pop-ups: label above value, four cards per row.
+        $this->assertStringContainsString('grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));', $html);
+    }
+
+    // Pop-ups use their 860px width: forms three fields per row, details as
+    // label-above-value cards instead of one long row per value.
+    public function test_pop_up_contents_fill_the_width(): void
+    {
+        $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
+        $category = Category::create(['CategoryName' => 'CCTV']);
+        $product = Product::create(['ProductName' => 'Dome Camera', 'Model' => 'DC-1', 'Price' => 1500, 'CategoryID' => $category->CategoryID, 'Barcode' => 'CCTVEX-000001']);
+        Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 3, 'ReorderThreshold' => 5, 'Status' => 'Low Stock']);
+        $ajax = ['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'];
+
+        // Details: Product, Inventory.
+        $this->assertStringContainsString('<div class="ui-kv-grid">', $this->actingAs($admin)->getJson(route('admin.products.show', $product), $ajax)->json('html'));
+        $this->assertStringContainsString('<div class="ui-kv-photo">', $this->actingAs($admin)->getJson(route('admin.products.show', $product), $ajax)->json('html'));
+        $this->assertStringContainsString('class="ui-kv-grid"', $this->actingAs($admin)->getJson(route('admin.inventory.show', $product), $ajax)->json('html'));
+
+        // Forms: Product (Name / Model / Category first), Promo, Stock Adjustment, Category.
+        $products = $this->actingAs($admin)->get(route('admin.products.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('<div class="form-grid product-form-grid">', $products);
+        $form = substr($products, strpos($products, 'product-form-grid">'));
+        $this->assertTrue(strpos($form, 'name="ProductName"') < strpos($form, 'name="CategoryID"') && strpos($form, 'name="CategoryID"') < strpos($form, 'name="CostPrice"') && strpos($form, 'name="CostPrice"') < strpos($form, 'name="Description"'));
+        $this->assertStringContainsString('<div class="form-grid-2 promo-form-grid">', $this->actingAs($admin)->get(route('admin.discounts.index'))->getContent());
+        $this->assertStringContainsString('<div class="form-grid adjustment-form-grid">', $this->actingAs($admin)->get(route('admin.stock-adjustments.index'))->getContent());
+        $this->assertStringContainsString('<div class="category-form-grid">', $this->actingAs($admin)->get(route('admin.categories.index'))->getContent());
+        $this->assertStringContainsString('<div class="form-grid supplier-form-grid">', $this->actingAs($admin)->getJson(route('admin.suppliers.create'), $ajax)->json('html'));
     }
 
     // A misplaced </div> in the pagination block left the user list's

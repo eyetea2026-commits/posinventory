@@ -3,7 +3,15 @@
      pre-fill for editing (its absence means "Add" mode). Creating/editing a
      promo never selects a product here — that's a separate step in the
      "Apply Discount/Promo" tab, decided after the promo itself exists. --}}
-<div class="form-grid-2">
+<style>
+    .form-grid-2.promo-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .promo-form-grid .promo-span-all { grid-column: 1 / -1; }
+    @media (max-width: 899px) { .form-grid-2.promo-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { .form-grid-2.promo-form-grid { grid-template-columns: 1fr; } }
+</style>
+{{-- Three per row: Value / Type / Promo Code; Promo Name / Start / End;
+     Description across the full width. --}}
+<div class="form-grid-2 promo-form-grid">
     <div class="form-group">
         <label for="DiscountRate">Discount Value <span class="required">*</span></label>
         <input type="number" id="DiscountRate" name="DiscountRate" class="form-control"
@@ -20,9 +28,7 @@
         </select>
         <span class="error" id="error-DiscountType">@error('DiscountType'){{ $message }}@enderror</span>
     </div>
-</div>
 
-<div class="form-grid-2">
     <div class="form-group">
         <label for="PromoCode">Promo Code <span class="required">*</span></label>
         <input type="text" id="PromoCode" name="PromoCode" class="form-control" style="text-transform:uppercase;"
@@ -36,15 +42,7 @@
                value="{{ old('Name', $discount->Name ?? null) }}" required maxlength="100" placeholder="e.g., Summer Sale">
         <span class="error" id="error-Name">@error('Name'){{ $message }}@enderror</span>
     </div>
-</div>
 
-<div class="form-group">
-    <label for="Description">Promo Description</label>
-    <textarea id="Description" name="Description" class="form-control" rows="3" maxlength="1000" placeholder="Optional details shown on the promo's details page">{{ old('Description', $discount->Description ?? null) }}</textarea>
-    <span class="error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
-</div>
-
-<div class="form-grid-2">
     <div class="form-group">
         <label for="StartDate">Start Date <span class="required">*</span></label>
         {{-- min is only enforced for a brand-new promo — editing an existing
@@ -61,6 +59,12 @@
         <input type="date" id="EndDate" name="EndDate" class="form-control"
                value="{{ old('EndDate', isset($discount) && $discount->EndDate ? $discount->EndDate->format('Y-m-d') : null) }}" required>
         <span class="error" id="error-EndDate">@error('EndDate'){{ $message }}@enderror</span>
+    </div>
+
+    <div class="form-group promo-span-all">
+        <label for="Description">Promo Description</label>
+        <textarea id="Description" name="Description" class="form-control" rows="3" maxlength="1000" placeholder="Optional details shown on the promo's details page">{{ old('Description', $discount->Description ?? null) }}</textarea>
+        <span class="error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
     </div>
 </div>
 

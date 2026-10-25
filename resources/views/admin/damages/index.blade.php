@@ -382,64 +382,57 @@
             .then(res => res.json())
             .then(data => {
                 const d = data.damage, p = data.product, s = data.supplier, r = data.requestedBy, a = data.approvedBy;
+                // Sections of label/value cards, three per row (shared .ui-kv-grid).
+                const kv = (label, value, wide) => `<div${wide ? ' class="ui-kv-wide"' : ''}><span>${escapeHtml(label)}</span><span>${value}</span></div>`;
+                const text = value => escapeHtml(value ?? 'N/A');
+                const section = (title, items) => `<h4 class="ui-kv-title">${escapeHtml(title)}</h4><div class="ui-kv-grid">${items.join('')}</div>`;
                 let html = '';
-                html += `<p><strong>Damage Record Number:</strong> ${escapeHtml(d.DamageNumber)}</p>`;
-                html += '<hr><h4>Product Information</h4>';
-                html += `<p><strong>Product:</strong> ${escapeHtml(p.ProductName ?? 'N/A')}</p>`;
-                html += `<p><strong>Brand:</strong> ${escapeHtml(p.Brand ?? 'N/A')}</p>`;
-                html += `<p><strong>Category:</strong> ${escapeHtml(p.Category ?? 'N/A')}</p>`;
-                html += `<p><strong>Cost Price:</strong> ${window.formatPeso ? window.formatPeso(p.CostPrice ?? 0) : p.CostPrice}</p>`;
-                html += `<p><strong>Current Stock:</strong> ${escapeHtml(p.CurrentStock ?? 0)}</p>`;
+                html += section('Damage Record', [
+                    kv('Damage Record Number', text(d.DamageNumber)),
+                    kv('Current Status', text(d.Status)),
+                    kv('Supplier Return Status', text(data.supplierReturnStatus)),
+                    kv('Quantity Damaged', text(d.Quantity)),
+                    kv('Damage Type', text(d.DamageType)),
+                    kv('Source', text(d.SourceModule)),
+                    kv('Date Recorded', text(d.DateRecorded)),
+                    ...(d.ResolvedBy ? [kv('Resolved By', `${text(d.ResolvedBy)} on ${text(d.ResolvedDate)}`)] : []),
+                ]);
+                html += section('Product Information', [
+                    kv('Product', text(p.ProductName)),
+                    kv('Brand', text(p.Brand)),
+                    kv('Category', text(p.Category)),
+                    kv('Cost Price', window.formatPeso ? window.formatPeso(p.CostPrice ?? 0) : text(p.CostPrice)),
+                    kv('Current Stock', text(p.CurrentStock ?? 0)),
+                ]);
+                const people = [];
                 if (r) {
-                    html += '<hr><h4>Cashier Who Processed the Return</h4>';
-                    html += `<p><strong>Name:</strong> ${escapeHtml(r.Name)}</p>`;
-                    html += `<p><strong>Employee ID:</strong> ${escapeHtml(r.EmployeeID)}</p>`;
-                    html += `<p><strong>Role:</strong> ${escapeHtml(r.Role)}</p>`;
-                    html += `<p><strong>Date:</strong> ${escapeHtml(r.RequestDate ?? 'N/A')}</p>`;
+                    people.push(kv('Return Processed By', text(r.Name)), kv('Employee ID', text(r.EmployeeID)), kv('Role', text(r.Role)), kv('Request Date', text(r.RequestDate)));
                 }
-                if (a) {
-                    html += '<hr><h4>Administrator Who Approved</h4>';
-                    html += `<p><strong>Name:</strong> ${escapeHtml(a.Name)}</p>`;
-                }
+                if (a) people.push(kv('Approved By', text(a.Name)));
+                if (people.length) html += section('People', people);
+                const references = [];
                 if (data.salesReturn) {
-                    html += '<hr><h4>Return Information</h4>';
-                    html += `<p><strong>Return #${escapeHtml(data.salesReturn.SalesReturnID)}</strong> — Receipt ${escapeHtml(data.salesReturn.ReceiptNumber ?? 'N/A')}</p>`;
-                    html += `<p><strong>Reason for Return:</strong> ${escapeHtml(data.salesReturn.Reason ?? 'N/A')}</p>`;
+                    references.push(kv('Return', `#${text(data.salesReturn.SalesReturnID)} — Receipt ${text(data.salesReturn.ReceiptNumber)}`), kv('Reason for Return', text(data.salesReturn.Reason)));
                 }
-                html += '<hr><h4>Damage Information</h4>';
-                html += `<p><strong>Quantity Damaged:</strong> ${escapeHtml(d.Quantity)}</p>`;
-                html += `<p><strong>Damage Type:</strong> ${escapeHtml(d.DamageType)}</p>`;
-                html += `<p><strong>Source:</strong> ${escapeHtml(d.SourceModule)}</p>`;
-                html += `<p><strong>Current Status:</strong> ${escapeHtml(d.Status)}</p>`;
-                html += `<p><strong>Date Recorded:</strong> ${escapeHtml(d.DateRecorded)}</p>`;
-                html += `<p><strong>Supplier Return Status:</strong> ${escapeHtml(data.supplierReturnStatus)}</p>`;
-                if (s) {
-                    html += '<hr><h4>Supplier Information</h4>';
-                    html += `<p><strong>Supplier:</strong> ${escapeHtml(s.SupplierName)}</p>`;
-                    html += `<p><strong>Contact:</strong> ${escapeHtml(s.ContactNumber)} / ${escapeHtml(s.Email)}</p>`;
-                }
-                if (data.purchaseOrder) {
-                    html += `<p><strong>Purchase Order:</strong> ${escapeHtml(data.purchaseOrder.PONumber)}</p>`;
-                }
+                if (s) references.push(kv('Supplier', text(s.SupplierName)), kv('Supplier Contact', `${text(s.ContactNumber)}${s.Email ? ' / ' + text(s.Email) : ''}`));
+                if (data.purchaseOrder) references.push(kv('Purchase Order', text(data.purchaseOrder.PONumber)));
                 if (data.stockAdjustment) {
-                    html += '<hr><h4>Stock Adjustment Reference</h4>';
-                    html += `<p><strong>Adjustment #${escapeHtml(data.stockAdjustment.AdjustmentID)}</strong> — ${escapeHtml(data.stockAdjustment.QuantityAdjust)} (${escapeHtml(data.stockAdjustment.Reason)})</p>`;
+                    references.push(kv('Stock Adjustment', `#${text(data.stockAdjustment.AdjustmentID)} — ${text(data.stockAdjustment.QuantityAdjust)} (${text(data.stockAdjustment.Reason)})`));
                 }
-                html += '<hr><h4>Details</h4>';
-                html += `<p>${escapeHtml(d.Description)}</p>`;
-                if (d.InspectionNotes) html += `<p><strong>Inspection Notes:</strong> ${escapeHtml(d.InspectionNotes)}</p>`;
-                if (d.WarehouseLocation) html += `<p><strong>Warehouse Location:</strong> ${escapeHtml(d.WarehouseLocation)}</p>`;
-                if (d.Remarks) html += `<p><strong>Remarks:</strong> ${escapeHtml(d.Remarks)}</p>`;
-                if (d.ImageUrl) html += `<p><img src="${escapeHtml(d.ImageUrl)}" style="max-width:100%; border-radius:8px;" alt="Damage photo"></p>`;
-                if (d.ResolvedBy) html += `<p><strong>Resolved By:</strong> ${escapeHtml(d.ResolvedBy)} on ${escapeHtml(d.ResolvedDate)}</p>`;
+                if (references.length) html += section('Supplier & References', references);
+                const details = [kv('Description', text(d.Description), true)];
+                if (d.InspectionNotes) details.push(kv('Inspection Notes', text(d.InspectionNotes)));
+                if (d.WarehouseLocation) details.push(kv('Warehouse Location', text(d.WarehouseLocation)));
+                if (d.Remarks) details.push(kv('Remarks', text(d.Remarks)));
+                if (d.ImageUrl) details.push(kv('Photo', `<img src="${escapeHtml(d.ImageUrl)}" style="max-width:100%; border-radius:8px;" alt="Damage photo">`, true));
+                html += section('Details', details);
 
+                html += '<h4 class="ui-kv-title">Audit History</h4>';
                 if (data.auditHistory && data.auditHistory.length) {
-                    html += '<hr><h4>Audit History</h4>';
                     data.auditHistory.forEach(function (entry) {
-                        html += `<p style="font-size:0.85rem; color:#94a3b8;">${escapeHtml(entry.DateRecorded)} — ${escapeHtml(entry.Description)}</p>`;
+                        html += `<p style="font-size:0.85rem; color:#94a3b8; margin:0 0 4px;">${escapeHtml(entry.DateRecorded)} — ${escapeHtml(entry.Description)}</p>`;
                     });
                 } else {
-                    html += '<hr><h4>Audit History</h4>';
                     html += '<p class="text-muted" style="font-size:0.85rem;">No audit history recorded.</p>';
                 }
 
