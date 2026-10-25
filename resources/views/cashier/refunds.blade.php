@@ -70,6 +70,7 @@
     .refund-details { background: #2d3748; border-radius: 8px; padding: 16px; margin-top: 16px; }
     .refund-details-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .refund-details-row.total { font-size: 1.2rem; font-weight: bold; color: #10b981; }
+    .not-returnable-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #fcd34d; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); vertical-align: middle; }
     .payment-methods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
     .payment-method { padding: 12px; background: #2d3748; border: 2px solid #4a5568; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; }
     .payment-method:hover { border-color: #60a5fa; }
@@ -503,7 +504,9 @@ function populateTransactionDetails(transaction) {
     productsContainer.innerHTML = transaction.items.map(item => {
         const productId = Number(item.ProductID);
         const maxQty = Number(item.RemainingReturnableQty);
-        const disabled = maxQty <= 0;
+        // Tagged "Not returnable / refundable" by the Administrator.
+        const notReturnable = item.IsReturnable === false;
+        const disabled = maxQty <= 0 || notReturnable;
 
         return `
         <div class="refund-product-row ${disabled ? 'disabled' : ''}" id="refund-product-row-${productId}">
@@ -511,7 +514,7 @@ function populateTransactionDetails(transaction) {
                 <input type="checkbox" class="refund-item-checkbox" ${disabled ? 'disabled' : ''}
                     onchange='toggleRefundItem(this, ${productId}, ${Number(item.UnitPrice)}, ${maxQty})'>
                 <div style="flex:1; min-width:0;">
-                    <div class="refund-item-name"><strong>${escapeHtml(item.ProductName)}</strong></div>
+                    <div class="refund-item-name"><strong>${escapeHtml(item.ProductName)}</strong>${notReturnable ? ' <span class="not-returnable-tag" title="This product cannot be returned or refunded"><i class="fas fa-ban"></i> Not returnable</span>' : ''}</div>
                     <small class="refund-item-meta">SKU: ${escapeHtml(item.SKU ?? 'N/A')} | Barcode: ${escapeHtml(item.Barcode ?? 'N/A')} | ${escapeHtml(item.Category ?? 'N/A')} | Purchased: ${Number(item.QuantityPurchased)} | Unit: ${window.formatPeso(item.UnitPrice)} | Returnable: ${maxQty}</small>
                 </div>
                 <div class="refund-item-price" style="text-align: right;">

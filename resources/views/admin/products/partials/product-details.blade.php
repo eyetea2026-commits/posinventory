@@ -22,6 +22,14 @@
         <span>Stock Status</span>
         <span class="badge {{ $status['class'] }}"><i class="fas {{ $status['icon'] }}"></i> {{ $status['label'] }}</span>
     </div>
+    <div>
+        <span>Returns</span>
+        @if($product->IsReturnable)
+            <span>Returnable</span>
+        @else
+            <span style="color:#fcd34d;"><i class="fas fa-ban"></i> Not returnable / refundable</span>
+        @endif
+    </div>
     <div class="ui-kv-wide"><span>Description</span><span>{{ $product->Description ?? 'No description provided.' }}</span></div>
 </div>
 

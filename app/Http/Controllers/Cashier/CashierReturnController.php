@@ -225,6 +225,8 @@ class CashierReturnController extends Controller
                 'CategoryID' => $item->product?->CategoryID,
                 'QuantityPurchased' => $item->Quantity,
                 'RemainingReturnableQty' => max(0, $item->Quantity - $alreadyRequested),
+                // Tagged "Not returnable / refundable" (consumables, wires, fiber connectors).
+                'IsReturnable' => (bool) ($item->product?->IsReturnable ?? true),
                 'UnitPrice' => $item->UnitPrice,
                 'TotalPrice' => $item->Quantity * $item->UnitPrice,
             ];
@@ -277,6 +279,18 @@ class CashierReturnController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "This purchase was made {$daysSincePurchase} day(s) ago, outside the ".SalesReturn::RETURN_WINDOW_DAYS.'-day return window. It can no longer be returned.',
+            ], 400);
+        }
+
+        // Products tagged "Not returnable / refundable" can't be on a return
+        // request (checked here too, not only by the disabled checkbox).
+        $nonReturnable = Product::whereIn('ProductID', collect($data['items'])->pluck('product_id'))
+            ->where('IsReturnable', false)
+            ->pluck('ProductName');
+        if ($nonReturnable->isNotEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => $nonReturnable->implode(', ').($nonReturnable->count() === 1 ? ' is' : ' are').' not returnable / refundable.',
             ], 400);
         }
 

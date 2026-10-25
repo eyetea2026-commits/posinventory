@@ -239,6 +239,8 @@ class ProductController extends Controller
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
+            // Ticked: "Not returnable / refundable" (Product.IsReturnable = false).
+            'NonReturnable' => ['nullable', 'boolean'],
             // Any size up to 5 MB is accepted; it's stored shrunk (ProductImage).
             'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
             // A supplier can't be linked before the Product exists, so the
@@ -366,6 +368,7 @@ class ProductController extends Controller
                 'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
                 'BrandID' => $brandId,
                 'CategoryID' => $data['CategoryID'],
+                'IsReturnable' => empty($data['NonReturnable']),
             ]);
 
             // SKU is derived from the product's own ProductID, which only
@@ -446,6 +449,8 @@ class ProductController extends Controller
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
             'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
+            // Ticked: "Not returnable / refundable" (Product.IsReturnable = false).
+            'NonReturnable' => ['nullable', 'boolean'],
             'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
             'RemoveImage' => ['nullable', 'boolean'],
         ], [
@@ -530,6 +535,8 @@ class ProductController extends Controller
             'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
             'BrandID' => $brandId,
             'CategoryID' => $data['CategoryID'],
+            // Left as-is when a request doesn't carry the box at all.
+            ...(array_key_exists('NonReturnable', $data) ? ['IsReturnable' => ! $data['NonReturnable']] : []),
         ]);
 
         if ($oldImagePath !== $imagePath) {

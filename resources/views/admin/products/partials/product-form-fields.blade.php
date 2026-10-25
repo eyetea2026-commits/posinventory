@@ -7,16 +7,24 @@
      @error directive fills on a real (non-AJAX) page submission. --}}
 {{-- Three per row in the pop-up: Name / Model / Category; Brand / Cost /
      Selling Price; Reorder Threshold / (SKU) / Barcode; Pricing Calculations;
-     Description (two wide) / Photo. Two per row on tablets, one on phones. --}}
+     Description and the returns option (two wide) beside the Photo. Two per
+     row on tablets, one on phones. --}}
 <style>
     .form-grid.product-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .form-grid.product-form-grid .product-span-2 { grid-column: span 2; }
+    /* Photo beside both Description and the returns option. */
+    .form-grid.product-form-grid .product-photo-field { grid-row: span 2; }
+    .non-returnable-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; background: rgba(245, 158, 11, 0.08); cursor: pointer; }
+    .non-returnable-toggle input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: #f59e0b; }
+    .non-returnable-toggle strong { display: block; color: #fcd34d; font-size: 0.9rem; }
+    .non-returnable-toggle small { display: block; color: #94a3b8; font-size: 0.78rem; margin-top: 2px; }
     .product-form-grid textarea[name="Description"] { min-height: 132px; }
     .product-photo-field .product-cell { flex-wrap: wrap; align-items: flex-start; gap: 10px; }
     .product-photo-field .product-cell > div { flex: 1 1 150px; }
     .product-form-grid .barcode-input-row input { min-width: 0; }
     @media (max-width: 899px) {
         .form-grid.product-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .form-grid.product-form-grid .product-photo-field { grid-row: auto; }
     }
     @media (max-width: 600px) {
         .form-grid.product-form-grid { grid-template-columns: 1fr; }
@@ -173,6 +181,21 @@
                 <span class="form-error" id="error-Image">@error('Image'){{ $message }}@enderror</span>
             </div>
         </div>
+    </div>
+
+    {{-- Cut, crimped or used items (consumables, wires, fiber connectors:
+         RJ45, coaxial cable...) can't be returned once sold; the Cashier's
+         return request won't offer them. --}}
+    <div class="form-group product-span-2 product-returns-field">
+        <input type="hidden" name="NonReturnable" value="0">
+        <label class="non-returnable-toggle">
+            <input type="checkbox" name="NonReturnable" value="1"
+                   {{ old('NonReturnable', isset($product) && ! $product->IsReturnable ? 1 : 0) ? 'checked' : '' }}>
+            <span>
+                <strong>Not returnable / refundable</strong>
+                <small>For items that can't be taken back once sold, like consumables, wires and fiber connectors (RJ45, coaxial cable).</small>
+            </span>
+        </label>
     </div>
 </div>
 

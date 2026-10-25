@@ -29,10 +29,14 @@ class Product extends Model
         'BrandID',
         'CategoryID',
         'IsActive',
+        'IsReturnable',
     ];
 
     protected $casts = [
         'IsActive' => 'boolean',
+        // false: "Not returnable / refundable" (consumables, wires, fiber
+        // connectors) - the Cashier can't put it on a return request.
+        'IsReturnable' => 'boolean',
     ];
 
     /**

@@ -15,6 +15,9 @@
                     @unless($product->IsActive)
                         <span class="product-status-badge">Inactive</span>
                     @endunless
+                    @unless($product->IsReturnable)
+                        <span class="product-status-badge non-returnable-badge" title="Can't be returned or refunded once sold">Not returnable</span>
+                    @endunless
                 </span>
                 <span class="product-model">{{ $product->Model ?? 'N/A' }}</span>
                 @if(!empty($product->Description))

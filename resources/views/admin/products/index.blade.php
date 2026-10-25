@@ -403,6 +403,11 @@
         color: #fca5a5;
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
+    .product-status-badge.non-returnable-badge {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fcd34d;
+        border-color: rgba(245, 158, 11, 0.35);
+    }
 
     /* Empty state */
     .empty-state {
