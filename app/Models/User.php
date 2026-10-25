@@ -212,6 +212,22 @@ class User extends Authenticatable
         return Cache::has('session-alive:'.$this->current_session_id);
     }
 
+    /**
+     * First name, middle initial and last name ("Gina J. Cole"), as printed
+     * on receipts. Falls back to the username like full_name.
+     */
+    public function getNameWithMiddleInitialAttribute(): string
+    {
+        $middle = trim((string) $this->middle_name);
+        $parts = array_filter([
+            $this->first_name,
+            $middle !== '' ? mb_strtoupper(mb_substr($middle, 0, 1)).'.' : null,
+            $this->last_name,
+        ]);
+
+        return ! empty($parts) ? implode(' ', $parts) : $this->name;
+    }
+
     public function getFullNameAttribute(): string
     {
         $parts = array_filter([

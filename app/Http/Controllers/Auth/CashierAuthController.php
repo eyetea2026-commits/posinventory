@@ -883,7 +883,8 @@ class CashierAuthController extends Controller
         $change = max(0, $paymentAmount - $total);
         $paymentMethod = $payment?->PaymentMethod ?? 'cash';
 
-        $cashierName = Auth::user()->full_name;
+        // Middle name as an initial on the receipt ("Gina J. Cole").
+        $cashierName = Auth::user()->name_with_middle_initial;
 
         return [
             'receiptNumber' => $receiptNumber,

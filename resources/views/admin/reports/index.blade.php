@@ -128,6 +128,8 @@
             <div id="reportDetailsBody">
                 <p class="text-muted">Loading...</p>
             </div>
+            {{-- Only on paper: who printed it, and when (set by printReportDetails()). --}}
+            <p class="report-printed-by">Printed by {{ auth()->user()?->full_name }} on <span data-printed-at></span></p>
             <div class="modal-footer no-print">
                 <button type="button" class="btn btn-secondary" onclick="printReportDetails()"><i class="fas fa-print"></i> Print Report</button>
                 <button type="button" class="btn btn-primary" onclick="closeReportDetailsModal()">Close</button>
@@ -138,6 +140,7 @@
     <style>
         .modal-report-details { max-width: 820px; }
         .report-section-heading { margin: 0 0 12px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #f8fafc); text-transform: uppercase; letter-spacing: 0.04em; }
+        .report-printed-by { display: none; margin: 16px 0 0; font-size: 0.8rem; }
         .report-section-divider { border: none; border-top: 1px solid var(--border, rgba(148, 163, 184, 0.25)); margin: 18px 0; }
 
         {{-- A sale that was later refunded needs to stand out from the rest
@@ -210,6 +213,7 @@
                 padding: 0 !important;
             }
             body.printing-report-details .no-print { display: none !important; }
+            body.printing-report-details .report-printed-by { display: block !important; color: #475569 !important; }
             body.printing-report-details .modal-title,
             body.printing-report-details .report-section-heading { color: #0f172a !important; }
             body.printing-report-details .report-detail-line label { color: #475569 !important; }
@@ -301,6 +305,10 @@
         function printReportDetails() {
             window.confirmAction({ title: 'Print Report', text: 'Print this report?' }).then(function (result) {
                 if (!result.isConfirmed) return;
+                const now = new Date();
+                document.querySelector('#reportDetailsModal [data-printed-at]').textContent =
+                    now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) + ' ' +
+                    now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                 document.body.classList.add('printing-report-details');
                 window.print();
             });

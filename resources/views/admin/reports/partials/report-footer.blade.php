@@ -5,12 +5,12 @@
      element and would wrongly repeat a signature block on every page).
      Included by both admin/reports/pdf.blade.php and
      admin/reports/print.blade.php. Expects: $pdf (bool) — PDF additionally
-     gets "Confidential Report". Signature captions are generic role
-     labels, not real tracked names — this report module has no approval
-     workflow, unlike Purchase Orders. --}}
+     gets "Confidential Report". "Prepared By" is filled in with the name of
+     the Administrator printing/exporting the report; "Checked By" and
+     "Approved By" stay blank for signing (no approval workflow here). --}}
 <div class="signature-area">
     <div class="signature-block">
-        <div class="signature-line">&nbsp;<br><small>Administrator</small><br><small class="sig-caption">Prepared By</small></div>
+        <div class="signature-line"><strong>{{ auth()->user()?->full_name ?? '' }}</strong>&nbsp;<br><small>Administrator</small><br><small class="sig-caption">Prepared By</small></div>
     </div>
     <div class="signature-block">
         <div class="signature-line">&nbsp;<br><small>Manager</small><br><small class="sig-caption">Checked By</small></div>
