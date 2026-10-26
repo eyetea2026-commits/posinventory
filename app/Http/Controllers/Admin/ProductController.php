@@ -371,7 +371,6 @@ class ProductController extends Controller
             // Receiving (the last one received is kept on the product).
             'QuantityPerPurchaseUnit' => ['nullable', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             'SellsByPurchaseUnit' => ['nullable', 'boolean'],
-            'PurchaseUnitPrice' => ['nullable', 'numeric', 'min:0.01', 'max:99999999'],
             'AllowsFractionalQuantity' => ['nullable', 'boolean'],
         ];
     }
@@ -391,13 +390,12 @@ class ProductController extends Controller
     }
 
     /**
-     * The checked unit settings to save: units fit the category, selling
-     * by the purchase unit needs its price, serial-numbered products
-     * stay whole pieces, and a product's base unit can't change while it
-     * has stock counted in the old one.
+     * The checked unit settings to save: units fit the category, serial-
+     * numbered products stay whole pieces, and a product's base unit can't
+     * change while it has stock counted in the old one.
      *
      * @param  array<string, mixed>  $data
-     * @return array{UnitOfMeasure: string, PurchaseUnit: ?string, QuantityPerPurchaseUnit: int|float, PurchaseUnitPrice: ?float, AllowsFractionalQuantity: bool}
+     * @return array{UnitOfMeasure: string, PurchaseUnit: ?string, QuantityPerPurchaseUnit: int|float, SellsByPurchaseUnit: bool, AllowsFractionalQuantity: bool}
      */
     private static function validatedUnitsOfMeasure(array $data, ?Category $category, ?Product $product = null): array
     {
@@ -406,7 +404,7 @@ class ProductController extends Controller
                 'UnitOfMeasure' => $product?->baseUnit() ?? UnitOfMeasure::DEFAULT,
                 'PurchaseUnit' => $product?->PurchaseUnit,
                 'QuantityPerPurchaseUnit' => $product?->QuantityPerPurchaseUnit ?? 1,
-                'PurchaseUnitPrice' => $product?->PurchaseUnitPrice !== null ? (float) $product->PurchaseUnitPrice : null,
+                'SellsByPurchaseUnit' => (bool) ($product?->SellsByPurchaseUnit ?? false),
                 'AllowsFractionalQuantity' => (bool) ($product?->AllowsFractionalQuantity ?? false),
             ];
         }
@@ -438,9 +436,6 @@ class ProductController extends Controller
         if ($purchaseUnit && ! $allowsFractions && floor($perPurchaseUnit) != $perPurchaseUnit) {
             $errors['QuantityPerPurchaseUnit'] = "Use a whole number of {$baseUnit}s, or allow decimal quantities.";
         }
-        if ($sellsByPurchaseUnit && ! filled($data['PurchaseUnitPrice'] ?? null)) {
-            $errors['PurchaseUnitPrice'] = "Enter the selling price per {$purchaseUnit}.";
-        }
         if ($category?->TracksSerialNumbers) {
             if ($baseUnit !== UnitOfMeasure::DEFAULT || $allowsFractions) {
                 $errors['UnitOfMeasure'] = 'Products with serial numbers are counted and sold by the whole piece.';
@@ -460,7 +455,8 @@ class ProductController extends Controller
             'UnitOfMeasure' => $baseUnit,
             'PurchaseUnit' => $purchaseUnit,
             'QuantityPerPurchaseUnit' => Quantity::normalize($perPurchaseUnit),
-            'PurchaseUnitPrice' => $sellsByPurchaseUnit ? round((float) $data['PurchaseUnitPrice'], 2) : null,
+            // Its price is worked out (price per meter x meters per roll).
+            'SellsByPurchaseUnit' => (bool) $sellsByPurchaseUnit,
             'AllowsFractionalQuantity' => $allowsFractions,
         ];
     }
@@ -488,7 +484,7 @@ class ProductController extends Controller
                 'UnitOfMeasure' => $data['UnitOfMeasure'],
                 'PurchaseUnit' => $data['PurchaseUnit'],
                 'QuantityPerPurchaseUnit' => $data['QuantityPerPurchaseUnit'],
-                'PurchaseUnitPrice' => $data['PurchaseUnitPrice'],
+                'SellsByPurchaseUnit' => $data['SellsByPurchaseUnit'],
                 'AllowsFractionalQuantity' => $data['AllowsFractionalQuantity'],
             ]);
 

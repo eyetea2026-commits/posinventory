@@ -32,6 +32,8 @@
     .uom-price-input input { flex: 1; min-width: 0; text-align: right; }
     .uom-price-input .uom-currency { color: #e2e8f0; font-size: 1.15rem; font-weight: 700; }
     .uom-price-input .uom-per-base { color: #cbd5e1; font-size: 0.88rem; white-space: nowrap; }
+    .uom-roll-price { display: flex; align-items: center; min-height: 42px; padding: 8px 12px; border: 1px dashed rgba(148, 163, 184, 0.35); border-radius: 10px; color: #6ee7b7; font-size: 0.88rem; font-weight: 600; }
+    .uom-roll-price.uom-roll-price-pending { color: #94a3b8; font-weight: 400; font-size: 0.8rem; }
     .uom-grid-options { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(148, 163, 184, 0.15); }
     .uom-fraction-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; cursor: pointer; margin-top: 22px; }
     .uom-fraction-toggle input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: #3b82f6; }
@@ -58,7 +60,7 @@
     } else {
         $baseChoice = $baseUnit;
     }
-    $sellsByPurchaseUnit = (bool) old('SellsByPurchaseUnit', isset($product) && $product->PurchaseUnitPrice !== null);
+    $sellsByPurchaseUnit = (bool) old('SellsByPurchaseUnit', isset($product) && $product->SellsByPurchaseUnit);
 @endphp
 <div class="form-grid product-form-grid">
     <div class="form-group">
@@ -212,11 +214,11 @@
                 <span class="form-error" id="error-SellsByPurchaseUnit">@error('SellsByPurchaseUnit'){{ $message }}@enderror</span>
             </div>
 
+            {{-- Worked out, not typed: price per meter x meters in the last
+                 roll received (product-form-behavior keeps it current). --}}
             <div class="form-group" data-uom-needs-selling>
-                <label class="form-label" for="PurchaseUnitPrice">Selling Price (₱) per <span class="uom-purchase-name">{{ $purchaseUnit ?: 'purchase unit' }}</span> <span class="required">*</span></label>
-                <input type="text" name="PurchaseUnitPrice" id="PurchaseUnitPrice" class="form-input @error('PurchaseUnitPrice') is-invalid @enderror"
-                       value="{{ old('PurchaseUnitPrice', $product->PurchaseUnitPrice ?? null) }}" placeholder="e.g., 500.00">
-                <span class="form-error" id="error-PurchaseUnitPrice">@error('PurchaseUnitPrice'){{ $message }}@enderror</span>
+                <label class="form-label">Price per <span class="uom-purchase-name">{{ $purchaseUnit ?: 'purchase unit' }}</span></label>
+                <div class="uom-roll-price" id="purchaseUnitPriceDisplay" data-unit="{{ $product->PurchaseUnit ?? '' }}" data-unit-size="{{ isset($product) ? ($product->purchaseUnitSize() ?? '') : '' }}"></div>
             </div>
 
             <div class="form-group">

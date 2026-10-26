@@ -22,14 +22,15 @@ class Product extends Model
         'ProductName',
         'Model',
         // Units of measurement (App\Services\UnitOfMeasure): stock is kept
-        // in UnitOfMeasure (the base unit: piece, meter...); PurchaseUnit is
-        // a bigger unit holding QuantityPerPurchaseUnit of it (1 roll =
-        // 5,000 meters); PurchaseUnitPrice, when set, also sells it by the
-        // purchase unit. Price and CostPrice are per base unit.
+        // in UnitOfMeasure (the base unit: piece, meter...); it's bought by
+        // PurchaseUnit (roll, box), whose size - QuantityPerPurchaseUnit -
+        // is the last one received at Stock Receiving (1 roll = 5,000
+        // meters). SellsByPurchaseUnit also sells it by the roll, at Price x
+        // that size. Price and CostPrice are per base unit.
         'UnitOfMeasure',
         'PurchaseUnit',
         'QuantityPerPurchaseUnit',
-        'PurchaseUnitPrice',
+        'SellsByPurchaseUnit',
         'AllowsFractionalQuantity',
         'SKU',
         'Barcode',
@@ -49,6 +50,7 @@ class Product extends Model
         // connectors) - the Cashier can't put it on a return request.
         'IsReturnable' => 'boolean',
         'QuantityPerPurchaseUnit' => Quantity::class,
+        'SellsByPurchaseUnit' => 'boolean',
         'AllowsFractionalQuantity' => 'boolean',
     ];
 
@@ -137,7 +139,19 @@ class Product extends Model
      */
     public function sellsByPurchaseUnit(): bool
     {
-        return $this->purchaseUnitSize() !== null && $this->PurchaseUnitPrice !== null;
+        return $this->SellsByPurchaseUnit && $this->purchaseUnitSize() !== null;
+    }
+
+    /**
+     * The price of a whole roll/box: the price per meter/piece x how many
+     * the last roll held (₱15 x 1,000 meters = ₱15,000). Null until a roll
+     * has been received.
+     */
+    public function purchaseUnitPrice(): ?float
+    {
+        $size = $this->purchaseUnitSize();
+
+        return $size === null ? null : round((float) $this->Price * $size, 2);
     }
 
     /**
@@ -165,7 +179,7 @@ class Product extends Model
                 'unit' => $this->PurchaseUnit,
                 'plural' => UnitOfMeasure::plural($this->PurchaseUnit),
                 'quantity_per_unit' => $this->QuantityPerPurchaseUnit,
-                'price' => (float) $this->PurchaseUnitPrice,
+                'price' => $this->purchaseUnitPrice(),
                 'fractional' => false,
             ];
         }

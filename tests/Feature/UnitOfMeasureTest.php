@@ -57,10 +57,10 @@ class UnitOfMeasureTest extends TestCase
         ]);
         Inventory::create(['ProductID' => $this->wire->ProductID, 'Quantity' => 5000, 'ReorderThreshold' => 500, 'Status' => 'Available']);
 
-        // RJ45: bought by the 100-piece box, sold by the piece (₱5) or by the box (₱450).
+        // RJ45: bought by the 100-piece box, sold by the piece (₱5) or by the box (₱5 x 100 = ₱500).
         $this->rj45 = Product::create([
             'ProductName' => 'RJ45 Connector', 'Model' => 'RJ45-100', 'Price' => 5, 'CostPrice' => 3, 'CategoryID' => Category::create(['CategoryName' => 'CONSUMABLES'])->CategoryID,
-            'UnitOfMeasure' => 'piece', 'PurchaseUnit' => 'box', 'QuantityPerPurchaseUnit' => 100, 'PurchaseUnitPrice' => 450,
+            'UnitOfMeasure' => 'piece', 'PurchaseUnit' => 'box', 'QuantityPerPurchaseUnit' => 100, 'SellsByPurchaseUnit' => true,
         ]);
         Inventory::create(['ProductID' => $this->rj45->ProductID, 'Quantity' => 100, 'ReorderThreshold' => 20, 'Status' => 'Available']);
     }
@@ -102,7 +102,7 @@ class UnitOfMeasureTest extends TestCase
         $this->assertSame('1 Box (100 pieces)', $this->rj45->stockLabel(100));
         $this->assertSame('90 pieces remaining', $this->rj45->stockLabel(90));
         $this->assertSame('₱10.00/meter', $this->wire->priceLabel());
-        $this->assertSame('₱450.00/box', $this->rj45->priceLabel('box'));
+        $this->assertSame('₱500.00/box', $this->rj45->priceLabel('box'));
         $this->assertSame('1 meter', UnitOfMeasure::format(1, 'meter'));
         $this->assertSame('2 boxes', UnitOfMeasure::format(2, 'box'));
 
@@ -122,23 +122,30 @@ class UnitOfMeasureTest extends TestCase
         $this->assertSame('roll', $product->PurchaseUnit);
         // How many meters a roll holds is only known once one is received.
         $this->assertNull($product->purchaseUnitSize());
-        $this->assertNull($product->PurchaseUnitPrice);
+        $this->assertFalse($product->SellsByPurchaseUnit);
         $this->assertTrue($product->AllowsFractionalQuantity);
         $this->assertSame(['meter'], array_keys($product->sellingUnits()));
 
-        // Also sold by the roll, at its own price - once a roll's size is known.
-        $this->actingAs($this->admin)->putJson(route('admin.products.update', $product), $this->productForm(['SellsByPurchaseUnit' => 1, 'PurchaseUnitPrice' => 9000]))->assertRedirect();
+        // Also sold by the roll - once a roll's size is known - at the price
+        // per meter x meters per roll (₱32 x 305 = ₱9,760), never typed in.
+        $this->actingAs($this->admin)->putJson(route('admin.products.update', $product), $this->productForm(['SellsByPurchaseUnit' => 1]))->assertRedirect();
+        $this->assertTrue($product->fresh()->SellsByPurchaseUnit);
         $this->assertSame(['meter'], array_keys($product->fresh()->sellingUnits()));
+        $this->assertNull($product->fresh()->purchaseUnitPrice());
         $product->update(['QuantityPerPurchaseUnit' => 305]); // as Stock Receiving does
-        $this->actingAs($this->admin)->putJson(route('admin.products.update', $product), $this->productForm(['SellsByPurchaseUnit' => 1, 'PurchaseUnitPrice' => 9000]))->assertRedirect();
+        $this->actingAs($this->admin)->putJson(route('admin.products.update', $product), $this->productForm(['SellsByPurchaseUnit' => 1]))->assertRedirect();
         $this->assertSame(305, $product->fresh()->QuantityPerPurchaseUnit, 'editing keeps the last roll size');
         $this->assertSame(['meter', 'roll'], array_keys($product->fresh()->sellingUnits()));
-        $this->assertSame(9000.0, $product->fresh()->sellingUnits()['roll']['price']);
+        $this->assertSame(9760.0, $product->fresh()->sellingUnits()['roll']['price']);
+        $this->assertSame('₱9,760.00/roll', $product->fresh()->priceLabel('roll'));
+        // A new price per meter changes the roll price with it.
+        $this->actingAs($this->admin)->putJson(route('admin.products.update', $product), $this->productForm(['SellsByPurchaseUnit' => 1, 'Price' => 30]))->assertRedirect();
+        $this->assertSame(9150.0, $product->fresh()->purchaseUnitPrice());
 
         // A form without the unit section keeps the units as they are.
         $this->actingAs($this->admin)->putJson(route('admin.products.update', $product), collect($this->productForm())->except(['UnitOfMeasure', 'PurchaseUnit', 'QuantityPerPurchaseUnit', 'SellsByPurchaseUnit', 'AllowsFractionalQuantity'])->all())->assertRedirect();
         $this->assertSame('meter', $product->fresh()->UnitOfMeasure);
-        $this->assertSame(9000.0, (float) $product->fresh()->PurchaseUnitPrice);
+        $this->assertTrue($product->fresh()->SellsByPurchaseUnit);
     }
 
     public function test_the_form_reads_meter_and_roll_then_roll_then_the_price_per_meter(): void
@@ -170,7 +177,6 @@ class UnitOfMeasureTest extends TestCase
         $this->assertSame(['piece', 'meter', 'roll', 'box'], UnitOfMeasure::UNITS);
         $store(['UnitOfMeasure' => 'pack'])->assertStatus(422)->assertJsonValidationErrors('UnitOfMeasure');
         $store(['PurchaseUnit' => 'reel'])->assertStatus(422)->assertJsonValidationErrors('PurchaseUnit');
-        $store(['SellsByPurchaseUnit' => 1, 'PurchaseUnitPrice' => null])->assertStatus(422)->assertJsonValidationErrors('PurchaseUnitPrice');
 
         // Serial-numbered products are counted and sold by the whole piece.
         $cameras = Category::create(['CategoryName' => 'IP CAMERA', 'TracksSerialNumbers' => true]);
@@ -288,22 +294,22 @@ class UnitOfMeasureTest extends TestCase
         $this->assertSame('90 pieces remaining', $this->rj45->stockLabel(90));
 
         Inventory::where('ProductID', $this->rj45->ProductID)->update(['Quantity' => 200]);
-        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 1, 'unit' => 'box']], 450)->assertOk()->assertJsonPath('total', 450);
+        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 1, 'unit' => 'box']], 500)->assertOk()->assertJsonPath('total', 500);
         $this->assertSame(100, $this->stock($this->rj45));
 
         $line = SalesItem::latest('SalesItemID')->firstOrFail();
         $this->assertSame([1, 'box', 100], [$line->Quantity, $line->Unit, $line->BaseQuantity]);
-        $this->assertEquals(450, $line->UnitPrice);
+        $this->assertEquals(500, $line->UnitPrice);
     }
 
     public function test_quantities_are_checked_before_anything_is_sold(): void
     {
         // More than the stock (in the base unit).
         $this->sell([['id' => $this->wire->ProductID, 'qty' => 5000.5]], 60000)->assertStatus(400)->assertJsonPath('message', 'Insufficient stock for UTP Cable CAT6. Available: 5,000 meters');
-        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 2, 'unit' => 'box']], 900)->assertStatus(400);
+        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 2, 'unit' => 'box']], 1000)->assertStatus(400);
         // Part of a piece, of a box, or a unit it isn't sold by.
         $this->sell([['id' => $this->rj45->ProductID, 'qty' => 1.5]], 10)->assertStatus(400)->assertJsonPath('message', '"RJ45 Connector" is sold in whole pieces.');
-        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 0.5, 'unit' => 'box']], 450)->assertStatus(400);
+        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 0.5, 'unit' => 'box']], 500)->assertStatus(400);
         $this->sell([['id' => $this->wire->ProductID, 'qty' => 1, 'unit' => 'roll']], 50000)->assertStatus(400)->assertJsonPath('message', '"UTP Cable CAT6" is not sold by the roll.');
         // One unit per product per sale.
         Inventory::where('ProductID', $this->rj45->ProductID)->update(['Quantity' => 200]);
@@ -334,9 +340,9 @@ class UnitOfMeasureTest extends TestCase
         $promo = Discount::create(['Name' => 'Box Sale', 'PromoCode' => 'BOX10', 'DiscountType' => 'percentage', 'DiscountRate' => 10, 'StartDate' => now()->subDay(), 'EndDate' => now()->addDay(), 'Status' => 'active']);
         $promo->products()->attach($this->rj45->ProductID);
 
-        // 10% off ₱450 per box.
-        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 2, 'unit' => 'box']], 810)->assertOk()->assertJsonPath('total', 810);
-        $this->assertEquals(90, SalesItem::firstOrFail()->DiscountAmount);
+        // 10% off ₱500 per box.
+        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 2, 'unit' => 'box']], 900)->assertOk()->assertJsonPath('total', 900);
+        $this->assertEquals(100, SalesItem::firstOrFail()->DiscountAmount);
     }
 
     public function test_purchase_orders_are_ordered_and_received_by_the_roll(): void
@@ -410,7 +416,7 @@ class UnitOfMeasureTest extends TestCase
     public function test_a_box_returned_as_damaged_goes_to_damage_as_its_100_pieces(): void
     {
         Inventory::where('ProductID', $this->rj45->ProductID)->update(['Quantity' => 200]);
-        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 1, 'unit' => 'box']], 450)->assertOk();
+        $this->sell([['id' => $this->rj45->ProductID, 'qty' => 1, 'unit' => 'box']], 500)->assertOk();
         $transactionId = SalesItem::firstOrFail()->SalesTransactionID;
 
         $this->actingAs($this->cashier)->getJson(route('cashier.refunds.transaction', $transactionId))->assertOk()
@@ -424,7 +430,7 @@ class UnitOfMeasureTest extends TestCase
             'items' => [['product_id' => $this->rj45->ProductID, 'quantity' => $quantity, 'reason_code' => 'damaged_product']],
         ]);
         $request(0.5)->assertStatus(400);
-        $request(1)->assertOk()->assertJsonPath('refund_amount', 450);
+        $request(1)->assertOk()->assertJsonPath('refund_amount', 500);
 
         $returnItem = SalesReturnItem::firstOrFail();
         $this->assertSame([1, 'box', 100], [$returnItem->Quantity, $returnItem->Unit, $returnItem->BaseQuantity]);
