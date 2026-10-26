@@ -503,22 +503,19 @@ window.initProductAddForm = function (formId, options) {
             option.hidden = option.disabled = allowed.indexOf(option.value) === -1;
         });
         if (allowed.indexOf(baseUnitSelect.value) === -1) baseUnitSelect.value = allowed[0];
-        // "Meter & Roll": counted and sold by the meter, bought by the roll,
-        // so the Purchase Unit is Roll. Plain Meter or Roll (and Box) are
-        // bought by that same unit; a Piece can still be bought by the Box.
+        // "Meter & Roll" is Meter bought by the Roll (kept in step with the
+        // Purchase Unit by the change listeners below).
+        // What each base unit can be bought by: a meter by the roll, a piece
+        // by the box; a roll or a box only by itself (None).
         var meterAndRoll = baseUnitSelect.value === METER_AND_ROLL;
         var baseUnit = meterAndRoll ? 'meter' : (baseUnitSelect.value || 'piece');
         var basePlural = (baseUnitSelect.selectedOptions[0] && baseUnitSelect.selectedOptions[0].dataset.plural) || baseUnit;
-        var purchaseChoices = meterAndRoll ? ['roll'] : (baseUnit === 'piece' && allowed.indexOf('box') !== -1 ? ['box'] : []);
+        var purchaseChoices = { meter: ['roll'], piece: ['box'] }[baseUnit] || [];
         Array.prototype.forEach.call(purchaseUnitSelect.options, function (option) {
             option.hidden = option.disabled = option.value !== '' && purchaseChoices.indexOf(option.value) === -1;
         });
-        if (meterAndRoll) {
-            purchaseUnitSelect.value = 'roll';
-        } else if (purchaseUnitSelect.selectedOptions[0] && purchaseUnitSelect.selectedOptions[0].disabled) {
-            purchaseUnitSelect.value = '';
-        }
-        purchaseUnitSelect.disabled = meterAndRoll || purchaseChoices.length === 0;
+        if (purchaseUnitSelect.selectedOptions[0] && purchaseUnitSelect.selectedOptions[0].disabled) purchaseUnitSelect.value = '';
+        if (meterAndRoll && purchaseUnitSelect.value === '') purchaseUnitSelect.value = 'roll';
         var purchaseUnit = purchaseUnitSelect.value;
         var purchaseName = purchaseUnit || 'purchase unit';
 
@@ -550,6 +547,29 @@ window.initProductAddForm = function (formId, options) {
             group.style.display = sellsByPurchase ? '' : 'none';
         });
         purchaseUnitPriceInput.required = sellsByPurchase;
+    }
+
+    // Keeps "Meter & Roll" and the Purchase Unit in step on a wire product:
+    // picking Meter & Roll sets the Purchase Unit to Roll; picking Roll as
+    // the Purchase Unit of a Meter product makes it Meter & Roll; picking
+    // None (or plain Meter) takes the roll off again.
+    if (baseUnitSelect && purchaseUnitSelect) {
+        baseUnitSelect.addEventListener('change', function () {
+            if (baseUnitSelect.value === METER_AND_ROLL) {
+                purchaseUnitSelect.value = 'roll';
+            } else if (baseUnitSelect.value === 'meter') {
+                purchaseUnitSelect.value = '';
+            }
+        });
+        purchaseUnitSelect.addEventListener('change', function () {
+            var hasMeterAndRoll = Array.prototype.some.call(baseUnitSelect.options, function (option) { return option.value === METER_AND_ROLL && !option.hidden; });
+            if (!hasMeterAndRoll) return;
+            if (baseUnitSelect.value === 'meter' && purchaseUnitSelect.value === 'roll') {
+                baseUnitSelect.value = METER_AND_ROLL;
+            } else if (baseUnitSelect.value === METER_AND_ROLL && purchaseUnitSelect.value === '') {
+                baseUnitSelect.value = 'meter';
+            }
+        });
     }
 
     [categorySelect, baseUnitSelect, purchaseUnitSelect, sellsByPurchaseUnitSelect].forEach(function (select) {

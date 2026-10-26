@@ -224,6 +224,13 @@ class UnitOfMeasureTest extends TestCase
         // Editing a meter + roll product shows "Meter & Roll" picked.
         $html = $this->actingAs($this->admin)->getJson(route('admin.products.edit', $this->wire))->assertOk()->json('html');
         $this->assertStringContainsString('<option value="meter_roll" data-plural="meters" selected>Meter &amp; Roll</option>', $html);
+
+        // The Purchase Unit can always be changed; it's kept in step with
+        // Meter & Roll instead of being locked.
+        $page = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk();
+        $page->assertDontSee('purchaseUnitSelect.disabled', false);
+        $page->assertSee("if (baseUnitSelect.value === 'meter' && purchaseUnitSelect.value === 'roll') {", false);
+        $page->assertSee('baseUnitSelect.value = METER_AND_ROLL;', false);
     }
 
     public function test_editing_a_product_never_touches_its_stock(): void
