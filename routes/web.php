@@ -23,6 +23,7 @@ use App\Http\Controllers\Auth\CashierAuthController;
 use App\Http\Controllers\Cashier\CashierReturnController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LiveUpdatesController;
+use App\Http\Controllers\PaymentProofController;
 use App\Http\Controllers\PrintBridgeController;
 use App\Models\Product;
 use App\Models\ProductSerial;
@@ -151,6 +152,10 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
 // this app links here directly anymore — admin/cashier logins redirect
 // straight to their own dashboard/POS — kept as a harmless fallback in case
 // anything still resolves an old intended-redirect to this URL).
+// Proof of payment photo (private): Administrators any, Cashiers their own sales.
+Route::get('/payments/{payment}/proof', PaymentProofController::class)
+    ->name('payments.proof')->middleware(['auth', 'throttle:120,1']);
+
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth'])
     ->name('dashboard');

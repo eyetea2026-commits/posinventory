@@ -16,6 +16,7 @@ use App\Models\Staff;
 use App\Models\User;
 use App\Notifications\SaleCompleted;
 use App\Services\ActionNotifier;
+use App\Services\PaymentProof;
 use App\Services\ThermalReceiptPrinter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -187,7 +188,7 @@ class CashierAuthController extends Controller
 
         $receiptMatchIds = $search ? $this->todaysReceiptIdsMatching($search, $todayStart, $tomorrowStart) : [];
 
-        $transactions = SalesTransaction::with(['staff.user', 'billing', 'items.product'])
+        $transactions = SalesTransaction::with(['staff.user', 'billing.payment', 'items.product'])
             ->where('SalesTransactionDate', '>=', $todayStart)
             ->where('SalesTransactionDate', '<', $tomorrowStart)
             ->when($search, function ($query) use ($search, $receiptMatchIds) {
@@ -328,10 +329,15 @@ class CashierAuthController extends Controller
             'remarks' => 'nullable|string|max:500',
             // 7 whole-peso digits max, matching the POS input's own cap.
             'payment_amount' => 'nullable|numeric|min:0|max:9999999.99',
+            // Optional photo: GCash screenshot, bank transfer slip or cheque.
+            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             // Needs an Administrator's approval first (approveCustomDiscount()).
             'custom_discount_percent' => 'nullable|integer|min:1|max:99',
         ], [
             'payment_amount.max' => 'Payment amount cannot exceed ₱9,999,999.99.',
+            'payment_proof.image' => 'The proof of payment must be a photo (JPG, PNG or WebP).',
+            'payment_proof.mimes' => 'The proof of payment must be a photo (JPG, PNG or WebP).',
+            'payment_proof.max' => 'The proof of payment photo must be 5 MB or smaller.',
             'reference_number.required' => 'Please enter the reference/cheque number.',
             'bank_name.required' => 'Please enter the bank name.',
             'account_name.required' => 'Please enter the account name.',
@@ -396,10 +402,24 @@ class CashierAuthController extends Controller
             ], 409);
         }
 
+        // Proof of payment (GCash / Bank Transfer / Cheque only), stored
+        // before the sale and removed again if the sale doesn't go through.
+        $proofPath = null;
+        $saleCompleted = false;
+        if ($request->hasFile('payment_proof') && in_array($paymentMethod, PaymentProof::METHODS, true)) {
+            try {
+                $proofPath = PaymentProof::store($request->file('payment_proof'));
+            } catch (\RuntimeException $e) {
+                $lock->release();
+
+                return response()->json(['success' => false, 'message' => 'The proof of payment photo could not be read. Please choose another photo.'], 422);
+            }
+        }
+
         try {
             $result = DB::transaction(function () use (
                 $items, $quantitiesByProduct, $customerName, $paymentMethod, $paymentAmount,
-                $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user,
+                $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user, $proofPath,
                 $customDiscountPercent, $customDiscountApprovedBy
             ) {
                 // Prevent recording the same cheque/reference twice for the
@@ -617,6 +637,7 @@ class CashierAuthController extends Controller
                     'PaymentDate' => $paymentDate,
                     'PaymentTime' => $paymentTime,
                     'Remarks' => $remarks,
+                    'ProofImagePath' => $proofPath,
                 ]);
 
                 // The custom discount is split across the lines in proportion
@@ -674,6 +695,7 @@ class CashierAuthController extends Controller
                     'transaction_id' => $transaction->SalesTransactionID,
                 ];
             });
+            $saleCompleted = true;
         } catch (\RuntimeException $e) {
             return response()->json([
                 'success' => false,
@@ -681,6 +703,9 @@ class CashierAuthController extends Controller
             ], 400);
         } finally {
             $lock->release();
+            if (! $saleCompleted) {
+                PaymentProof::delete($proofPath);
+            }
         }
 
         // One approval, one sale.

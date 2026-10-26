@@ -164,6 +164,9 @@ class ReportController extends Controller
                     ['label' => 'Transaction Date & Time', 'value' => $this->fmtDateTime($transaction?->SalesTransactionDate)],
                     ['label' => 'Customer Name', 'value' => self::customerLabel($billing->CustomerName)],
                     ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ? ucfirst($billing->payment->PaymentMethod) : 'N/A'],
+                    ...($billing->payment?->ProofImagePath
+                        ? [['label' => 'Proof of Payment', 'value' => 'View photo', 'url' => route('payments.proof', $billing->payment)]]
+                        : []),
                 ],
             ],
             ['heading' => 'Products Sold', 'table' => $productsTable],

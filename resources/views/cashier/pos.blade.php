@@ -165,6 +165,11 @@
     #payment-amount.auto-filled { color: #34d399; cursor: not-allowed; opacity: 0.9; }
     .payment-amount-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.72rem; }
 
+    .payment-proof-optional { color: #94a3b8; font-weight: 400; }
+    #payment-proof { width: 100%; padding: 8px; background: #1a1d2d; border: 1px dashed #4a5568; border-radius: 8px; color: #cbd5e1; }
+    .payment-proof-preview { align-items: center; gap: 10px; margin-top: 8px; }
+    .payment-proof-preview img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid #4a5568; }
+    .payment-proof-preview button { background: none; border: 1px solid #4a5568; color: #fca5a5; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
     .payment-details-panel { background: #1a1d2d; border: 1px solid #4a5568; border-radius: 10px; padding: 12px; margin-bottom: 14px; }
     .payment-details-panel.confirmed { border-color: #34d399; }
     .payment-details-panel .form-group:last-of-type { margin-bottom: 0; }
@@ -380,6 +385,17 @@
         <div class="form-group" id="account-number-group" style="display: none;">
             <label id="account-label">Reference Number</label>
             <input type="text" id="account-number" placeholder="Enter reference number...">
+        </div>
+
+        {{-- Optional photo for GCash / Bank Transfer / Cheque: the GCash
+             screenshot, transfer slip or the cheque itself. --}}
+        <div class="form-group" id="payment-proof-group" style="display: none;">
+            <label for="payment-proof">Proof of Payment <small class="payment-proof-optional">(optional photo)</small></label>
+            <input type="file" id="payment-proof" accept="image/jpeg,image/png,image/webp" onchange="previewPaymentProof(this)">
+            <div class="payment-proof-preview" id="payment-proof-preview" style="display: none;">
+                <img alt="Proof of payment preview">
+                <button type="button" onclick="clearPaymentProof()"><i class="fas fa-times"></i> Remove</button>
+            </div>
         </div>
 
         <div class="payment-details-panel" id="cheque-details-group" style="display: none;">
@@ -1367,6 +1383,43 @@
         document.getElementById('approval-error').textContent = '';
     });
 
+    // Proof of payment photo (optional) for these methods only.
+    const PAYMENT_PROOF_METHODS = ['gcash', 'bank', 'cheque'];
+    const PAYMENT_PROOF_MAX_BYTES = 5 * 1024 * 1024;
+
+    function previewPaymentProof(input) {
+        const file = input.files && input.files[0];
+        const preview = document.getElementById('payment-proof-preview');
+        if (!file) {
+            preview.style.display = 'none';
+            return;
+        }
+        if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > PAYMENT_PROOF_MAX_BYTES) {
+            toastWarning('Choose a JPG, PNG or WebP photo of 5 MB or smaller.');
+            clearPaymentProof();
+            return;
+        }
+        preview.querySelector('img').src = URL.createObjectURL(file);
+        preview.style.display = 'flex';
+    }
+
+    function clearPaymentProof() {
+        document.getElementById('payment-proof').value = '';
+        document.getElementById('payment-proof-preview').style.display = 'none';
+    }
+
+    // Nested objects/arrays as form fields (items[0][id], items[0][serials][0]...).
+    function appendFormData(formData, value, key) {
+        if (value === null || value === undefined) return;
+        if (Array.isArray(value)) {
+            value.forEach(function (entry, index) { appendFormData(formData, entry, key + '[' + index + ']'); });
+        } else if (typeof value === 'object') {
+            Object.keys(value).forEach(function (name) { appendFormData(formData, value[name], key ? key + '[' + name + ']' : name); });
+        } else {
+            formData.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
+        }
+    }
+
     function togglePaymentDropdown() {
         document.getElementById('paymentDropdown').classList.toggle('open');
     }
@@ -1381,6 +1434,7 @@
         document.getElementById('paymentDropdown').classList.remove('open');
 
         document.getElementById('account-number-group').style.display = method === 'gcash' ? 'block' : 'none';
+        document.getElementById('payment-proof-group').style.display = PAYMENT_PROOF_METHODS.includes(method) ? 'block' : 'none';
         document.getElementById('cheque-details-group').style.display = method === 'cheque' ? 'block' : 'none';
         document.getElementById('bank-details-group').style.display = method === 'bank' ? 'block' : 'none';
 
@@ -1666,10 +1720,18 @@
                 return;
             }
 
+            // Sent as a form so the optional proof of payment photo can go with it.
+            const formData = new FormData();
+            appendFormData(formData, data, '');
+            const proofFile = document.getElementById('payment-proof').files[0];
+            if (PAYMENT_PROOF_METHODS.includes(selectedPaymentMethod) && proofFile) {
+                formData.append('payment_proof', proofFile);
+            }
+
             fetch('{{ route("cashier.process-sale") }}', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify(data)
+                headers: { 'Accept': 'application/json' },
+                body: formData
             })
             .then(response => response.json())
             .then(data => {

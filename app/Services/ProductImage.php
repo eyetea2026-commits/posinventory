@@ -36,6 +36,17 @@ class ProductImage
      */
     public static function storeFromPath(string $path): string
     {
+        return self::shrinkAndStore($path, 'public', self::DIRECTORY, self::MAX_SIDE, self::QUALITY);
+    }
+
+    /**
+     * Scales an image down to fit $maxSide x $maxSide, re-encodes it (WebP,
+     * else JPEG) and stores it on $disk under $directory; returns its path.
+     * Shared with payment proofs (PaymentProof), which are kept larger and
+     * on the private disk.
+     */
+    public static function shrinkAndStore(string $path, string $disk, string $directory, int $maxSide, int $quality): string
+    {
         $contents = @file_get_contents($path);
         $source = $contents === false ? false : @imagecreatefromstring($contents);
         if ($source === false) {
@@ -44,7 +55,7 @@ class ProductImage
 
         $width = imagesx($source);
         $height = imagesy($source);
-        $scale = min(1, self::MAX_SIDE / max($width, $height));
+        $scale = min(1, $maxSide / max($width, $height));
         $newWidth = max(1, (int) round($width * $scale));
         $newHeight = max(1, (int) round($height * $scale));
 
@@ -56,12 +67,12 @@ class ProductImage
 
         $useWebp = function_exists('imagewebp');
         ob_start();
-        $useWebp ? imagewebp($resized, null, self::QUALITY) : imagejpeg($resized, null, self::QUALITY);
+        $useWebp ? imagewebp($resized, null, $quality) : imagejpeg($resized, null, $quality);
         $encoded = (string) ob_get_clean();
         imagedestroy($resized);
 
-        $relative = self::DIRECTORY.'/'.Str::uuid().($useWebp ? '.webp' : '.jpg');
-        Storage::disk('public')->put($relative, $encoded);
+        $relative = $directory.'/'.Str::uuid().($useWebp ? '.webp' : '.jpg');
+        Storage::disk($disk)->put($relative, $encoded);
 
         return $relative;
     }

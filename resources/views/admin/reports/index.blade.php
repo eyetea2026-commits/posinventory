@@ -243,7 +243,11 @@
                     // Label above value, three per row (shared .ui-kv-grid).
                     html += '<div class="report-detail-lines ui-kv-grid">';
                     section.fields.forEach(function (f) {
-                        html += `<div class="report-detail-line"><label>${escapeReportDetailHtml(f.label)}</label><span>${escapeReportDetailHtml(f.value)}</span></div>`;
+                        // A field with a url (e.g. the proof of payment photo) is a link.
+                        const value = f.url
+                            ? `<a href="${escapeReportDetailHtml(f.url)}" target="_blank" rel="noopener"><i class="fas fa-image"></i> ${escapeReportDetailHtml(f.value)}</a>`
+                            : escapeReportDetailHtml(f.value);
+                        html += `<div class="report-detail-line"><label>${escapeReportDetailHtml(f.label)}</label><span>${value}</span></div>`;
                     });
                     html += '</div>';
                 }

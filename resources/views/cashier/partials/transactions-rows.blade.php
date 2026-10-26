@@ -28,6 +28,11 @@
                    onclick="return confirmPrintReceipt(event, '{{ $receiptNo }}', this.href);">
                     <i class="fas fa-print"></i> Print
                 </a>
+                @if($transaction->billing?->payment?->ProofImagePath)
+                    <a href="{{ route('payments.proof', $transaction->billing->payment) }}" class="btn btn-secondary btn-sm" target="_blank" title="Proof of payment">
+                        <i class="fas fa-image"></i> Proof
+                    </a>
+                @endif
             @else
                 <span class="view-only-note">View only</span>
             @endif

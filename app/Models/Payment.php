@@ -12,6 +12,7 @@ class Payment extends Model
     public $timestamps = false;
 
     protected $table = 'Payment';
+
     protected $primaryKey = 'PaymentID';
 
     protected $fillable = [
@@ -25,6 +26,9 @@ class Payment extends Model
         'PaymentDate',
         'PaymentTime',
         'Remarks',
+        // Optional proof of payment photo (GCash / Bank Transfer / Cheque),
+        // on the private disk - see App\Services\PaymentProof.
+        'ProofImagePath',
     ];
 
     protected $casts = [
