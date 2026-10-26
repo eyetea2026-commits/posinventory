@@ -487,15 +487,28 @@ window.initProductAddForm = function (formId, options) {
     var purchaseUnitPriceInput = form.querySelector('#PurchaseUnitPrice');
     if (purchaseUnitPriceInput) window.attachMoneyInput(purchaseUnitPriceInput);
 
+    // The units the chosen category's products use: WIRE products Meter and
+    // Roll, every other product Piece and Box (no category yet: Piece/Box).
+    function allowedUnits() {
+        var option = categorySelect && categorySelect.selectedOptions[0];
+        return option && option.dataset.units ? option.dataset.units.split(',') : ['piece', 'box'];
+    }
+
     function syncUnitOfMeasureFields() {
         if (!baseUnitSelect || !purchaseUnitSelect) return;
+        var allowed = allowedUnits();
+        Array.prototype.forEach.call(baseUnitSelect.options, function (option) {
+            option.hidden = option.disabled = allowed.indexOf(option.value) === -1;
+        });
+        if (allowed.indexOf(baseUnitSelect.value) === -1) baseUnitSelect.value = allowed[0];
         var baseUnit = baseUnitSelect.value || 'piece';
         var basePlural = (baseUnitSelect.selectedOptions[0] && baseUnitSelect.selectedOptions[0].dataset.plural) || baseUnit;
-        // The purchase unit has to be a different, bigger unit than the base.
+        // The purchase unit has to be one of the category's units, other
+        // than the base unit (Meter -> Roll, Piece -> Box).
         Array.prototype.forEach.call(purchaseUnitSelect.options, function (option) {
-            option.disabled = option.value !== '' && option.value === baseUnit;
+            option.hidden = option.disabled = option.value !== '' && (option.value === baseUnit || allowed.indexOf(option.value) === -1);
         });
-        if (purchaseUnitSelect.value === baseUnit) purchaseUnitSelect.value = '';
+        if (purchaseUnitSelect.selectedOptions[0] && purchaseUnitSelect.selectedOptions[0].disabled) purchaseUnitSelect.value = '';
         var purchaseUnit = purchaseUnitSelect.value;
         var purchaseName = purchaseUnit || 'purchase unit';
 
@@ -529,10 +542,13 @@ window.initProductAddForm = function (formId, options) {
         purchaseUnitPriceInput.required = sellsByPurchase;
     }
 
-    [baseUnitSelect, purchaseUnitSelect, sellsByPurchaseUnitSelect].forEach(function (select) {
+    [categorySelect, baseUnitSelect, purchaseUnitSelect, sellsByPurchaseUnitSelect].forEach(function (select) {
         if (select) select.addEventListener('change', syncUnitOfMeasureFields);
     });
     if (quantityPerPurchaseUnitInput) quantityPerPurchaseUnitInput.addEventListener('input', syncUnitOfMeasureFields);
+    // The Add Product popup resets the form each time it opens; the values
+    // change only after the "reset" event, so sync right after it.
+    form.addEventListener('reset', function () { setTimeout(syncUnitOfMeasureFields, 0); });
     syncUnitOfMeasureFields();
 
     return {

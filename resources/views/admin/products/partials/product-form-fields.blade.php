@@ -85,7 +85,8 @@
             @foreach($categories as $category)
                 {{-- Deactivated categories aren't offered, except the one a product already belongs to. --}}
                 @continue(! $category->IsActive && old('CategoryID', $product->CategoryID ?? null) != $category->CategoryID)
-                <option value="{{ $category->CategoryID }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
+                {{-- data-units: the units its products use (WIRE: Meter/Roll, others: Piece/Box). --}}
+                <option value="{{ $category->CategoryID }}" data-units="{{ implode(',', \App\Services\UnitOfMeasure::forCategory($category->CategoryName)) }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
                     {{ $category->CategoryName }}
                 </option>
             @endforeach

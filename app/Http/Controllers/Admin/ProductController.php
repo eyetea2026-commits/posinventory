@@ -416,6 +416,15 @@ class ProductController extends Controller
         $sellsByPurchaseUnit = $purchaseUnit && ! empty($data['SellsByPurchaseUnit']);
         $errors = [];
 
+        $allowedUnits = UnitOfMeasure::forCategory($category?->CategoryName);
+        $unitNames = implode(' or ', array_map('ucfirst', $allowedUnits));
+        $kind = $allowedUnits === UnitOfMeasure::WIRE_UNITS ? 'Wire products' : 'Products outside WIRE';
+        if (! in_array($baseUnit, $allowedUnits, true)) {
+            $errors['UnitOfMeasure'] = "{$kind} use {$unitNames}.";
+        }
+        if ($purchaseUnit && ! in_array($purchaseUnit, $allowedUnits, true)) {
+            $errors['PurchaseUnit'] = "{$kind} use {$unitNames}.";
+        }
         if ($purchaseUnit && ! $allowsFractions && floor($perPurchaseUnit) != $perPurchaseUnit) {
             $errors['QuantityPerPurchaseUnit'] = "Use a whole number of {$baseUnit}s, or allow decimal quantities.";
         }

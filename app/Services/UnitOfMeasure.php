@@ -16,6 +16,24 @@ class UnitOfMeasure
     // The only units the store uses (Inventory Base Unit and Purchase Unit).
     const UNITS = ['piece', 'meter', 'roll', 'box'];
 
+    // Wire products are counted in meters and bought by the roll; every
+    // other product by the piece and the box.
+    const WIRE_CATEGORY = 'WIRE';
+
+    const WIRE_UNITS = ['meter', 'roll'];
+
+    const OTHER_UNITS = ['piece', 'box'];
+
+    /**
+     * The units a product in this category can use.
+     *
+     * @return array<int, string>
+     */
+    public static function forCategory(?string $categoryName): array
+    {
+        return strcasecmp(trim((string) $categoryName), self::WIRE_CATEGORY) === 0 ? self::WIRE_UNITS : self::OTHER_UNITS;
+    }
+
     /**
      * 4,999 / 1.5 / 1.25 - never "1.50" or "10.00".
      */

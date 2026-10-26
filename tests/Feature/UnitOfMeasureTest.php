@@ -57,7 +57,7 @@ class UnitOfMeasureTest extends TestCase
 
         // RJ45: bought by the 100-piece box, sold by the piece (₱5) or by the box (₱450).
         $this->rj45 = Product::create([
-            'ProductName' => 'RJ45 Connector', 'Model' => 'RJ45-100', 'Price' => 5, 'CostPrice' => 3, 'CategoryID' => $this->category->CategoryID,
+            'ProductName' => 'RJ45 Connector', 'Model' => 'RJ45-100', 'Price' => 5, 'CostPrice' => 3, 'CategoryID' => Category::create(['CategoryName' => 'CONSUMABLES'])->CategoryID,
             'UnitOfMeasure' => 'piece', 'PurchaseUnit' => 'box', 'QuantityPerPurchaseUnit' => 100, 'PurchaseUnitPrice' => 450,
         ]);
         Inventory::create(['ProductID' => $this->rj45->ProductID, 'Quantity' => 100, 'ReorderThreshold' => 20, 'Status' => 'Available']);
@@ -167,9 +167,40 @@ class UnitOfMeasureTest extends TestCase
 
         // A product's base unit can't change while it has stock in the old one.
         $this->actingAs($this->admin)->putJson(route('admin.products.update', $this->rj45), $this->productForm([
-            'ProductName' => 'RJ45 Connector', 'Model' => 'RJ45-100', 'Barcode' => '4800000000024', 'UnitOfMeasure' => 'box', 'PurchaseUnit' => null,
-        ]))->assertStatus(422)->assertJsonValidationErrors('UnitOfMeasure');
+            'ProductName' => 'RJ45 Connector', 'Model' => 'RJ45-100', 'Barcode' => '4800000000024', 'CategoryID' => $this->rj45->CategoryID,
+            'UnitOfMeasure' => 'box', 'PurchaseUnit' => null,
+        ]))->assertStatus(422)->assertJsonPath('errors.UnitOfMeasure.0', 'This product still has 100 pieces in stock. Its inventory unit can only change while its stock is 0: record that stock again in the new unit with a Stock Adjustment.');
         $this->assertSame('piece', $this->rj45->fresh()->UnitOfMeasure);
+    }
+
+    public function test_wire_products_use_meter_and_roll_and_others_piece_and_box(): void
+    {
+        $this->assertSame(['meter', 'roll'], UnitOfMeasure::forCategory('WIRE'));
+        $this->assertSame(['meter', 'roll'], UnitOfMeasure::forCategory(' wire '));
+        $this->assertSame(['piece', 'box'], UnitOfMeasure::forCategory('CONSUMABLES'));
+        $this->assertSame(['piece', 'box'], UnitOfMeasure::forCategory('FIXED WIRE'));
+        $this->assertSame(['piece', 'box'], UnitOfMeasure::forCategory(null));
+
+        $consumables = $this->rj45->CategoryID;
+        $store = fn (array $overrides) => $this->actingAs($this->admin)->postJson(route('admin.products.store'), $this->productForm($overrides));
+
+        // A wire product can't be counted by the piece or bought by the box...
+        $store(['UnitOfMeasure' => 'piece', 'PurchaseUnit' => null])->assertStatus(422)->assertJsonPath('errors.UnitOfMeasure.0', 'Wire products use Meter or Roll.');
+        $store(['PurchaseUnit' => 'box'])->assertStatus(422)->assertJsonPath('errors.PurchaseUnit.0', 'Wire products use Meter or Roll.');
+        // ...and any other product can't use meters or rolls.
+        $store(['CategoryID' => $consumables])->assertStatus(422)->assertJsonPath('errors.UnitOfMeasure.0', 'Products outside WIRE use Piece or Box.');
+        $store(['CategoryID' => $consumables, 'UnitOfMeasure' => 'piece', 'PurchaseUnit' => 'roll', 'AllowsFractionalQuantity' => 0])
+            ->assertStatus(422)->assertJsonValidationErrors('PurchaseUnit');
+
+        // The allowed pairs save.
+        $store([])->assertCreated();
+        $store(['ProductName' => 'RJ45 Pass Through', 'Model' => 'RJ45-PT', 'Barcode' => '4800000000048', 'CategoryID' => $consumables,
+            'UnitOfMeasure' => 'piece', 'PurchaseUnit' => 'box', 'QuantityPerPurchaseUnit' => 100, 'AllowsFractionalQuantity' => 0])->assertCreated();
+
+        // The form knows each category's units.
+        $html = $this->actingAs($this->admin)->getJson(route('admin.products.edit', $this->wire))->assertOk()->json('html');
+        $this->assertStringContainsString('value="'.$this->category->CategoryID.'" data-units="meter,roll"', $html);
+        $this->assertStringContainsString('value="'.$consumables.'" data-units="piece,box"', $html);
     }
 
     public function test_editing_a_product_never_touches_its_stock(): void
