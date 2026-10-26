@@ -157,6 +157,10 @@ class UnitOfMeasureTest extends TestCase
         // The roll size isn't asked here (it's entered at Stock Receiving).
         $this->assertStringNotContainsString('QuantityPerPurchaseUnit', $html);
         $this->assertStringNotContainsString('uom-one', $html);
+        // No Selling Unit choice or roll price: it's sold by the meter.
+        $this->assertStringNotContainsString('Selling Unit', $html);
+        $this->assertStringNotContainsString('SellsByPurchaseUnit', $html);
+        $this->assertStringNotContainsString('Price per', $html);
         // The Selling Price lives only there now.
         $this->assertSame(1, substr_count($html, 'name="Price"'));
         // No hint lines under the two units.

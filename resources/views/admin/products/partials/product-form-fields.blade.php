@@ -32,8 +32,6 @@
     .uom-price-input input { flex: 1; min-width: 0; text-align: right; }
     .uom-price-input .uom-currency { color: #e2e8f0; font-size: 1.15rem; font-weight: 700; }
     .uom-price-input .uom-per-base { color: #cbd5e1; font-size: 0.88rem; white-space: nowrap; }
-    .uom-roll-price { display: flex; align-items: center; min-height: 42px; padding: 8px 12px; border: 1px dashed rgba(148, 163, 184, 0.35); border-radius: 10px; color: #6ee7b7; font-size: 0.88rem; font-weight: 600; }
-    .uom-roll-price.uom-roll-price-pending { color: #94a3b8; font-weight: 400; font-size: 0.8rem; }
     .uom-grid-options { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(148, 163, 184, 0.15); }
     .uom-fraction-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; cursor: pointer; margin-top: 22px; }
     .uom-fraction-toggle input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: #3b82f6; }
@@ -60,7 +58,6 @@
     } else {
         $baseChoice = $baseUnit;
     }
-    $sellsByPurchaseUnit = (bool) old('SellsByPurchaseUnit', isset($product) && $product->SellsByPurchaseUnit);
 @endphp
 <div class="form-grid product-form-grid">
     <div class="form-group">
@@ -165,9 +162,8 @@
     {{-- Unit of Measurement, read across like "Meter & Roll | Roll | ₱15 per
          meter": stock is kept in the base unit (meters, pieces), bought by
          the purchase unit (roll, box) - how many meters each roll holds is
-         entered at Stock Receiving - and the Selling Price is per base unit.
-         Below: selling the purchase unit too at its own price, and decimals
-         (1.5 meters). --}}
+         entered at Stock Receiving - and it's sold by the base unit at the
+         Selling Price. Below: decimals (1.5 meters). --}}
     <div class="form-group full-width uom-section" data-uom-section>
         <label class="form-label uom-title"><i class="fas fa-ruler-combined"></i> Unit of Measurement</label>
         <div class="uom-grid">
@@ -205,22 +201,6 @@
         </div>
 
         <div class="uom-grid uom-grid-options">
-            <div class="form-group">
-                <label class="form-label" for="SellsByPurchaseUnit">Selling Unit</label>
-                <select name="SellsByPurchaseUnit" id="SellsByPurchaseUnit" class="form-select">
-                    <option value="0" {{ $sellsByPurchaseUnit ? '' : 'selected' }}>Per {{ $baseUnit }}</option>
-                    <option value="1" {{ $sellsByPurchaseUnit ? 'selected' : '' }}>Per {{ $baseUnit }} and per {{ $purchaseUnit ?: 'purchase unit' }}</option>
-                </select>
-                <span class="form-error" id="error-SellsByPurchaseUnit">@error('SellsByPurchaseUnit'){{ $message }}@enderror</span>
-            </div>
-
-            {{-- Worked out, not typed: price per meter x meters in the last
-                 roll received (product-form-behavior keeps it current). --}}
-            <div class="form-group" data-uom-needs-selling>
-                <label class="form-label">Price per <span class="uom-purchase-name">{{ $purchaseUnit ?: 'purchase unit' }}</span></label>
-                <div class="uom-roll-price" id="purchaseUnitPriceDisplay" data-unit="{{ $product->PurchaseUnit ?? '' }}" data-unit-size="{{ isset($product) ? ($product->purchaseUnitSize() ?? '') : '' }}"></div>
-            </div>
-
             <div class="form-group">
                 <input type="hidden" name="AllowsFractionalQuantity" value="0">
                 <label class="uom-fraction-toggle">

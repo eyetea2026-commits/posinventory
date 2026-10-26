@@ -475,39 +475,10 @@ window.initProductAddForm = function (formId, options) {
     }
 
     // Unit of Measurement: the unit names in the labels follow the chosen
-    // base/purchase units, and the price per purchase unit only shows (and
-    // is only required) once selling by it is chosen. How many meters a roll
-    // holds is entered at Stock Receiving, not here.
+    // base/purchase units. How many meters a roll holds is entered at Stock
+    // Receiving, not here; the product is sold by its base unit.
     var baseUnitSelect = form.querySelector('#UnitOfMeasure');
     var purchaseUnitSelect = form.querySelector('#PurchaseUnit');
-    var sellsByPurchaseUnitSelect = form.querySelector('#SellsByPurchaseUnit');
-    var purchaseUnitPriceDisplay = form.querySelector('#purchaseUnitPriceDisplay');
-
-    // The price of a whole roll is worked out, never typed: price per meter
-    // x meters in the last roll received (₱15.00 x 1,000 meters = ₱15,000).
-    function updatePurchaseUnitPrice() {
-        if (!purchaseUnitPriceDisplay || !purchaseUnitSelect) return;
-        var purchaseUnit = purchaseUnitSelect.value;
-        // The last roll size only applies to the purchase unit it was saved with.
-        var size = purchaseUnit && purchaseUnit === purchaseUnitPriceDisplay.dataset.unit ? parseFloat(purchaseUnitPriceDisplay.dataset.unitSize) : NaN;
-        var price = window.parseMoney(sellingPriceInput.value);
-        var baseUnit = baseUnitSelect.value === METER_AND_ROLL ? 'meter' : baseUnitSelect.value;
-        var basePlural = (baseUnitSelect.selectedOptions[0] && baseUnitSelect.selectedOptions[0].dataset.plural) || baseUnit;
-        var pending = !(size > 0 && price > 0);
-        purchaseUnitPriceDisplay.classList.toggle('uom-roll-price-pending', pending);
-        if (size > 0 && price > 0) {
-            purchaseUnitPriceDisplay.textContent = window.formatPeso(price) + ' × ' + size.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + basePlural
-                + ' = ' + window.formatPeso(Math.round(price * size * 100) / 100);
-        } else if (size > 0) {
-            purchaseUnitPriceDisplay.textContent = 'Enter the Selling Price per ' + baseUnit + '.';
-        } else {
-            purchaseUnitPriceDisplay.textContent = 'Selling Price per ' + baseUnit + ' × ' + basePlural + ' per ' + (purchaseUnit || 'roll') + ' (entered when it is received).';
-        }
-    }
-    // (The selling price also changes from the cost price / profit margin.)
-    [sellingPriceInput, costPriceInput, profitMarginInput].forEach(function (input) {
-        input.addEventListener('input', updatePurchaseUnitPrice);
-    });
 
     // The Inventory Base Unit choices of the chosen category, default first:
     // WIRE products Meter & Roll / Meter / Roll, every other product Piece /
@@ -538,23 +509,10 @@ window.initProductAddForm = function (formId, options) {
         });
         if (purchaseUnitSelect.selectedOptions[0] && purchaseUnitSelect.selectedOptions[0].disabled) purchaseUnitSelect.value = '';
         if (meterAndRoll && purchaseUnitSelect.value === '') purchaseUnitSelect.value = 'roll';
-        var purchaseUnit = purchaseUnitSelect.value;
-        var purchaseName = purchaseUnit || 'purchase unit';
 
         form.querySelectorAll('.uom-per-base').forEach(function (el) { el.textContent = 'per ' + baseUnit; });
         form.querySelectorAll('.uom-base-plural').forEach(function (el) { el.textContent = basePlural; });
-        form.querySelectorAll('.uom-purchase-name').forEach(function (el) { el.textContent = purchaseName; });
         purchaseUnitSelect.options[0].textContent = 'None (bought by the ' + baseUnit + ')';
-        sellsByPurchaseUnitSelect.options[0].textContent = 'Per ' + baseUnit;
-        sellsByPurchaseUnitSelect.options[1].textContent = 'Per ' + baseUnit + ' and per ' + purchaseName;
-        sellsByPurchaseUnitSelect.options[1].disabled = !purchaseUnit;
-        if (!purchaseUnit) sellsByPurchaseUnitSelect.value = '0';
-
-        var sellsByPurchase = !!purchaseUnit && sellsByPurchaseUnitSelect.value === '1';
-        form.querySelectorAll('.form-group[data-uom-needs-selling]').forEach(function (group) {
-            group.style.display = sellsByPurchase ? '' : 'none';
-        });
-        updatePurchaseUnitPrice();
     }
 
     // Keeps "Meter & Roll" and the Purchase Unit in step on a wire product:
@@ -580,7 +538,7 @@ window.initProductAddForm = function (formId, options) {
         });
     }
 
-    [categorySelect, baseUnitSelect, purchaseUnitSelect, sellsByPurchaseUnitSelect].forEach(function (select) {
+    [categorySelect, baseUnitSelect, purchaseUnitSelect].forEach(function (select) {
         if (select) select.addEventListener('change', syncUnitOfMeasureFields);
     });
     // The Add Product popup resets the form each time it opens; the values
