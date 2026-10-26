@@ -2,6 +2,13 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('Administrator/Suppliers.css') }}">
+    <style>
+        /* Status and Actions take just the room they need and never wrap
+           ("Activ / e"); the text columns share the rest. */
+        .suppliers-table .col-status,
+        .suppliers-table .col-actions { width: 1%; white-space: nowrap; }
+        .suppliers-table .col-status .badge { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+    </style>
 @endpush
 
 @section('header')
@@ -37,15 +44,15 @@
 
         <!-- REQ082: View supplier profile details -->
         <div class="table-container">
-            <table class="table">
+            <table class="table suppliers-table">
                 <thead>
                     <tr>
                         <th>Supplier Name</th>
                         <th>Contact Number</th>
                         <th>Email</th>
                         <th>Address</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th class="col-status">Status</th>
+                        <th class="col-actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="suppliersTbody" data-live-region="suppliers-rows" data-live-topics="suppliers">
@@ -57,10 +64,10 @@
                             <td>{{ $supplier->ContactNumber }}</td>
                             <td>{{ $supplier->Email }}</td>
                             <td>{{ $supplier->Address }}</td>
-                            <td>
+                            <td class="col-status">
                                 <span class="badge {{ $supplier->Status === 'inactive' ? 'badge-secondary' : 'badge-success' }}">{{ ucfirst($supplier->Status ?? 'active') }}</span>
                             </td>
-                            <td>
+                            <td class="col-actions">
                                 <div class="actions-group">
                                     <button
                                         type="button"

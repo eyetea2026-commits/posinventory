@@ -35,6 +35,20 @@ class SupplierModuleUiTest extends TestCase
         $response->assertSee('id="addSupplierModal"', false);
     }
 
+    // The Status badge stays on one line ("Active", never "Activ / e"):
+    // Status and Actions size to their content and don't wrap.
+    public function test_the_status_column_never_wraps(): void
+    {
+        Supplier::create(['SupplierName' => 'Rover Systems – SM City Davao', 'ContactNumber' => '(082) 295-7595', 'Address' => 'EA 270, SM City Davao Annex, Quimpo Blvd., Matina, Davao City']);
+
+        $response = $this->actingAs($this->admin)->get(route('admin.suppliers.index'))->assertOk();
+
+        $response->assertSee('<th class="col-status">Status</th>', false);
+        $response->assertSee('<td class="col-status">', false);
+        $response->assertSee('.suppliers-table .col-actions { width: 1%; white-space: nowrap; }', false);
+        $response->assertSee('.suppliers-table .col-status .badge { white-space: nowrap;', false);
+    }
+
     public function test_create_ajax_request_returns_the_shared_form_fields_partial(): void
     {
         $response = $this->actingAs($this->admin)
