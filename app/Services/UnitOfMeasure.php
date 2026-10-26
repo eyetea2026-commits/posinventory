@@ -24,6 +24,12 @@ class UnitOfMeasure
 
     const OTHER_UNITS = ['piece', 'box'];
 
+    // "Meter & Roll" in the Inventory Base Unit list: counted and sold by
+    // the meter, bought by the roll (saved as base meter + purchase roll).
+    const METER_AND_ROLL = 'meter_roll';
+
+    const METER_AND_ROLL_LABEL = 'Meter & Roll';
+
     /**
      * The units a product in this category can use.
      *
@@ -31,7 +37,23 @@ class UnitOfMeasure
      */
     public static function forCategory(?string $categoryName): array
     {
-        return strcasecmp(trim((string) $categoryName), self::WIRE_CATEGORY) === 0 ? self::WIRE_UNITS : self::OTHER_UNITS;
+        return self::isWire($categoryName) ? self::WIRE_UNITS : self::OTHER_UNITS;
+    }
+
+    /**
+     * The Inventory Base Unit choices for this category, the default first:
+     * WIRE products Meter & Roll / Meter / Roll, others Piece / Box.
+     *
+     * @return array<int, string>
+     */
+    public static function baseChoicesFor(?string $categoryName): array
+    {
+        return self::isWire($categoryName) ? [self::METER_AND_ROLL, ...self::WIRE_UNITS] : self::OTHER_UNITS;
+    }
+
+    private static function isWire(?string $categoryName): bool
+    {
+        return strcasecmp(trim((string) $categoryName), self::WIRE_CATEGORY) === 0;
     }
 
     /**

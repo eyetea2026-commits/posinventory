@@ -487,8 +487,10 @@ window.initProductAddForm = function (formId, options) {
     var purchaseUnitPriceInput = form.querySelector('#PurchaseUnitPrice');
     if (purchaseUnitPriceInput) window.attachMoneyInput(purchaseUnitPriceInput);
 
-    // The units the chosen category's products use: WIRE products Meter and
-    // Roll, every other product Piece and Box (no category yet: Piece/Box).
+    // The Inventory Base Unit choices of the chosen category, default first:
+    // WIRE products Meter & Roll / Meter / Roll, every other product Piece /
+    // Box (no category yet: Piece / Box).
+    var METER_AND_ROLL = @json(\App\Services\UnitOfMeasure::METER_AND_ROLL);
     function allowedUnits() {
         var option = categorySelect && categorySelect.selectedOptions[0];
         return option && option.dataset.units ? option.dataset.units.split(',') : ['piece', 'box'];
@@ -501,14 +503,22 @@ window.initProductAddForm = function (formId, options) {
             option.hidden = option.disabled = allowed.indexOf(option.value) === -1;
         });
         if (allowed.indexOf(baseUnitSelect.value) === -1) baseUnitSelect.value = allowed[0];
-        var baseUnit = baseUnitSelect.value || 'piece';
+        // "Meter & Roll": counted and sold by the meter, bought by the roll,
+        // so the Purchase Unit is Roll. Plain Meter or Roll (and Box) are
+        // bought by that same unit; a Piece can still be bought by the Box.
+        var meterAndRoll = baseUnitSelect.value === METER_AND_ROLL;
+        var baseUnit = meterAndRoll ? 'meter' : (baseUnitSelect.value || 'piece');
         var basePlural = (baseUnitSelect.selectedOptions[0] && baseUnitSelect.selectedOptions[0].dataset.plural) || baseUnit;
-        // The purchase unit has to be one of the category's units, other
-        // than the base unit (Meter -> Roll, Piece -> Box).
+        var purchaseChoices = meterAndRoll ? ['roll'] : (baseUnit === 'piece' && allowed.indexOf('box') !== -1 ? ['box'] : []);
         Array.prototype.forEach.call(purchaseUnitSelect.options, function (option) {
-            option.hidden = option.disabled = option.value !== '' && (option.value === baseUnit || allowed.indexOf(option.value) === -1);
+            option.hidden = option.disabled = option.value !== '' && purchaseChoices.indexOf(option.value) === -1;
         });
-        if (purchaseUnitSelect.selectedOptions[0] && purchaseUnitSelect.selectedOptions[0].disabled) purchaseUnitSelect.value = '';
+        if (meterAndRoll) {
+            purchaseUnitSelect.value = 'roll';
+        } else if (purchaseUnitSelect.selectedOptions[0] && purchaseUnitSelect.selectedOptions[0].disabled) {
+            purchaseUnitSelect.value = '';
+        }
+        purchaseUnitSelect.disabled = meterAndRoll || purchaseChoices.length === 0;
         var purchaseUnit = purchaseUnitSelect.value;
         var purchaseName = purchaseUnit || 'purchase unit';
 

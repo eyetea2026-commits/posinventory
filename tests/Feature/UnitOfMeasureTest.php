@@ -199,8 +199,31 @@ class UnitOfMeasureTest extends TestCase
 
         // The form knows each category's units.
         $html = $this->actingAs($this->admin)->getJson(route('admin.products.edit', $this->wire))->assertOk()->json('html');
-        $this->assertStringContainsString('value="'.$this->category->CategoryID.'" data-units="meter,roll"', $html);
+        $this->assertStringContainsString('value="'.$this->category->CategoryID.'" data-units="meter_roll,meter,roll"', $html);
         $this->assertStringContainsString('value="'.$consumables.'" data-units="piece,box"', $html);
+    }
+
+    public function test_meter_and_roll_is_one_choice_for_wire_bought_by_the_roll(): void
+    {
+        $store = fn (array $overrides) => $this->actingAs($this->admin)->postJson(route('admin.products.store'), $this->productForm($overrides));
+
+        // "Meter & Roll" + 1,000: counted and sold by the meter, bought by the roll.
+        $store(['UnitOfMeasure' => UnitOfMeasure::METER_AND_ROLL, 'PurchaseUnit' => null, 'QuantityPerPurchaseUnit' => 1000, 'Price' => 15])->assertCreated();
+        $product = Product::where('Model', 'RG59-305')->firstOrFail();
+        $this->assertSame(['meter', 'roll', 1000], [$product->UnitOfMeasure, $product->PurchaseUnit, $product->QuantityPerPurchaseUnit]);
+        $this->assertSame('₱15.00/meter', $product->priceLabel());
+        $this->assertSame('1 Roll (1,000 meters)', $product->stockLabel(1000));
+
+        // It needs to know how many meters one roll holds.
+        $store(['ProductName' => 'Fiber Drop', 'Model' => 'FD-1', 'Barcode' => '4800000000055', 'UnitOfMeasure' => UnitOfMeasure::METER_AND_ROLL, 'PurchaseUnit' => null, 'QuantityPerPurchaseUnit' => null])
+            ->assertStatus(422)->assertJsonPath('errors.QuantityPerPurchaseUnit.0', 'Enter how many meters one roll holds.');
+        // Only wire products have it.
+        $store(['ProductName' => 'Camera', 'Model' => 'CAM-1', 'Barcode' => '4800000000062', 'CategoryID' => $this->rj45->CategoryID, 'UnitOfMeasure' => UnitOfMeasure::METER_AND_ROLL, 'PurchaseUnit' => null])
+            ->assertStatus(422)->assertJsonValidationErrors('UnitOfMeasure');
+
+        // Editing a meter + roll product shows "Meter & Roll" picked.
+        $html = $this->actingAs($this->admin)->getJson(route('admin.products.edit', $this->wire))->assertOk()->json('html');
+        $this->assertStringContainsString('<option value="meter_roll" data-plural="meters" selected>Meter &amp; Roll</option>', $html);
     }
 
     public function test_editing_a_product_never_touches_its_stock(): void

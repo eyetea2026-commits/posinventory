@@ -59,6 +59,12 @@
 @php
     $baseUnit = old('UnitOfMeasure', $product->UnitOfMeasure ?? \App\Services\UnitOfMeasure::DEFAULT) ?: \App\Services\UnitOfMeasure::DEFAULT;
     $purchaseUnit = old('PurchaseUnit', $product->PurchaseUnit ?? '') ?: '';
+    // Counted by the meter and bought by the roll shows as "Meter & Roll".
+    if ($baseUnit === \App\Services\UnitOfMeasure::METER_AND_ROLL || ($baseUnit === 'meter' && $purchaseUnit === 'roll')) {
+        [$baseChoice, $baseUnit, $purchaseUnit] = [\App\Services\UnitOfMeasure::METER_AND_ROLL, 'meter', 'roll'];
+    } else {
+        $baseChoice = $baseUnit;
+    }
     $sellsByPurchaseUnit = (bool) old('SellsByPurchaseUnit', isset($product) && $product->PurchaseUnitPrice !== null);
 @endphp
 <div class="form-grid product-form-grid">
@@ -85,8 +91,9 @@
             @foreach($categories as $category)
                 {{-- Deactivated categories aren't offered, except the one a product already belongs to. --}}
                 @continue(! $category->IsActive && old('CategoryID', $product->CategoryID ?? null) != $category->CategoryID)
-                {{-- data-units: the units its products use (WIRE: Meter/Roll, others: Piece/Box). --}}
-                <option value="{{ $category->CategoryID }}" data-units="{{ implode(',', \App\Services\UnitOfMeasure::forCategory($category->CategoryName)) }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
+                {{-- data-units: its Inventory Base Unit choices, default first
+                     (WIRE: Meter & Roll / Meter / Roll, others: Piece / Box). --}}
+                <option value="{{ $category->CategoryID }}" data-units="{{ implode(',', \App\Services\UnitOfMeasure::baseChoicesFor($category->CategoryName)) }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
                     {{ $category->CategoryName }}
                 </option>
             @endforeach
@@ -172,8 +179,9 @@
                 <label class="form-label" for="UnitOfMeasure">Inventory Base Unit <span class="required">*</span></label>
                 <select name="UnitOfMeasure" id="UnitOfMeasure" class="form-select @error('UnitOfMeasure') is-invalid @enderror" required>
                     @foreach(\App\Services\UnitOfMeasure::UNITS as $unit)
-                        <option value="{{ $unit }}" data-plural="{{ \App\Services\UnitOfMeasure::plural($unit) }}" {{ $baseUnit === $unit ? 'selected' : '' }}>{{ ucfirst($unit) }}</option>
+                        <option value="{{ $unit }}" data-plural="{{ \App\Services\UnitOfMeasure::plural($unit) }}" {{ $baseChoice === $unit ? 'selected' : '' }}>{{ ucfirst($unit) }}</option>
                     @endforeach
+                    <option value="{{ \App\Services\UnitOfMeasure::METER_AND_ROLL }}" data-plural="meters" {{ $baseChoice === \App\Services\UnitOfMeasure::METER_AND_ROLL ? 'selected' : '' }}>{{ \App\Services\UnitOfMeasure::METER_AND_ROLL_LABEL }}</option>
                 </select>
                 <div class="uom-qty" data-uom-needs-purchase>
                     <input type="number" name="QuantityPerPurchaseUnit" id="QuantityPerPurchaseUnit" class="form-input @error('QuantityPerPurchaseUnit') is-invalid @enderror"

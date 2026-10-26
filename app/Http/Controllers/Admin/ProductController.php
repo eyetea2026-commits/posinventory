@@ -364,7 +364,7 @@ class ProductController extends Controller
         return [
             // Left out entirely (a request without the Unit of Measurement
             // section): the product keeps its units, a new one is a piece.
-            'UnitOfMeasure' => ['sometimes', 'required', Rule::in(UnitOfMeasure::UNITS)],
+            'UnitOfMeasure' => ['sometimes', 'required', Rule::in([...UnitOfMeasure::UNITS, UnitOfMeasure::METER_AND_ROLL])],
             'PurchaseUnit' => ['nullable', Rule::in(UnitOfMeasure::UNITS), 'different:UnitOfMeasure'],
             'QuantityPerPurchaseUnit' => ['nullable', 'required_with:PurchaseUnit', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             'SellsByPurchaseUnit' => ['nullable', 'boolean'],
@@ -411,10 +411,19 @@ class ProductController extends Controller
 
         $baseUnit = $data['UnitOfMeasure'];
         $purchaseUnit = filled($data['PurchaseUnit'] ?? null) ? $data['PurchaseUnit'] : null;
+        // "Meter & Roll": counted and sold by the meter, bought by the roll.
+        if ($baseUnit === UnitOfMeasure::METER_AND_ROLL) {
+            $baseUnit = 'meter';
+            $purchaseUnit = 'roll';
+        }
         $allowsFractions = (bool) ($data['AllowsFractionalQuantity'] ?? false);
-        $perPurchaseUnit = $purchaseUnit ? (float) $data['QuantityPerPurchaseUnit'] : 1;
+        $perPurchaseUnit = $purchaseUnit ? (float) ($data['QuantityPerPurchaseUnit'] ?? 0) : 1;
         $sellsByPurchaseUnit = $purchaseUnit && ! empty($data['SellsByPurchaseUnit']);
         $errors = [];
+
+        if ($purchaseUnit && $perPurchaseUnit <= 0) {
+            $errors['QuantityPerPurchaseUnit'] = 'Enter how many '.UnitOfMeasure::plural($baseUnit)." one {$purchaseUnit} holds.";
+        }
 
         $allowedUnits = UnitOfMeasure::forCategory($category?->CategoryName);
         $unitNames = implode(' or ', array_map('ucfirst', $allowedUnits));
