@@ -60,15 +60,9 @@ class Sidebar extends Component
             [
                 'label' => 'Operations',
                 'items' => [
-                    [
-                        'label' => 'Return',
-                        'patterns' => ['admin.sales-returns.*', 'admin.damages.*'],
-                        'icon' => 'rotate-ccw',
-                        'children' => [
-                            ['label' => 'Approval', 'route' => 'admin.sales-returns.index', 'pattern' => 'admin.sales-returns.*'],
-                            ['label' => 'Damage', 'route' => 'admin.damages.index', 'pattern' => 'admin.damages.*'],
-                        ],
-                    ],
+                    // One module: Return Approval and Damage are tabs inside
+                    // it (admin/partials/return-damage-tabs), like Discounts & Promos.
+                    ['label' => 'Return & Damage', 'route' => 'admin.sales-returns.index', 'pattern' => ['admin.sales-returns.*', 'admin.damages.*'], 'icon' => 'rotate-ccw'],
                     ['label' => 'Reports', 'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*', 'icon' => 'bar-chart-3'],
                 ],
             ],

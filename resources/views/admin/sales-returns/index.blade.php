@@ -13,13 +13,14 @@
 
 @section('header')
     <div class="header-title">
-        <p style="margin: 0 0 4px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Return / Approval</p>
-        <h1>Approval</h1>
-        <p>Review and approve return/refund/replacement requests from cashiers</p>
+        <h1>Return &amp; Damage</h1>
+        <p>Approve cashiers' return requests, then follow damaged items back to the supplier</p>
     </div>
 @endsection
 
 @section('content')
+    @include('admin.partials.return-damage-tabs')
+
     <div class="status-tabs" data-live-region="returns-tabs" data-live-topics="returns" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
         @php
             $tabs = [

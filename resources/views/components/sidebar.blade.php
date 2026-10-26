@@ -74,7 +74,7 @@
                             </div>
                         </div>
                     @else
-                        @php $isActive = request()->routeIs($item['pattern']); @endphp
+                        @php $isActive = request()->routeIs(...(array) $item['pattern']); @endphp
                         <a
                             href="{{ route($item['route']) }}"
                             class="group flex h-10 items-center gap-3 rounded-lg px-4 text-sm transition-colors duration-200 {{ $isActive ? 'bg-[#273449] font-medium text-white' : 'text-gray-300 hover:bg-white/5' }}"
