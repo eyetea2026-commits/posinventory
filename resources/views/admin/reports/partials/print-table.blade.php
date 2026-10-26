@@ -22,8 +22,8 @@
                     <td>{{ $row->product?->SKU ?: '—' }} / {{ $row->product?->Barcode ?: '—' }}</td>
                     <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
                     <td>{{ $supplierName ?? 'N/A' }}</td>
-                    <td class="col-qty">{{ number_format($row->Quantity) }}</td>
-                    <td class="col-qty">{{ number_format($row->ReorderThreshold ?? 0) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->ReorderThreshold ?? 0, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td class="col-money">₱{{ number_format($row->product?->CostPrice ?? 0, 2) }}</td>
                     <td class="col-money">₱{{ number_format($row->product?->Price ?? 0, 2) }}</td>
                     <td class="col-money col-total">₱{{ number_format($row->Quantity * (float) ($row->product?->CostPrice ?? 0), 2) }}</td>
@@ -48,7 +48,7 @@
                     <td><code>ADJ-{{ str_pad($row->AdjustmentID, 6, '0', STR_PAD_LEFT) }}</code></td>
                     <td class="col-date">{{ \Illuminate\Support\Carbon::parse($row->Date)->format('m/d/Y') }}</td>
                     <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                    <td class="col-qty">{{ $row->QuantityAdjust >= 0 ? '+' : '' }}{{ $row->QuantityAdjust }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->QuantityAdjust, $row->Unit ?? ($row->product ?? null)?->baseUnit(), true) }}</td>
                     <td>{{ $row->Reason }}</td>
                 </tr>
             @empty
@@ -71,9 +71,9 @@
                 <tr>
                     <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
                     <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
-                    <td class="col-qty">{{ number_format($row->Quantity) }}</td>
-                    <td class="col-qty">{{ number_format($row->ReorderThreshold ?? 0) }}</td>
-                    <td class="col-qty">{{ number_format(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity((int) $row->Quantity, (int) ($row->ReorderThreshold ?? 50))) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->ReorderThreshold ?? 0, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity($row->Quantity, (int) ($row->ReorderThreshold ?? 50)), $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td>{{ $supplierName ?? 'N/A' }}</td>
                 </tr>
             @empty
@@ -96,7 +96,7 @@
                     <td class="col-date">{{ \Illuminate\Support\Carbon::parse($row->PurchaseDate)->format('m/d/Y') }}</td>
                     <td>{{ $row->SupplierName }}</td>
                     <td>{{ $row->ProductName }}</td>
-                    <td class="col-qty">{{ number_format($row->Quantity) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td class="col-money">₱{{ number_format($row->UnitPrice, 2) }}</td>
                     <td class="col-money col-total">₱{{ number_format($row->Subtotal, 2) }}</td>
                     <td>{{ \App\Models\PurchaseOrder::STATUS_LABELS[$row->Status] ?? ucfirst($row->Status) }}</td>
@@ -122,7 +122,7 @@
                     <td>{{ $row->ReceiptNumber }}</td>
                     <td>{{ $row->CustomerName }}</td>
                     <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                    <td class="col-qty">{{ number_format($row->Quantity) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td>{{ ucfirst(str_replace('_', ' ', $row->Reason)) }}</td>
                     <td>{{ ucfirst($row->ReturnType ?? 'refund') }}</td>
                     <td>{{ ucfirst($row->Status) }}</td>
@@ -148,7 +148,7 @@
                     <td class="col-date">{{ optional($row->DateRecorded)->format('m/d/Y') }}</td>
                     <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
                     <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
-                    <td class="col-qty">{{ number_format($row->Quantity) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$row->DamageType] ?? $row->DamageType }}</td>
                     <td>{{ $row->Description ?: '—' }}</td>
                     <td>{{ ucfirst(str_replace('_', ' ', $row->Status)) }}</td>
@@ -175,7 +175,7 @@
                     <td>{{ $row->CustomerName }}</td>
                     <td>{{ ucfirst($row->PaymentMethod ?? 'N/A') }}</td>
                     <td>{{ $row->ProductName }}</td>
-                    <td class="col-qty">{{ number_format($row->Quantity) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td class="col-money">₱{{ number_format($row->UnitPrice, 2) }}</td>
                     <td class="col-money">{{ $row->Discount !== null ? '₱' . number_format($row->Discount, 2) : '—' }}</td>
                     <td class="col-money">{{ $row->VatAmount !== null ? '₱' . number_format($row->VatAmount, 2) : '—' }}</td>

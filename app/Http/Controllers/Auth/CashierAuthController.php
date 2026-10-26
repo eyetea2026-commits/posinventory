@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
@@ -18,6 +19,7 @@ use App\Notifications\SaleCompleted;
 use App\Services\ActionNotifier;
 use App\Services\PaymentProof;
 use App\Services\ThermalReceiptPrinter;
+use App\Services\UnitOfMeasure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -316,7 +318,10 @@ class CashierAuthController extends Controller
         $data = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.id' => 'required|integer|exists:Product,ProductID',
-            'items.*.qty' => 'required|integer|min:1',
+            // In the unit the line is sold in (items.*.unit, the product's
+            // base unit when left out): 1.5 meters, 2 boxes.
+            'items.*.qty' => ['required', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
+            'items.*.unit' => ['nullable', 'string', 'max:20'],
             // Serial-numbered products: the scanned sticker of each piece.
             'items.*.serials' => 'nullable|array',
             'items.*.serials.*' => 'string|max:20',
@@ -334,6 +339,8 @@ class CashierAuthController extends Controller
             // Needs an Administrator's approval first (approveCustomDiscount()).
             'custom_discount_percent' => 'nullable|integer|min:1|max:99',
         ], [
+            'items.*.qty.gt' => 'Every quantity must be greater than 0.',
+            'items.*.qty.decimal' => 'Quantities can have up to 2 decimals.',
             'payment_amount.max' => 'Payment amount cannot exceed ₱9,999,999.99.',
             'payment_proof.image' => 'The proof of payment must be a photo (JPG, PNG or WebP).',
             'payment_proof.mimes' => 'The proof of payment must be a photo (JPG, PNG or WebP).',
@@ -380,13 +387,7 @@ class CashierAuthController extends Controller
             $customDiscountApprovedBy = (int) $approval['approved_by'];
         }
 
-        // Aggregate requested quantity per product: the cart can list the same
-        // product across more than one line, and checking/decrementing stock
-        // per line independently would let the combined quantity oversell.
-        $quantitiesByProduct = [];
-        foreach ($items as $item) {
-            $quantitiesByProduct[$item['id']] = ($quantitiesByProduct[$item['id']] ?? 0) + (int) $item['qty'];
-        }
+        $productIds = array_values(array_unique(array_map(fn ($item) => (int) $item['id'], $items)));
 
         $user = Auth::user();
 
@@ -418,7 +419,7 @@ class CashierAuthController extends Controller
 
         try {
             $result = DB::transaction(function () use (
-                $items, $quantitiesByProduct, $customerName, $paymentMethod, $paymentAmount,
+                $items, $productIds, $customerName, $paymentMethod, $paymentAmount,
                 $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user, $proofPath,
                 $customDiscountPercent, $customDiscountApprovedBy
             ) {
@@ -432,12 +433,12 @@ class CashierAuthController extends Controller
 
                 // Lock the inventory rows involved so a concurrent sale can't
                 // deduct the same stock before this transaction commits.
-                $inventories = Inventory::whereIn('ProductID', array_keys($quantitiesByProduct))
+                $inventories = Inventory::whereIn('ProductID', $productIds)
                     ->lockForUpdate()
                     ->get()
                     ->keyBy('ProductID');
 
-                $products = Product::with('category')->whereIn('ProductID', array_keys($quantitiesByProduct))
+                $products = Product::with('category')->whereIn('ProductID', $productIds)
                     ->get()
                     ->keyBy('ProductID');
 
@@ -449,20 +450,51 @@ class CashierAuthController extends Controller
                     throw new \RuntimeException("\"{$inactive->ProductName}\" is no longer available for sale. Please remove it from the cart.");
                 }
 
+                // One line per product, in one of the units it's sold in
+                // (Product::sellingUnits()), priced from the DB - never from
+                // the request. A product sent on two lines is merged, so the
+                // combined quantity is what's checked against stock.
+                $lines = [];
+                foreach ($items as $item) {
+                    $product = $products->get($item['id']);
+                    $unit = filled($item['unit'] ?? null) ? $item['unit'] : $product->baseUnit();
+                    $sellingUnit = $product->sellingUnits()[$unit] ?? null;
+                    if (! $sellingUnit) {
+                        throw new \RuntimeException("\"{$product->ProductName}\" is not sold by the {$unit}.");
+                    }
+                    if (isset($lines[$product->ProductID]) && $lines[$product->ProductID]['unit'] !== $unit) {
+                        throw new \RuntimeException("Sell \"{$product->ProductName}\" in one unit per sale.");
+                    }
+
+                    $line = $lines[$product->ProductID] ?? ['unit' => $unit, 'price' => $sellingUnit['price'], 'quantity_per_unit' => $sellingUnit['quantity_per_unit'], 'qty' => 0, 'serials' => []];
+                    $line['qty'] = Quantity::normalize($line['qty'] + (float) $item['qty']);
+                    $line['serials'] = array_merge($line['serials'], $item['serials'] ?? []);
+                    if (! $sellingUnit['fractional'] && floor($line['qty']) != $line['qty']) {
+                        throw new \RuntimeException("\"{$product->ProductName}\" is sold in whole {$sellingUnit['plural']}.");
+                    }
+                    $lines[$product->ProductID] = $line;
+                }
+
+                // What each product takes from stock, in its base unit.
+                $quantitiesByProduct = [];
+                foreach ($lines as $productId => $line) {
+                    $quantitiesByProduct[$productId] = Quantity::normalize($line['qty'] * $line['quantity_per_unit']);
+                }
+
                 foreach ($quantitiesByProduct as $productId => $qty) {
                     $inventory = $inventories->get($productId);
                     if (! $inventory || $inventory->Quantity < $qty) {
                         $product = $products->get($productId);
-                        throw new \RuntimeException('Insufficient stock for '.($product?->ProductName ?? 'product').'. Available: '.($inventory?->Quantity ?? 0));
+                        throw new \RuntimeException('Insufficient stock for '.($product?->ProductName ?? 'product').'. Available: '.($product ? $product->formatQuantity($inventory?->Quantity ?? 0) : ($inventory?->Quantity ?? 0)));
                     }
                 }
 
                 // Serial-numbered products sell by their scanned stickers:
                 // one in-stock serial of that product per piece sold.
                 $scannedSerials = [];
-                foreach ($items as $item) {
-                    foreach ($item['serials'] ?? [] as $serialNumber) {
-                        $scannedSerials[$item['id']][] = strtoupper(trim($serialNumber));
+                foreach ($lines as $productId => $line) {
+                    foreach ($line['serials'] as $serialNumber) {
+                        $scannedSerials[$productId][] = strtoupper(trim($serialNumber));
                     }
                 }
                 $serialsToSell = [];
@@ -492,8 +524,8 @@ class CashierAuthController extends Controller
                 // Recompute totals from the DB product prices — never trust
                 // client-submitted prices, they're editable in the browser.
                 $subtotal = 0;
-                foreach ($items as $item) {
-                    $subtotal += $products->get($item['id'])->Price * $item['qty'];
+                foreach ($lines as $line) {
+                    $subtotal += $line['price'] * $line['qty'];
                 }
 
                 // Apply Promo is fully automatic now — there's no client
@@ -523,14 +555,14 @@ class CashierAuthController extends Controller
                         }
                     });
 
-                foreach ($quantitiesByProduct as $productId => $qty) {
+                // Per unit sold: a box line gets the promo on the box price.
+                foreach ($lines as $productId => $line) {
                     $promo = $activePromoByProduct[$productId] ?? null;
                     if (! $promo) {
                         continue;
                     }
-                    $product = $products->get($productId);
-                    $perUnitDiscount = (float) $product->Price - $promo->discountedPriceFor($product);
-                    $discountAmount += $perUnitDiscount * $qty;
+                    $perUnitDiscount = $line['price'] - $promo->discountedPrice($line['price']);
+                    $discountAmount += $perUnitDiscount * $line['qty'];
                     $discountPerUnitByProduct[$productId] = $perUnitDiscount;
                     $usedDiscountIds[$promo->DiscountID] = true;
                 }
@@ -646,27 +678,30 @@ class CashierAuthController extends Controller
                 // back exactly what was paid for it.
                 $customShares = [];
                 $sharedSoFar = 0.0;
-                foreach (array_values($items) as $index => $item) {
-                    $lineAfterPromo = $products->get($item['id'])->Price * $item['qty'] - ($discountPerUnitByProduct[$item['id']] ?? 0) * $item['qty'];
-                    $share = $index === count($items) - 1
+                $lastProductId = array_key_last($lines);
+                foreach ($lines as $productId => $line) {
+                    $lineAfterPromo = $line['price'] * $line['qty'] - ($discountPerUnitByProduct[$productId] ?? 0) * $line['qty'];
+                    $share = $productId === $lastProductId
                         ? round($customDiscountAmount - $sharedSoFar, 2)
                         : ($afterPromos > 0 ? round($customDiscountAmount * $lineAfterPromo / $afterPromos, 2) : 0.0);
-                    $customShares[$index] = $share;
+                    $customShares[$productId] = $share;
                     $sharedSoFar = round($sharedSoFar + $share, 2);
                 }
 
                 // Create sales items, priced from the DB, not the request
-                foreach (array_values($items) as $index => $item) {
-                    $perUnitDiscount = $discountPerUnitByProduct[$item['id']] ?? 0;
+                foreach ($lines as $productId => $line) {
+                    $perUnitDiscount = $discountPerUnitByProduct[$productId] ?? 0;
                     SalesItem::create([
-                        'Quantity' => $item['qty'],
-                        'UnitPrice' => $products->get($item['id'])->Price,
+                        'Quantity' => $line['qty'],
+                        'Unit' => $line['unit'],
+                        'BaseQuantity' => $quantitiesByProduct[$productId],
+                        'UnitPrice' => $line['price'],
                         // This line's own share of the sale's discount — lets
                         // a later return/refund pay out exactly what the
                         // customer paid for the returned quantity instead of
                         // the full undiscounted price.
-                        'DiscountAmount' => round($perUnitDiscount * $item['qty'] + $customShares[$index], 2),
-                        'ProductID' => $item['id'],
+                        'DiscountAmount' => round($perUnitDiscount * $line['qty'] + $customShares[$productId], 2),
+                        'ProductID' => $productId,
                         'SalesTransactionID' => $transaction->SalesTransactionID,
                     ]);
                 }
@@ -684,7 +719,7 @@ class CashierAuthController extends Controller
                 // Update inventory using the aggregated per-product quantity
                 foreach ($quantitiesByProduct as $productId => $qty) {
                     $inventory = $inventories->get($productId);
-                    $inventory->Quantity -= $qty;
+                    $inventory->Quantity = Quantity::normalize($inventory->Quantity - $qty);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     $inventory->save();
                 }
@@ -847,6 +882,10 @@ class CashierAuthController extends Controller
                 'name' => $item->product?->ProductName ?? 'Unknown Product',
                 'price' => $item->UnitPrice,
                 'qty' => $item->Quantity,
+                // "1.5 meters", "2 boxes"; pieces stay a plain count ("2").
+                'qty_label' => ($item->Unit ?: UnitOfMeasure::DEFAULT) === UnitOfMeasure::DEFAULT
+                    ? UnitOfMeasure::number($item->Quantity)
+                    : $item->quantityLabel(),
             ];
         })->toArray();
 

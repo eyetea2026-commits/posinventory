@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -130,11 +131,11 @@ class SalesReturn extends Model
     // Total quantity across all line items — the multi-item equivalent of
     // the legacy header Quantity column, which is never populated by the
     // item-based return flow.
-    public function getTotalQuantityAttribute(): int
+    public function getTotalQuantityAttribute(): int|float
     {
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
 
-        return (int) $items->sum('Quantity');
+        return Quantity::normalize($items->sum('Quantity'));
     }
 
     // How many days elapsed between the original purchase and this return request.

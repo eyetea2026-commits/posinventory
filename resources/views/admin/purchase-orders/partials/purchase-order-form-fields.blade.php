@@ -25,6 +25,10 @@
     .po-items-table tr.is-hidden { display: none; }
     .po-items-table td.po-product { text-align: left; min-width: 180px; }
     .po-items-table .po-model { display: block; color: #94a3b8; font-size: 0.75rem; }
+    .po-items-table .po-unit-input { display: flex; align-items: center; gap: 6px; }
+    .po-items-table .po-unit-input input { min-width: 0; }
+    .po-items-table .po-unit-input span { color: #94a3b8; font-size: 0.78rem; white-space: nowrap; }
+    .po-items-table .po-unit-holds { display: block; color: #64748b; font-size: 0.72rem; margin-top: 2px; }
     .po-items-table .po-low { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 0.68rem; font-weight: 700; }
     .po-items-table input[type="number"], .po-items-table select { width: 100%; min-width: 90px; padding: 6px 8px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.82rem; text-align: center; }
     .po-items-table input:disabled, .po-items-table select:disabled { opacity: 0.45; }
@@ -81,12 +85,16 @@
                         </td>
                         <td class="po-product">
                             {{ $product->ProductName }}@if($row['lowStock'])<span class="po-low">Low Stock</span>@endif
-                            <span class="po-model">{{ $product->Model }} · Stock: {{ $row['stock'] }}</span>
+                            <span class="po-model">{{ $product->Model }} · Stock: {{ $row['stockLabel'] }}</span>
                         </td>
-                        <td>{{ $row['threshold'] }}</td>
-                        <td>{{ $row['previousPrice'] > 0 ? '₱'.number_format($row['previousPrice'], 2) : 'N/A' }}</td>
-                        <td><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" step="0.01" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price"></td>
-                        <td><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" step="1" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity"></td>
+                        <td>{{ $row['thresholdLabel'] }}</td>
+                        {{-- Prices and quantity are per purchase unit (a roll, a box). --}}
+                        <td>{{ $row['previousPrice'] > 0 ? '₱'.number_format($row['previousPrice'], 2).'/'.$row['unit'] : 'N/A' }}</td>
+                        <td><div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" step="0.01" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price per {{ $row['unit'] }}"><span>/{{ $row['unit'] }}</span></div></td>
+                        <td>
+                            <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" step="1" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
+                            @if($row['unitHolds'])<small class="po-unit-holds">{{ $row['unitHolds'] }} per {{ $row['unit'] }}</small>@endif
+                        </td>
                         <td>
                             {{-- The preferred (or only) supplier is picked already; it can be changed for this order. --}}
                             <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">

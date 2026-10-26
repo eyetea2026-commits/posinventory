@@ -131,8 +131,15 @@ class Discount extends Model
     // Both 'percentage' and 'fixed' math are wired up here.
     public function discountedPriceFor(Product $product): float
     {
-        $price = (float) $product->Price;
+        return $this->discountedPrice((float) $product->Price);
+    }
 
+    /**
+     * The promo applied to one unit's price - the product's per-piece/meter
+     * Price, or its own price per box/roll when it's sold by that.
+     */
+    public function discountedPrice(float $price): float
+    {
         if ($this->DiscountType === self::TYPE_FIXED) {
             return max(0, round($price - (float) $this->DiscountRate, 2));
         }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Category;
@@ -16,6 +17,7 @@ use App\Models\User;
 use App\Notifications\PurchaseOrderApproved;
 use App\Notifications\PurchaseOrderCancelled;
 use App\Services\ActionNotifier;
+use App\Services\UnitOfMeasure;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -144,10 +146,11 @@ class PurchaseOrderController extends Controller
 
         $product->load(['category', 'brand', 'inventory', 'suppliers.supplier']);
 
-        $quantity = (int) ($product->inventory?->Quantity ?? 0);
+        $quantity = $product->inventory?->Quantity ?? 0;
         $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
 
-        $suggestedQuantity = self::suggestedReorderQuantity($quantity, $threshold);
+        // Ordered in the purchase unit (rolls, boxes).
+        $suggestedQuantity = self::suggestedOrderQuantity($product, $quantity, $threshold);
 
         $knownSuppliers = $product->suppliers;
         $resolvedSupplier = $product->resolveReorderSupplier();
@@ -203,20 +206,27 @@ class PurchaseOrderController extends Controller
             ->orderBy('ProductName')
             ->get()
             ->map(function (Product $product) use ($activeSuppliers) {
-                $quantity = (int) ($product->inventory?->Quantity ?? 0);
+                $quantity = $product->inventory?->Quantity ?? 0;
                 $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
                 $link = $product->resolveReorderSupplier();
-                $previousPrice = (float) ($product->CostPrice ?? 0);
-                $currentPrice = $link && $link->CostPrice !== null ? (float) $link->CostPrice : $previousPrice;
+                // Prices and quantity are per purchase unit (a roll's price,
+                // how many rolls); stock and threshold are in the base unit.
+                $previousPrice = self::costPerPurchaseUnit($product, $product->CostPrice);
+                $currentPrice = $link && $link->CostPrice !== null ? self::costPerPurchaseUnit($product, $link->CostPrice) : $previousPrice;
 
                 return [
                     'product' => $product,
                     'stock' => $quantity,
+                    'stockLabel' => $product->formatQuantity($quantity),
                     'threshold' => $threshold,
+                    'thresholdLabel' => $product->formatQuantity($threshold),
                     'lowStock' => $quantity <= $threshold,
                     'previousPrice' => $previousPrice,
                     'currentPrice' => $currentPrice,
-                    'suggestedQuantity' => max(1, self::suggestedReorderQuantity($quantity, $threshold)),
+                    'unit' => $product->orderUnit(),
+                    'unitPlural' => UnitOfMeasure::plural($product->orderUnit()),
+                    'unitHolds' => $product->hasPurchaseUnit() ? $product->formatQuantity($product->QuantityPerPurchaseUnit) : null,
+                    'suggestedQuantity' => max(1, self::suggestedOrderQuantity($product, $quantity, $threshold)),
                     // Picked by default: the preferred supplier, or the only one.
                     'supplier' => $link?->supplier,
                     // The Supplier dropdown: this product's own suppliers
@@ -273,7 +283,7 @@ class PurchaseOrderController extends Controller
             $groups[$supplierId][] = $item;
         }
 
-        $purchaseOrders = DB::transaction(function () use ($data, $groups) {
+        $purchaseOrders = DB::transaction(function () use ($data, $groups, $products) {
             $created = [];
             foreach ($groups as $supplierId => $items) {
                 // Status is never taken from the request: every new Purchase
@@ -298,6 +308,8 @@ class PurchaseOrderController extends Controller
                         'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                         'ProductID' => $item['product_id'],
                         'Quantity' => $item['quantity'],
+                        // In the product's purchase unit (rolls, boxes).
+                        ...PurchaseOrderItem::unitFor($products->get($item['product_id'])),
                         'CostPriceAtOrder' => $item['cost_price'],
                     ]);
                 }
@@ -408,6 +420,7 @@ class PurchaseOrderController extends Controller
                 'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                 'ProductID' => $product->ProductID,
                 'Quantity' => $data['OrderQuantity'],
+                ...PurchaseOrderItem::unitFor($product),
                 'CostPriceAtOrder' => $data['CostPrice'],
             ]);
 
@@ -426,9 +439,27 @@ class PurchaseOrderController extends Controller
     // threshold — replenish whatever deficit exists below the threshold,
     // then add one more threshold's worth as a buffer so the item doesn't
     // immediately re-enter "Replenish" the moment this order arrives.
-    public static function suggestedReorderQuantity(int $quantity, int $threshold): int
+    public static function suggestedReorderQuantity(int|float $quantity, int $threshold): int|float
     {
-        return max($threshold - $quantity, 0) + $threshold;
+        return Quantity::normalize(max($threshold - $quantity, 0) + $threshold);
+    }
+
+    /**
+     * The same suggestion in whole purchase units: 7,000 meters short of
+     * 5,000-meter rolls is 2 rolls.
+     */
+    public static function suggestedOrderQuantity(Product $product, int|float $quantity, int $threshold): int
+    {
+        return (int) ceil(round(self::suggestedReorderQuantity($quantity, $threshold) / (float) $product->quantityPerOrderUnit(), 4));
+    }
+
+    /**
+     * A per-base-unit cost (Product/ProductSupplier CostPrice, per meter or
+     * piece) as the price of one purchase unit (a roll, a box).
+     */
+    public static function costPerPurchaseUnit(Product $product, $costPrice): float
+    {
+        return round((float) ($costPrice ?? 0) * (float) $product->quantityPerOrderUnit(), 2);
     }
 
     // Scans every product and drafts exactly one automatic Purchase Order
@@ -530,8 +561,9 @@ class PurchaseOrderController extends Controller
                     return null;
                 }
 
-                $suggestedQuantity = self::suggestedReorderQuantity((int) $locked->Quantity, (int) ($locked->ReorderThreshold ?? 50));
-                $costPrice = $resolvedSupplier->CostPrice ?? $product->CostPrice;
+                // In the purchase unit, priced per that unit.
+                $suggestedQuantity = self::suggestedOrderQuantity($product, $locked->Quantity, (int) ($locked->ReorderThreshold ?? 50));
+                $costPrice = self::costPerPurchaseUnit($product, $resolvedSupplier->CostPrice ?? $product->CostPrice);
 
                 $purchaseOrder = PurchaseOrder::create([
                     'PurchaseDate' => now()->toDateString(),
@@ -549,6 +581,7 @@ class PurchaseOrderController extends Controller
                     'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                     'ProductID' => $product->ProductID,
                     'Quantity' => $suggestedQuantity,
+                    ...PurchaseOrderItem::unitFor($product),
                     'CostPriceAtOrder' => $costPrice,
                 ]);
 

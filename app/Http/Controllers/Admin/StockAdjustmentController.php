@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\DamagedProduct;
@@ -13,6 +14,7 @@ use App\Models\StockAdjustment;
 use App\Models\User;
 use App\Notifications\StockAdjustmentRecorded;
 use App\Services\SerialNumbers;
+use App\Services\UnitOfMeasure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -68,11 +70,24 @@ class StockAdjustmentController extends Controller
     {
         $data = $request->validate([
             'ProductID' => ['required', 'integer', 'exists:Product,ProductID'],
-            'QuantityAdjust' => ['required', 'integer', 'not_in:0'],
+            // In the product's base unit; decimals only for a product that
+            // allows them (0.5 meters).
+            'QuantityAdjust' => ['required', 'numeric', 'not_in:0', 'decimal:0,2', 'min:-9999999', 'max:9999999'],
             'Reason' => ['required', 'string', 'in:'.implode(',', StockAdjustment::REASONS)],
             'Remarks' => ['nullable', 'string', 'max:500'],
             'Date' => ['required', 'date'],
         ]);
+
+        $data['QuantityAdjust'] = Quantity::normalize($data['QuantityAdjust']);
+        $adjustedProduct = Product::find($data['ProductID']);
+        if ($data['QuantityAdjust'] == 0) {
+            throw ValidationException::withMessages(['QuantityAdjust' => 'The quantity adjusted cannot be 0.']);
+        }
+        if (is_float($data['QuantityAdjust']) && ! $adjustedProduct->AllowsFractionalQuantity) {
+            throw ValidationException::withMessages([
+                'QuantityAdjust' => "\"{$adjustedProduct->ProductName}\" is counted in whole ".UnitOfMeasure::plural($adjustedProduct->baseUnit()).'.',
+            ]);
+        }
 
         if (in_array($data['Reason'], StockAdjustment::DECREASE_ONLY_REASONS, true) && $data['QuantityAdjust'] > 0) {
             throw ValidationException::withMessages([
@@ -102,7 +117,7 @@ class StockAdjustmentController extends Controller
                     $inventory = Inventory::where('ProductID', $data['ProductID'])->lockForUpdate()->first();
                 }
 
-                $newQty = $inventory->Quantity + $data['QuantityAdjust'];
+                $newQty = Quantity::normalize($inventory->Quantity + $data['QuantityAdjust']);
 
                 if ($newQty < 0) {
                     throw new \RuntimeException('Cannot reduce stock below zero. Current stock: '.$inventory->Quantity);
@@ -128,7 +143,9 @@ class StockAdjustmentController extends Controller
         $product = Product::find($data['ProductID']);
         $productName = $product?->ProductName ?? 'Unknown product';
         $sign = $data['QuantityAdjust'] >= 0 ? '+' : '';
-        ActivityLog::record('stock.adjusted', "Adjusted \"{$productName}\" by {$sign}{$data['QuantityAdjust']} (new total: {$newQty})".($damage ? " — created damage record #{$damage->DamageID}" : ''));
+        $adjustedBy = $product ? $product->formatQuantity($data['QuantityAdjust']) : $data['QuantityAdjust'];
+        $newTotal = $product ? $product->formatQuantity($newQty) : $newQty;
+        ActivityLog::record('stock.adjusted', "Adjusted \"{$productName}\" by {$sign}{$adjustedBy} (new total: {$newTotal})".($damage ? " — created damage record #{$damage->DamageID}" : ''));
 
         // The adjustment itself already committed above — a notification
         // failure (broken mail transport, queue connection down) must not
@@ -137,7 +154,7 @@ class StockAdjustmentController extends Controller
             try {
                 Notification::send(
                     User::admins(),
-                    new StockAdjustmentRecorded($product, (int) $data['QuantityAdjust'], $newQty, $data['Reason'])
+                    new StockAdjustmentRecorded($product, $data['QuantityAdjust'], $newQty, $data['Reason'])
                 );
             } catch (Throwable $e) {
                 Log::error('Failed to dispatch StockAdjustmentRecorded notification', [

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -51,13 +52,14 @@ class InventoryController extends Controller
 
         $query = Product::query()
             ->with(['category', 'inventory'])
+            // Sold in the base unit (a box sold counts as its 100 pieces).
             ->withSum([
                 'salesItems' => function ($q) use ($cutoff) {
                     $q->whereHas('transaction', function ($t) use ($cutoff) {
                         $t->where('SalesTransactionDate', '>=', $cutoff);
                     });
                 },
-            ], 'Quantity');
+            ], 'BaseQuantity');
 
         // REQ044: search by name or keyword (name + model + barcode + category)
         if ($search) {
@@ -106,13 +108,13 @@ class InventoryController extends Controller
     {
         $product->load(['category', 'brand', 'inventory']);
 
-        $velocity = (int) $product->salesItems()
+        $velocity = Quantity::normalize($product->salesItems()
             ->whereHas('transaction', function ($t) {
                 $t->where('SalesTransactionDate', '>=', now()->subDays(self::SALES_WINDOW_DAYS));
             })
-            ->sum('Quantity');
+            ->sum('BaseQuantity'));
 
-        $quantity = (int) ($product->inventory?->Quantity ?? 0);
+        $quantity = $product->inventory?->Quantity ?? 0;
         $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
         $stock = self::resolveStockStatus($quantity, $threshold);
 
@@ -149,7 +151,7 @@ class InventoryController extends Controller
      * ProductController so the inventory table reuses the same badge
      * styling as the products table.
      */
-    public static function resolveStockStatus(?int $quantity, ?int $reorderThreshold = null): array
+    public static function resolveStockStatus(int|float|null $quantity, ?int $reorderThreshold = null): array
     {
         $quantity = $quantity ?? 0;
         $reorderThreshold = $reorderThreshold ?? 50;
@@ -185,7 +187,7 @@ class InventoryController extends Controller
             ->join('SalesTransaction', 'SalesTransaction.SalesTransactionID', '=', 'SalesItem.SalesTransactionID')
             ->whereColumn('SalesItem.ProductID', 'Product.ProductID')
             ->where('SalesTransaction.SalesTransactionDate', '>=', now()->subDays(self::SALES_WINDOW_DAYS))
-            ->selectRaw('COALESCE(SUM(SalesItem.Quantity), 0)');
+            ->selectRaw('COALESCE(SUM(SalesItem.BaseQuantity), 0)');
 
         $velocitySql = "({$velocitySub->toSql()})";
         $velocityBindings = $velocitySub->getBindings();

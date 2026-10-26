@@ -143,11 +143,11 @@
     <div class="ui-kv-grid">
         <div class="detail-row">
             <span class="detail-label">Current Stock</span>
-            <span class="detail-value">{{ $product->inventory?->Quantity ?? 0 }} units</span>
+            <span class="detail-value">{{ $product->stockLabel($product->inventory?->Quantity ?? 0) }}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Reorder Threshold</span>
-            <span class="detail-value">{{ $product->inventory?->ReorderThreshold ?? 0 }} units</span>
+            <span class="detail-value">{{ $product->formatQuantity($product->inventory?->ReorderThreshold ?? 0) }}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Stock Status</span>
@@ -159,7 +159,7 @@
         </div>
         <div class="detail-row">
             <span class="detail-label">30-Day Sales</span>
-            <span class="detail-value">{{ $velocity }} units</span>
+            <span class="detail-value">{{ $product->formatQuantity($velocity) }}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Sales Velocity</span>

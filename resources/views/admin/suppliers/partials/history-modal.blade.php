@@ -230,9 +230,9 @@
                     html += '<tr>'
                         + '<td>' + e(item.ProductName) + '</td>'
                         + '<td>' + e(item.Category) + '</td>'
-                        + '<td>' + e(item.OrderedQuantity) + '</td>'
-                        + '<td>' + e(item.ReceivedQuantity) + '</td>'
-                        + '<td>' + e(item.RemainingQuantity) + '</td>'
+                        + '<td>' + e(item.OrderedLabel || item.OrderedQuantity) + '</td>'
+                        + '<td>' + e(item.ReceivedLabel || item.ReceivedQuantity) + '</td>'
+                        + '<td>' + e(item.RemainingLabel || item.RemainingQuantity) + '</td>'
                         + '<td>' + (window.formatPeso ? window.formatPeso(item.UnitCost) : item.UnitCost) + '</td>'
                         + '<td>' + (window.formatPeso ? window.formatPeso(item.Subtotal) : item.Subtotal) + '</td>'
                         + '</tr>';

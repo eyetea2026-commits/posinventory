@@ -39,9 +39,9 @@
                 @php $grandTotal += $item->line_total; @endphp
                 <tr>
                     <td>{{ $item->product?->ProductName ?? 'N/A' }}</td>
-                    <td>{{ $item->Quantity }}</td>
-                    <td>{{ $item->ReceivedQuantity }}</td>
-                    <td>{{ number_format($item->CostPriceAtOrder, 2) }}</td>
+                    <td>{{ $item->tableQuantity() }}</td>
+                    <td>{{ $item->tableQuantity($item->ReceivedQuantity) }}</td>
+                    <td>{{ ltrim($item->unitCostLabel(), '₱') }}</td>
                     <td>{{ number_format($item->line_total, 2) }}</td>
                 </tr>
             @endforeach

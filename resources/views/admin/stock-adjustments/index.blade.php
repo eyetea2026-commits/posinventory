@@ -60,9 +60,9 @@
                             <td><strong>{{ $adjustment->product?->ProductName ?? 'Unknown' }}</strong></td>
                             <td>
                                 @if($adjustment->QuantityAdjust > 0)
-                                    <span class="badge badge-success">+{{ $adjustment->QuantityAdjust }}</span>
+                                    <span class="badge badge-success">+{{ \App\Services\UnitOfMeasure::number($adjustment->QuantityAdjust) }}{{ $adjustment->product && $adjustment->product->baseUnit() !== 'piece' ? ' '.\App\Services\UnitOfMeasure::label($adjustment->product->baseUnit(), $adjustment->QuantityAdjust) : '' }}</span>
                                 @else
-                                    <span class="badge badge-danger">{{ $adjustment->QuantityAdjust }}</span>
+                                    <span class="badge badge-danger">{{ \App\Services\UnitOfMeasure::number($adjustment->QuantityAdjust) }}{{ $adjustment->product && $adjustment->product->baseUnit() !== 'piece' ? ' '.\App\Services\UnitOfMeasure::label($adjustment->product->baseUnit(), $adjustment->QuantityAdjust) : '' }}</span>
                                 @endif
                             </td>
                             <td>

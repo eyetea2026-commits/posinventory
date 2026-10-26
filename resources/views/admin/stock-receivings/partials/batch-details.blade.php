@@ -82,17 +82,20 @@
                         <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
                         <td>{{ $item->product?->Model ?: '—' }}</td>
                         <td style="white-space: nowrap;">{{ $item->product?->SKU ?: '—' }}</td>
-                        <td>{{ $item->Quantity }}</td>
-                        <td>{{ $item->ReceivedQuantity }}</td>
+                        {{-- In the unit it was ordered in; receiving adds the
+                             converted amount to stock (1 roll = 5,000 meters). --}}
+                        <td>{{ $item->tableQuantity() }}</td>
+                        <td>{{ $item->tableQuantity($item->ReceivedQuantity) }}</td>
                         @if($anyCancelled)
-                            <td>{{ (int) $item->CancelledQuantity ?: '—' }}</td>
+                            <td>{{ (int) $item->CancelledQuantity ? $item->tableQuantity($item->CancelledQuantity) : '—' }}</td>
                         @endif
                         @if($isPending)
-                            <td><strong>{{ $item->remaining_quantity }}</strong></td>
+                            <td><strong>{{ $item->tableQuantity($item->remaining_quantity) }}</strong></td>
                             <td>
                                 <input type="hidden" name="items[{{ $loop->index }}][purchase_order_item_id]" value="{{ $item->PurchaseOrderItemID }}">
                                 {{-- This delivery only; defaults to everything still owed. --}}
                                 <input type="number" class="form-input receiving-now-input" style="max-width:110px;" name="items[{{ $loop->index }}][quantity_received]" min="0" max="{{ $item->remaining_quantity }}" value="{{ $item->remaining_quantity }}" @if($item->remaining_quantity <= 0) readonly @endif required>
+                                @if($item->Unit && $item->Unit !== 'piece')<small style="display:block; color:#94a3b8;">{{ \App\Services\UnitOfMeasure::plural($item->Unit) }}</small>@endif
                             </td>
                         @endif
                     </tr>
@@ -122,7 +125,7 @@
                         <td style="white-space: nowrap;">{{ $delivery->ReceivedAt?->format('m/d/Y g:i A') }}</td>
                         <td>{{ $delivery->ReceiptNumber ?: 'N/A' }}</td>
                         <td>{{ $delivery->receivedByUser?->full_name ?? 'N/A' }}</td>
-                        <td>{{ $delivery->items->map(fn ($line) => $line->Quantity.' x '.($line->product?->ProductName ?? 'Unknown'))->implode(', ') }}</td>
+                        <td>{{ $delivery->items->map(fn ($line) => ($line->purchaseOrderItem ? $line->purchaseOrderItem->tableQuantity($line->Quantity) : $line->Quantity).' x '.($line->product?->ProductName ?? 'Unknown'))->implode(', ') }}</td>
                     </tr>
                 @endforeach
             </tbody>

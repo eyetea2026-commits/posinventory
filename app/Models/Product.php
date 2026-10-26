@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Services\ProductImage;
+use App\Services\UnitOfMeasure;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -19,7 +21,16 @@ class Product extends Model
     protected $fillable = [
         'ProductName',
         'Model',
+        // Units of measurement (App\Services\UnitOfMeasure): stock is kept
+        // in UnitOfMeasure (the base unit: piece, meter...); PurchaseUnit is
+        // a bigger unit holding QuantityPerPurchaseUnit of it (1 roll =
+        // 5,000 meters); PurchaseUnitPrice, when set, also sells it by the
+        // purchase unit. Price and CostPrice are per base unit.
         'UnitOfMeasure',
+        'PurchaseUnit',
+        'QuantityPerPurchaseUnit',
+        'PurchaseUnitPrice',
+        'AllowsFractionalQuantity',
         'SKU',
         'Barcode',
         'Price',
@@ -37,6 +48,8 @@ class Product extends Model
         // false: "Not returnable / refundable" (consumables, wires, fiber
         // connectors) - the Cashier can't put it on a return request.
         'IsReturnable' => 'boolean',
+        'QuantityPerPurchaseUnit' => Quantity::class,
+        'AllowsFractionalQuantity' => 'boolean',
     ];
 
     /**
@@ -76,6 +89,117 @@ class Product extends Model
     public function getImageUrlAttribute(): ?string
     {
         return ProductImage::url($this->ImagePath);
+    }
+
+    /**
+     * The unit stock is counted in ("piece", "meter").
+     */
+    public function baseUnit(): string
+    {
+        return $this->UnitOfMeasure ?: UnitOfMeasure::DEFAULT;
+    }
+
+    public function hasPurchaseUnit(): bool
+    {
+        return filled($this->PurchaseUnit)
+            && $this->PurchaseUnit !== $this->baseUnit()
+            && (float) $this->QuantityPerPurchaseUnit > 0;
+    }
+
+    /**
+     * The unit it's ordered from suppliers in: the purchase unit, or the
+     * base unit when it has none.
+     */
+    public function orderUnit(): string
+    {
+        return $this->hasPurchaseUnit() ? $this->PurchaseUnit : $this->baseUnit();
+    }
+
+    /**
+     * How many base units one purchase unit holds (1 when it has none).
+     */
+    public function quantityPerOrderUnit(): int|float
+    {
+        return $this->hasPurchaseUnit() ? $this->QuantityPerPurchaseUnit : 1;
+    }
+
+    public function sellsByPurchaseUnit(): bool
+    {
+        return $this->hasPurchaseUnit() && $this->PurchaseUnitPrice !== null;
+    }
+
+    /**
+     * The units the POS sells it in, each with its price and how many base
+     * units one of it takes from stock.
+     *
+     * @return array<string, array{unit: string, plural: string, quantity_per_unit: int|float, price: float, fractional: bool}>
+     */
+    public function sellingUnits(): array
+    {
+        $tracksSerialNumbers = $this->tracksSerialNumbers();
+        $units = [
+            $this->baseUnit() => [
+                'unit' => $this->baseUnit(),
+                'plural' => UnitOfMeasure::plural($this->baseUnit()),
+                'quantity_per_unit' => 1,
+                'price' => (float) $this->Price,
+                // Serial-numbered pieces are always sold whole.
+                'fractional' => $this->AllowsFractionalQuantity && ! $tracksSerialNumbers,
+            ],
+        ];
+
+        if ($this->sellsByPurchaseUnit() && ! $tracksSerialNumbers) {
+            $units[$this->PurchaseUnit] = [
+                'unit' => $this->PurchaseUnit,
+                'plural' => UnitOfMeasure::plural($this->PurchaseUnit),
+                'quantity_per_unit' => $this->QuantityPerPurchaseUnit,
+                'price' => (float) $this->PurchaseUnitPrice,
+                'fractional' => false,
+            ];
+        }
+
+        return $units;
+    }
+
+    /**
+     * "4,999 meters", "1 piece".
+     */
+    public function formatQuantity(int|float|null $quantity): string
+    {
+        return UnitOfMeasure::format($quantity, $this->baseUnit());
+    }
+
+    /**
+     * Stock as shown on product cards: "1 Roll (5,000 meters)" while it's
+     * whole rolls, "4,999 meters remaining" once one is opened, or just
+     * "12 pieces" for a product without a purchase unit.
+     */
+    public function stockLabel(int|float|null $quantity): string
+    {
+        $quantity = (float) $quantity;
+        $perPurchaseUnit = (float) $this->quantityPerOrderUnit();
+
+        if (! $this->hasPurchaseUnit() || $perPurchaseUnit <= 1 || $quantity <= 0) {
+            return $this->formatQuantity($quantity);
+        }
+
+        $wholeUnits = $quantity / $perPurchaseUnit;
+        if ($quantity >= $perPurchaseUnit && abs($wholeUnits - round($wholeUnits)) < 0.00001) {
+            return UnitOfMeasure::format(round($wholeUnits), $this->PurchaseUnit, true).' ('.$this->formatQuantity($quantity).')';
+        }
+
+        return $this->formatQuantity($quantity).' remaining';
+    }
+
+    /**
+     * "₱10.00/meter".
+     */
+    public function priceLabel(?string $unit = null): string
+    {
+        $sellingUnit = $this->sellingUnits()[$unit ?? $this->baseUnit()] ?? null;
+        $price = $sellingUnit['price'] ?? (float) $this->Price;
+
+        return '₱'.number_format($price, 2).'/'.($sellingUnit['unit'] ?? $this->baseUnit());
     }
 
     public function brand()

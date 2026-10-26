@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -21,6 +22,11 @@ class StockAdjustment extends Model
         'Remarks',
         'Date',
         'ProductID',
+    ];
+
+    protected $casts = [
+        // In the product's base unit (-0.5 meters is a valid adjustment).
+        'QuantityAdjust' => Quantity::class,
     ];
 
     const REASON_DAMAGED = 'Damaged';

@@ -19,7 +19,7 @@
                         <tr>
                             <td>{{ $row->InventoryID }}</td>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                            <td>{{ number_format($row->Quantity) }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                             <td>{{ $row->Status }}</td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('inventory', {{ $row->ProductID }})">
@@ -53,7 +53,7 @@
                             <td>{{ $row->AdjustmentID }}</td>
                             <td>{{ \Illuminate\Support\Carbon::parse($row->Date)->format('m/d/Y') }}</td>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                            <td>{{ $row->QuantityAdjust >= 0 ? '+' : '' }}{{ $row->QuantityAdjust }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->QuantityAdjust, $row->Unit ?? ($row->product ?? null)?->baseUnit(), true) }}</td>
                             <td>{{ $row->Reason }}</td>
                         </tr>
                     @empty
@@ -82,9 +82,9 @@
                         <tr>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
                             <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
-                            <td>{{ number_format($row->Quantity) }}</td>
-                            <td>{{ number_format($row->ReorderThreshold ?? 0) }}</td>
-                            <td>{{ number_format(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity((int) $row->Quantity, (int) ($row->ReorderThreshold ?? 50))) }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->ReorderThreshold ?? 0, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity($row->Quantity, (int) ($row->ReorderThreshold ?? 50)), $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                             <td>{{ $supplierName ?? 'N/A' }}</td>
                             <td>
                                 @if($row->product)
@@ -186,7 +186,7 @@
                         <tr>
                             <td>{{ $row->SalesReturnID }}</td>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                            <td>{{ $row->Quantity }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                             <td>{{ ucfirst(str_replace('_', ' ', $row->Reason)) }}</td>
                             <td>{{ $row->CashierName }}</td>
                             <td><span class="badge badge-info">{{ ucfirst($row->Status) }}</span></td>
@@ -224,7 +224,7 @@
                             <td>{{ optional($row->DateRecorded)->format('m/d/Y') }}</td>
                             <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
                             <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
-                            <td>{{ $row->Quantity }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                             <td>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$row->DamageType] ?? $row->DamageType }}</td>
                             <td><span class="badge badge-info">{{ \App\Models\DamagedProduct::STATUS_LABELS[$row->Status] ?? $row->Status }}</span></td>
                             <td>

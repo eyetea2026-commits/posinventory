@@ -504,6 +504,10 @@ function populateTransactionDetails(transaction) {
     productsContainer.innerHTML = transaction.items.map(item => {
         const productId = Number(item.ProductID);
         const maxQty = Number(item.RemainingReturnableQty);
+        // Quantities are in the unit it was sold in (1.5 meters, 1 box).
+        const allowsDecimals = item.AllowsDecimals === true;
+        const unitName = (qty) => Number(qty) === 1 ? (item.Unit || 'piece') : (item.UnitPlural || 'pieces');
+        const firstQty = Math.min(1, maxQty);
         // Tagged "Not returnable / refundable" by the Administrator.
         const notReturnable = item.IsReturnable === false;
         const disabled = maxQty <= 0 || notReturnable;
@@ -512,10 +516,10 @@ function populateTransactionDetails(transaction) {
         <div class="refund-product-row ${disabled ? 'disabled' : ''}" id="refund-product-row-${productId}">
             <label style="display:flex; margin:0;">
                 <input type="checkbox" class="refund-item-checkbox" ${disabled ? 'disabled' : ''}
-                    onchange='toggleRefundItem(this, ${productId}, ${Number(item.UnitPrice)}, ${maxQty})'>
+                    onchange='toggleRefundItem(this, ${productId}, ${Number(item.UnitPrice)}, ${maxQty}, ${allowsDecimals}, ${firstQty})'>
                 <div style="flex:1; min-width:0;">
                     <div class="refund-item-name"><strong>${escapeHtml(item.ProductName)}</strong>${notReturnable ? ' <span class="not-returnable-tag" title="This product cannot be returned or refunded"><i class="fas fa-ban"></i> Not returnable</span>' : ''}</div>
-                    <small class="refund-item-meta">SKU: ${escapeHtml(item.SKU ?? 'N/A')} | Barcode: ${escapeHtml(item.Barcode ?? 'N/A')} | ${escapeHtml(item.Category ?? 'N/A')} | Purchased: ${Number(item.QuantityPurchased)} | Unit: ${window.formatPeso(item.UnitPrice)} | Returnable: ${maxQty}</small>
+                    <small class="refund-item-meta">SKU: ${escapeHtml(item.SKU ?? 'N/A')} | Barcode: ${escapeHtml(item.Barcode ?? 'N/A')} | ${escapeHtml(item.Category ?? 'N/A')} | Purchased: ${Number(item.QuantityPurchased)} ${escapeHtml(unitName(item.QuantityPurchased))} | Price: ${window.formatPeso(item.UnitPrice)}/${escapeHtml(item.Unit || 'piece')} | Returnable: ${maxQty} ${escapeHtml(unitName(maxQty))}</small>
                 </div>
                 <div class="refund-item-price" style="text-align: right;">
                     <strong>${window.formatPeso(item.TotalPrice)}</strong>
@@ -524,9 +528,9 @@ function populateTransactionDetails(transaction) {
             <div class="refund-item-controls" id="refund-item-controls-${productId}" style="display:none;">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Quantity to Return</label>
-                        <input type="number" class="refund-item-qty" min="1" max="${maxQty}" value="1"
-                            oninput="updateItemQuantity(${productId}, this)">
+                        <label>Quantity to Return (${escapeHtml(item.UnitPlural || 'pieces')})</label>
+                        <input type="number" class="refund-item-qty" min="${allowsDecimals ? '0.01' : '1'}" step="${allowsDecimals ? '0.01' : '1'}" max="${maxQty}" value="${firstQty}"
+                            onchange="updateItemQuantity(${productId}, this)" oninput="updateItemQuantity(${productId}, this, true)">
                     </div>
                     <div class="form-group">
                         <label>Return Reason</label>
@@ -546,12 +550,12 @@ function populateTransactionDetails(transaction) {
     document.getElementById('transaction-details-section').style.display = 'block';
 }
 
-function toggleRefundItem(checkbox, productId, unitPrice, maxQty) {
+function toggleRefundItem(checkbox, productId, unitPrice, maxQty, allowsDecimals, firstQty) {
     const row = document.getElementById(`refund-product-row-${productId}`);
     const controls = document.getElementById(`refund-item-controls-${productId}`);
 
     if (checkbox.checked) {
-        selectedItems[productId] = { unitPrice, maxQty, quantity: 1, reasonCode: '' };
+        selectedItems[productId] = { unitPrice, maxQty, allowsDecimals: !!allowsDecimals, quantity: firstQty || 1, reasonCode: '' };
         controls.style.display = 'block';
         row.classList.add('selected');
     } else {
@@ -563,14 +567,18 @@ function toggleRefundItem(checkbox, productId, unitPrice, maxQty) {
     updateRefundAmount();
 }
 
-function updateItemQuantity(productId, inputEl) {
+// Whole units only, unless it was sold by part of a unit (1.5 meters);
+// kept between the smallest allowed and what's still returnable. While
+// typing (stillTyping), the box is left as typed and only the amount follows.
+function updateItemQuantity(productId, inputEl, stillTyping) {
     const entry = selectedItems[productId];
     if (!entry) return;
 
-    let qty = parseInt(inputEl.value) || 1;
-    qty = Math.max(1, Math.min(qty, entry.maxQty));
+    const minimum = entry.allowsDecimals ? 0.01 : 1;
+    let qty = entry.allowsDecimals ? Math.round((parseFloat(inputEl.value) || 0) * 100) / 100 : (parseInt(inputEl.value) || 0);
+    qty = Math.max(Math.min(minimum, entry.maxQty), Math.min(qty, entry.maxQty));
     entry.quantity = qty;
-    inputEl.value = qty;
+    if (!stillTyping) inputEl.value = qty;
 
     updateRefundAmount();
 }
@@ -670,7 +678,7 @@ function viewRefundDetails(refundId) {
             if (data.success) {
                 const r = data.refund;
                 const itemsHtml = (r.items || []).map(item => `
-                    <div class="refund-details-row"><span>${escapeHtml(item.product_name)} (x${Number(item.quantity)})</span><span>${escapeHtml(item.reason)} — ${window.formatPeso(item.line_total)}</span></div>
+                    <div class="refund-details-row"><span>${escapeHtml(item.product_name)} (${escapeHtml(item.quantity_label || ('x' + Number(item.quantity)))})</span><span>${escapeHtml(item.reason)} — ${window.formatPeso(item.line_total)}</span></div>
                 `).join('');
                 // Label above value, three per row (shared .ui-kv-grid); the
                 // returned products keep their own list below.

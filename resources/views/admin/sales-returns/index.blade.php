@@ -248,7 +248,7 @@ function viewReturnDetails(id) {
                     <td>${index + 1}</td>
                     <td>${escapeHtml(item.Category ?? 'N/A')}</td>
                     <td>${escapeHtml(item.ProductName ?? 'N/A')}</td>
-                    <td>${escapeHtml(item.Quantity)}</td>
+                    <td>${escapeHtml(item.QuantityLabel || item.Quantity)}</td>
                     <td>${window.formatPeso(item.UnitPrice ?? 0)}</td>
                     <td>${window.formatPeso(item.LineTotal ?? 0)}</td>
                 </tr>

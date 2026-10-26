@@ -145,7 +145,14 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
         return response()->json(['product' => null, 'message' => "\"{$product->ProductName}\" is no longer available for sale."], 404);
     }
 
-    return response()->json(['product' => $product, 'serial' => $serial?->SerialNumber]);
+    // The units it's sold in (price and stock taken per unit) and its stock
+    // in words, so a measured product opens the POS quantity popup.
+    return response()->json([
+        'product' => $product,
+        'serial' => $serial?->SerialNumber,
+        'selling_units' => array_values($product->sellingUnits()),
+        'stock_label' => $product->stockLabel($product->inventory?->Quantity ?? 0),
+    ]);
 })->middleware(['auth', 'role:cashier', 'throttle:300,1']);
 
 // Smart post-login landing spot for the "dashboard" route name (nothing in

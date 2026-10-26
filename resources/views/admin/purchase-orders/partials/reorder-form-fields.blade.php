@@ -61,15 +61,15 @@
         </div>
         <div class="reorder-detail-item">
             <label>Current Stock</label>
-            <span>{{ $quantity }}</span>
+            <span>{{ $product->stockLabel($quantity) }}</span>
         </div>
         <div class="reorder-detail-item">
             <label>Reorder Level</label>
-            <span>{{ $threshold }}</span>
+            <span>{{ $product->formatQuantity($threshold) }}</span>
         </div>
         <div class="reorder-detail-item">
             <label>Suggested Reorder Quantity</label>
-            <span>{{ $suggestedQuantity }}</span>
+            <span>{{ \App\Services\UnitOfMeasure::format($suggestedQuantity, $product->orderUnit()) }}@if($product->hasPurchaseUnit()) ({{ $product->formatQuantity($suggestedQuantity * $product->QuantityPerPurchaseUnit) }})@endif</span>
         </div>
     </div>
 </div>
@@ -80,6 +80,9 @@
     // case, not a real ₱0.00 price.
     $previousCostPrice = $resolvedSupplier?->CostPrice ?? $product->CostPrice;
     $hasPreviousCostPrice = $previousCostPrice !== null && (float) $previousCostPrice > 0;
+    // Ordered by the purchase unit, so priced per roll/box.
+    $previousCostPrice = \App\Http\Controllers\Admin\PurchaseOrderController::costPerPurchaseUnit($product, $previousCostPrice);
+    $orderUnit = $product->orderUnit();
 @endphp
 <div class="reorder-section">
     <h3><i class="fas fa-tag"></i> Cost Price</h3>
@@ -87,11 +90,11 @@
         <div class="form-group">
             <label class="form-label">Previous Price</label>
             <div class="reorder-detail-item" style="margin:0;">
-                <span>{{ $hasPreviousCostPrice ? '₱' . number_format($previousCostPrice, 2) : 'N/A' }}</span>
+                <span>{{ $hasPreviousCostPrice ? '₱' . number_format($previousCostPrice, 2) . '/' . $orderUnit : 'N/A' }}</span>
             </div>
         </div>
         <div class="form-group">
-            <label class="form-label" for="CostPrice">Current Price <span style="color: var(--danger);">*</span></label>
+            <label class="form-label" for="CostPrice">Current Price (per {{ $orderUnit }}) <span style="color: var(--danger);">*</span></label>
             <input type="number" id="CostPrice" name="CostPrice" class="form-input" min="0.01" step="0.01"
                    value="{{ old('CostPrice', $hasPreviousCostPrice ? number_format($previousCostPrice, 2, '.', '') : '') }}" required>
             <span class="form-error" id="error-CostPrice">@error('CostPrice'){{ $message }}@enderror</span>
@@ -200,7 +203,7 @@
     <h3><i class="fas fa-clipboard-list"></i> Purchase Information</h3>
     <div class="form-grid">
         <div class="form-group">
-            <label class="form-label" for="OrderQuantity">Order Quantity <span style="color: var(--danger);">*</span></label>
+            <label class="form-label" for="OrderQuantity">Order Quantity ({{ \App\Services\UnitOfMeasure::plural($orderUnit) }}) <span style="color: var(--danger);">*</span></label>
             <input type="number" id="OrderQuantity" name="OrderQuantity" class="form-input" min="1" value="{{ old('OrderQuantity', $suggestedQuantity) }}" required>
             <span class="form-error" id="error-OrderQuantity">@error('OrderQuantity'){{ $message }}@enderror</span>
         </div>

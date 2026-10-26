@@ -15,11 +15,13 @@ use App\Models\User;
 use App\Notifications\ProductUpdated;
 use App\Services\ActionNotifier;
 use App\Services\ProductImage;
+use App\Services\UnitOfMeasure;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -87,7 +89,7 @@ class ProductController extends Controller
      * Resolve stock status label and Bootstrap badge class based on
      * current quantity and reorder threshold.
      */
-    public static function resolveStockStatus(?int $quantity, ?int $reorderThreshold = null): array
+    public static function resolveStockStatus(int|float|null $quantity, ?int $reorderThreshold = null): array
     {
         $quantity = $quantity ?? 0;
         $reorderThreshold = $reorderThreshold ?? 50;
@@ -254,10 +256,13 @@ class ProductController extends Controller
             'Suppliers' => ['nullable', 'array'],
             'Suppliers.*.SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
             'Suppliers.*.CostPrice' => ['nullable', 'numeric', 'min:0'],
+            ...self::unitOfMeasureRules(),
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
+            ...self::unitOfMeasureMessages(),
         ]);
+        $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']));
 
         // Brand is managed via Brand Management (Category module) and is
         // always scoped to one Category — the Add Product form's Brand
@@ -318,7 +323,7 @@ class ProductController extends Controller
         $imagePath = $request->hasFile('Image') ? ProductImage::store($request->file('Image')) : null;
 
         try {
-            $product = $this->createProduct($data, $brandId, $status, $imagePath);
+            $product = $this->createProduct([...$data, ...$units], $brandId, $status, $imagePath);
         } catch (Throwable $e) {
             ProductImage::delete($imagePath);
 
@@ -350,6 +355,98 @@ class ProductController extends Controller
     }
 
     /**
+     * Unit of Measurement fields of the Add/Edit Product form.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private static function unitOfMeasureRules(): array
+    {
+        return [
+            // Left out entirely (a request without the Unit of Measurement
+            // section): the product keeps its units, a new one is a piece.
+            'UnitOfMeasure' => ['sometimes', 'required', Rule::in(UnitOfMeasure::UNITS)],
+            'PurchaseUnit' => ['nullable', Rule::in(UnitOfMeasure::UNITS), 'different:UnitOfMeasure'],
+            'QuantityPerPurchaseUnit' => ['nullable', 'required_with:PurchaseUnit', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
+            'SellsByPurchaseUnit' => ['nullable', 'boolean'],
+            'PurchaseUnitPrice' => ['nullable', 'numeric', 'min:0.01', 'max:99999999'],
+            'AllowsFractionalQuantity' => ['nullable', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function unitOfMeasureMessages(): array
+    {
+        return [
+            'UnitOfMeasure.required' => 'Choose the unit stock is counted in.',
+            'UnitOfMeasure.in' => 'Choose the unit stock is counted in.',
+            'PurchaseUnit.different' => 'The purchase unit must be different from the inventory base unit.',
+            'QuantityPerPurchaseUnit.required_with' => 'Enter how many of the base unit one purchase unit holds.',
+            'QuantityPerPurchaseUnit.gt' => 'The quantity per purchase unit must be greater than 0.',
+            'QuantityPerPurchaseUnit.decimal' => 'The quantity per purchase unit can have up to 2 decimals.',
+        ];
+    }
+
+    /**
+     * The checked unit settings to save: a purchase unit needs its
+     * conversion, selling by it needs its price, serial-numbered products
+     * stay whole pieces, and a product's base unit can't change while it
+     * has stock counted in the old one.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{UnitOfMeasure: string, PurchaseUnit: ?string, QuantityPerPurchaseUnit: int|float, PurchaseUnitPrice: ?float, AllowsFractionalQuantity: bool}
+     */
+    private static function validatedUnitsOfMeasure(array $data, ?Category $category, ?Product $product = null): array
+    {
+        if (! array_key_exists('UnitOfMeasure', $data)) {
+            return [
+                'UnitOfMeasure' => $product?->baseUnit() ?? UnitOfMeasure::DEFAULT,
+                'PurchaseUnit' => $product?->PurchaseUnit,
+                'QuantityPerPurchaseUnit' => $product?->QuantityPerPurchaseUnit ?? 1,
+                'PurchaseUnitPrice' => $product?->PurchaseUnitPrice !== null ? (float) $product->PurchaseUnitPrice : null,
+                'AllowsFractionalQuantity' => (bool) ($product?->AllowsFractionalQuantity ?? false),
+            ];
+        }
+
+        $baseUnit = $data['UnitOfMeasure'];
+        $purchaseUnit = filled($data['PurchaseUnit'] ?? null) ? $data['PurchaseUnit'] : null;
+        $allowsFractions = (bool) ($data['AllowsFractionalQuantity'] ?? false);
+        $perPurchaseUnit = $purchaseUnit ? (float) $data['QuantityPerPurchaseUnit'] : 1;
+        $sellsByPurchaseUnit = $purchaseUnit && ! empty($data['SellsByPurchaseUnit']);
+        $errors = [];
+
+        if ($purchaseUnit && ! $allowsFractions && floor($perPurchaseUnit) != $perPurchaseUnit) {
+            $errors['QuantityPerPurchaseUnit'] = "Use a whole number of {$baseUnit}s, or allow decimal quantities.";
+        }
+        if ($sellsByPurchaseUnit && ! filled($data['PurchaseUnitPrice'] ?? null)) {
+            $errors['PurchaseUnitPrice'] = "Enter the selling price per {$purchaseUnit}.";
+        }
+        if ($category?->TracksSerialNumbers) {
+            if ($baseUnit !== UnitOfMeasure::DEFAULT || $allowsFractions) {
+                $errors['UnitOfMeasure'] = 'Products with serial numbers are counted and sold by the whole piece.';
+            } elseif ($sellsByPurchaseUnit) {
+                $errors['SellsByPurchaseUnit'] = 'Products with serial numbers are sold by the piece (each piece is scanned).';
+            }
+        }
+        $stock = (float) ($product?->inventory?->Quantity ?? 0);
+        if ($product && $product->baseUnit() !== $baseUnit && $stock != 0) {
+            $errors['UnitOfMeasure'] = "This product still has {$product->formatQuantity($stock)} in stock. Its inventory unit can only change while its stock is 0: record that stock again in the new unit with a Stock Adjustment.";
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return [
+            'UnitOfMeasure' => $baseUnit,
+            'PurchaseUnit' => $purchaseUnit,
+            'QuantityPerPurchaseUnit' => $perPurchaseUnit,
+            'PurchaseUnitPrice' => $sellsByPurchaseUnit ? round((float) $data['PurchaseUnitPrice'], 2) : null,
+            'AllowsFractionalQuantity' => $allowsFractions,
+        ];
+    }
+
+    /**
      * Inserts the product, its SKU, its Inventory row and its supplier links
      * in one transaction.
      *
@@ -369,6 +466,11 @@ class ProductController extends Controller
                 'BrandID' => $brandId,
                 'CategoryID' => $data['CategoryID'],
                 'IsReturnable' => empty($data['NonReturnable']),
+                'UnitOfMeasure' => $data['UnitOfMeasure'],
+                'PurchaseUnit' => $data['PurchaseUnit'],
+                'QuantityPerPurchaseUnit' => $data['QuantityPerPurchaseUnit'],
+                'PurchaseUnitPrice' => $data['PurchaseUnitPrice'],
+                'AllowsFractionalQuantity' => $data['AllowsFractionalQuantity'],
             ]);
 
             // SKU is derived from the product's own ProductID, which only
@@ -453,10 +555,13 @@ class ProductController extends Controller
             'NonReturnable' => ['nullable', 'boolean'],
             'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
             'RemoveImage' => ['nullable', 'boolean'],
+            ...self::unitOfMeasureRules(),
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
+            ...self::unitOfMeasureMessages(),
         ]);
+        $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']), $product);
 
         // See store() — re-verify the selected Brand actually belongs to the
         // selected Category rather than trusting the client.
@@ -503,16 +608,6 @@ class ProductController extends Controller
             ]);
         }
 
-        // Stock quantity is managed through the Inventory module, not here —
-        // preserve whatever is already on record rather than accepting it
-        // from this form.
-        $currentQuantity = (int) ($product->inventory?->Quantity ?? 0);
-
-        $status = self::resolveStockStatus(
-            $currentQuantity,
-            (int) ($data['ReorderThreshold'] ?? 50)
-        )['label'];
-
         $oldCostPrice = $product->CostPrice;
 
         // A new photo replaces the old one; "Remove photo" clears it. The old
@@ -537,6 +632,7 @@ class ProductController extends Controller
             'CategoryID' => $data['CategoryID'],
             // Left as-is when a request doesn't carry the box at all.
             ...(array_key_exists('NonReturnable', $data) ? ['IsReturnable' => ! $data['NonReturnable']] : []),
+            ...$units,
         ]);
 
         if ($oldImagePath !== $imagePath) {
@@ -545,14 +641,17 @@ class ProductController extends Controller
 
         ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], ProductCostHistory::SOURCE_PRODUCT_UPDATE);
 
-        $product->inventory()->updateOrCreate(
-            ['ProductID' => $product->ProductID],
-            [
-                'Quantity' => $currentQuantity,
-                'ReorderThreshold' => $data['ReorderThreshold'] ?? 50,
-                'Status' => $status,
-            ]
-        );
+        // Stock quantity is managed through the Inventory module, not here:
+        // only the threshold (and the status it decides) is saved, against
+        // the row locked as it is now, so a sale made while this form was
+        // open is never written over with the quantity it was opened with.
+        DB::transaction(function () use ($product, $data) {
+            $inventory = Inventory::where('ProductID', $product->ProductID)->lockForUpdate()->first()
+                ?? Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 0, 'Status' => 'Out of Stock']);
+            $inventory->ReorderThreshold = $data['ReorderThreshold'] ?? 50;
+            $inventory->Status = self::resolveStockStatus($inventory->Quantity, $inventory->ReorderThreshold)['label'];
+            $inventory->save();
+        });
 
         ActivityLog::record('product.updated', "Updated product \"{$product->ProductName}\"");
 

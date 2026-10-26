@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Cashier;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
@@ -17,6 +18,7 @@ use App\Models\User;
 use App\Notifications\NewRefundRequest;
 use App\Services\ActionNotifier;
 use App\Services\SerialNumbers;
+use App\Services\UnitOfMeasure;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -211,10 +213,15 @@ class CashierReturnController extends Controller
         $receiptNumber = 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         $items = $transaction->items->map(function ($item) use ($transaction) {
-            $alreadyRequested = SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
-                ->where('ProductID', $item->ProductID)
-                ->where('Status', '!=', SalesReturn::STATUS_DECLINED)
+            // Same count createRefund() enforces: every not-declined return
+            // request line for this product on this sale.
+            $alreadyRequested = (float) SalesReturnItem::where('ProductID', $item->ProductID)
+                ->whereHas('salesReturn', function ($q) use ($transaction) {
+                    $q->where('SalesTransactionID', $transaction->SalesTransactionID)
+                        ->where('Status', '!=', SalesReturn::STATUS_DECLINED);
+                })
                 ->sum('Quantity');
+            $unit = $item->Unit ?: UnitOfMeasure::DEFAULT;
 
             return [
                 'ProductID' => $item->ProductID,
@@ -223,8 +230,12 @@ class CashierReturnController extends Controller
                 'Barcode' => $item->product?->Barcode,
                 'Category' => $item->product?->category?->CategoryName,
                 'CategoryID' => $item->product?->CategoryID,
+                // In the unit it was sold in ("1.5 meters", "1 box").
                 'QuantityPurchased' => $item->Quantity,
-                'RemainingReturnableQty' => max(0, $item->Quantity - $alreadyRequested),
+                'RemainingReturnableQty' => Quantity::normalize(max(0, $item->Quantity - $alreadyRequested)),
+                'Unit' => $unit,
+                'UnitPlural' => UnitOfMeasure::plural($unit),
+                'AllowsDecimals' => $this->returnAllowsDecimals($item),
                 // Tagged "Not returnable / refundable" (consumables, wires, fiber connectors).
                 'IsReturnable' => (bool) ($item->product?->IsReturnable ?? true),
                 'UnitPrice' => $item->UnitPrice,
@@ -246,6 +257,18 @@ class CashierReturnController extends Controller
     }
 
     /**
+     * Part of a unit (0.5 of the 1.5 meters bought) can only come back when
+     * it was sold in a unit that allows decimals.
+     */
+    private function returnAllowsDecimals(SalesItem $salesItem): bool
+    {
+        $unit = $salesItem->Unit ?: UnitOfMeasure::DEFAULT;
+
+        return (bool) ($salesItem->product?->sellingUnits()[$unit]['fractional'] ?? false)
+            || floor((float) $salesItem->Quantity) != (float) $salesItem->Quantity;
+    }
+
+    /**
      * Create a new return request (Refund) — pending admin approval.
      */
     public function createRefund(Request $request)
@@ -254,7 +277,8 @@ class CashierReturnController extends Controller
             'transaction_id' => 'required|integer|exists:SalesTransaction,SalesTransactionID',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:Product,ProductID',
-            'items.*.quantity' => 'required|integer|min:1',
+            // In the unit the product was sold in (meters, boxes...).
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
             'items.*.reason_code' => 'required|in:'.implode(',', array_keys(SalesReturn::REASON_CODES)),
             // Replacement retired as a request-time option (2026-07-19) — cashiers can
             // no longer originate one. processReplacement() below is left intact so
@@ -342,14 +366,19 @@ class CashierReturnController extends Controller
                         })
                         ->sum('Quantity');
 
-                    if ($alreadyRequested + $itemData['quantity'] > $salesItem->Quantity) {
+                    $quantity = Quantity::normalize($itemData['quantity']);
+                    if (floor($quantity) != $quantity && ! $this->returnAllowsDecimals($salesItem)) {
+                        throw new \RuntimeException("\"{$salesItem->product?->ProductName}\" can only be returned in whole ".UnitOfMeasure::plural($salesItem->Unit ?: UnitOfMeasure::DEFAULT).'.');
+                    }
+
+                    if (round($alreadyRequested + $quantity, 2) > (float) $salesItem->Quantity) {
                         throw new \RuntimeException("Return quantity exceeds the quantity sold for \"{$salesItem->product?->ProductName}\".");
                     }
 
                     $lines[] = [
                         'salesItem' => $salesItem,
                         'productId' => $itemData['product_id'],
-                        'quantity' => $itemData['quantity'],
+                        'quantity' => $quantity,
                         'reasonLabel' => SalesReturn::REASON_CODES[$itemData['reason_code']],
                     ];
                 }
@@ -368,16 +397,20 @@ class CashierReturnController extends Controller
                 $productNames = [];
 
                 foreach ($lines as $line) {
-                    SalesReturnItem::create([
+                    // In the unit it was sold in; BaseQuantity is what goes
+                    // back to stock (or to Damage): 1 box = 100 pieces.
+                    $returnItem = SalesReturnItem::create([
                         'SalesReturnID' => $salesReturn->SalesReturnID,
                         'ProductID' => $line['productId'],
                         'Quantity' => $line['quantity'],
+                        'Unit' => $line['salesItem']->Unit ?: UnitOfMeasure::DEFAULT,
+                        'BaseQuantity' => Quantity::normalize($line['quantity'] * $line['salesItem']->quantityPerUnit()),
                         'UnitPrice' => $line['salesItem']->UnitPrice,
                         'Reason' => $line['reasonLabel'],
                     ]);
 
                     $refundAmount += round($line['salesItem']->refundable_unit_price * $line['quantity'], 2);
-                    $productNames[] = "{$line['quantity']} x \"{$line['salesItem']->product?->ProductName}\"";
+                    $productNames[] = "{$returnItem->quantityLabel()} x \"{$line['salesItem']->product?->ProductName}\"";
                 }
 
                 return [$salesReturn, $refundAmount, $productNames];
@@ -486,8 +519,9 @@ class CashierReturnController extends Controller
                     }
 
                     // The refunded pieces go back with their own serial stickers.
-                    SerialNumbers::returnToStock($salesReturn->SalesTransactionID, $item->ProductID, $item->Quantity);
-                    $inventory->Quantity += $item->Quantity;
+                    // Back in the product's base unit (a box's 100 pieces).
+                    SerialNumbers::returnToStock($salesReturn->SalesTransactionID, $item->ProductID, (int) $item->BaseQuantity);
+                    $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->BaseQuantity);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     $inventory->save();
                 }
@@ -551,6 +585,7 @@ class CashierReturnController extends Controller
                     'Barcode' => $product->Barcode,
                     'Price' => $product->Price,
                     'Stock' => $product->inventory?->Quantity ?? 0,
+                    'StockLabel' => $product->formatQuantity($product->inventory?->Quantity ?? 0),
                 ];
             });
 
@@ -715,6 +750,7 @@ class CashierReturnController extends Controller
             return [
                 'product_name' => $item->product?->ProductName ?? 'Unknown',
                 'quantity' => $item->Quantity,
+                'quantity_label' => $item->quantityLabel(),
                 'reason' => $item->Reason,
                 'unit_price' => $item->UnitPrice,
                 'line_total' => $refundableLineTotal,

@@ -26,4 +26,12 @@ class StockReceivingDeliveryItem extends Model
     {
         return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
     }
+
+    /**
+     * The order line this delivery was for: Quantity is in its unit.
+     */
+    public function purchaseOrderItem()
+    {
+        return $this->belongsTo(PurchaseOrderItem::class, 'PurchaseOrderItemID', 'PurchaseOrderItemID');
+    }
 }

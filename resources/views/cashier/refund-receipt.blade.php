@@ -57,7 +57,7 @@
         <div class="section">
             <p><strong>Returned Item(s)</strong></p>
             @foreach($salesReturn->items as $item)
-                <div class="row"><span>{{ $item->product?->ProductName ?? 'N/A' }} x{{ $item->Quantity }}</span><span>₱{{ number_format($item->line_total, 2) }}</span></div>
+                <div class="row"><span>{{ $item->product?->ProductName ?? 'N/A' }} {{ ($item->Unit ?: 'piece') === 'piece' ? 'x'.\App\Services\UnitOfMeasure::number($item->Quantity) : $item->quantityLabel() }}</span><span>₱{{ number_format($item->line_total, 2) }}</span></div>
                 <div class="row"><span>Reason:</span><span>{{ $item->Reason }}</span></div>
             @endforeach
         </div>

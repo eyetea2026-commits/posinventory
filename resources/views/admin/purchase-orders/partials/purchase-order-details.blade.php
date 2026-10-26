@@ -78,13 +78,14 @@
                     <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
                     <td>{{ $item->product?->Model ?: '—' }}</td>
                     <td style="white-space: nowrap;">{{ $item->product?->SKU ?: '—' }}</td>
-                    <td>{{ $item->Quantity }}</td>
-                    <td>{{ $item->ReceivedQuantity }}</td>
+                    {{-- In the unit it was ordered in: "2 rolls (10,000 meters)". --}}
+                    <td>{{ $item->tableQuantity() }}</td>
+                    <td>{{ $item->tableQuantity($item->ReceivedQuantity) }}</td>
                     @if($purchaseOrder->hasAnyCancelledQuantity())
-                        <td>{{ (int) $item->CancelledQuantity ?: '—' }}</td>
+                        <td>{{ (int) $item->CancelledQuantity ? $item->tableQuantity($item->CancelledQuantity) : '—' }}</td>
                     @endif
-                    <td>{{ $item->remaining_quantity }}</td>
-                    <td>₱{{ number_format($item->CostPriceAtOrder, 2) }}</td>
+                    <td>{{ $item->tableQuantity($item->remaining_quantity) }}</td>
+                    <td>{{ $item->unitCostLabel() }}</td>
                     <td>₱{{ number_format($item->line_total, 2) }}</td>
                 </tr>
             @endforeach

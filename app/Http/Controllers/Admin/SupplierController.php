@@ -239,6 +239,10 @@ class SupplierController extends Controller
                 'OrderedQuantity' => $item->Quantity,
                 'ReceivedQuantity' => $item->ReceivedQuantity,
                 'RemainingQuantity' => $item->remaining_quantity,
+                // The same in the unit it was ordered in ("2 rolls (10,000 meters)").
+                'OrderedLabel' => $item->tableQuantity(),
+                'ReceivedLabel' => $item->tableQuantity($item->ReceivedQuantity),
+                'RemainingLabel' => $item->tableQuantity($item->remaining_quantity),
                 'UnitCost' => $item->CostPriceAtOrder,
                 'Subtotal' => $item->Quantity * $item->CostPriceAtOrder,
             ];

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\DamagedProduct;
@@ -10,6 +11,7 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Services\ActionNotifier;
+use App\Services\UnitOfMeasure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -161,6 +163,7 @@ class DamageController extends Controller
                 'DamageID' => $damage->DamageID,
                 'DamageNumber' => 'DMG-'.str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
                 'Quantity' => $damage->Quantity,
+                'QuantityLabel' => $damage->product ? $damage->product->formatQuantity($damage->Quantity) : (string) $damage->Quantity,
                 'DamageType' => DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType,
                 'Status' => DamagedProduct::STATUS_LABELS[$damage->Status] ?? $damage->Status,
                 'SourceModule' => DamagedProduct::SOURCE_LABELS[$damage->SourceModule] ?? ($damage->SourceModule ?? 'Unknown'),
@@ -179,6 +182,7 @@ class DamageController extends Controller
                 'Category' => $damage->product?->category?->CategoryName,
                 'CostPrice' => $damage->product?->CostPrice,
                 'CurrentStock' => $damage->product?->inventory?->Quantity,
+                'CurrentStockLabel' => $damage->product?->inventory ? $damage->product->stockLabel($damage->product->inventory->Quantity) : null,
             ],
             'supplier' => $damage->supplier ? [
                 'SupplierName' => $damage->supplier->SupplierName,
@@ -201,6 +205,7 @@ class DamageController extends Controller
             'stockAdjustment' => $damage->stockAdjustment ? [
                 'AdjustmentID' => $damage->stockAdjustment->AdjustmentID,
                 'QuantityAdjust' => $damage->stockAdjustment->QuantityAdjust,
+                'QuantityAdjustLabel' => $damage->product ? $damage->product->formatQuantity($damage->stockAdjustment->QuantityAdjust) : (string) $damage->stockAdjustment->QuantityAdjust,
                 'Reason' => $damage->stockAdjustment->Reason,
             ] : null,
             'auditHistory' => $auditHistory,
@@ -260,7 +265,8 @@ class DamageController extends Controller
             'ProductID' => 'required|exists:Product,ProductID',
             'SupplierID' => 'required|exists:Supplier,SupplierID',
             'PurchaseOrderID' => 'nullable|integer|exists:PurchaseOrder,PurchaseOrderID',
-            'Quantity' => 'required|integer|min:1',
+            // In the product's base unit (0.5 meters where decimals are allowed).
+            'Quantity' => ['required', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             'Description' => 'required|string|max:500',
             'DateRecorded' => 'required|date',
             'DamageType' => 'required|in:'.implode(',', array_keys(DamagedProduct::DAMAGE_TYPES)),
@@ -269,6 +275,14 @@ class DamageController extends Controller
             'Remarks' => 'nullable|string|max:500',
             'Image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
+
+        $data['Quantity'] = Quantity::normalize($data['Quantity']);
+        $damagedProduct = Product::find($data['ProductID']);
+        if (is_float($data['Quantity']) && ! $damagedProduct->AllowsFractionalQuantity) {
+            throw ValidationException::withMessages([
+                'Quantity' => "\"{$damagedProduct->ProductName}\" is counted in whole ".UnitOfMeasure::plural($damagedProduct->baseUnit()).'.',
+            ]);
+        }
 
         $newImagePath = $request->hasFile('Image') ? $request->file('Image')->store('damages', 'public') : null;
         $sameProduct = (int) $data['ProductID'] === (int) $damage->ProductID;
@@ -475,10 +489,10 @@ class DamageController extends Controller
         }
 
         $data = $request->validate([
-            'replacement_quantity' => 'nullable|integer|min:1',
+            'replacement_quantity' => ['nullable', 'numeric', 'gt:0', 'decimal:0,2'],
         ]);
 
-        $qty = $data['replacement_quantity'] ?? $damage->Quantity;
+        $qty = Quantity::normalize($data['replacement_quantity'] ?? $damage->Quantity);
 
         try {
             DB::transaction(function () use ($damage, $qty) {

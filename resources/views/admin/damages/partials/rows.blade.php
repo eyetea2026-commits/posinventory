@@ -11,7 +11,7 @@
             @endif
         </td>
         <td>{{ $damage->supplier->SupplierName ?? 'N/A' }}</td>
-        <td><span class="badge badge-danger">{{ $damage->Quantity }}</span></td>
+        <td><span class="badge badge-danger">{{ $damage->product && $damage->product->baseUnit() !== 'piece' ? $damage->product->formatQuantity($damage->Quantity) : \App\Services\UnitOfMeasure::number($damage->Quantity) }}</span></td>
         <td class="description-cell">{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType }}</td>
         <td>
             <div class="actions-group">

@@ -41,7 +41,7 @@ class ReportSummaryBuilder
     {
         return [
             ['label' => 'Total Transactions', 'value' => $rows->where('is_first', true)->count(), 'money' => false],
-            ['label' => 'Total Quantity Sold', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Quantity Sold', 'value' => $rows->sum('Quantity'), 'money' => false, 'text' => self::byUnit($rows, 'Quantity')],
             ['label' => 'Subtotal (Gross Sales)', 'value' => round($rows->sum('ItemTotal'), 2), 'money' => true],
             ['label' => 'Discount', 'value' => round($rows->sum('Discount'), 2), 'money' => true],
             ['label' => 'VAT', 'value' => round($rows->sum('VatAmount'), 2), 'money' => true],
@@ -53,7 +53,7 @@ class ReportSummaryBuilder
     {
         return [
             ['label' => 'Total Products', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Stock Quantity', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Stock Quantity', 'value' => $rows->sum('Quantity'), 'money' => false, 'text' => self::byUnit($rows, 'Quantity')],
             ['label' => 'Total Inventory Value', 'value' => round($rows->sum(fn ($r) => $r->Quantity * (float) ($r->product?->CostPrice ?? 0)), 2), 'money' => true],
             ['label' => 'Low Stock Items', 'value' => $rows->where('Status', 'Low Stock')->count(), 'money' => false],
             ['label' => 'Out of Stock Items', 'value' => $rows->where('Status', 'Out of Stock')->count(), 'money' => false],
@@ -67,8 +67,8 @@ class ReportSummaryBuilder
 
         return [
             ['label' => 'Total Adjustments', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Quantity Increased', 'value' => $increases, 'money' => false],
-            ['label' => 'Total Quantity Decreased', 'value' => abs($decreases), 'money' => false],
+            ['label' => 'Total Quantity Increased', 'value' => $increases, 'money' => false, 'text' => self::byUnit($rows->filter(fn ($r) => $r->QuantityAdjust > 0), 'QuantityAdjust')],
+            ['label' => 'Total Quantity Decreased', 'value' => abs($decreases), 'money' => false, 'text' => self::byUnit($rows->filter(fn ($r) => $r->QuantityAdjust < 0), 'QuantityAdjust', true)],
         ];
     }
 
@@ -80,8 +80,11 @@ class ReportSummaryBuilder
         return [
             ['label' => 'Products Needing Reorder', 'value' => $rows->count(), 'money' => false],
             ['label' => 'Total Suggested Reorder Quantity', 'value' => $rows->sum(
-                fn ($r) => PurchaseOrderController::suggestedReorderQuantity((int) $r->Quantity, (int) ($r->ReorderThreshold ?? 50))
-            ), 'money' => false],
+                fn ($r) => PurchaseOrderController::suggestedReorderQuantity($r->Quantity, (int) ($r->ReorderThreshold ?? 50))
+            ), 'money' => false, 'text' => UnitOfMeasure::totals($rows->map(fn ($r) => [
+                PurchaseOrderController::suggestedReorderQuantity($r->Quantity, (int) ($r->ReorderThreshold ?? 50)),
+                $r->product?->baseUnit(),
+            ]))],
         ];
     }
 
@@ -91,7 +94,7 @@ class ReportSummaryBuilder
     {
         return [
             ['label' => 'Total Purchase Orders', 'value' => $rows->pluck('PONumber')->unique()->count(), 'money' => false],
-            ['label' => 'Total Quantity Purchased', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Quantity Purchased', 'value' => $rows->sum('Quantity'), 'money' => false, 'text' => self::byUnit($rows, 'Quantity')],
             ['label' => 'Total Amount', 'value' => round($rows->sum('Subtotal'), 2), 'money' => true],
         ];
     }
@@ -100,7 +103,7 @@ class ReportSummaryBuilder
     {
         return [
             ['label' => 'Total Records', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Quantity Damaged', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Quantity Damaged', 'value' => $rows->sum('Quantity'), 'money' => false, 'text' => self::byUnit($rows, 'Quantity')],
         ];
     }
 
@@ -108,12 +111,26 @@ class ReportSummaryBuilder
     {
         return [
             ['label' => 'Total Returns', 'value' => $rows->pluck('SalesReturnID')->unique()->count(), 'money' => false],
-            ['label' => 'Total Quantity Returned', 'value' => $rows->sum('Quantity'), 'money' => false],
+            ['label' => 'Total Quantity Returned', 'value' => $rows->sum('Quantity'), 'money' => false, 'text' => self::byUnit($rows, 'Quantity')],
         ];
+    }
+
+    // Quantities in different units (pieces and meters) are added up per
+    // unit ("12 pieces, 5,000 meters"); null when they're all pieces.
+    private static function byUnit(Collection $rows, string $field, bool $absolute = false): ?string
+    {
+        return UnitOfMeasure::totals($rows->map(fn ($r) => [
+            $absolute ? abs((float) $r->{$field}) : $r->{$field},
+            $r->Unit ?? ($r->product ?? null)?->baseUnit(),
+        ]));
     }
 
     public static function formatValue(array $entry): string
     {
-        return $entry['money'] ? '₱'.number_format($entry['value'], 2) : number_format($entry['value']);
+        if (! $entry['money'] && ! empty($entry['text'])) {
+            return $entry['text'];
+        }
+
+        return $entry['money'] ? '₱'.number_format($entry['value'], 2) : UnitOfMeasure::number($entry['value']);
     }
 }

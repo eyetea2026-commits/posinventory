@@ -178,7 +178,7 @@
                 @foreach($items as $item)
                     <tr>
                         <td class="col-desc">{{ $item['name'] }}</td>
-                        <td class="col-qty">{{ $item['qty'] }}</td>
+                        <td class="col-qty">{{ $item['qty_label'] ?? $item['qty'] }}</td>
                         <td class="col-amt">{{ number_format($item['price'] * $item['qty'], 2) }}</td>
                     </tr>
                 @endforeach

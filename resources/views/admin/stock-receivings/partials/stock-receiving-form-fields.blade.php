@@ -14,7 +14,7 @@
                 <option value="">Select Line</option>
                 @foreach($purchaseOrder->items->where('remaining_quantity', '>', 0) as $item)
                     <option value="{{ $item->PurchaseOrderItemID }}" data-remaining="{{ $item->remaining_quantity }}">
-                        {{ $item->product?->ProductName ?? 'Unknown' }} — {{ $item->remaining_quantity }} remaining of {{ $item->Quantity }}
+                        {{ $item->product?->ProductName ?? 'Unknown' }} — {{ $item->tableQuantity($item->remaining_quantity) }} remaining of {{ $item->tableQuantity() }}
                     </option>
                 @endforeach
             </select>
@@ -87,6 +87,7 @@
         <label class="form-label" for="Quantity">Quantity Received <span class="required">*</span></label>
         <input type="number" id="Quantity" name="Quantity" class="form-input"
                value="{{ old('Quantity') }}" required min="1">
+        <small style="display:block; margin-top:4px; color:#94a3b8;">In the unit it was ordered/bought in (e.g. rolls); it's added to stock in the product's base unit.</small>
         <span class="form-error" id="error-Quantity">@error('Quantity'){{ $message }}@enderror</span>
     </div>
 

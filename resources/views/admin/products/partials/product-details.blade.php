@@ -13,11 +13,14 @@
     <div><span>Barcode</span><code>{{ $product->Barcode ?? '-' }}</code></div>
     <div><span>Category</span><span>{{ $product->category?->CategoryName ?? 'Uncategorized' }}</span></div>
     <div><span>Brand</span><span>{{ $product->brand?->BrandName ?? 'N/A' }}</span></div>
-    <div><span>Cost Price</span><span>₱{{ number_format($product->CostPrice ?? 0, 2) }}</span></div>
-    <div><span>Selling Price</span><span>₱{{ number_format($product->Price, 2) }}</span></div>
+    <div><span>Cost Price</span><span>₱{{ number_format($product->CostPrice ?? 0, 2) }}/{{ $product->baseUnit() }}</span></div>
+    <div><span>Selling Price</span><span>{{ $product->priceLabel() }}@if($product->sellsByPurchaseUnit())<br>{{ $product->priceLabel($product->PurchaseUnit) }}@endif</span></div>
     <div><span>Profit</span><span>₱{{ number_format($profit, 2) }} ({{ number_format($margin, 1) }}%)</span></div>
-    <div><span>Quantity</span><span>{{ $product->inventory?->Quantity ?? 0 }}</span></div>
-    <div><span>Reorder Threshold</span><span>{{ $product->inventory?->ReorderThreshold ?? 0 }}</span></div>
+    <div><span>Quantity</span><span>{{ $product->stockLabel($product->inventory?->Quantity ?? 0) }}</span></div>
+    <div><span>Reorder Threshold</span><span>{{ $product->formatQuantity($product->inventory?->ReorderThreshold ?? 0) }}</span></div>
+    <div><span>Inventory Base Unit</span><span>{{ ucfirst($product->baseUnit()) }}@if($product->AllowsFractionalQuantity) <small>(decimals allowed)</small>@endif</span></div>
+    <div><span>Purchase Unit</span><span>{{ $product->hasPurchaseUnit() ? '1 '.ucfirst($product->PurchaseUnit).' = '.$product->formatQuantity($product->QuantityPerPurchaseUnit) : 'None' }}</span></div>
+    <div><span>Selling Unit</span><span>{{ collect($product->sellingUnits())->keys()->map(fn ($unit) => 'Per '.$unit)->implode(', ') }}</span></div>
     <div>
         <span>Stock Status</span>
         <span class="badge {{ $status['class'] }}"><i class="fas {{ $status['icon'] }}"></i> {{ $status['label'] }}</span>

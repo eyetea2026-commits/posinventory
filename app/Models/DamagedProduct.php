@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -13,6 +14,7 @@ class DamagedProduct extends Model
     public $timestamps = false;
 
     protected $table = 'DamagedProduct';
+
     protected $primaryKey = 'DamageID';
 
     protected $fillable = [
@@ -37,15 +39,21 @@ class DamagedProduct extends Model
 
     protected $casts = [
         'DateRecorded' => 'date',
-        'Quantity' => 'integer',
+        // In the product's base unit (meters can be damaged by the 0.5).
+        'Quantity' => Quantity::class,
         'ResolvedDate' => 'date',
     ];
 
     const STATUS_PENDING = 'pending';
+
     const STATUS_FOR_SUPPLIER_RETURN = 'for_supplier_return';
+
     const STATUS_RETURNED_TO_SUPPLIER = 'returned_to_supplier';
+
     const STATUS_REPLACEMENT_RECEIVED = 'replacement_received';
+
     const STATUS_DISPOSED = 'disposed';
+
     const STATUS_CANCELLED = 'cancelled';
 
     // Display label for STATUS_FOR_SUPPLIER_RETURN — kept as "Pending Supplier
@@ -61,7 +69,9 @@ class DamagedProduct extends Model
     ];
 
     const SOURCE_CUSTOMER_RETURN = 'customer_return';
+
     const SOURCE_STOCK_ADJUSTMENT = 'stock_adjustment';
+
     const SOURCE_MANUAL = 'manual';
 
     const SOURCE_LABELS = [

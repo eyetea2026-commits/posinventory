@@ -26,7 +26,7 @@
                value="{{ old('_ProductSearch', $oldProduct ? $oldProduct->ProductName . ' (' . $oldProduct->Model . ')' : '') }}">
         <datalist id="productOptions">
             @foreach($products as $product)
-                <option data-product-id="{{ $product->ProductID }}" value="{{ $product->ProductName }} ({{ $product->Model }})"></option>
+                <option data-product-id="{{ $product->ProductID }}" data-unit-plural="{{ \App\Services\UnitOfMeasure::plural($product->baseUnit()) }}" data-fractional="{{ $product->AllowsFractionalQuantity ? 1 : 0 }}" value="{{ $product->ProductName }} ({{ $product->Model }})"></option>
             @endforeach
         </datalist>
         <input type="hidden" id="ProductID" name="ProductID" value="{{ old('ProductID', $oldProduct->ProductID ?? '') }}">
@@ -51,13 +51,21 @@
                 // matches an actual product exactly — prevents submitting
                 // whatever the last valid selection happened to be.
                 hiddenId.value = matched ? matched.dataset.productId : '';
+
+                // In the product's base unit; decimals only where allowed.
+                var quantityInput = document.getElementById('QuantityAdjust');
+                var unitLabel = document.getElementById('quantity-adjust-unit');
+                if (quantityInput && unitLabel) {
+                    unitLabel.textContent = matched ? matched.dataset.unitPlural : '';
+                    quantityInput.step = matched && matched.dataset.fractional === '1' ? '0.01' : '1';
+                }
             });
         })();
     </script>
 
     <div class="form-group">
-        <label class="form-label" for="QuantityAdjust">Quantity Adjusted <span style="color: var(--danger);">*</span></label>
-        <input type="number" id="QuantityAdjust" name="QuantityAdjust" class="form-input" value="{{ old('QuantityAdjust') }}" required placeholder="e.g., 5 or -5">
+        <label class="form-label" for="QuantityAdjust">Quantity Adjusted <span id="quantity-adjust-unit" style="color: var(--text-secondary); font-weight: 400;"></span> <span style="color: var(--danger);">*</span></label>
+        <input type="number" id="QuantityAdjust" name="QuantityAdjust" class="form-input" value="{{ old('QuantityAdjust') }}" required step="1" placeholder="e.g., 5 or -5">
         <small id="quantity-adjust-hint" style="display:block; color: var(--danger); margin-top: 4px;">(Use -5 to subtract quantity, or 5 to add quantity.)</small>
         <span class="form-error" id="error-QuantityAdjust">@error('QuantityAdjust'){{ $message }}@enderror</span>
     </div>
@@ -99,7 +107,7 @@
                 if (damagedHint) damagedHint.style.display = select.value === damagedReason ? 'block' : 'none';
                 if (!quantity) return;
                 if (onlyDecrease) {
-                    quantity.max = '-1';
+                    quantity.max = '-0.01';
                     quantity.placeholder = 'e.g., -5';
                     if (hint) hint.textContent = '(' + select.value + ' can only subtract quantity. Use a negative number, e.g. -5.)';
                 } else {

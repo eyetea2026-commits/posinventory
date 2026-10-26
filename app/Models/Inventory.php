@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,6 +13,7 @@ class Inventory extends Model
     public $timestamps = false;
 
     protected $table = 'Inventory';
+
     protected $primaryKey = 'InventoryID';
 
     protected $fillable = [
@@ -24,6 +26,8 @@ class Inventory extends Model
     ];
 
     protected $casts = [
+        // In the product's base unit (Product::baseUnit()): 4,999.5 meters.
+        'Quantity' => Quantity::class,
         'AutoReorderTriggered' => 'boolean',
     ];
 
@@ -42,7 +46,7 @@ class Inventory extends Model
     // InventoryController's resolveStockStatus(), a separate 4-tier
     // (+ "Replenish") vocabulary computed live for display only and never
     // written to this column.
-    public static function resolveStatus(int $quantity, ?int $reorderThreshold): string
+    public static function resolveStatus(int|float $quantity, ?int $reorderThreshold): string
     {
         if ($quantity <= 0) {
             return 'Out of Stock';

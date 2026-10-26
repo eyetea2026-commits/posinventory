@@ -17,7 +17,9 @@
                 <span class="cashier-you">You</span>
             @endif
         </td>
-        <td>{{ $transaction->items->sum('Quantity') ?? 0 }} items</td>
+        {{-- Pieces as a count ("3 items"); other units by unit ("1.5 meters, 2 items"). --}}
+        @php($quantitiesByUnit = $transaction->items->groupBy(fn ($line) => $line->Unit ?: 'piece')->map(fn ($lines) => $lines->sum('Quantity')))
+        <td>{{ $quantitiesByUnit->isEmpty() ? '0 items' : $quantitiesByUnit->map(fn ($quantity, $unit) => $unit === 'piece' ? \App\Services\UnitOfMeasure::number($quantity).' items' : \App\Services\UnitOfMeasure::format($quantity, $unit))->implode(', ') }}</td>
         <td>
             {{-- Reprinting is only offered on the cashier's own sales;
                  CashierAuthController::viewReceipt() enforces the same rule

@@ -1,9 +1,11 @@
 @forelse($products as $product)
     @php
-        $quantity = (int) ($product->inventory?->Quantity ?? 0);
+        // In the product's base unit (meters, pieces).
+        $quantity = $product->inventory?->Quantity ?? 0;
         $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
         $stock = \App\Http\Controllers\Admin\InventoryController::resolveStockStatus($quantity, $threshold);
-        $units30 = (int) ($product->sales_items_sum_quantity ?? 0);
+        $units30 = \App\Casts\Quantity::normalize($product->sales_items_sum_base_quantity ?? 0);
+        $unitPlural = \App\Services\UnitOfMeasure::plural($product->baseUnit());
         $velocityClass = match (true) {
             $units30 >= \App\Http\Controllers\Admin\InventoryController::FAST_MOVING_THRESHOLD => 'velocity-fast',
             $units30 < \App\Http\Controllers\Admin\InventoryController::SLOW_MOVING_THRESHOLD => 'velocity-slow',
@@ -28,7 +30,10 @@
         </td>
         <td class="col-stock">
             <div class="stock-info">
-                <span class="stock-quantity">{{ $quantity }}</span>
+                <span class="stock-quantity">{{ \App\Services\UnitOfMeasure::number($quantity) }}</span>
+                @if($product->baseUnit() !== 'piece' || $product->hasPurchaseUnit())
+                    <span class="threshold-unit">{{ $product->stockLabel($quantity) }}</span>
+                @endif
                 <span class="badge {{ $stock['class'] }}">
                     <i class="fas {{ $stock['icon'] }}"></i>
                     {{ $stock['label'] }}
@@ -36,12 +41,12 @@
             </div>
         </td>
         <td class="col-threshold">
-            <span class="threshold-value">{{ $threshold }} <span class="threshold-unit">units</span></span>
+            <span class="threshold-value">{{ $threshold }} <span class="threshold-unit">{{ $product->baseUnit() === 'piece' ? 'units' : $unitPlural }}</span></span>
         </td>
         <td class="col-velocity">
             <div class="velocity-info">
-                <span class="velocity-number {{ $velocityClass }}">{{ $units30 }}</span>
-                <span class="velocity-label">units / 30d</span>
+                <span class="velocity-number {{ $velocityClass }}">{{ \App\Services\UnitOfMeasure::number($units30) }}</span>
+                <span class="velocity-label">{{ $product->baseUnit() === 'piece' ? 'units' : $unitPlural }} / 30d</span>
             </div>
         </td>
         <td class="col-actions">

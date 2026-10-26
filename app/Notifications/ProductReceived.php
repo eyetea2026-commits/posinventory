@@ -17,7 +17,7 @@ class ProductReceived extends Notification
     public function __construct(
         public Product $product,
         public Supplier $supplier,
-        public int $quantity,
+        public int|float $quantity,
     ) {}
 
     public function via(object $notifiable): array
@@ -30,7 +30,7 @@ class ProductReceived extends Notification
         return (new MailMessage)
             ->subject("Product Received: {$this->product->ProductName}")
             ->line($this->badgeHtml('STOCK RECEIVED', '#16a34a'))
-            ->line("Received **{$this->quantity} x \"{$this->product->ProductName}\"** from **\"{$this->supplier->SupplierName}\"**.")
+            ->line("Received **{$this->product->formatQuantity($this->quantity)} of \"{$this->product->ProductName}\"** from **\"{$this->supplier->SupplierName}\"**.")
             ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Stock Receiving', route('admin.stock-receivings.index'));
     }
@@ -39,7 +39,7 @@ class ProductReceived extends Notification
     {
         return [
             'title' => 'Product Received',
-            'description' => "Received {$this->quantity} x \"{$this->product->ProductName}\" from \"{$this->supplier->SupplierName}\".",
+            'description' => "Received {$this->product->formatQuantity($this->quantity)} of \"{$this->product->ProductName}\" from \"{$this->supplier->SupplierName}\".",
             'url' => route('admin.stock-receivings.index'),
             'icon' => 'clipboard-check',
             'color' => 'success',

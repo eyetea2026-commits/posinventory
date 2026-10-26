@@ -37,6 +37,9 @@
     .product-card .stock.low { color: #f59e0b; }
     .product-card .stock.out { color: #ef4444; }
     .product-card .price { color: #60a5fa; font-size: 1rem; font-weight: bold; }
+    .product-card .price.price-secondary { font-size: 0.85rem; margin-top: 2px; }
+    .card-price-unit { color: #94a3b8; font-size: 0.72rem; font-weight: 500; margin-left: 1px; }
+    .product-card .stock { white-space: normal; }
     .card-original-price { text-decoration: line-through; color: #64748b; font-size: 0.8rem; font-weight: normal; margin-right: 5px; }
     .card-discounted-price { color: #6ee7b7; }
     .card-promo-chip {
@@ -161,6 +164,23 @@
     .approval-btn-primary { background: linear-gradient(135deg, #3b82f6, #10b981); color: #fff; }
     .approval-btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
     .approval-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    /* Quantity popup for measured products + the unit beside a cart qty. */
+    .quantity-stock { margin: 0 0 10px; color: #94a3b8; font-size: 0.85rem; }
+    .quantity-units { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .quantity-units:empty { display: none; }
+    .quantity-unit-option { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #334155; border-radius: 10px; color: #cbd5e1; font-size: 0.85rem; cursor: pointer; }
+    .quantity-unit-option:has(input:checked) { border-color: #3b82f6; background: rgba(59, 130, 246, 0.12); }
+    .quantity-unit-option input { accent-color: #3b82f6; }
+    .quantity-unit-option strong { color: #f8fafc; margin-right: 4px; }
+    .quantity-input-row { display: flex; align-items: center; gap: 10px; }
+    .quantity-input-row input { flex: 1; min-width: 0; }
+    .quantity-input-row span { color: #cbd5e1; font-size: 0.9rem; white-space: nowrap; }
+    .cart-price-unit { color: #94a3b8; font-size: 0.72rem; margin-left: 1px; }
+    .cart-item-unit { color: #94a3b8; font-size: 0.75rem; }
+    .cart-unit-btn { background: none; border: 1px dashed #4a5568; color: #93c5fd; border-radius: 6px; padding: 3px 7px; font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
+    .cart-unit-btn i { font-size: 0.65rem; margin-left: 2px; }
+    .cart-unit-btn:hover { border-color: #3b82f6; color: #bfdbfe; }
+    .qty-input.qty-input-decimal { width: 58px; }
     .change-display { padding: 8px 10px; background: #1a1d2d; border: 1px solid #4a5568; color: #34d399; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
     #payment-amount.auto-filled { color: #34d399; cursor: not-allowed; opacity: 0.9; }
     .payment-amount-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.72rem; }
@@ -247,13 +267,15 @@
                 @php
                     $stock = $product->inventory?->Quantity ?? 0;
                     $stockClass = $stock <= 0 ? 'out-of-stock' : ($stock <= 10 ? 'low' : '');
-                    $stockText = $stock <= 0 ? 'Out of Stock' : ($stock <= 10 ? 'Low Stock: ' . $stock : 'Stock: ' . $stock);
+                    // With its unit: "Stock: 1 Roll (5,000 meters)", "Stock: 4,999 meters remaining".
+                    $stockText = $stock <= 0 ? 'Out of Stock' : ($stock <= 10 ? 'Low Stock: ' : 'Stock: ') . $product->stockLabel($stock);
                     // Serial-numbered products are added by scanning each piece's sticker.
                     $cardClick = $product->tracksSerialNumbers()
                         ? 'askToScanSerial(' . json_encode($product->ProductName) . ')'
-                        : 'addToCart(' . $product->ProductID . ', ' . json_encode($product->ProductName) . ', ' . $product->Price . ', ' . $stock . ')';
+                        : 'onProductCardClick(this)';
                 @endphp
                 <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}" data-product-id="{{ $product->ProductID }}" data-price="{{ $product->Price }}" data-stock="{{ $stock }}"
+                     data-name="{{ $product->ProductName }}" data-stock-label="{{ $product->stockLabel($stock) }}" data-units="{{ json_encode(array_values($product->sellingUnits())) }}"
                      onclick="{{ $stock > 0 ? $cardClick : '' }}">
                     @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-card'])
                     <h3>{{ $product->ProductName }}</h3>
@@ -318,6 +340,34 @@
                     <button type="button" class="approval-btn approval-btn-secondary" onclick="closeApprovalModal()">Close</button>
                     <button type="button" class="approval-btn approval-btn-primary" id="approval-confirm-btn" onclick="confirmApproval()">
                         <i class="fas fa-check"></i> Confirm Password
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- How much of a measured product to sell (1.5 meters, or by the
+             box), in the same popup style as the approval above. --}}
+        <div id="quantity-modal" class="approval-overlay" role="dialog" aria-modal="true" aria-labelledby="quantity-modal-title" aria-hidden="true">
+            <div class="approval-box">
+                <div class="approval-header">
+                    <h2 id="quantity-modal-title"><i class="fas fa-ruler-horizontal"></i> <span id="quantity-modal-name"></span></h2>
+                    <button type="button" class="approval-close" onclick="closeQuantityModal()" aria-label="Close">&times;</button>
+                </div>
+                <form id="quantity-form" onsubmit="event.preventDefault(); confirmQuantityModal();" autocomplete="off">
+                    <p class="quantity-stock" id="quantity-modal-stock"></p>
+                    <div class="quantity-units" id="quantity-unit-row"></div>
+                    <label class="approval-label" for="quantity-modal-input">Quantity <span class="required">*</span></label>
+                    <div class="quantity-input-row">
+                        <input type="number" id="quantity-modal-input" class="approval-input" inputmode="decimal">
+                        <span id="quantity-modal-unit"></span>
+                    </div>
+                    <span class="approval-hint" id="quantity-modal-total"></span>
+                    <span class="approval-error" id="quantity-modal-error" role="alert"></span>
+                </form>
+                <div class="approval-actions">
+                    <button type="button" class="approval-btn approval-btn-secondary" onclick="closeQuantityModal()">Cancel</button>
+                    <button type="button" class="approval-btn approval-btn-primary" onclick="confirmQuantityModal()">
+                        <i class="fas fa-cart-plus"></i> Add to Sale
                     </button>
                 </div>
             </div>
@@ -574,28 +624,43 @@
     // every refreshPromoMap() poll (not just once at page load) so a promo
     // created/expired in the admin Discount Module while this tab is open
     // updates the cards too.
+    // Each price is shown with its unit: "₱10.00/meter", and a second line
+    // ("₱500.00/box") for a product also sold by its purchase unit.
     function renderProductCardPricing() {
         document.querySelectorAll('.product-card[data-product-id]').forEach(function (card) {
             const productId = card.dataset.productId;
-            const price = parseFloat(card.dataset.price);
             const promo = PRODUCT_PROMO_MAP[productId];
             const block = card.querySelector('.price-block');
             if (!block) return;
 
-            if (promo) {
-                const discounted = discountedUnitPrice(price, promo);
-                block.innerHTML = `
-                    <div class="price">
-                        <span class="card-original-price">${window.formatPeso(price)}</span>
-                        <span class="card-discounted-price">${window.formatPeso(discounted)}</span>
-                    </div>
+            const units = cardSellingUnits(card);
+            const priceLines = units.map(function (unit, index) {
+                const perUnit = `<span class="card-price-unit">/${escapeHtml(unit.unit)}</span>`;
+                if (promo) {
+                    return `
+                        <div class="price${index > 0 ? ' price-secondary' : ''}">
+                            <span class="card-original-price">${window.formatPeso(unit.price)}</span>
+                            <span class="card-discounted-price">${window.formatPeso(discountedUnitPrice(unit.price, promo))}</span>${perUnit}
+                        </div>`;
+                }
+                return `<div class="price${index > 0 ? ' price-secondary' : ''}">${window.formatPeso(unit.price)}${perUnit}</div>`;
+            }).join('');
+
+            block.innerHTML = priceLines + (promo ? `
                     <span class="card-promo-chip"><i class="fas fa-tag"></i> ${escapeHtml(promo.name)} &middot; ${escapeHtml(promoValueLabel(promo))}</span>
                     ${promo.description ? `<span class="card-promo-desc">${escapeHtml(promo.description)}</span>` : ''}
-                `;
-            } else {
-                block.innerHTML = `<div class="price">${window.formatPeso(price)}</div>`;
-            }
+                ` : '');
         });
+    }
+
+    // The units a product card is sold in (Product::sellingUnits()): its
+    // base unit first, then e.g. its box. Falls back to one piece.
+    function cardSellingUnits(card) {
+        try {
+            const units = JSON.parse(card.dataset.units || '[]');
+            if (units.length) return units;
+        } catch (e) { /* fall through */ }
+        return [{ unit: 'piece', plural: 'pieces', quantity_per_unit: 1, price: parseFloat(card.dataset.price) || 0, fractional: false }];
     }
 
     let cart = [];
@@ -657,14 +722,22 @@
             .then(response => response.json())
             .then(data => {
                 if (data && data.product) {
-                    const stock = data.product.inventory?.Quantity || 0;
+                    const stock = parseFloat(data.product.inventory?.Quantity) || 0;
+                    const units = data.selling_units || null;
+                    if (stock > 0 && !data.serial && units && isMeasured(units)) {
+                        // Sold by measurement (meters, or by the box too):
+                        // ask how much instead of adding 1.
+                        input.value = '';
+                        openQuantityModal({ id: data.product.ProductID, name: data.product.ProductName, stock, stockLabel: data.stock_label, units });
+                        return;
+                    }
                     if (stock > 0) {
                         // Found and in stock: addToCart() already finds the
                         // existing cart line for this product and increments
                         // its qty instead of pushing a new one, so repeated
                         // scans of the same item just keep adding +1 — clear
                         // the field so it's ready for the next scan.
-                        addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock, data.serial || null);
+                        addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock, data.serial || null, units);
                         input.value = '';
                     } else {
                         toastWarning('Product out of stock!');
@@ -688,8 +761,9 @@
             .finally(() => {
                 // Return focus to the scan field so the next scan (manual
                 // click-away aside) is picked up immediately — matters most
-                // for scanning several items back-to-back.
-                input.focus();
+                // for scanning several items back-to-back. The quantity
+                // popup keeps it while it's open.
+                if (!document.getElementById('quantity-modal').classList.contains('active')) input.focus();
             });
     }
 
@@ -728,7 +802,8 @@
         // confirm button (e.g. "Yes, Complete Sale").
         function scanningBlocked() {
             return (window.Swal && Swal.isVisible()) || window.receiptPrinting === true
-                || document.getElementById('approval-modal').classList.contains('active');
+                || document.getElementById('approval-modal').classList.contains('active')
+                || document.getElementById('quantity-modal').classList.contains('active');
         }
 
         function reset() {
@@ -822,7 +897,67 @@
         document.getElementById('barcode-input').focus();
     }
 
-    function addToCart(id, name, price, stock, serial) {
+    // ---- Units of measurement ----
+    // A cart line is one product in one of its selling units (its base unit
+    // like meter/piece, or e.g. its box): price is per that unit, qty is in
+    // it, and perUnit is how many base units (stock) one of it takes. Stock
+    // is always in the base unit.
+    function roundQty(value) {
+        return Math.round((value + Number.EPSILON) * 100) / 100;
+    }
+
+    function formatQty(value) {
+        return Number(roundQty(value)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    }
+
+    function unitNameFor(unit, qty) {
+        return Math.abs(qty) === 1 ? unit.unit : unit.plural;
+    }
+
+    // Sold by more than one unit, or by part of a unit (1.5 meters): the
+    // cashier enters the quantity in a popup instead of adding 1 per click.
+    function isMeasured(units) {
+        return units.length > 1 || !!units[0].fractional;
+    }
+
+    // The most of this line's unit the stock allows (whole units unless
+    // decimals are allowed).
+    function maxQtyFor(line) {
+        const max = line.stock / (line.perUnit || 1);
+        return line.fractional ? Math.floor(roundQty(max) * 100 + 1e-6) / 100 : Math.floor(max + 1e-9);
+    }
+
+    function cartLineQtyText(item) {
+        return item.unit === 'piece' ? 'x' + formatQty(item.qty) : formatQty(item.qty) + ' ' + unitNameFor({ unit: item.unit, plural: item.unitPlural }, item.qty);
+    }
+
+    function newCartLine(id, name, stock, sellingUnit, units, qty) {
+        return {
+            id, name, stock, qty,
+            units: units && units.length ? units : [sellingUnit],
+            unit: sellingUnit.unit,
+            unitPlural: sellingUnit.plural,
+            perUnit: parseFloat(sellingUnit.quantity_per_unit) || 1,
+            price: parseFloat(sellingUnit.price) || 0,
+            fractional: !!sellingUnit.fractional,
+        };
+    }
+
+    // Clicking a (non-serial) product card: a measured product asks how
+    // much; anything else is added one piece at a time, as before.
+    function onProductCardClick(card) {
+        const id = parseInt(card.dataset.productId, 10);
+        const stock = parseFloat(card.dataset.stock) || 0;
+        const units = cardSellingUnits(card);
+        if (isMeasured(units)) {
+            openQuantityModal({ id, name: card.dataset.name, stock, stockLabel: card.dataset.stockLabel, units });
+            return;
+        }
+        addToCart(id, card.dataset.name, units[0].price, stock, null, units);
+    }
+
+    function addToCart(id, name, price, stock, serial, units) {
+        const sellingUnit = (units && units[0]) || { unit: 'piece', plural: 'pieces', quantity_per_unit: 1, price: price, fractional: false };
         const existingItem = cart.find(item => item.id === id);
         if (serial) {
             if (existingItem && existingItem.serials && existingItem.serials.indexOf(serial) !== -1) {
@@ -834,21 +969,24 @@
                 existingItem.qty = existingItem.serials.length;
                 existingItem.stock = stock;
             } else {
-                cart.push({ id, name, price, qty: 1, stock, serials: [serial] });
+                const line = newCartLine(id, name, stock, sellingUnit, units, 1);
+                line.serials = [serial];
+                cart.push(line);
             }
             cartFocusItemId = id;
             renderCart();
             return;
         }
         if (existingItem) {
-            if (existingItem.qty < stock) {
-                existingItem.qty++;
+            existingItem.stock = stock;
+            if (roundQty(existingItem.qty + 1) <= maxQtyFor(existingItem)) {
+                existingItem.qty = roundQty(existingItem.qty + 1);
             } else {
                 toastWarning('Maximum stock reached!');
                 return;
             }
         } else {
-            cart.push({ id, name, price, qty: 1, stock });
+            cart.push(newCartLine(id, name, stock, sellingUnit, units, 1));
         }
         // Bring this line into view once the cart re-renders -- matters once
         // the cart holds more than the ~7 lines visible at a time.
@@ -859,8 +997,8 @@
     function updateQty(id, change) {
         const item = cart.find(item => item.id === id);
         if (item) {
-            const newQty = item.qty + change;
-            if (newQty > 0 && newQty <= item.stock) {
+            const newQty = roundQty(item.qty + change);
+            if (newQty > 0 && newQty <= maxQtyFor(item)) {
                 item.qty = newQty;
                 renderCart();
             } else if (newQty <= 0) {
@@ -869,24 +1007,137 @@
         }
     }
 
-    // Typed directly into the quantity box — clamp to [1, stock] rather than
+    // Typed directly into the quantity box — clamp to the stock rather than
     // rejecting out-of-range input outright, so a typo like "500" against 20
     // in stock still lands somewhere useful instead of just bouncing back to
-    // whatever the field held before.
+    // whatever the field held before. Zero, negative or unreadable input
+    // goes back to 1 (or, for decimals, to what it was).
     function setQty(id, rawValue) {
         const item = cart.find(item => item.id === id);
         if (!item) return;
 
-        let qty = parseInt(rawValue, 10);
-        if (isNaN(qty) || qty < 1) {
-            qty = 1;
-        } else if (qty > item.stock) {
-            qty = item.stock;
-            toastWarning('Only ' + item.stock + ' unit(s) of "' + item.name + '" in stock.');
+        let qty = item.fractional ? roundQty(parseFloat(rawValue)) : parseInt(rawValue, 10);
+        const unitName = unitNameFor({ unit: item.unit, plural: item.unitPlural }, 2);
+        if (isNaN(qty) || qty <= 0 || (!item.fractional && qty < 1)) {
+            if (item.fractional) toastWarning('Enter a quantity greater than 0.');
+            qty = item.fractional ? item.qty : 1;
+        } else if (qty > maxQtyFor(item)) {
+            qty = maxQtyFor(item);
+            toastWarning('Only ' + formatQty(qty) + ' ' + unitName + ' of "' + item.name + '" in stock.');
+            if (qty <= 0) qty = item.qty;
         }
 
         item.qty = qty;
         renderCart();
+    }
+
+    // ---- Quantity popup (measured products) ----
+    let quantityModalProduct = null;
+
+    function openQuantityModal(product) {
+        quantityModalProduct = product;
+        const existing = cart.find(item => item.id === product.id);
+        const baseUnit = product.units[0];
+        document.getElementById('quantity-modal-name').textContent = product.name;
+        document.getElementById('quantity-modal-stock').textContent = 'Available: ' + (product.stockLabel || (formatQty(product.stock) + ' ' + unitNameFor(baseUnit, product.stock)));
+        document.getElementById('quantity-unit-row').innerHTML = product.units.length > 1 ? product.units.map(function (unit, index) {
+            const checked = existing ? existing.unit === unit.unit : index === 0;
+            const holds = parseFloat(unit.quantity_per_unit) !== 1 ? ` &middot; ${formatQty(unit.quantity_per_unit)} ${escapeHtml(baseUnit.plural)}` : '';
+            return `<label class="quantity-unit-option"><input type="radio" name="quantity-unit" value="${escapeHtml(unit.unit)}" ${checked ? 'checked' : ''} onchange="onQuantityUnitChange()"> <span><strong>Per ${escapeHtml(unit.unit)}</strong> ${window.formatPeso(unit.price)}/${escapeHtml(unit.unit)}${holds}</span></label>`;
+        }).join('') : '';
+        const input = document.getElementById('quantity-modal-input');
+        input.value = existing ? existing.qty : '';
+        onQuantityUnitChange();
+
+        const modal = document.getElementById('quantity-modal');
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        setTimeout(function () { input.focus(); input.select(); }, 50);
+    }
+
+    function closeQuantityModal() {
+        const modal = document.getElementById('quantity-modal');
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        quantityModalProduct = null;
+        document.getElementById('barcode-input').focus();
+    }
+
+    function selectedQuantityUnit() {
+        const product = quantityModalProduct;
+        const checked = document.querySelector('input[name="quantity-unit"]:checked');
+        return (checked && product.units.find(unit => unit.unit === checked.value)) || product.units[0];
+    }
+
+    function onQuantityUnitChange() {
+        const unit = selectedQuantityUnit();
+        const input = document.getElementById('quantity-modal-input');
+        input.step = unit.fractional ? '0.01' : '1';
+        input.min = unit.fractional ? '0.01' : '1';
+        input.placeholder = unit.fractional ? 'e.g. 1.5' : 'e.g. 1';
+        updateQuantityModalTotal();
+    }
+
+    // Why this quantity can't be sold, or '' when it can.
+    function quantityModalError(qty, unit) {
+        const product = quantityModalProduct;
+        if (isNaN(qty) || qty <= 0) return 'Enter a quantity greater than 0.';
+        if (!unit.fractional && Math.floor(qty) !== qty) return '"' + product.name + '" is sold in whole ' + unit.plural + '.';
+        if (Math.abs(qty * 100 - Math.round(qty * 100)) > 1e-6) return 'Use up to 2 decimals.';
+        const max = maxQtyFor({ stock: product.stock, perUnit: parseFloat(unit.quantity_per_unit) || 1, fractional: unit.fractional });
+        if (qty > max) return max > 0 ? 'Only ' + formatQty(max) + ' ' + unitNameFor(unit, max) + ' in stock.' : 'Not enough stock for one ' + unit.unit + '.';
+        return '';
+    }
+
+    function updateQuantityModalTotal() {
+        const unit = selectedQuantityUnit();
+        const raw = document.getElementById('quantity-modal-input').value.trim();
+        const qty = parseFloat(raw);
+        const errorEl = document.getElementById('quantity-modal-error');
+        const totalEl = document.getElementById('quantity-modal-total');
+        document.getElementById('quantity-modal-unit').textContent = unitNameFor(unit, raw === '' ? 2 : qty);
+
+        if (raw === '') {
+            errorEl.textContent = '';
+            totalEl.textContent = window.formatPeso(unit.price) + '/' + unit.unit;
+            return;
+        }
+        const error = quantityModalError(qty, unit);
+        errorEl.textContent = error;
+        totalEl.textContent = error ? '' : formatQty(qty) + ' ' + unitNameFor(unit, qty) + ' × ' + window.formatPeso(unit.price) + ' = ' + window.formatPeso(roundMoney(qty * unit.price));
+    }
+
+    function confirmQuantityModal() {
+        const product = quantityModalProduct;
+        if (!product) return;
+        const unit = selectedQuantityUnit();
+        const qty = roundQty(parseFloat(document.getElementById('quantity-modal-input').value));
+        const error = quantityModalError(qty, unit);
+        if (error) {
+            document.getElementById('quantity-modal-error').textContent = error;
+            document.getElementById('quantity-modal-input').focus();
+            return;
+        }
+
+        // One line per product: entering it again replaces its quantity/unit.
+        const line = newCartLine(product.id, product.name, product.stock, unit, product.units, qty);
+        const index = cart.findIndex(item => item.id === product.id);
+        if (index === -1) {
+            cart.push(line);
+        } else {
+            cart[index] = line;
+        }
+        closeQuantityModal();
+        cartFocusItemId = product.id;
+        renderCart();
+    }
+
+    // The unit button on a measured cart line reopens its popup.
+    function editCartLine(id) {
+        const item = cart.find(line => line.id === id);
+        if (!item) return;
+        const card = document.querySelector('.product-card[data-product-id="' + id + '"]');
+        openQuantityModal({ id, name: item.name, stock: item.stock, stockLabel: card ? card.dataset.stockLabel : '', units: item.units });
     }
 
     function removeFromCart(id) {
@@ -926,7 +1177,7 @@
 
         window.confirmAction({
             title: 'Remove Product',
-            text: 'Remove "' + item.name + '" (x' + item.qty + ') from the current sale?',
+            text: 'Remove "' + item.name + '" (' + cartLineQtyText(item) + ') from the current sale?',
             icon: 'warning',
             confirmText: 'Remove',
             cancelText: 'Keep',
@@ -995,13 +1246,17 @@
             let promoRowHtml = '';
             let lineTotal;
 
+            // The price with its unit: "₱10.00/meter".
+            const perUnitHtml = `<span class="cart-price-unit">/${escapeHtml(item.unit)}</span>`;
+            const unitName = unitNameFor({ unit: item.unit, plural: item.unitPlural }, item.qty);
+            const maxQty = maxQtyFor(item);
             if (promo) {
                 const discountedUnit = discountedUnitPrice(item.price, promo);
                 lineTotal = discountedUnit * item.qty;
                 priceLineHtml = `
                     <p>
                         <span class="promo-original-price">${window.formatPeso(item.price)}</span>
-                        <span class="promo-discounted-price">${window.formatPeso(discountedUnit)}</span> each
+                        <span class="promo-discounted-price">${window.formatPeso(discountedUnit)}</span>${perUnitHtml}
                     </p>
                 `;
                 promoRowHtml = `
@@ -1014,8 +1269,13 @@
                 `;
             } else {
                 lineTotal = item.price * item.qty;
-                priceLineHtml = `<p>${window.formatPeso(item.price)} each</p>`;
+                priceLineHtml = `<p>${window.formatPeso(item.price)}${perUnitHtml}</p>`;
             }
+            // Beside the quantity: the unit, which reopens the quantity popup
+            // for a product sold by more than one unit or by decimals.
+            const unitHtml = isMeasured(item.units)
+                ? `<button type="button" class="cart-unit-btn" onclick="editCartLine(${item.id})" title="Change quantity or unit">${escapeHtml(unitName)} <i class="fas fa-pen"></i></button>`
+                : `<span class="cart-item-unit">${escapeHtml(unitName)}</span>`;
 
             container.innerHTML += `
                 <div class="cart-item" data-cart-item-id="${item.id}">
@@ -1033,11 +1293,12 @@
                     ` : `
                     <div class="cart-item-qty">
                         <button class="qty-btn" data-item-id="${item.id}" data-step="-1" ${item.qty <= 1 ? 'disabled' : ''}>-</button>
-                        <input type="number" class="qty-input" value="${item.qty}" min="1" max="${item.stock}"
+                        <input type="number" class="qty-input${item.fractional ? ' qty-input-decimal' : ''}" value="${item.qty}" min="${item.fractional ? '0.01' : '1'}" step="${item.fractional ? '0.01' : '1'}" max="${maxQty}"
                                onchange="setQty(${item.id}, this.value)"
                                onkeydown="if (event.key === 'Enter') this.blur();">
-                        <button class="qty-btn" data-item-id="${item.id}" data-step="1" ${item.qty >= item.stock ? 'disabled' : ''}>+</button>
+                        <button class="qty-btn" data-item-id="${item.id}" data-step="1" ${roundQty(item.qty + 1) > maxQty ? 'disabled' : ''}>+</button>
                     </div>
+                    ${unitHtml}
                     `}
                     <div class="cart-item-price">
                         <div class="item-total">${window.formatPeso(roundMoney(lineTotal))}</div>
@@ -1119,7 +1380,7 @@
         cart.forEach(function (item) {
             const card = document.querySelector('.product-card[data-product-id="' + item.id + '"]');
             if (!card) return;
-            const stock = parseInt(card.dataset.stock, 10);
+            const stock = parseFloat(card.dataset.stock);
             if (!isNaN(stock) && stock !== item.stock) {
                 item.stock = stock;
                 cartChanged = true;
@@ -1153,8 +1414,8 @@
         function applyStep(id, delta) {
             const item = cart.find(i => i.id === id);
             if (!item) return false;
-            const newQty = item.qty + delta;
-            if (newQty < 1 || newQty > item.stock) return false;
+            const newQty = roundQty(item.qty + delta);
+            if (newQty <= 0 || newQty > maxQtyFor(item)) return false;
             updateQty(id, delta);
             return true;
         }
@@ -1378,6 +1639,15 @@
     document.getElementById('approval-modal').addEventListener('mousedown', function (e) {
         if (e.target === this) closeApprovalModal();
     });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.getElementById('quantity-modal').classList.contains('active')) {
+            closeQuantityModal();
+        }
+    });
+    document.getElementById('quantity-modal').addEventListener('mousedown', function (e) {
+        if (e.target === this) closeQuantityModal();
+    });
+    document.getElementById('quantity-modal-input').addEventListener('input', updateQuantityModalTotal);
     document.getElementById('approval-password').addEventListener('input', function () {
         this.classList.remove('error');
         document.getElementById('approval-error').textContent = '';
@@ -1676,7 +1946,9 @@
         const data = {
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
-            items: cart,
+            // Quantity in the line's unit; the server prices it and works
+            // out what it takes from stock.
+            items: cart.map(item => ({ id: item.id, qty: item.qty, unit: item.unit, serials: item.serials })),
             custom_discount_percent: customDiscount ? customDiscount.percent : null,
             payment_method: selectedPaymentMethod,
             payment_amount: window.parseMoney(document.getElementById('payment-amount').value),

@@ -15,8 +15,8 @@ class StockAdjustmentRecorded extends Notification
 
     public function __construct(
         public Product $product,
-        public int $quantityAdjust,
-        public int $newQuantity,
+        public int|float $quantityAdjust,
+        public int|float $newQuantity,
         public string $reason,
     ) {}
 
@@ -33,7 +33,7 @@ class StockAdjustmentRecorded extends Notification
         return (new MailMessage)
             ->subject("Stock Adjustment: {$this->product->ProductName}")
             ->line($this->badgeHtml($isIncrease ? 'STOCK INCREASED' : 'STOCK DECREASED', $isIncrease ? '#16a34a' : '#d97706'))
-            ->line("**\"{$this->product->ProductName}\"** was adjusted by **{$sign}{$this->quantityAdjust}** (new total: **{$this->newQuantity}**).")
+            ->line("**\"{$this->product->ProductName}\"** was adjusted by **{$sign}{$this->product->formatQuantity($this->quantityAdjust)}** (new total: **{$this->product->formatQuantity($this->newQuantity)}**).")
             ->line("**Reason:** {$this->reason}")
             ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->action('View Stock Adjustments', route('admin.stock-adjustments.index'));
@@ -45,7 +45,7 @@ class StockAdjustmentRecorded extends Notification
 
         return [
             'title' => 'Stock Adjustment',
-            'description' => "\"{$this->product->ProductName}\" adjusted by {$sign}{$this->quantityAdjust} (new total: {$this->newQuantity}).",
+            'description' => "\"{$this->product->ProductName}\" adjusted by {$sign}{$this->product->formatQuantity($this->quantityAdjust)} (new total: {$this->product->formatQuantity($this->newQuantity)}).",
             'url' => route('admin.stock-adjustments.index'),
             'icon' => 'sliders-horizontal',
             'color' => 'info',

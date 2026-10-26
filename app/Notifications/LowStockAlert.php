@@ -15,7 +15,7 @@ class LowStockAlert extends Notification
 
     public function __construct(
         public Product $product,
-        public int $quantity,
+        public int|float $quantity,
         public string $status,
     ) {}
 
@@ -31,7 +31,7 @@ class LowStockAlert extends Notification
         return (new MailMessage)
             ->subject("{$this->status}: {$this->product->ProductName}")
             ->line($this->badgeHtml(strtoupper($this->status), $isOutOfStock ? '#dc2626' : '#d97706'))
-            ->line("**\"{$this->product->ProductName}\"** is now at **{$this->quantity} unit(s)** in stock ({$this->status}).")
+            ->line("**\"{$this->product->ProductName}\"** is now at **{$this->product->formatQuantity($this->quantity)}** in stock ({$this->status}).")
             ->line('**Date & Time:** '.now()->format('m/d/Y g:i A'))
             ->line('**Action Required:** consider reordering soon to avoid stockouts.')
             ->action('View Inventory', route('admin.inventory.index'));
@@ -41,7 +41,7 @@ class LowStockAlert extends Notification
     {
         return [
             'title' => $this->status,
-            'description' => "\"{$this->product->ProductName}\" has {$this->quantity} unit(s) left.",
+            'description' => "\"{$this->product->ProductName}\" has {$this->product->formatQuantity($this->quantity)} left.",
             'url' => route('admin.inventory.index'),
             'icon' => 'triangle-alert',
             'color' => $this->status === 'Out of Stock' ? 'danger' : 'warning',

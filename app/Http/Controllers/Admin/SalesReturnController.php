@@ -128,6 +128,8 @@ class SalesReturnController extends Controller
                 'Category' => $item->product?->category?->CategoryName,
                 'UnitPrice' => $item->UnitPrice,
                 'Quantity' => $item->Quantity,
+                'Unit' => $item->Unit,
+                'QuantityLabel' => $item->quantityLabel(),
                 'Reason' => $item->Reason,
                 'LineTotal' => $refundableLineTotal,
             ];
@@ -225,7 +227,7 @@ class SalesReturnController extends Controller
             return back()->with('status', $e->getMessage());
         }
 
-        $productSummary = $salesReturn->items->map(fn ($item) => "{$item->Quantity} x \"{$item->product?->ProductName}\"")->implode(', ');
+        $productSummary = $salesReturn->items->map(fn ($item) => "{$item->quantityLabel()} x \"{$item->product?->ProductName}\"")->implode(', ');
 
         ActivityLog::record(
             'return.approved',
@@ -257,7 +259,8 @@ class SalesReturnController extends Controller
             'SalesReturnID' => $salesReturn->SalesReturnID,
             'SourceModule' => DamagedProduct::SOURCE_CUSTOMER_RETURN,
             'SupplierID' => $supplierId,
-            'Quantity' => $item->Quantity,
+            // In the product's base unit: a returned box is its 100 pieces.
+            'Quantity' => $item->BaseQuantity,
             'Description' => "Customer return — {$item->Reason} (Return #{$salesReturn->SalesReturnID}, Receipt {$receiptNumber})",
             'DateRecorded' => now(),
             'DamageType' => $item->Reason === 'Factory Defect' ? 'factory_defect' : 'damaged_product',
@@ -267,7 +270,7 @@ class SalesReturnController extends Controller
 
         ActivityLog::record(
             'damage.created_from_return',
-            "Created damage record #{$damage->DamageID} for {$item->Quantity} x \"{$item->product?->ProductName}\" from return #{$salesReturn->SalesReturnID} ({$item->Reason})"
+            "Created damage record #{$damage->DamageID} for {$item->quantityLabel()} x \"{$item->product?->ProductName}\" from return #{$salesReturn->SalesReturnID} ({$item->Reason})"
         );
     }
 

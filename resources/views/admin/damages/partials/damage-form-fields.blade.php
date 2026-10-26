@@ -18,7 +18,7 @@
                 >
                     {{ $product->ProductName }} - {{ $product->Model }}
                     @if($product->inventory)
-                        (Stock: {{ $product->inventory->Quantity }})
+                        (Stock: {{ $product->formatQuantity($product->inventory->Quantity) }})
                     @else
                         (No Stock)
                     @endif
@@ -65,7 +65,8 @@
     <div class="form-group">
         <label class="form-label" for="Quantity">Quantity Damaged <span class="required">*</span></label>
         <input type="number" id="Quantity" name="Quantity" class="form-input"
-               value="{{ old('Quantity', $damage->Quantity ?? null) }}" required min="1">
+               value="{{ old('Quantity', $damage->Quantity ?? null) }}" required min="0.01" step="0.01">
+        <small style="display:block; margin-top:4px; color:#94a3b8;">In the product's base unit (pieces, meters...).</small>
         <span class="form-error" id="error-Quantity">@error('Quantity'){{ $message }}@enderror</span>
     </div>
 

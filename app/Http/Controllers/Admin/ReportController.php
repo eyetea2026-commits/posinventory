@@ -15,6 +15,7 @@ use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\StockAdjustment;
 use App\Models\StockReceiving;
+use App\Services\UnitOfMeasure;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -148,8 +149,8 @@ class ReportController extends Controller
             'rows' => ($transaction?->items ?? collect())->values()->map(fn (SalesItem $item, int $index) => [
                 $index + 1,
                 $item->product?->ProductName ?? 'N/A',
-                $this->money($item->UnitPrice),
-                $item->Quantity,
+                $this->money($item->UnitPrice).(($item->Unit ?: 'piece') === 'piece' ? '' : '/'.$item->Unit),
+                ($item->Unit ?: 'piece') === 'piece' ? $item->Quantity : $item->quantityLabel(),
                 $this->money($item->DiscountAmount ?? 0),
                 $this->money(($item->Quantity * $item->UnitPrice) - ($item->DiscountAmount ?? 0)),
             ])->all(),
@@ -204,9 +205,9 @@ class ReportController extends Controller
         $stockTable = [
             'columns' => ['Current Stock', 'Remaining Stock', 'Reorder Threshold'],
             'rows' => [[
-                (string) ($product->inventory?->Quantity ?? 0),
-                (string) ($product->inventory?->Quantity ?? 0),
-                (string) ($product->inventory?->ReorderThreshold ?? 'N/A'),
+                UnitOfMeasure::cell($product->inventory?->Quantity ?? 0, $product->baseUnit()),
+                $product->hasPurchaseUnit() ? $product->stockLabel($product->inventory?->Quantity ?? 0) : UnitOfMeasure::cell($product->inventory?->Quantity ?? 0, $product->baseUnit()),
+                $product->inventory?->ReorderThreshold !== null ? UnitOfMeasure::cell($product->inventory->ReorderThreshold, $product->baseUnit()) : 'N/A',
             ]],
         ];
 
@@ -301,7 +302,7 @@ class ReportController extends Controller
             'columns' => ['Products Return', 'Quantity', 'Reason', 'Return Type'],
             'rows' => $return->items->map(fn (SalesReturnItem $item) => [
                 $item->product?->ProductName ?? 'N/A',
-                $item->Quantity,
+                ($item->Unit ?: 'piece') === 'piece' ? $item->Quantity : $item->quantityLabel(),
                 ucfirst(str_replace('_', ' ', $item->Reason)),
                 $returnType,
             ])->all(),
@@ -346,7 +347,7 @@ class ReportController extends Controller
                 'DMG-'.str_pad((string) $damage->DamageID, 6, '0', STR_PAD_LEFT),
                 $damage->product?->category?->CategoryName ?? 'N/A',
                 $damage->product?->ProductName ?? 'N/A',
-                (string) $damage->Quantity,
+                UnitOfMeasure::cell($damage->Quantity, $damage->product?->baseUnit()),
                 DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType,
             ]],
         ];
@@ -654,7 +655,9 @@ class ReportController extends Controller
             'CustomerName' => self::customerLabel($billing->CustomerName),
             'PaymentMethod' => $billing->payment?->PaymentMethod,
             'ProductName' => $item?->product?->ProductName ?? 'N/A',
+            // In the unit it was sold in (UnitPrice is per that unit).
             'Quantity' => $item?->Quantity ?? 0,
+            'Unit' => $item?->Unit,
             'UnitPrice' => $item?->UnitPrice ?? 0,
             'ItemTotal' => round(($item?->Quantity ?? 0) * ($item?->UnitPrice ?? 0), 2),
             'Discount' => $isFirst ? (float) ($billing->DiscountAmount ?? 0) : null,
@@ -756,7 +759,9 @@ class ReportController extends Controller
             'PurchaseDate' => $order->PurchaseDate,
             'SupplierName' => $order->supplier?->SupplierName ?? 'N/A',
             'ProductName' => $item?->product?->ProductName ?? 'N/A',
+            // In the unit it was ordered in (UnitPrice is per that unit).
             'Quantity' => $item?->Quantity ?? 0,
+            'Unit' => $item?->Unit,
             'UnitPrice' => (float) ($item?->CostPriceAtOrder ?? 0),
             'Subtotal' => round(($item?->Quantity ?? 0) * ($item?->CostPriceAtOrder ?? 0), 2),
             'Status' => $order->Status,
@@ -786,6 +791,7 @@ class ReportController extends Controller
                     'CustomerName' => self::customerLabel($return->CustomerName),
                     'product' => $item->product,
                     'Quantity' => $item->Quantity,
+                    'Unit' => $item->Unit,
                     'Reason' => $item->Reason,
                     'ReturnType' => $return->ReturnType,
                     'Status' => $return->Status,

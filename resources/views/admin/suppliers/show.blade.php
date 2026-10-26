@@ -230,9 +230,9 @@
                     html += `<tr>
                         <td>${escapeHtml(item.ProductName)}</td>
                         <td>${escapeHtml(item.Category)}</td>
-                        <td>${escapeHtml(item.OrderedQuantity)}</td>
-                        <td>${escapeHtml(item.ReceivedQuantity)}</td>
-                        <td>${escapeHtml(item.RemainingQuantity)}</td>
+                        <td>${escapeHtml(item.OrderedLabel || item.OrderedQuantity)}</td>
+                        <td>${escapeHtml(item.ReceivedLabel || item.ReceivedQuantity)}</td>
+                        <td>${escapeHtml(item.RemainingLabel || item.RemainingQuantity)}</td>
                         <td>${window.formatPeso ? window.formatPeso(item.UnitCost) : item.UnitCost}</td>
                         <td>${window.formatPeso ? window.formatPeso(item.Subtotal) : item.Subtotal}</td>
                     </tr>`;

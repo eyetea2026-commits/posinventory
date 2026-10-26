@@ -391,7 +391,7 @@
                     kv('Damage Record Number', text(d.DamageNumber)),
                     kv('Current Status', text(d.Status)),
                     kv('Supplier Return Status', text(data.supplierReturnStatus)),
-                    kv('Quantity Damaged', text(d.Quantity)),
+                    kv('Quantity Damaged', text(d.QuantityLabel || d.Quantity)),
                     kv('Damage Type', text(d.DamageType)),
                     kv('Source', text(d.SourceModule)),
                     kv('Date Recorded', text(d.DateRecorded)),
@@ -402,7 +402,7 @@
                     kv('Brand', text(p.Brand)),
                     kv('Category', text(p.Category)),
                     kv('Cost Price', window.formatPeso ? window.formatPeso(p.CostPrice ?? 0) : text(p.CostPrice)),
-                    kv('Current Stock', text(p.CurrentStock ?? 0)),
+                    kv('Current Stock', text(p.CurrentStockLabel || p.CurrentStock || 0)),
                 ]);
                 const people = [];
                 if (r) {
@@ -417,7 +417,7 @@
                 if (s) references.push(kv('Supplier', text(s.SupplierName)), kv('Supplier Contact', `${text(s.ContactNumber)}${s.Email ? ' / ' + text(s.Email) : ''}`));
                 if (data.purchaseOrder) references.push(kv('Purchase Order', text(data.purchaseOrder.PONumber)));
                 if (data.stockAdjustment) {
-                    references.push(kv('Stock Adjustment', `#${text(data.stockAdjustment.AdjustmentID)} — ${text(data.stockAdjustment.QuantityAdjust)} (${text(data.stockAdjustment.Reason)})`));
+                    references.push(kv('Stock Adjustment', `#${text(data.stockAdjustment.AdjustmentID)} — ${text(data.stockAdjustment.QuantityAdjustLabel || data.stockAdjustment.QuantityAdjust)} (${text(data.stockAdjustment.Reason)})`));
                 }
                 if (references.length) html += section('Supplier & References', references);
                 const details = [kv('Description', text(d.Description), true)];

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
@@ -189,8 +190,9 @@ class StockReceivingController extends Controller
 
                     // Only the ACTUAL received amount is added to Inventory
                     // — never the originally ordered Quantity, which stays
-                    // untouched on the PurchaseOrderItem as the reference.
-                    $inventory->Quantity += $quantityReceived;
+                    // untouched on the PurchaseOrderItem as the reference —
+                    // converted to the base unit (2 rolls = 10,000 meters).
+                    $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->toBaseQuantity($quantityReceived));
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     $inventory->save();
                 }
@@ -384,8 +386,10 @@ class StockReceivingController extends Controller
             'DateReceived' => ['required', 'date'],
         ]);
 
+        $receivedBaseQuantity = 0;
+
         try {
-            DB::transaction(function () use ($data) {
+            DB::transaction(function () use ($data, &$receivedBaseQuantity) {
                 $purchaseOrderItem = null;
                 $productId = $data['ProductID'] ?? null;
                 $supplierId = $data['SupplierID'] ?? null;
@@ -441,7 +445,12 @@ class StockReceivingController extends Controller
                     $inventory = Inventory::where('ProductID', $productId)->lockForUpdate()->first();
                 }
 
-                $inventory->Quantity += $data['Quantity'];
+                // Received in the order line's unit (or, without an order,
+                // the product's purchase unit), stocked in the base unit.
+                $baseQuantity = $receivedBaseQuantity = $purchaseOrderItem
+                    ? $purchaseOrderItem->toBaseQuantity($data['Quantity'])
+                    : Quantity::normalize($data['Quantity'] * (float) Product::find($productId)->quantityPerOrderUnit());
+                $inventory->Quantity = Quantity::normalize($inventory->Quantity + $baseQuantity);
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();
 
@@ -472,7 +481,7 @@ class StockReceivingController extends Controller
         // down) must not turn a successful receipt into a 500 response.
         if ($product && $supplier) {
             try {
-                Notification::send(User::admins(), new ProductReceived($product, $supplier, (int) $data['Quantity']));
+                Notification::send(User::admins(), new ProductReceived($product, $supplier, $receivedBaseQuantity));
             } catch (Throwable $e) {
                 Log::error('Failed to dispatch ProductReceived notification', [
                     'product_id' => $product->ProductID,

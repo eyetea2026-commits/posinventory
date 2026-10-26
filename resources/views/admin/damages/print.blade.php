@@ -27,7 +27,7 @@
         <div class="row"><span>Product</span><strong>{{ $damage->product?->ProductName ?? 'N/A' }}</strong></div>
         <div class="row"><span>Brand</span><strong>{{ $damage->product?->brand?->BrandName ?? 'N/A' }}</strong></div>
         <div class="row"><span>Category</span><strong>{{ $damage->product?->category?->CategoryName ?? 'N/A' }}</strong></div>
-        <div class="row"><span>Quantity</span><strong>{{ $damage->Quantity }}</strong></div>
+        <div class="row"><span>Quantity</span><strong>{{ $damage->product ? $damage->product->formatQuantity($damage->Quantity) : $damage->Quantity }}</strong></div>
         <div class="row"><span>Reason for Return</span><strong>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$damage->DamageType] ?? $damage->DamageType }}</strong></div>
     </div>
 

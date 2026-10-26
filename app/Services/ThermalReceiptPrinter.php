@@ -235,8 +235,8 @@ class ThermalReceiptPrinter
         // Items: name on its own (wrapped) line, then "qty x price ... amount".
         foreach ($r['items'] as $item) {
             $add($this->wrap($this->ascii((string) $item['name'])));
-            $lineTotal = (float) $item['price'] * (int) $item['qty'];
-            $add($this->row('  '.$item['qty'].' x '.$this->money((float) $item['price']), $this->money($lineTotal)));
+            $lineTotal = round((float) $item['price'] * (float) $item['qty'], 2);
+            $add($this->row('  '.($item['qty_label'] ?? $item['qty']).' x '.$this->money((float) $item['price']), $this->money($lineTotal)));
         }
         $add($rule);
 

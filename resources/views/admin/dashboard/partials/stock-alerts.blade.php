@@ -13,7 +13,7 @@
                 </div>
                 <div class="stat-content">
                     <div class="stock-alert-name">{{ $alert['product']?->ProductName ?? 'Unknown product' }}</div>
-                    <div class="stock-alert-qty">{{ $alert['quantity'] }} units remaining</div>
+                    <div class="stock-alert-qty">{{ $alert['product'] && $alert['product']->baseUnit() !== 'piece' ? $alert['product']->formatQuantity($alert['quantity']) : $alert['quantity'].' units' }} remaining</div>
                 </div>
                 <span class="badge {{ $alert['status']['class'] === 'badge-out-of-stock' ? 'badge-danger' : ($alert['status']['class'] === 'badge-replenish' ? 'badge-replenish' : 'badge-warning') }}">{{ $alert['status']['label'] }}</span>
                 @if($alert['product'])

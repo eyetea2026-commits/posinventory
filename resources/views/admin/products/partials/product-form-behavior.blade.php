@@ -453,6 +453,9 @@ window.initProductAddForm = function (formId, options) {
             // 'numeric'), not the comma-grouped display value.
             costPriceInput.value = window.parseMoney(costPriceInput.value).toFixed(2);
             sellingPriceInput.value = window.parseMoney(sellingPriceInput.value).toFixed(2);
+            if (purchaseUnitPriceInput && purchaseUnitPriceInput.value.trim() !== '') {
+                purchaseUnitPriceInput.value = window.parseMoney(purchaseUnitPriceInput.value).toFixed(2);
+            }
             formChanged = false;
             if (options.onConfirmedSubmit) options.onConfirmedSubmit(resetSubmitButton);
         });
@@ -473,6 +476,53 @@ window.initProductAddForm = function (formId, options) {
     } else {
         recalcFromCost();
     }
+
+    // Unit of Measurement: the unit names in the labels follow the chosen
+    // base/purchase units, and the purchase-unit fields only show (and are
+    // only required) once a purchase unit / selling by it is chosen.
+    var baseUnitSelect = form.querySelector('#UnitOfMeasure');
+    var purchaseUnitSelect = form.querySelector('#PurchaseUnit');
+    var quantityPerPurchaseUnitInput = form.querySelector('#QuantityPerPurchaseUnit');
+    var sellsByPurchaseUnitSelect = form.querySelector('#SellsByPurchaseUnit');
+    var purchaseUnitPriceInput = form.querySelector('#PurchaseUnitPrice');
+    if (purchaseUnitPriceInput) window.attachMoneyInput(purchaseUnitPriceInput);
+
+    function syncUnitOfMeasureFields() {
+        if (!baseUnitSelect || !purchaseUnitSelect) return;
+        var baseUnit = baseUnitSelect.value || 'piece';
+        var basePlural = (baseUnitSelect.selectedOptions[0] && baseUnitSelect.selectedOptions[0].dataset.plural) || baseUnit;
+        // The purchase unit has to be a different, bigger unit than the base.
+        Array.prototype.forEach.call(purchaseUnitSelect.options, function (option) {
+            option.disabled = option.value !== '' && option.value === baseUnit;
+        });
+        if (purchaseUnitSelect.value === baseUnit) purchaseUnitSelect.value = '';
+        var purchaseUnit = purchaseUnitSelect.value;
+        var purchaseName = purchaseUnit || 'purchase unit';
+
+        form.querySelectorAll('.uom-per-base').forEach(function (el) { el.textContent = 'per ' + baseUnit; });
+        form.querySelectorAll('.uom-base-plural').forEach(function (el) { el.textContent = basePlural; });
+        form.querySelectorAll('.uom-purchase-name').forEach(function (el) { el.textContent = purchaseName; });
+        purchaseUnitSelect.options[0].textContent = 'None (bought by the ' + baseUnit + ')';
+        sellsByPurchaseUnitSelect.options[0].textContent = 'Per ' + baseUnit;
+        sellsByPurchaseUnitSelect.options[1].textContent = 'Per ' + baseUnit + ' and per ' + purchaseName;
+        sellsByPurchaseUnitSelect.options[1].disabled = !purchaseUnit;
+        if (!purchaseUnit) sellsByPurchaseUnitSelect.value = '0';
+
+        form.querySelectorAll('.form-group[data-uom-needs-purchase]').forEach(function (group) {
+            group.style.display = purchaseUnit ? '' : 'none';
+        });
+        quantityPerPurchaseUnitInput.required = !!purchaseUnit;
+        var sellsByPurchase = !!purchaseUnit && sellsByPurchaseUnitSelect.value === '1';
+        form.querySelectorAll('.form-group[data-uom-needs-selling]').forEach(function (group) {
+            group.style.display = sellsByPurchase ? '' : 'none';
+        });
+        purchaseUnitPriceInput.required = sellsByPurchase;
+    }
+
+    [baseUnitSelect, purchaseUnitSelect, sellsByPurchaseUnitSelect].forEach(function (select) {
+        if (select) select.addEventListener('change', syncUnitOfMeasureFields);
+    });
+    syncUnitOfMeasureFields();
 
     return {
         confirmSave: confirmSave,

@@ -220,9 +220,11 @@ class DashboardController extends Controller
      */
     private function buildProductRankings(): array
     {
+        // Quantity in each product's base unit (a box sold counts as its
+        // 100 pieces); revenue is what each line was sold for.
         $sellingBase = SalesItem::select(
             'ProductID',
-            DB::raw('SUM(Quantity) as total_quantity'),
+            DB::raw('SUM(BaseQuantity) as total_quantity'),
             DB::raw('SUM(Quantity * UnitPrice) as total_revenue')
         )->groupBy('ProductID');
 
@@ -267,9 +269,9 @@ class DashboardController extends Controller
         $categoryData = [];
         foreach ($byCategoryRows->take(7) as $row) {
             $categoryLabels[] = $row->name;
-            $categoryData[] = (int) $row->qty;
+            $categoryData[] = round((float) $row->qty, 2);
         }
-        $othersQty = (int) $byCategoryRows->slice(7)->sum('qty');
+        $othersQty = round((float) $byCategoryRows->slice(7)->sum('qty'), 2);
         if ($othersQty > 0) {
             $categoryLabels[] = 'Others';
             $categoryData[] = $othersQty;
@@ -285,7 +287,7 @@ class DashboardController extends Controller
             'byCategory' => ['labels' => $categoryLabels, 'data' => $categoryData],
             'byProduct' => [
                 'labels' => $byProductRows->pluck('name')->toArray(),
-                'data' => $byProductRows->pluck('qty')->map(fn ($q) => (int) $q)->toArray(),
+                'data' => $byProductRows->pluck('qty')->map(fn ($q) => round((float) $q, 2))->toArray(),
             ],
         ];
     }
