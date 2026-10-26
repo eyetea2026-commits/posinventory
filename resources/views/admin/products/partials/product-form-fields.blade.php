@@ -27,7 +27,6 @@
     .uom-section .uom-title { color: #93c5fd; margin-bottom: 8px; }
     .uom-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
     .uom-grid .form-group { margin-bottom: 0; }
-    .uom-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.76rem; }
     .uom-per-base { color: #94a3b8; font-weight: 400; font-size: 0.8em; }
     /* "[Meter] 1000 | [Roll] 1": the amount sits right under each unit. */
     .uom-qty { margin-top: 8px; }
@@ -188,7 +187,6 @@
                            value="{{ old('QuantityPerPurchaseUnit', isset($product) && $product->PurchaseUnit ? \App\Casts\Quantity::normalize($product->QuantityPerPurchaseUnit) : '') }}" min="0.01" step="0.01" placeholder="e.g., 1000"
                            aria-label="How many in one purchase unit">
                 </div>
-                <small class="uom-hint">Stock is counted in this unit.</small>
                 <span class="form-error" id="error-UnitOfMeasure">@error('UnitOfMeasure'){{ $message }}@enderror</span>
                 <span class="form-error" id="error-QuantityPerPurchaseUnit">@error('QuantityPerPurchaseUnit'){{ $message }}@enderror</span>
             </div>
@@ -204,7 +202,6 @@
                 <div class="uom-qty" data-uom-needs-purchase>
                     <input type="text" class="form-input uom-one" value="1" readonly tabindex="-1" aria-label="One purchase unit">
                 </div>
-                <small class="uom-hint">How the supplier sells it, e.g. Roll or Box.</small>
                 <span class="form-error" id="error-PurchaseUnit">@error('PurchaseUnit'){{ $message }}@enderror</span>
             </div>
 

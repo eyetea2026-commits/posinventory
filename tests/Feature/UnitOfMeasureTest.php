@@ -142,6 +142,9 @@ class UnitOfMeasureTest extends TestCase
         $this->assertMatchesRegularExpression('/id="UnitOfMeasure".*?id="QuantityPerPurchaseUnit"[^>]*value="5000".*?id="PurchaseUnit".*?class="form-input uom-one" value="1".*?id="SellingPrice"[^>]*value="10(.00)?".*?<span class="uom-per-base">per meter<\/span>/s', $html);
         // The Selling Price lives only there now.
         $this->assertSame(1, substr_count($html, 'name="Price"'));
+        // No hint lines under the two units.
+        $this->assertStringNotContainsString('Stock is counted in this unit.', $html);
+        $this->assertStringNotContainsString('How the supplier sells it', $html);
     }
 
     public function test_unit_settings_are_validated(): void
