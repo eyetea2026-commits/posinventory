@@ -134,6 +134,16 @@ class UnitOfMeasureTest extends TestCase
         $this->assertSame(9000.0, (float) $product->fresh()->PurchaseUnitPrice);
     }
 
+    public function test_the_form_reads_like_1000_meters_equals_1_roll_at_a_price_per_meter(): void
+    {
+        $html = $this->actingAs($this->admin)->getJson(route('admin.products.edit', $this->wire))->assertOk()->json('html');
+
+        // [Meter] 5000 | [Roll] 1 | ₱ 10 per meter, in that order, in one row.
+        $this->assertMatchesRegularExpression('/id="UnitOfMeasure".*?id="QuantityPerPurchaseUnit"[^>]*value="5000".*?id="PurchaseUnit".*?class="form-input uom-one" value="1".*?id="SellingPrice"[^>]*value="10(.00)?".*?<span class="uom-per-base">per meter<\/span>/s', $html);
+        // The Selling Price lives only there now.
+        $this->assertSame(1, substr_count($html, 'name="Price"'));
+    }
+
     public function test_unit_settings_are_validated(): void
     {
         $store = fn (array $overrides) => $this->actingAs($this->admin)->postJson(route('admin.products.store'), $this->productForm($overrides));

@@ -508,10 +508,20 @@ window.initProductAddForm = function (formId, options) {
         sellsByPurchaseUnitSelect.options[1].disabled = !purchaseUnit;
         if (!purchaseUnit) sellsByPurchaseUnitSelect.value = '0';
 
-        form.querySelectorAll('.form-group[data-uom-needs-purchase]').forEach(function (group) {
-            group.style.display = purchaseUnit ? '' : 'none';
+        // The amounts under the two units ("1000" meters = "1" roll) and the
+        // "1 Roll = 1,000 meters" line only apply once there's a purchase unit.
+        form.querySelectorAll('[data-uom-needs-purchase]').forEach(function (el) {
+            el.style.display = purchaseUnit ? '' : 'none';
         });
         quantityPerPurchaseUnitInput.required = !!purchaseUnit;
+        var perPurchaseUnit = parseFloat(quantityPerPurchaseUnitInput.value);
+        var conversion = form.querySelector('.uom-conversion');
+        if (conversion) {
+            conversion.textContent = purchaseUnit && perPurchaseUnit > 0
+                ? '1 ' + purchaseUnit.charAt(0).toUpperCase() + purchaseUnit.slice(1) + ' = '
+                    + perPurchaseUnit.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + (perPurchaseUnit === 1 ? baseUnit : basePlural)
+                : '';
+        }
         var sellsByPurchase = !!purchaseUnit && sellsByPurchaseUnitSelect.value === '1';
         form.querySelectorAll('.form-group[data-uom-needs-selling]').forEach(function (group) {
             group.style.display = sellsByPurchase ? '' : 'none';
@@ -522,6 +532,7 @@ window.initProductAddForm = function (formId, options) {
     [baseUnitSelect, purchaseUnitSelect, sellsByPurchaseUnitSelect].forEach(function (select) {
         if (select) select.addEventListener('change', syncUnitOfMeasureFields);
     });
+    if (quantityPerPurchaseUnitInput) quantityPerPurchaseUnitInput.addEventListener('input', syncUnitOfMeasureFields);
     syncUnitOfMeasureFields();
 
     return {

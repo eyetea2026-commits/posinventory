@@ -6,9 +6,10 @@
      so modal JS can inject a 422 validation message into the same slot the
      @error directive fills on a real (non-AJAX) page submission. --}}
 {{-- Three per row in the pop-up: Name / Model / Category; Brand / Cost /
-     Selling Price; Reorder Threshold / (SKU) / Barcode; Pricing Calculations;
-     Description and the returns option (two wide) beside the Photo. Two per
-     row on tablets, one on phones. --}}
+     Reorder Threshold; (SKU) / Barcode; Unit of Measurement (with the
+     Selling Price); Pricing Calculations; Description and the returns
+     option (two wide) beside the Photo. Two per row on tablets, one on
+     phones. --}}
 <style>
     .form-grid.product-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .form-grid.product-form-grid .product-span-2 { grid-column: span 2; }
@@ -28,9 +29,17 @@
     .uom-grid .form-group { margin-bottom: 0; }
     .uom-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.76rem; }
     .uom-per-base { color: #94a3b8; font-weight: 400; font-size: 0.8em; }
-    .uom-input-suffix { display: flex; align-items: center; gap: 8px; }
-    .uom-input-suffix input { flex: 1; min-width: 0; }
-    .uom-input-suffix span { color: #cbd5e1; font-size: 0.85rem; white-space: nowrap; }
+    /* "[Meter] 1000 | [Roll] 1": the amount sits right under each unit. */
+    .uom-qty { margin-top: 8px; }
+    .uom-qty input { text-align: right; }
+    .uom-qty .uom-one { color: #cbd5e1; cursor: default; }
+    .uom-price-input { display: flex; align-items: center; gap: 8px; }
+    .uom-price-input input { flex: 1; min-width: 0; text-align: right; }
+    .uom-price-input .uom-currency { color: #e2e8f0; font-size: 1.15rem; font-weight: 700; }
+    .uom-price-input .uom-per-base { color: #cbd5e1; font-size: 0.88rem; white-space: nowrap; }
+    .uom-conversion { margin: 10px 0 0; color: #93c5fd; font-size: 0.85rem; font-weight: 600; }
+    .uom-conversion:empty { display: none; }
+    .uom-grid-options { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(148, 163, 184, 0.15); }
     .uom-fraction-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; cursor: pointer; margin-top: 22px; }
     .uom-fraction-toggle input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: #3b82f6; }
     .uom-fraction-toggle strong { display: block; color: #e2e8f0; font-size: 0.9rem; }
@@ -125,12 +134,6 @@
     </div>
 
     <div class="form-group">
-        <label class="form-label">Selling Price (₱) <span class="uom-per-base">per {{ $baseUnit }}</span></label>
-        <input type="text" name="Price" id="SellingPrice" class="form-input" value="{{ old('Price', $product->Price ?? '') }}">
-        <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
-    </div>
-
-    <div class="form-group">
         <label class="form-label">Reorder Threshold</label>
         <input type="number" name="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
                value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" placeholder="e.g., 10">
@@ -144,7 +147,7 @@
         </div>
     @endif
 
-    <div class="form-group{{ isset($product) ? '' : ' product-span-2' }}">
+    <div class="form-group{{ isset($product) ? ' product-span-2' : ' full-width' }}">
         <label class="form-label">Product Barcode <span class="required">*</span></label>
         <div class="barcode-input-row">
             <input type="text" name="Barcode" id="Barcode" class="form-input @error('Barcode') is-invalid @enderror"
@@ -154,6 +157,90 @@
             </button>
         </div>
         <span class="form-error" id="error-Barcode">@error('Barcode'){{ $message }}@enderror</span>
+    </div>
+
+    {{-- Unit of Measurement, read across like "1,000 Meter = 1 Roll, sold at
+         ₱15 per meter": stock is kept in the base unit (meters, pieces); a
+         purchase unit (roll, box) holds that many of it; the Selling Price is
+         per base unit. Below: selling the purchase unit too at its own price
+         (1 box of RJ45 = 100 pieces at ₱500), and decimals (1.5 meters). --}}
+    <div class="form-group full-width uom-section" data-uom-section>
+        <label class="form-label uom-title"><i class="fas fa-ruler-combined"></i> Unit of Measurement</label>
+        <div class="uom-grid">
+            <div class="form-group">
+                <label class="form-label" for="UnitOfMeasure">Inventory Base Unit <span class="required">*</span></label>
+                <select name="UnitOfMeasure" id="UnitOfMeasure" class="form-select @error('UnitOfMeasure') is-invalid @enderror" required>
+                    @foreach(\App\Services\UnitOfMeasure::UNITS as $unit)
+                        <option value="{{ $unit }}" data-plural="{{ \App\Services\UnitOfMeasure::plural($unit) }}" {{ $baseUnit === $unit ? 'selected' : '' }}>{{ ucfirst($unit) }}</option>
+                    @endforeach
+                </select>
+                <div class="uom-qty" data-uom-needs-purchase>
+                    <input type="number" name="QuantityPerPurchaseUnit" id="QuantityPerPurchaseUnit" class="form-input @error('QuantityPerPurchaseUnit') is-invalid @enderror"
+                           value="{{ old('QuantityPerPurchaseUnit', isset($product) && $product->PurchaseUnit ? \App\Casts\Quantity::normalize($product->QuantityPerPurchaseUnit) : '') }}" min="0.01" step="0.01" placeholder="e.g., 1000"
+                           aria-label="How many in one purchase unit">
+                </div>
+                <small class="uom-hint">Stock is counted in this unit.</small>
+                <span class="form-error" id="error-UnitOfMeasure">@error('UnitOfMeasure'){{ $message }}@enderror</span>
+                <span class="form-error" id="error-QuantityPerPurchaseUnit">@error('QuantityPerPurchaseUnit'){{ $message }}@enderror</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="PurchaseUnit">Purchase Unit</label>
+                <select name="PurchaseUnit" id="PurchaseUnit" class="form-select @error('PurchaseUnit') is-invalid @enderror">
+                    <option value="">None (bought by the {{ $baseUnit }})</option>
+                    @foreach(\App\Services\UnitOfMeasure::UNITS as $unit)
+                        <option value="{{ $unit }}" {{ $purchaseUnit === $unit ? 'selected' : '' }}>{{ ucfirst($unit) }}</option>
+                    @endforeach
+                </select>
+                <div class="uom-qty" data-uom-needs-purchase>
+                    <input type="text" class="form-input uom-one" value="1" readonly tabindex="-1" aria-label="One purchase unit">
+                </div>
+                <small class="uom-hint">How the supplier sells it, e.g. Roll or Box.</small>
+                <span class="form-error" id="error-PurchaseUnit">@error('PurchaseUnit'){{ $message }}@enderror</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="SellingPrice">Selling Price</label>
+                <div class="uom-price-input">
+                    <span class="uom-currency">₱</span>
+                    <input type="text" name="Price" id="SellingPrice" class="form-input" value="{{ old('Price', $product->Price ?? '') }}">
+                    <span class="uom-per-base">per {{ $baseUnit }}</span>
+                </div>
+                <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
+            </div>
+        </div>
+        <p class="uom-conversion" data-uom-needs-purchase></p>
+
+        <div class="uom-grid uom-grid-options">
+            <div class="form-group">
+                <label class="form-label" for="SellsByPurchaseUnit">Selling Unit</label>
+                <select name="SellsByPurchaseUnit" id="SellsByPurchaseUnit" class="form-select">
+                    <option value="0" {{ $sellsByPurchaseUnit ? '' : 'selected' }}>Per {{ $baseUnit }}</option>
+                    <option value="1" {{ $sellsByPurchaseUnit ? 'selected' : '' }}>Per {{ $baseUnit }} and per {{ $purchaseUnit ?: 'purchase unit' }}</option>
+                </select>
+                <span class="form-error" id="error-SellsByPurchaseUnit">@error('SellsByPurchaseUnit'){{ $message }}@enderror</span>
+            </div>
+
+            <div class="form-group" data-uom-needs-selling>
+                <label class="form-label" for="PurchaseUnitPrice">Selling Price (₱) per <span class="uom-purchase-name">{{ $purchaseUnit ?: 'purchase unit' }}</span> <span class="required">*</span></label>
+                <input type="text" name="PurchaseUnitPrice" id="PurchaseUnitPrice" class="form-input @error('PurchaseUnitPrice') is-invalid @enderror"
+                       value="{{ old('PurchaseUnitPrice', $product->PurchaseUnitPrice ?? null) }}" placeholder="e.g., 500.00">
+                <span class="form-error" id="error-PurchaseUnitPrice">@error('PurchaseUnitPrice'){{ $message }}@enderror</span>
+            </div>
+
+            <div class="form-group">
+                <input type="hidden" name="AllowsFractionalQuantity" value="0">
+                <label class="uom-fraction-toggle">
+                    <input type="checkbox" name="AllowsFractionalQuantity" id="AllowsFractionalQuantity" value="1"
+                           {{ old('AllowsFractionalQuantity', $product->AllowsFractionalQuantity ?? false) ? 'checked' : '' }}>
+                    <span>
+                        <strong>Allow decimal quantities</strong>
+                        <small>Sell part of a unit, e.g. 1.5 <span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>.</small>
+                    </span>
+                </label>
+                <span class="form-error" id="error-AllowsFractionalQuantity">@error('AllowsFractionalQuantity'){{ $message }}@enderror</span>
+            </div>
+        </div>
     </div>
 
     <div class="form-group full-width">
@@ -217,77 +304,6 @@
                 <small>For items that can't be taken back once sold, like consumables, wires and fiber connectors (RJ45, coaxial cable).</small>
             </span>
         </label>
-    </div>
-
-    {{-- Unit of Measurement: stock is kept in the base unit (meters, pieces);
-         it can be bought by a bigger purchase unit (1 roll = 5,000 meters)
-         and sold by the base unit, or also by the purchase unit at its own
-         price (1 box of RJ45 = 100 pieces at ₱500). --}}
-    <div class="form-group full-width uom-section" data-uom-section>
-        <label class="form-label uom-title"><i class="fas fa-ruler-combined"></i> Unit of Measurement</label>
-        <div class="uom-grid">
-            <div class="form-group">
-                <label class="form-label" for="UnitOfMeasure">Inventory Base Unit <span class="required">*</span></label>
-                <select name="UnitOfMeasure" id="UnitOfMeasure" class="form-select @error('UnitOfMeasure') is-invalid @enderror" required>
-                    @foreach(\App\Services\UnitOfMeasure::UNITS as $unit)
-                        <option value="{{ $unit }}" data-plural="{{ \App\Services\UnitOfMeasure::plural($unit) }}" {{ $baseUnit === $unit ? 'selected' : '' }}>{{ ucfirst($unit) }}</option>
-                    @endforeach
-                </select>
-                <small class="uom-hint">Stock is counted in this unit.</small>
-                <span class="form-error" id="error-UnitOfMeasure">@error('UnitOfMeasure'){{ $message }}@enderror</span>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="PurchaseUnit">Purchase Unit</label>
-                <select name="PurchaseUnit" id="PurchaseUnit" class="form-select @error('PurchaseUnit') is-invalid @enderror">
-                    <option value="">None (bought by the {{ $baseUnit }})</option>
-                    @foreach(\App\Services\UnitOfMeasure::UNITS as $unit)
-                        <option value="{{ $unit }}" {{ $purchaseUnit === $unit ? 'selected' : '' }}>{{ ucfirst($unit) }}</option>
-                    @endforeach
-                </select>
-                <small class="uom-hint">How the supplier sells it, e.g. Roll or Box.</small>
-                <span class="form-error" id="error-PurchaseUnit">@error('PurchaseUnit'){{ $message }}@enderror</span>
-            </div>
-
-            <div class="form-group" data-uom-needs-purchase>
-                <label class="form-label" for="QuantityPerPurchaseUnit">Quantity per <span class="uom-purchase-name">{{ $purchaseUnit ?: 'purchase unit' }}</span> <span class="required">*</span></label>
-                <div class="uom-input-suffix">
-                    <input type="number" name="QuantityPerPurchaseUnit" id="QuantityPerPurchaseUnit" class="form-input @error('QuantityPerPurchaseUnit') is-invalid @enderror"
-                           value="{{ old('QuantityPerPurchaseUnit', isset($product) && $product->PurchaseUnit ? \App\Casts\Quantity::normalize($product->QuantityPerPurchaseUnit) : '') }}" min="0.01" step="0.01" placeholder="e.g., 5000">
-                    <span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>
-                </div>
-                <span class="form-error" id="error-QuantityPerPurchaseUnit">@error('QuantityPerPurchaseUnit'){{ $message }}@enderror</span>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="SellsByPurchaseUnit">Selling Unit</label>
-                <select name="SellsByPurchaseUnit" id="SellsByPurchaseUnit" class="form-select">
-                    <option value="0" {{ $sellsByPurchaseUnit ? '' : 'selected' }}>Per {{ $baseUnit }}</option>
-                    <option value="1" data-uom-needs-purchase {{ $sellsByPurchaseUnit ? 'selected' : '' }}>Per {{ $baseUnit }} and per {{ $purchaseUnit ?: 'purchase unit' }}</option>
-                </select>
-                <span class="form-error" id="error-SellsByPurchaseUnit">@error('SellsByPurchaseUnit'){{ $message }}@enderror</span>
-            </div>
-
-            <div class="form-group" data-uom-needs-selling>
-                <label class="form-label" for="PurchaseUnitPrice">Selling Price (₱) per <span class="uom-purchase-name">{{ $purchaseUnit ?: 'purchase unit' }}</span> <span class="required">*</span></label>
-                <input type="text" name="PurchaseUnitPrice" id="PurchaseUnitPrice" class="form-input @error('PurchaseUnitPrice') is-invalid @enderror"
-                       value="{{ old('PurchaseUnitPrice', $product->PurchaseUnitPrice ?? null) }}" placeholder="e.g., 500.00">
-                <span class="form-error" id="error-PurchaseUnitPrice">@error('PurchaseUnitPrice'){{ $message }}@enderror</span>
-            </div>
-
-            <div class="form-group">
-                <input type="hidden" name="AllowsFractionalQuantity" value="0">
-                <label class="uom-fraction-toggle">
-                    <input type="checkbox" name="AllowsFractionalQuantity" id="AllowsFractionalQuantity" value="1"
-                           {{ old('AllowsFractionalQuantity', $product->AllowsFractionalQuantity ?? false) ? 'checked' : '' }}>
-                    <span>
-                        <strong>Allow decimal quantities</strong>
-                        <small>Sell part of a unit, e.g. 1.5 <span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>.</small>
-                    </span>
-                </label>
-                <span class="form-error" id="error-AllowsFractionalQuantity">@error('AllowsFractionalQuantity'){{ $message }}@enderror</span>
-            </div>
-        </div>
     </div>
 </div>
 
