@@ -45,19 +45,19 @@
 
     <div class="form-group">
         <label for="StartDate">Start Date <span class="required">*</span></label>
-        {{-- min is only enforced for a brand-new promo — editing an existing
-             one must still allow its real, possibly-already-past Start Date
-             (see DiscountController::validatePromo()). --}}
+        {{-- No past days. An existing promo that already started keeps its
+             own Start Date selectable (see DiscountController::validatePromo()). --}}
+        @php($earliestStartDate = isset($discount) && $discount->StartDate && $discount->StartDate->lt(today()) ? $discount->StartDate->format('Y-m-d') : now()->toDateString())
         <input type="date" id="StartDate" name="StartDate" class="form-control"
                value="{{ old('StartDate', isset($discount) && $discount->StartDate ? $discount->StartDate->format('Y-m-d') : null) }}"
-               @if(!isset($discount)) min="{{ now()->toDateString() }}" @endif required>
+               min="{{ $earliestStartDate }}" required>
         <span class="error" id="error-StartDate">@error('StartDate'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group">
         <label for="EndDate">End Date <span class="required">*</span></label>
         <input type="date" id="EndDate" name="EndDate" class="form-control"
-               value="{{ old('EndDate', isset($discount) && $discount->EndDate ? $discount->EndDate->format('Y-m-d') : null) }}" required>
+               value="{{ old('EndDate', isset($discount) && $discount->EndDate ? $discount->EndDate->format('Y-m-d') : null) }}" min="{{ now()->toDateString() }}" required>
         <span class="error" id="error-EndDate">@error('EndDate'){{ $message }}@enderror</span>
     </div>
 

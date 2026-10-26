@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\DiscountUpdated;
 use App\Services\ActionNotifier;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -535,14 +536,16 @@ class DiscountController extends Controller
         // case-insensitive, but the test suite runs on SQLite, which isn't).
         $request->merge(['PromoCode' => strtoupper(trim((string) $request->input('PromoCode', '')))]);
 
-        // Only a brand-new promo's Start Date is restricted to today or
-        // later — an existing promo already has a real, historical Start
-        // Date (it may already be active), and forcing that forward on
-        // every unrelated edit would corrupt it.
-        $startDateRules = ['required', 'date'];
-        if (! $discount) {
-            $startDateRules[] = 'after_or_equal:today';
-        }
+        // No past dates: a new Start Date can't be before today. An
+        // existing promo may keep the Start Date it already has (it may
+        // already be running), but can't be moved to another past day.
+        $savedStartDate = $discount?->StartDate?->format('Y-m-d');
+        $startDateRules = ['required', 'date', function (string $attribute, mixed $value, \Closure $fail) use ($savedStartDate) {
+            $date = Carbon::parse($value)->toDateString();
+            if ($date < today()->toDateString() && $date !== $savedStartDate) {
+                $fail('Start Date cannot be in the past.');
+            }
+        }];
 
         return $request->validate([
             'DiscountRate' => ['required', 'numeric', 'min:1', 'max:100'],
@@ -561,7 +564,7 @@ class DiscountController extends Controller
             ],
             'Description' => ['nullable', 'string', 'max:1000'],
             'StartDate' => $startDateRules,
-            'EndDate' => ['required', 'date', 'after_or_equal:StartDate'],
+            'EndDate' => ['required', 'date', 'after_or_equal:StartDate', 'after_or_equal:today'],
         ], [
             'DiscountRate.min' => 'Discount percentage must be at least 1%.',
             'DiscountRate.max' => 'Discount percentage cannot exceed 100%.',
@@ -569,7 +572,7 @@ class DiscountController extends Controller
             'PromoCode.regex' => 'Promo code may only contain letters, numbers, and hyphens.',
             'PromoCode.unique' => 'This promo code is already in use.',
             'StartDate.after_or_equal' => 'Start Date cannot be in the past.',
-            'EndDate.after_or_equal' => 'End Date cannot be earlier than Start Date.',
+            'EndDate.after_or_equal' => 'End Date cannot be earlier than Start Date or in the past.',
         ]);
     }
 

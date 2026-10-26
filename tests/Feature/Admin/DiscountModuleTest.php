@@ -96,6 +96,44 @@ class DiscountModuleTest extends TestCase
         $response->assertSessionHasErrors('EndDate');
     }
 
+    // ---- No past dates ----
+
+    public function test_a_promo_cannot_be_saved_with_past_dates(): void
+    {
+        $yesterday = now()->subDay()->format('Y-m-d');
+
+        $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload(['StartDate' => $yesterday]))
+            ->assertSessionHasErrors(['StartDate' => 'Start Date cannot be in the past.']);
+        $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload(['StartDate' => $yesterday, 'EndDate' => $yesterday]))
+            ->assertSessionHasErrors('EndDate');
+        $this->assertSame(0, Discount::count());
+
+        // The pickers grey out past days.
+        $this->actingAs($this->admin)->get(route('admin.discounts.index'))->assertOk()
+            ->assertSee('min="'.now()->toDateString().'" required>', false);
+    }
+
+    public function test_a_running_promo_keeps_its_start_date_but_cannot_move_to_other_past_dates(): void
+    {
+        $discount = Discount::create($this->basePromoPayload([
+            'StartDate' => now()->subDays(5)->format('Y-m-d'), 'EndDate' => now()->addDays(5)->format('Y-m-d'),
+        ]));
+
+        // Editing something else keeps its (past) Start Date.
+        $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload([
+            'Name' => 'Summer Sale Extended', 'StartDate' => now()->subDays(5)->format('Y-m-d'), 'EndDate' => now()->addDays(10)->format('Y-m-d'),
+        ]))->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload([
+            'StartDate' => now()->subDays(9)->format('Y-m-d'), 'EndDate' => now()->addDays(10)->format('Y-m-d'),
+        ]))->assertSessionHasErrors(['StartDate' => 'Start Date cannot be in the past.']);
+        $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload([
+            'StartDate' => now()->subDays(5)->format('Y-m-d'), 'EndDate' => now()->subDay()->format('Y-m-d'),
+        ]))->assertSessionHasErrors('EndDate');
+
+        $this->assertSame(now()->addDays(10)->toDateString(), $discount->fresh()->EndDate->toDateString());
+    }
+
     // ---- Promo names must be unique too (case-insensitive) ----
 
     public function test_store_rejects_a_duplicate_promo_name_ignoring_case_and_spaces(): void
