@@ -154,6 +154,10 @@ class UnitOfMeasureTest extends TestCase
         $store(['QuantityPerPurchaseUnit' => 30.5, 'AllowsFractionalQuantity' => 0])->assertStatus(422)->assertJsonValidationErrors('QuantityPerPurchaseUnit');
         $store(['PurchaseUnit' => 'meter'])->assertStatus(422)->assertJsonValidationErrors('PurchaseUnit');
         $store(['UnitOfMeasure' => 'metre'])->assertStatus(422)->assertJsonValidationErrors('UnitOfMeasure');
+        // Only Piece, Meter, Roll and Box are offered.
+        $this->assertSame(['piece', 'meter', 'roll', 'box'], UnitOfMeasure::UNITS);
+        $store(['UnitOfMeasure' => 'pack'])->assertStatus(422)->assertJsonValidationErrors('UnitOfMeasure');
+        $store(['PurchaseUnit' => 'reel'])->assertStatus(422)->assertJsonValidationErrors('PurchaseUnit');
         $store(['SellsByPurchaseUnit' => 1, 'PurchaseUnitPrice' => null])->assertStatus(422)->assertJsonValidationErrors('PurchaseUnitPrice');
 
         // Serial-numbered products are counted and sold by the whole piece.
@@ -163,7 +167,7 @@ class UnitOfMeasureTest extends TestCase
 
         // A product's base unit can't change while it has stock in the old one.
         $this->actingAs($this->admin)->putJson(route('admin.products.update', $this->rj45), $this->productForm([
-            'ProductName' => 'RJ45 Connector', 'Model' => 'RJ45-100', 'Barcode' => '4800000000024', 'UnitOfMeasure' => 'pack', 'PurchaseUnit' => null,
+            'ProductName' => 'RJ45 Connector', 'Model' => 'RJ45-100', 'Barcode' => '4800000000024', 'UnitOfMeasure' => 'box', 'PurchaseUnit' => null,
         ]))->assertStatus(422)->assertJsonValidationErrors('UnitOfMeasure');
         $this->assertSame('piece', $this->rj45->fresh()->UnitOfMeasure);
     }

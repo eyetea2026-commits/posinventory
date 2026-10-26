@@ -13,7 +13,8 @@ class UnitOfMeasure
 {
     const DEFAULT = 'piece';
 
-    const UNITS = ['piece', 'meter', 'foot', 'roll', 'reel', 'box', 'pack', 'set', 'pair'];
+    // The only units the store uses (Inventory Base Unit and Purchase Unit).
+    const UNITS = ['piece', 'meter', 'roll', 'box'];
 
     /**
      * 4,999 / 1.5 / 1.25 - never "1.50" or "10.00".
