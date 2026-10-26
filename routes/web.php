@@ -375,6 +375,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.purchase-orders.approve')->middleware(['auth', 'role:admin']);
     Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])
         ->name('admin.purchase-orders.cancel')->middleware(['auth', 'role:admin']);
+    Route::post('purchase-orders/{purchaseOrder}/cancel-remaining', [PurchaseOrderController::class, 'cancelRemaining'])
+        ->name('admin.purchase-orders.cancel-remaining')->middleware(['auth', 'role:admin']);
     Route::get('purchase-orders/{purchaseOrder}/export', [PurchaseOrderController::class, 'export'])
         ->name('admin.purchase-orders.export')->middleware(['auth', 'role:admin']);
     Route::get('purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'printPreview'])

@@ -150,6 +150,7 @@
 
 <div class="product-detail-card">
     @include('admin.purchase-orders.partials.purchase-order-details', ['purchaseOrder' => $purchaseOrder, 'showStatus' => true])
+    @include('admin.purchase-orders.partials.cancel-remaining-form', ['purchaseOrder' => $purchaseOrder])
 
     <div class="detail-actions">
         <a href="{{ route('admin.purchase-orders.print', $purchaseOrder) }}" target="_blank" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Purchase Order" data-confirm-text="Open this purchase order for printing?">

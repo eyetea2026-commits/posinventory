@@ -31,13 +31,19 @@
                         \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-completed',
                         \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-pending',
                         \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-approved',
-                        \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-cancelled',
+                        \App\Models\PurchaseOrder::STATUS_CANCELLED, \App\Models\PurchaseOrder::STATUS_CLOSED => 'badge-cancelled',
                         \App\Models\PurchaseOrder::STATUS_DRAFT => 'badge-draft',
                         default => 'badge-other',
                     };
                 @endphp
                 <span class="badge {{ $statusClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$purchaseOrder->Status] ?? ucfirst($purchaseOrder->Status) }}</span>
             </span>
+        </div>
+@endif
+@if($purchaseOrder->RemainderCancelReason)
+        <div class="detail-row ui-kv-wide">
+            <span class="detail-label">Remaining Items Cancelled</span>
+            <span class="detail-value">{{ $purchaseOrder->RemainderCancelReason }} — {{ $purchaseOrder->remainderCancelledByUser?->full_name ?? 'N/A' }}, {{ $purchaseOrder->RemainderCancelledAt?->format('m/d/Y g:i A') }}</span>
         </div>
 @endif
 @if($purchaseOrder->Notes)
@@ -58,6 +64,9 @@
                 <th>SKU</th>
                 <th>Ordered</th>
                 <th>Received</th>
+                @if($purchaseOrder->hasAnyCancelledQuantity())
+                    <th>Cancelled</th>
+                @endif
                 <th>Remaining</th>
                 <th>Cost Price</th>
                 <th>Total Amount</th>
@@ -71,6 +80,9 @@
                     <td style="white-space: nowrap;">{{ $item->product?->SKU ?: '—' }}</td>
                     <td>{{ $item->Quantity }}</td>
                     <td>{{ $item->ReceivedQuantity }}</td>
+                    @if($purchaseOrder->hasAnyCancelledQuantity())
+                        <td>{{ (int) $item->CancelledQuantity ?: '—' }}</td>
+                    @endif
                     <td>{{ $item->remaining_quantity }}</td>
                     <td>₱{{ number_format($item->CostPriceAtOrder, 2) }}</td>
                     <td>₱{{ number_format($item->line_total, 2) }}</td>

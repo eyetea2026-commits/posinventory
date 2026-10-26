@@ -484,6 +484,18 @@
                 return;
             }
 
+            // At least one product must have arrived in this delivery.
+            const receivingNow = Array.from(form.querySelectorAll('.receiving-now-input')).reduce(function (sum, input) { return sum + (parseInt(input.value, 10) || 0); }, 0);
+            if (receivingNow <= 0) {
+                Swal.fire({
+                    title: 'Nothing Received',
+                    text: 'Enter how many of each product arrived in this delivery.',
+                    icon: 'warning',
+                    confirmButtonColor: '#f59e0b'
+                });
+                return;
+            }
+
             if (form.querySelector('.receipt-number-input.is-invalid')) {
                 Swal.fire({
                     title: 'Duplicate Receipt Number',
@@ -496,7 +508,7 @@
 
             Swal.fire({
                 title: 'Add to Inventory',
-                text: 'This will add the received quantities to Inventory and mark this delivery Completed. Continue?',
+                text: 'This will add the quantities received now to Inventory. If anything is still owed, the order stays open for the next delivery. Continue?',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Yes, Add to Inventory',

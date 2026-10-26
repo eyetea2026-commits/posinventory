@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Role;
 use App\Models\StockReceivingBatch;
+use App\Models\StockReceivingDelivery;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -296,15 +297,30 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(20, $itemB->ReceivedQuantity);
         $this->assertSame(2 + 20, Inventory::where('ProductID', $this->productB->ProductID)->value('Quantity'));
 
+        // 2 of product A are still owed, so the order stays open (Partially
+        // Received, still pending in Stock Receiving) for the next delivery.
         $batch->refresh();
-        $this->assertSame(StockReceivingBatch::STATUS_COMPLETED, $batch->Status);
-        $this->assertSame('RCT-A1', $batch->ReceiptNumber);
+        $this->assertSame(StockReceivingBatch::STATUS_PENDING, $batch->Status);
+        $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $po->fresh()->Status);
+        $this->assertNull($batch->CompletedAt);
+
+        // The rest arrives: received adds up, and the order is complete.
+        $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'RCT-A2',
+            'items' => [
+                ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 2],
+                ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 0],
+            ],
+        ])->assertSessionMissing('error');
+        $this->assertSame(50, $itemA->fresh()->ReceivedQuantity);
+        $this->assertSame(5 + 50, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
+        $this->assertSame(StockReceivingBatch::STATUS_COMPLETED, $batch->fresh()->Status);
+        $this->assertSame(PurchaseOrder::STATUS_FULLY_RECEIVED, $po->fresh()->Status);
+        $this->assertSame(2, StockReceivingDelivery::where('PurchaseOrderID', $po->PurchaseOrderID)->count());
+        $batch->refresh();
+        $this->assertSame('RCT-A2', $batch->ReceiptNumber);
         $this->assertNotNull($batch->CompletedAt);
         $this->assertSame($this->admin->id, $batch->ReceivedBy);
-
-        // Product A came up short (48 of 50) so the PO is only Partially
-        // Received, even though Product B arrived in full.
-        $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $po->fresh()->Status);
     }
 
     public function test_add_to_inventory_in_full_marks_the_purchase_order_fully_received(): void
@@ -435,10 +451,12 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(50, $itemA->fresh()->ReceivedQuantity);
         $this->assertSame(20, $itemB->fresh()->ReceivedQuantity);
 
-        // The completed delivery shows that one Receipt Number, no per-line column.
+        // The completed delivery shows that one Receipt Number (also in its
+        // Delivery History row), no per-line column.
         $html = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', $batch))->json('html');
         $this->assertStringContainsString('RCT-SAME', $html);
-        $this->assertSame(1, substr_count($html, 'Receipt Number'));
+        $this->assertStringContainsString('Delivery History', $html);
+        $this->assertStringNotContainsString('][receipt_number]', $html);
     }
 
     public function test_existing_deliveries_keep_their_receipt_number_after_the_upgrade(): void
@@ -538,7 +556,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertJson(['used' => true]);
     }
 
-    public function test_check_receipt_number_excludes_the_deliverys_own_current_value(): void
+    public function test_a_later_delivery_cannot_reuse_an_earlier_deliverys_receipt_number(): void
     {
         $po = $this->makeDraftOrder();
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
@@ -552,15 +570,19 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
             ],
         ]);
 
-        // Re-checking the value already saved on this exact delivery must
-        // not flag it as a duplicate of itself.
+        // The order is still open (30 of 50 arrived); its next delivery is a
+        // different delivery, so it can't reuse the first one's receipt number.
         $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
             'receipt_number' => 'RCT-SELF',
             'exclude_batch_id' => $batch->StockReceivingBatchID,
         ]);
 
         $response->assertOk();
-        $response->assertJson(['used' => false]);
+        $response->assertJson(['used' => true]);
+        $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
+            'receipt_number' => 'RCT-SELF-2',
+            'exclude_batch_id' => $batch->StockReceivingBatchID,
+        ])->assertJson(['used' => false]);
     }
 
     public function test_view_details_shows_ordered_quantity_as_read_only_reference(): void
@@ -575,8 +597,9 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
         $response->assertOk();
         $html = $response->json('html');
-        $this->assertStringContainsString('Purchase Order Quantity', $html);
-        $this->assertStringContainsString('Quantity Received', $html);
+        $this->assertStringContainsString('<th>Ordered</th>', $html);
+        $this->assertStringContainsString('<th>Still Owed</th>', $html);
+        $this->assertStringContainsString('<th>Receiving Now</th>', $html);
         $this->assertStringContainsString('Receipt Number', $html);
         // One Receipt Number field for the whole delivery, not one per line.
         $this->assertSame(1, substr_count($html, 'name="receipt_number"'));

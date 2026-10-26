@@ -25,6 +25,7 @@
                     \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-warning',
                     \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-info',
                     \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-danger',
+                    \App\Models\PurchaseOrder::STATUS_CLOSED => 'badge-secondary',
                     default => 'badge-secondary',
                 };
             @endphp

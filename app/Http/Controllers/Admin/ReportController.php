@@ -241,6 +241,7 @@ class ReportController extends Controller
         $receivedStatus = match ($order->Status) {
             PurchaseOrder::STATUS_FULLY_RECEIVED => 'Fully Received',
             PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'Partially Received',
+            PurchaseOrder::STATUS_CLOSED => 'Closed (rest cancelled)',
             default => 'Not Received',
         };
 

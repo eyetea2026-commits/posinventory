@@ -512,7 +512,7 @@ class PurchaseOrderController extends Controller
                 $hasOpenPurchaseOrder = PurchaseOrderItem::where('ProductID', $product->ProductID)
                     ->where('PurchaseOrderID', '>', $locked->LastRestockPurchaseOrderId ?? 0)
                     ->whereHas('purchaseOrder', function ($query) {
-                        $query->whereNotIn('Status', [PurchaseOrder::STATUS_FULLY_RECEIVED, PurchaseOrder::STATUS_CANCELLED]);
+                        $query->whereNotIn('Status', [PurchaseOrder::STATUS_FULLY_RECEIVED, PurchaseOrder::STATUS_CANCELLED, PurchaseOrder::STATUS_CLOSED]);
                     })
                     ->exists();
 
@@ -727,6 +727,91 @@ class PurchaseOrderController extends Controller
         }
 
         return back()->with('success', 'Purchase order cancelled.');
+    }
+
+    /**
+     * The supplier won't deliver the rest of a short-delivered order: the
+     * owner cancels what's still owed on the chosen lines, with a reason.
+     * Once nothing is owed the order is Closed and leaves the receiving
+     * queue; until then it stays open for the other lines.
+     */
+    public function cancelRemaining(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*' => ['integer'],
+            'reason' => ['required', 'string', 'max:255'],
+        ], [
+            'items.required' => 'Tick at least one product whose remaining quantity should be cancelled.',
+            'reason.required' => 'Enter why the remaining items are being cancelled.',
+        ]);
+
+        $cancelled = [];
+        $closed = false;
+
+        try {
+            DB::transaction(function () use ($data, $purchaseOrder, &$cancelled, &$closed) {
+                $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
+                    ->where('Status', PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $locked) {
+                    throw new \RuntimeException('Only a partially received purchase order can have its remaining items cancelled.');
+                }
+
+                $items = PurchaseOrderItem::with('product')
+                    ->where('PurchaseOrderID', $locked->PurchaseOrderID)
+                    ->whereIn('PurchaseOrderItemID', $data['items'])
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($items as $item) {
+                    $remaining = $item->remaining_quantity;
+                    if ($remaining <= 0) {
+                        continue;
+                    }
+                    $item->update(['CancelledQuantity' => (int) $item->CancelledQuantity + $remaining]);
+                    $cancelled[] = "{$remaining} x \"{$item->product?->ProductName}\"";
+                }
+
+                if ($cancelled === []) {
+                    throw new \RuntimeException('Those products have nothing left to cancel.');
+                }
+
+                $locked->load('items');
+                $closed = $locked->isSettled();
+                $locked->update([
+                    'Status' => $closed ? PurchaseOrder::STATUS_CLOSED : PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                    'RemainderCancelReason' => $data['reason'],
+                    'RemainderCancelledBy' => auth()->id(),
+                    'RemainderCancelledAt' => now(),
+                ]);
+
+                // Nothing more to receive: the delivery leaves Pending /
+                // Expected Delivery.
+                if ($closed) {
+                    StockReceivingBatch::where('PurchaseOrderID', $locked->PurchaseOrderID)
+                        ->update(['Status' => StockReceivingBatch::STATUS_COMPLETED, 'CompletedAt' => now()]);
+                }
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $summary = implode(', ', $cancelled);
+        ActivityLog::record('purchase_order.remainder_cancelled', "Cancelled the remaining {$summary} on PO #{$purchaseOrder->PONumber}: {$data['reason']}");
+        ActionNotifier::toAdmins(
+            'Remaining Items Cancelled',
+            "Purchase order {$purchaseOrder->PONumber}: {$summary} will not be delivered ({$data['reason']}).".($closed ? ' The order is now Closed.' : ''),
+            route('admin.purchase-orders.index'),
+            'clipboard-check',
+            'warning'
+        );
+
+        return back()->with('success', $closed
+            ? 'Remaining items cancelled. This purchase order is now Closed.'
+            : 'Remaining items cancelled. The order stays open for the other products.');
     }
 
     public function export(PurchaseOrder $purchaseOrder)

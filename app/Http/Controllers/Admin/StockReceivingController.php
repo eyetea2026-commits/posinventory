@@ -10,6 +10,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockReceiving;
 use App\Models\StockReceivingBatch;
+use App\Models\StockReceivingDelivery;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Notifications\DeliveryDue;
@@ -109,8 +110,10 @@ class StockReceivingController extends Controller
             return back()->with('error', "Receipt Number \"{$receiptNumber}\" has already been used for another delivery.");
         }
 
+        $orderStillOpen = false;
+
         try {
-            DB::transaction(function () use ($data, $stockReceivingBatch, $receiptNumber) {
+            DB::transaction(function () use ($data, $stockReceivingBatch, $receiptNumber, &$orderStillOpen) {
                 $lockedBatch = StockReceivingBatch::where('StockReceivingBatchID', $stockReceivingBatch->StockReceivingBatchID)
                     ->where('Status', StockReceivingBatch::STATUS_PENDING)
                     ->lockForUpdate()
@@ -130,9 +133,20 @@ class StockReceivingController extends Controller
                 // is still receivable, or a Cancelled order could be
                 // silently resurrected and stocked, mirroring the same
                 // guard store() already has for the legacy manual flow.
-                if (! $purchaseOrder || $purchaseOrder->Status !== PurchaseOrder::STATUS_PENDING) {
-                    throw new \RuntimeException('This purchase order is no longer pending receipt — it may have been cancelled.');
+                // Pending (nothing received yet) or Partially Received (an
+                // earlier delivery was short): both still expect stock.
+                if (! $purchaseOrder || ! in_array($purchaseOrder->Status, [PurchaseOrder::STATUS_PENDING, PurchaseOrder::STATUS_PARTIALLY_RECEIVED], true)) {
+                    throw new \RuntimeException('This purchase order is no longer expecting a delivery — it may have been cancelled or closed.');
                 }
+
+                $delivery = StockReceivingDelivery::create([
+                    'StockReceivingBatchID' => $lockedBatch->StockReceivingBatchID,
+                    'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
+                    'ReceiptNumber' => $receiptNumber,
+                    'ReceivedBy' => auth()->id(),
+                    'ReceivedAt' => now(),
+                ]);
+                $receivedNow = 0;
 
                 foreach ($data['items'] as $row) {
                     $item = PurchaseOrderItem::where('PurchaseOrderItemID', $row['purchase_order_item_id'])
@@ -144,17 +158,25 @@ class StockReceivingController extends Controller
                         throw new \RuntimeException('That order line no longer belongs to this purchase order.');
                     }
 
+                    // What arrived in THIS delivery; added to what earlier
+                    // deliveries brought, never more than is still owed.
                     $quantityReceived = (int) $row['quantity_received'];
 
-                    if ($quantityReceived > $item->Quantity) {
-                        throw new \RuntimeException("Quantity Received for \"{$item->product?->ProductName}\" cannot exceed the ordered quantity of {$item->Quantity}.");
+                    if ($quantityReceived > $item->remaining_quantity) {
+                        throw new \RuntimeException("Only {$item->remaining_quantity} more \"{$item->product?->ProductName}\" can be received on this order (ordered {$item->Quantity}, received {$item->ReceivedQuantity} so far".((int) $item->CancelledQuantity > 0 ? ", cancelled {$item->CancelledQuantity}" : '').').');
                     }
-
-                    $item->update(['ReceivedQuantity' => $quantityReceived]);
 
                     if ($quantityReceived <= 0) {
                         continue;
                     }
+
+                    $item->update(['ReceivedQuantity' => $item->ReceivedQuantity + $quantityReceived]);
+                    $delivery->items()->create([
+                        'PurchaseOrderItemID' => $item->PurchaseOrderItemID,
+                        'ProductID' => $item->ProductID,
+                        'Quantity' => $quantityReceived,
+                    ]);
+                    $receivedNow += $quantityReceived;
 
                     // Locked, computed, and saved entirely inside the
                     // transaction — the same TOCTOU-safe pattern already
@@ -173,21 +195,34 @@ class StockReceivingController extends Controller
                     $inventory->save();
                 }
 
-                $lockedBatch->update([
-                    'Status' => StockReceivingBatch::STATUS_COMPLETED,
-                    'ReceiptNumber' => $receiptNumber,
-                    'ReceivedBy' => auth()->id(),
-                    'CompletedAt' => now(),
-                ]);
+                if ($receivedNow === 0) {
+                    throw new \RuntimeException('Enter how many of each product arrived in this delivery.');
+                }
 
+                // The order stays open (Partially Received, still in the
+                // Pending / Expected Delivery list) until nothing more is
+                // owed: every line is in, or the owner cancelled what was
+                // left (PurchaseOrderController::cancelRemaining()).
                 $purchaseOrder->load('items');
-                $purchaseOrder->update([
-                    'Status' => $purchaseOrder->isFullyReceived()
-                        ? PurchaseOrder::STATUS_FULLY_RECEIVED
-                        : PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                $settled = $purchaseOrder->isSettled();
+
+                $lockedBatch->update([
+                    'Status' => $settled ? StockReceivingBatch::STATUS_COMPLETED : StockReceivingBatch::STATUS_PENDING,
+                    'ReceiptNumber' => $receiptNumber ?? $lockedBatch->ReceiptNumber,
+                    'ReceivedBy' => auth()->id(),
+                    'CompletedAt' => $settled ? now() : null,
                 ]);
 
-                ActivityLog::record('stock_receiving_batch.completed', "Completed receiving for PO #{$purchaseOrder->PONumber}");
+                $purchaseOrder->update([
+                    'Status' => match (true) {
+                        $purchaseOrder->isFullyReceived() => PurchaseOrder::STATUS_FULLY_RECEIVED,
+                        $settled => PurchaseOrder::STATUS_CLOSED,
+                        default => PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                    },
+                ]);
+                $orderStillOpen = ! $settled;
+
+                ActivityLog::record('stock_receiving_batch.completed', "Received {$receivedNow} item(s) for PO #{$purchaseOrder->PONumber}".($settled ? '' : ' — order stays open for the rest'));
             });
         } catch (QueryException $e) {
             // DB-level backstop for the same duplicate-Receipt-Number case
@@ -233,7 +268,9 @@ class StockReceivingController extends Controller
             ]);
         }
 
-        return redirect()->route('admin.stock-receivings.index')->with('success', 'Stock added to Inventory. This delivery is now marked Completed.');
+        return redirect()->route('admin.stock-receivings.index')->with('success', $orderStillOpen
+            ? 'Stock added to Inventory. The rest of this order is still expected, so it stays open in Pending / Expected Delivery.'
+            : 'Stock added to Inventory. This delivery is now marked Completed.');
     }
 
     /**
@@ -308,6 +345,7 @@ class StockReceivingController extends Controller
         return StockReceivingBatch::where('ReceiptNumber', $receiptNumber)
             ->when($excludeBatchId, fn ($query) => $query->where('StockReceivingBatchID', '!=', $excludeBatchId))
             ->exists()
+            || StockReceivingDelivery::where('ReceiptNumber', $receiptNumber)->exists()
             || StockReceiving::where('ReceiptNumber', $receiptNumber)->exists()
             || PurchaseOrderItem::where('ReceiptNumber', $receiptNumber)->exists();
     }

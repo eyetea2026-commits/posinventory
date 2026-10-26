@@ -12,11 +12,13 @@ class PurchaseOrderItem extends Model
     public $timestamps = false;
 
     protected $table = 'PurchaseOrderItem';
+
     protected $primaryKey = 'PurchaseOrderItemID';
 
     protected $fillable = [
         'Quantity',
         'ReceivedQuantity',
+        'CancelledQuantity',
         'ReceiptNumber',
         'CostPriceAtOrder',
         'PurchaseOrderID',
@@ -33,9 +35,13 @@ class PurchaseOrderItem extends Model
         return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
     }
 
+    /**
+     * Still owed by the supplier: ordered, less what arrived and what the
+     * owner cancelled.
+     */
     public function getRemainingQuantityAttribute(): int
     {
-        return max(0, $this->Quantity - $this->ReceivedQuantity);
+        return max(0, $this->Quantity - $this->ReceivedQuantity - (int) $this->CancelledQuantity);
     }
 
     // The financial value of this PO line — what was ORDERED at the price

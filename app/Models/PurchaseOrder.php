@@ -10,6 +10,7 @@ class PurchaseOrder extends Model
     use HasFactory;
 
     protected $table = 'PurchaseOrder';
+
     protected $primaryKey = 'PurchaseOrderID';
 
     protected $fillable = [
@@ -21,14 +22,33 @@ class PurchaseOrder extends Model
         'SupplierID',
         'CreatedBy',
         'ApprovedBy',
+        'RemainderCancelReason',
+        'RemainderCancelledBy',
+        'RemainderCancelledAt',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'RemainderCancelledAt' => 'datetime',
+        ];
+    }
+
     const STATUS_DRAFT = 'draft';
+
     const STATUS_PENDING = 'pending';
+
     const STATUS_APPROVED = 'approved';
+
     const STATUS_PARTIALLY_RECEIVED = 'partially_received';
+
     const STATUS_FULLY_RECEIVED = 'fully_received';
+
     const STATUS_CANCELLED = 'cancelled';
+
+    // Part was received and the owner cancelled the rest: nothing more is
+    // expected from the supplier.
+    const STATUS_CLOSED = 'closed';
 
     const STATUS_LABELS = [
         self::STATUS_DRAFT => 'Draft',
@@ -37,6 +57,7 @@ class PurchaseOrder extends Model
         self::STATUS_PARTIALLY_RECEIVED => 'Partially Received',
         self::STATUS_FULLY_RECEIVED => 'Fully Received',
         self::STATUS_CANCELLED => 'Cancelled',
+        self::STATUS_CLOSED => 'Closed',
     ];
 
     // Statuses where the supplier/items are still safe to change — once
@@ -87,6 +108,33 @@ class PurchaseOrder extends Model
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
 
         return $items->isNotEmpty() && $items->every(fn (PurchaseOrderItem $item) => $item->ReceivedQuantity >= $item->Quantity);
+    }
+
+    /**
+     * Nothing more is owed: every line is received or its rest cancelled.
+     */
+    public function isSettled(): bool
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+
+        return $items->isNotEmpty() && $items->every(fn (PurchaseOrderItem $item) => $item->remaining_quantity <= 0);
+    }
+
+    public function hasAnyCancelledQuantity(): bool
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+
+        return $items->contains(fn (PurchaseOrderItem $item) => (int) $item->CancelledQuantity > 0);
+    }
+
+    public function deliveries()
+    {
+        return $this->hasMany(StockReceivingDelivery::class, 'PurchaseOrderID', 'PurchaseOrderID');
+    }
+
+    public function remainderCancelledByUser()
+    {
+        return $this->belongsTo(User::class, 'RemainderCancelledBy', 'id');
     }
 
     public function hasAnyReceivedQuantity(): bool

@@ -302,6 +302,10 @@ class SupplierController extends Controller
             return 'Partial';
         }
 
+        if ($po->Status === PurchaseOrder::STATUS_CLOSED) {
+            return 'Closed';
+        }
+
         return 'Awaiting Delivery';
     }
 

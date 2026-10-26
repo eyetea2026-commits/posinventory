@@ -72,8 +72,13 @@
         font-size: var(--text-heading);
     }
     /* Long names, emails and codes wrap instead of pushing the layout. */
-    html body :is(td, th, .detail-item span, .modal-content p) {
+    html body :is(td, .detail-item span, .modal-content p) {
         overflow-wrap: anywhere;
+    }
+    /* Column headings wrap between words only ("Ordered", not "Order|ed"). */
+    html body th {
+        overflow-wrap: normal;
+        word-break: normal;
     }
     html body :is(img, video, canvas) {
         max-width: 100%;
