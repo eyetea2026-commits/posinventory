@@ -93,7 +93,7 @@
                         <td><div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" step="0.01" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price per {{ $row['unit'] }}"><span>/{{ $row['unit'] }}</span></div></td>
                         <td>
                             <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" step="1" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
-                            @if($row['unitHolds'])<small class="po-unit-holds">{{ $row['unitHolds'] }} per {{ $row['unit'] }}</small>@endif
+                            @if($row['unitHolds'])<small class="po-unit-holds">last {{ $row['unit'] }}: {{ $row['unitHolds'] }}</small>@endif
                         </td>
                         <td>
                             {{-- The preferred (or only) supplier is picked already; it can be changed for this order. --}}

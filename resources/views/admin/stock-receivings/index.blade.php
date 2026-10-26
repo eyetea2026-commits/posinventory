@@ -15,6 +15,12 @@
     @include('admin.partials.modal-styles')
 
     <style>
+        /* Roll/box size on a "Receiving Now" line (batch-details). */
+        .receiving-size { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; color: #cbd5e1; font-size: 0.78rem; font-weight: 600; }
+        .receiving-size .receiving-size-input { max-width: 130px; }
+        .receiving-size-total { display: block; margin-top: 4px; color: #6ee7b7; font-size: 0.78rem; font-weight: 600; }
+        .receiving-size-total:empty { display: none; }
+
         /* View Details Modal — mirrors the read-only detail-row/items-table
            styling used by the Purchase Order module's own View Details
            modal (admin/purchase-orders/index.blade.php), duplicated here per
@@ -344,6 +350,20 @@
             // current search/supplier filter applied to them.
             document.addEventListener('live-updates:applied', applyReceivingFilters);
         })();
+
+        // A line received by the roll/box: "= 2,000 meters to stock" follows
+        // what's typed in Receiving Now and Meters per roll.
+        window.updateReceivingTotal = function (input) {
+            const row = input.closest('tr');
+            const size = row && row.querySelector('.receiving-size-input');
+            const total = row && row.querySelector('.receiving-size-total');
+            if (!size || !total) return;
+            const quantity = parseFloat(row.querySelector('.receiving-now-input').value) || 0;
+            const perUnit = parseFloat(size.value) || 0;
+            total.textContent = quantity > 0 && perUnit > 0
+                ? '= ' + (quantity * perUnit).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + total.dataset.basePlural + ' to stock'
+                : '';
+        };
 
         // ---- Purchase Order Delivery — View Details modal ----
         let batchDetailsLastFocused = null;

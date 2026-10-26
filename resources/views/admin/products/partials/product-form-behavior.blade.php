@@ -478,11 +478,11 @@ window.initProductAddForm = function (formId, options) {
     }
 
     // Unit of Measurement: the unit names in the labels follow the chosen
-    // base/purchase units, and the purchase-unit fields only show (and are
-    // only required) once a purchase unit / selling by it is chosen.
+    // base/purchase units, and the price per purchase unit only shows (and
+    // is only required) once selling by it is chosen. How many meters a roll
+    // holds is entered at Stock Receiving, not here.
     var baseUnitSelect = form.querySelector('#UnitOfMeasure');
     var purchaseUnitSelect = form.querySelector('#PurchaseUnit');
-    var quantityPerPurchaseUnitInput = form.querySelector('#QuantityPerPurchaseUnit');
     var sellsByPurchaseUnitSelect = form.querySelector('#SellsByPurchaseUnit');
     var purchaseUnitPriceInput = form.querySelector('#PurchaseUnitPrice');
     if (purchaseUnitPriceInput) window.attachMoneyInput(purchaseUnitPriceInput);
@@ -528,20 +528,6 @@ window.initProductAddForm = function (formId, options) {
         sellsByPurchaseUnitSelect.options[1].disabled = !purchaseUnit;
         if (!purchaseUnit) sellsByPurchaseUnitSelect.value = '0';
 
-        // The amounts under the two units ("1000" meters = "1" roll) and the
-        // "1 Roll = 1,000 meters" line only apply once there's a purchase unit.
-        form.querySelectorAll('[data-uom-needs-purchase]').forEach(function (el) {
-            el.style.display = purchaseUnit ? '' : 'none';
-        });
-        quantityPerPurchaseUnitInput.required = !!purchaseUnit;
-        var perPurchaseUnit = parseFloat(quantityPerPurchaseUnitInput.value);
-        var conversion = form.querySelector('.uom-conversion');
-        if (conversion) {
-            conversion.textContent = purchaseUnit && perPurchaseUnit > 0
-                ? '1 ' + purchaseUnit.charAt(0).toUpperCase() + purchaseUnit.slice(1) + ' = '
-                    + perPurchaseUnit.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + (perPurchaseUnit === 1 ? baseUnit : basePlural)
-                : '';
-        }
         var sellsByPurchase = !!purchaseUnit && sellsByPurchaseUnitSelect.value === '1';
         form.querySelectorAll('.form-group[data-uom-needs-selling]').forEach(function (group) {
             group.style.display = sellsByPurchase ? '' : 'none';
@@ -575,7 +561,6 @@ window.initProductAddForm = function (formId, options) {
     [categorySelect, baseUnitSelect, purchaseUnitSelect, sellsByPurchaseUnitSelect].forEach(function (select) {
         if (select) select.addEventListener('change', syncUnitOfMeasureFields);
     });
-    if (quantityPerPurchaseUnitInput) quantityPerPurchaseUnitInput.addEventListener('input', syncUnitOfMeasureFields);
     // The Add Product popup resets the form each time it opens; the values
     // change only after the "reset" event, so sync right after it.
     form.addEventListener('reset', function () { setTimeout(syncUnitOfMeasureFields, 0); });

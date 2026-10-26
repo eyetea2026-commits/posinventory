@@ -82,8 +82,8 @@
                         <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
                         <td>{{ $item->product?->Model ?: '—' }}</td>
                         <td style="white-space: nowrap;">{{ $item->product?->SKU ?: '—' }}</td>
-                        {{-- In the unit it was ordered in; receiving adds the
-                             converted amount to stock (1 roll = 5,000 meters). --}}
+                        {{-- In the unit it was ordered in (2 rolls); receiving adds
+                             rolls x meters per roll (entered below) to stock. --}}
                         <td>{{ $item->tableQuantity() }}</td>
                         <td>{{ $item->tableQuantity($item->ReceivedQuantity) }}</td>
                         @if($anyCancelled)
@@ -91,11 +91,25 @@
                         @endif
                         @if($isPending)
                             <td><strong>{{ $item->tableQuantity($item->remaining_quantity) }}</strong></td>
+                            {{-- Ordered by the roll/box: how many meters/pieces each one holds
+                                 is entered here, per delivery (the last size is pre-filled). --}}
+                            @php($baseUnit = $item->product?->baseUnit() ?? 'piece')
+                            @php($needsSize = $item->product && ($item->Unit ?: 'piece') !== $baseUnit)
+                            @php($size = $needsSize ? ((float) $item->QuantityPerUnit > 1 ? $item->QuantityPerUnit : $item->product->purchaseUnitSize()) : null)
+                            @php($basePlural = \App\Services\UnitOfMeasure::plural($baseUnit))
                             <td>
                                 <input type="hidden" name="items[{{ $loop->index }}][purchase_order_item_id]" value="{{ $item->PurchaseOrderItemID }}">
                                 {{-- This delivery only; defaults to everything still owed. --}}
-                                <input type="number" class="form-input receiving-now-input" style="max-width:110px;" name="items[{{ $loop->index }}][quantity_received]" min="0" max="{{ $item->remaining_quantity }}" value="{{ $item->remaining_quantity }}" @if($item->remaining_quantity <= 0) readonly @endif required>
+                                <input type="number" class="form-input receiving-now-input" style="max-width:110px;" name="items[{{ $loop->index }}][quantity_received]" min="0" max="{{ $item->remaining_quantity }}" value="{{ $item->remaining_quantity }}" @if($item->remaining_quantity <= 0) readonly @endif required oninput="window.updateReceivingTotal && window.updateReceivingTotal(this)">
                                 @if($item->Unit && $item->Unit !== 'piece')<small style="display:block; color:#94a3b8;">{{ \App\Services\UnitOfMeasure::plural($item->Unit) }}</small>@endif
+                                @if($needsSize)
+                                    <label class="receiving-size">
+                                        <span>{{ ucfirst($basePlural) }} per {{ $item->Unit }}</span>
+                                        <input type="number" class="form-input receiving-size-input" name="items[{{ $loop->index }}][quantity_per_unit]" min="0.01" step="{{ $item->product->AllowsFractionalQuantity ? '0.01' : '1' }}"
+                                               value="{{ $size ? \App\Casts\Quantity::normalize($size) : '' }}" placeholder="e.g. 1000" @if($item->remaining_quantity > 0) required @else readonly @endif oninput="window.updateReceivingTotal && window.updateReceivingTotal(this)">
+                                    </label>
+                                    <small class="receiving-size-total" data-base-plural="{{ $basePlural }}">{{ $size && $item->remaining_quantity > 0 ? '= '.\App\Services\UnitOfMeasure::number($item->remaining_quantity * $size).' '.$basePlural.' to stock' : '' }}</small>
+                                @endif
                             </td>
                         @endif
                     </tr>
@@ -125,7 +139,17 @@
                         <td style="white-space: nowrap;">{{ $delivery->ReceivedAt?->format('m/d/Y g:i A') }}</td>
                         <td>{{ $delivery->ReceiptNumber ?: 'N/A' }}</td>
                         <td>{{ $delivery->receivedByUser?->full_name ?? 'N/A' }}</td>
-                        <td>{{ $delivery->items->map(fn ($line) => ($line->purchaseOrderItem ? $line->purchaseOrderItem->tableQuantity($line->Quantity) : $line->Quantity).' x '.($line->product?->ProductName ?? 'Unknown'))->implode(', ') }}</td>
+                        {{-- "2 rolls (2,000 meters) x UTP Cable": the meters this delivery added. --}}
+                        <td>{{ $delivery->items->map(function ($line) {
+                            $orderLine = $line->purchaseOrderItem;
+                            $baseUnit = $line->product?->baseUnit();
+                            $quantity = $orderLine ? \App\Services\UnitOfMeasure::cell($line->Quantity, $orderLine->Unit) : $line->Quantity;
+                            if ($orderLine && $baseUnit && ($orderLine->Unit ?: 'piece') !== $baseUnit && $line->BaseQuantity !== null) {
+                                $quantity .= ' ('.\App\Services\UnitOfMeasure::format($line->BaseQuantity, $baseUnit).')';
+                            }
+
+                            return $quantity.' x '.($line->product?->ProductName ?? 'Unknown');
+                        })->implode(', ') }}</td>
                     </tr>
                 @endforeach
             </tbody>

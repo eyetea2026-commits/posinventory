@@ -28,16 +28,10 @@
     .uom-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
     .uom-grid .form-group { margin-bottom: 0; }
     .uom-per-base { color: #94a3b8; font-weight: 400; font-size: 0.8em; }
-    /* "[Meter] 1000 | [Roll] 1": the amount sits right under each unit. */
-    .uom-qty { margin-top: 8px; }
-    .uom-qty input { text-align: right; }
-    .uom-qty .uom-one { color: #cbd5e1; cursor: default; }
     .uom-price-input { display: flex; align-items: center; gap: 8px; }
     .uom-price-input input { flex: 1; min-width: 0; text-align: right; }
     .uom-price-input .uom-currency { color: #e2e8f0; font-size: 1.15rem; font-weight: 700; }
     .uom-price-input .uom-per-base { color: #cbd5e1; font-size: 0.88rem; white-space: nowrap; }
-    .uom-conversion { margin: 10px 0 0; color: #93c5fd; font-size: 0.85rem; font-weight: 600; }
-    .uom-conversion:empty { display: none; }
     .uom-grid-options { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(148, 163, 184, 0.15); }
     .uom-fraction-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; cursor: pointer; margin-top: 22px; }
     .uom-fraction-toggle input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: #3b82f6; }
@@ -166,11 +160,12 @@
         <span class="form-error" id="error-Barcode">@error('Barcode'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Unit of Measurement, read across like "1,000 Meter = 1 Roll, sold at
-         ₱15 per meter": stock is kept in the base unit (meters, pieces); a
-         purchase unit (roll, box) holds that many of it; the Selling Price is
-         per base unit. Below: selling the purchase unit too at its own price
-         (1 box of RJ45 = 100 pieces at ₱500), and decimals (1.5 meters). --}}
+    {{-- Unit of Measurement, read across like "Meter & Roll | Roll | ₱15 per
+         meter": stock is kept in the base unit (meters, pieces), bought by
+         the purchase unit (roll, box) - how many meters each roll holds is
+         entered at Stock Receiving - and the Selling Price is per base unit.
+         Below: selling the purchase unit too at its own price, and decimals
+         (1.5 meters). --}}
     <div class="form-group full-width uom-section" data-uom-section>
         <label class="form-label uom-title"><i class="fas fa-ruler-combined"></i> Unit of Measurement</label>
         <div class="uom-grid">
@@ -182,13 +177,7 @@
                     @endforeach
                     <option value="{{ \App\Services\UnitOfMeasure::METER_AND_ROLL }}" data-plural="meters" {{ $baseChoice === \App\Services\UnitOfMeasure::METER_AND_ROLL ? 'selected' : '' }}>{{ \App\Services\UnitOfMeasure::METER_AND_ROLL_LABEL }}</option>
                 </select>
-                <div class="uom-qty" data-uom-needs-purchase>
-                    <input type="number" name="QuantityPerPurchaseUnit" id="QuantityPerPurchaseUnit" class="form-input @error('QuantityPerPurchaseUnit') is-invalid @enderror"
-                           value="{{ old('QuantityPerPurchaseUnit', isset($product) && $product->PurchaseUnit ? \App\Casts\Quantity::normalize($product->QuantityPerPurchaseUnit) : '') }}" min="0.01" step="0.01" placeholder="e.g., 1000"
-                           aria-label="How many in one purchase unit">
-                </div>
                 <span class="form-error" id="error-UnitOfMeasure">@error('UnitOfMeasure'){{ $message }}@enderror</span>
-                <span class="form-error" id="error-QuantityPerPurchaseUnit">@error('QuantityPerPurchaseUnit'){{ $message }}@enderror</span>
             </div>
 
             <div class="form-group">
@@ -199,9 +188,6 @@
                         <option value="{{ $unit }}" {{ $purchaseUnit === $unit ? 'selected' : '' }}>{{ ucfirst($unit) }}</option>
                     @endforeach
                 </select>
-                <div class="uom-qty" data-uom-needs-purchase>
-                    <input type="text" class="form-input uom-one" value="1" readonly tabindex="-1" aria-label="One purchase unit">
-                </div>
                 <span class="form-error" id="error-PurchaseUnit">@error('PurchaseUnit'){{ $message }}@enderror</span>
             </div>
 
@@ -215,7 +201,6 @@
                 <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
             </div>
         </div>
-        <p class="uom-conversion" data-uom-needs-purchase></p>
 
         <div class="uom-grid uom-grid-options">
             <div class="form-group">

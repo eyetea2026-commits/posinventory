@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -19,7 +20,14 @@ class StockReceivingDeliveryItem extends Model
         'StockReceivingDeliveryID',
         'PurchaseOrderItemID',
         'ProductID',
+        // In the order line's unit (2 rolls); BaseQuantity is what it added
+        // to stock (2,000 meters - roll lengths are entered on receiving).
         'Quantity',
+        'BaseQuantity',
+    ];
+
+    protected $casts = [
+        'BaseQuantity' => Quantity::class,
     ];
 
     public function product()

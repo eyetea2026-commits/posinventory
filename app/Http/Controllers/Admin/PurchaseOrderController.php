@@ -225,7 +225,7 @@ class PurchaseOrderController extends Controller
                     'currentPrice' => $currentPrice,
                     'unit' => $product->orderUnit(),
                     'unitPlural' => UnitOfMeasure::plural($product->orderUnit()),
-                    'unitHolds' => $product->hasPurchaseUnit() ? $product->formatQuantity($product->QuantityPerPurchaseUnit) : null,
+                    'unitHolds' => $product->purchaseUnitSize() ? $product->formatQuantity($product->purchaseUnitSize()) : null,
                     'suggestedQuantity' => max(1, self::suggestedOrderQuantity($product, $quantity, $threshold)),
                     // Picked by default: the preferred supplier, or the only one.
                     'supplier' => $link?->supplier,
@@ -450,15 +450,29 @@ class PurchaseOrderController extends Controller
      */
     public static function suggestedOrderQuantity(Product $product, int|float $quantity, int $threshold): int
     {
+        // No roll/box received yet, so its size isn't known: suggest one.
+        if ($product->hasPurchaseUnit() && $product->purchaseUnitSize() === null) {
+            return 1;
+        }
+
         return (int) ceil(round(self::suggestedReorderQuantity($quantity, $threshold) / (float) $product->quantityPerOrderUnit(), 4));
     }
 
     /**
      * A per-base-unit cost (Product/ProductSupplier CostPrice, per meter or
-     * piece) as the price of one purchase unit (a roll, a box).
+     * piece) as the price of one purchase unit (a roll, a box). Before the
+     * first roll is received its size isn't known: the last price it was
+     * ordered at per roll, or 0 (the admin types it in).
      */
     public static function costPerPurchaseUnit(Product $product, $costPrice): float
     {
+        if ($product->hasPurchaseUnit() && $product->purchaseUnitSize() === null) {
+            return round((float) PurchaseOrderItem::where('ProductID', $product->ProductID)
+                ->where('Unit', $product->PurchaseUnit)
+                ->orderByDesc('PurchaseOrderItemID')
+                ->value('CostPriceAtOrder'), 2);
+        }
+
         return round((float) ($costPrice ?? 0) * (float) $product->quantityPerOrderUnit(), 2);
     }
 

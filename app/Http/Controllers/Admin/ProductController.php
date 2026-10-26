@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Brand;
@@ -366,7 +367,9 @@ class ProductController extends Controller
             // section): the product keeps its units, a new one is a piece.
             'UnitOfMeasure' => ['sometimes', 'required', Rule::in([...UnitOfMeasure::UNITS, UnitOfMeasure::METER_AND_ROLL])],
             'PurchaseUnit' => ['nullable', Rule::in(UnitOfMeasure::UNITS), 'different:UnitOfMeasure'],
-            'QuantityPerPurchaseUnit' => ['nullable', 'required_with:PurchaseUnit', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
+            // Normally not sent: the roll/box size is entered at Stock
+            // Receiving (the last one received is kept on the product).
+            'QuantityPerPurchaseUnit' => ['nullable', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             'SellsByPurchaseUnit' => ['nullable', 'boolean'],
             'PurchaseUnitPrice' => ['nullable', 'numeric', 'min:0.01', 'max:99999999'],
             'AllowsFractionalQuantity' => ['nullable', 'boolean'],
@@ -382,15 +385,14 @@ class ProductController extends Controller
             'UnitOfMeasure.required' => 'Choose the unit stock is counted in.',
             'UnitOfMeasure.in' => 'Choose the unit stock is counted in.',
             'PurchaseUnit.different' => 'The purchase unit must be different from the inventory base unit.',
-            'QuantityPerPurchaseUnit.required_with' => 'Enter how many of the base unit one purchase unit holds.',
             'QuantityPerPurchaseUnit.gt' => 'The quantity per purchase unit must be greater than 0.',
             'QuantityPerPurchaseUnit.decimal' => 'The quantity per purchase unit can have up to 2 decimals.',
         ];
     }
 
     /**
-     * The checked unit settings to save: a purchase unit needs its
-     * conversion, selling by it needs its price, serial-numbered products
+     * The checked unit settings to save: units fit the category, selling
+     * by the purchase unit needs its price, serial-numbered products
      * stay whole pieces, and a product's base unit can't change while it
      * has stock counted in the old one.
      *
@@ -417,13 +419,12 @@ class ProductController extends Controller
             $purchaseUnit = 'roll';
         }
         $allowsFractions = (bool) ($data['AllowsFractionalQuantity'] ?? false);
-        $perPurchaseUnit = $purchaseUnit ? (float) ($data['QuantityPerPurchaseUnit'] ?? 0) : 1;
+        // The roll/box size comes from Stock Receiving: keep the last one
+        // received while the purchase unit stays the same (1 = not known yet).
+        $keptSize = $product && $product->PurchaseUnit === $purchaseUnit && $product->baseUnit() === $baseUnit ? (float) $product->QuantityPerPurchaseUnit : 1;
+        $perPurchaseUnit = ! $purchaseUnit ? 1 : (filled($data['QuantityPerPurchaseUnit'] ?? null) ? (float) $data['QuantityPerPurchaseUnit'] : $keptSize);
         $sellsByPurchaseUnit = $purchaseUnit && ! empty($data['SellsByPurchaseUnit']);
         $errors = [];
-
-        if ($purchaseUnit && $perPurchaseUnit <= 0) {
-            $errors['QuantityPerPurchaseUnit'] = 'Enter how many '.UnitOfMeasure::plural($baseUnit)." one {$purchaseUnit} holds.";
-        }
 
         $allowedUnits = UnitOfMeasure::forCategory($category?->CategoryName);
         $unitNames = implode(' or ', array_map('ucfirst', $allowedUnits));
@@ -458,7 +459,7 @@ class ProductController extends Controller
         return [
             'UnitOfMeasure' => $baseUnit,
             'PurchaseUnit' => $purchaseUnit,
-            'QuantityPerPurchaseUnit' => $perPurchaseUnit,
+            'QuantityPerPurchaseUnit' => Quantity::normalize($perPurchaseUnit),
             'PurchaseUnitPrice' => $sellsByPurchaseUnit ? round((float) $data['PurchaseUnitPrice'], 2) : null,
             'AllowsFractionalQuantity' => $allowsFractions,
         ];

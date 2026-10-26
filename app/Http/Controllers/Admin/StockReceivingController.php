@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Notifications\DeliveryDue;
 use App\Notifications\DeliveryReceived;
 use App\Notifications\ProductReceived;
+use App\Services\UnitOfMeasure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,9 @@ class StockReceivingController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:PurchaseOrderItem,PurchaseOrderItemID'],
             'items.*.quantity_received' => ['required', 'integer', 'min:0'],
+            // For a line ordered by the roll/box: how many meters/pieces
+            // each one holds in this delivery (1 roll = 1,000 meters).
+            'items.*.quantity_per_unit' => ['nullable', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             // One Receipt Number for the whole delivery (every product on
             // this Purchase Order), not one per product line.
             'receipt_number' => ['nullable', 'string', 'max:50'],
@@ -171,11 +175,29 @@ class StockReceivingController extends Controller
                         continue;
                     }
 
-                    $item->update(['ReceivedQuantity' => $item->ReceivedQuantity + $quantityReceived]);
+                    // Ordered by the roll/box: its size is entered here, for
+                    // this delivery, and kept as the product's last roll size.
+                    $product = $item->product;
+                    if ($product && ($item->Unit ?: UnitOfMeasure::DEFAULT) !== $product->baseUnit()) {
+                        $size = Quantity::normalize($row['quantity_per_unit'] ?? 0);
+                        $unitName = $item->Unit ?: UnitOfMeasure::DEFAULT;
+                        if (! $size) {
+                            throw new \RuntimeException('Enter how many '.UnitOfMeasure::plural($product->baseUnit())." each {$unitName} of \"{$product->ProductName}\" holds.");
+                        }
+                        if (is_float($size) && ! $product->AllowsFractionalQuantity) {
+                            throw new \RuntimeException("\"{$product->ProductName}\" is counted in whole ".UnitOfMeasure::plural($product->baseUnit()).'.');
+                        }
+                        $item->QuantityPerUnit = $size;
+                        $product->update(['QuantityPerPurchaseUnit' => $size]);
+                    }
+
+                    $item->ReceivedQuantity += $quantityReceived;
+                    $item->save();
                     $delivery->items()->create([
                         'PurchaseOrderItemID' => $item->PurchaseOrderItemID,
                         'ProductID' => $item->ProductID,
                         'Quantity' => $quantityReceived,
+                        'BaseQuantity' => $item->toBaseQuantity($quantityReceived),
                     ]);
                     $receivedNow += $quantityReceived;
 
@@ -447,9 +469,15 @@ class StockReceivingController extends Controller
 
                 // Received in the order line's unit (or, without an order,
                 // the product's purchase unit), stocked in the base unit.
+                // (Without an order the product's last roll size is used; a
+                // roll whose size was never received has to come in on a PO.)
+                $receivedProduct = Product::find($productId);
+                if (! $purchaseOrderItem && $receivedProduct->hasPurchaseUnit() && $receivedProduct->purchaseUnitSize() === null) {
+                    throw new \RuntimeException("Receive \"{$receivedProduct->ProductName}\" through its Purchase Order, where the size of each {$receivedProduct->PurchaseUnit} is entered.");
+                }
                 $baseQuantity = $receivedBaseQuantity = $purchaseOrderItem
                     ? $purchaseOrderItem->toBaseQuantity($data['Quantity'])
-                    : Quantity::normalize($data['Quantity'] * (float) Product::find($productId)->quantityPerOrderUnit());
+                    : Quantity::normalize($data['Quantity'] * (float) $receivedProduct->quantityPerOrderUnit());
                 $inventory->Quantity = Quantity::normalize($inventory->Quantity + $baseQuantity);
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                 $inventory->save();

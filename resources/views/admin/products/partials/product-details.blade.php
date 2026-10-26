@@ -19,7 +19,8 @@
     <div><span>Quantity</span><span>{{ $product->stockLabel($product->inventory?->Quantity ?? 0) }}</span></div>
     <div><span>Reorder Threshold</span><span>{{ $product->formatQuantity($product->inventory?->ReorderThreshold ?? 0) }}</span></div>
     <div><span>Inventory Base Unit</span><span>{{ ucfirst($product->baseUnit()) }}@if($product->AllowsFractionalQuantity) <small>(decimals allowed)</small>@endif</span></div>
-    <div><span>Purchase Unit</span><span>{{ $product->hasPurchaseUnit() ? '1 '.ucfirst($product->PurchaseUnit).' = '.$product->formatQuantity($product->QuantityPerPurchaseUnit) : 'None' }}</span></div>
+    {{-- The roll/box size comes from the last Stock Receiving. --}}
+    <div><span>Purchase Unit</span><span>@if(! $product->hasPurchaseUnit())None@elseif($product->purchaseUnitSize()){{ ucfirst($product->PurchaseUnit) }} <small>(last received: 1 {{ $product->PurchaseUnit }} = {{ $product->formatQuantity($product->purchaseUnitSize()) }})</small>@else{{ ucfirst($product->PurchaseUnit) }} <small>(size set at Stock Receiving)</small>@endif</span></div>
     <div><span>Selling Unit</span><span>{{ collect($product->sellingUnits())->keys()->map(fn ($unit) => 'Per '.$unit)->implode(', ') }}</span></div>
     <div>
         <span>Stock Status</span>

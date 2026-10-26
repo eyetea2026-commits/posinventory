@@ -56,25 +56,18 @@ class PurchaseOrderItem extends Model
     }
 
     /**
-     * "2 rolls" - plus "(10,000 meters)" when one roll isn't one meter.
+     * "2 rolls", "1 box".
      */
     public function quantityLabel(int|float|null $quantity = null): string
     {
-        $quantity ??= $this->Quantity;
-        $unit = $this->Unit ?: UnitOfMeasure::DEFAULT;
-        $label = UnitOfMeasure::format($quantity, $unit);
-        $baseUnit = $this->product?->baseUnit();
-
-        if ((float) $this->QuantityPerUnit != 1 && $baseUnit && $baseUnit !== $unit) {
-            $label .= ' ('.UnitOfMeasure::format($this->toBaseQuantity($quantity), $baseUnit).')';
-        }
-
-        return $label;
+        // Just the rolls/boxes: how many meters each holds is only known
+        // per delivery (StockReceivingDeliveryItem.BaseQuantity).
+        return UnitOfMeasure::format($quantity ?? $this->Quantity, $this->Unit ?: UnitOfMeasure::DEFAULT);
     }
 
     /**
-     * For tables: a plain count for pieces (as always), "2 rolls (10,000
-     * meters)" for anything ordered by another unit.
+     * For tables: a plain count for pieces (as always), "2 rolls" for
+     * anything ordered by another unit.
      */
     public function tableQuantity(int|float|null $quantity = null): string
     {

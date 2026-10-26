@@ -101,9 +101,17 @@ class Product extends Model
 
     public function hasPurchaseUnit(): bool
     {
-        return filled($this->PurchaseUnit)
-            && $this->PurchaseUnit !== $this->baseUnit()
-            && (float) $this->QuantityPerPurchaseUnit > 0;
+        return filled($this->PurchaseUnit) && $this->PurchaseUnit !== $this->baseUnit();
+    }
+
+    /**
+     * How many base units one purchase unit held in the last delivery (1
+     * roll = 5,000 meters): entered at Stock Receiving, not on the product.
+     * Null until the first delivery.
+     */
+    public function purchaseUnitSize(): int|float|null
+    {
+        return $this->hasPurchaseUnit() && (float) $this->QuantityPerPurchaseUnit > 1 ? $this->QuantityPerPurchaseUnit : null;
     }
 
     /**
@@ -116,16 +124,20 @@ class Product extends Model
     }
 
     /**
-     * How many base units one purchase unit holds (1 when it has none).
+     * How many base units one ordered unit adds (the last roll size; 1 when
+     * it has no purchase unit or none has been received yet).
      */
     public function quantityPerOrderUnit(): int|float
     {
-        return $this->hasPurchaseUnit() ? $this->QuantityPerPurchaseUnit : 1;
+        return $this->purchaseUnitSize() ?? 1;
     }
 
+    /**
+     * Sold by the roll/box too - once a delivery has told the roll size.
+     */
     public function sellsByPurchaseUnit(): bool
     {
-        return $this->hasPurchaseUnit() && $this->PurchaseUnitPrice !== null;
+        return $this->purchaseUnitSize() !== null && $this->PurchaseUnitPrice !== null;
     }
 
     /**

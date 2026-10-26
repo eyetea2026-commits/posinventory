@@ -69,7 +69,7 @@
         </div>
         <div class="reorder-detail-item">
             <label>Suggested Reorder Quantity</label>
-            <span>{{ \App\Services\UnitOfMeasure::format($suggestedQuantity, $product->orderUnit()) }}@if($product->hasPurchaseUnit()) ({{ $product->formatQuantity($suggestedQuantity * $product->QuantityPerPurchaseUnit) }})@endif</span>
+            <span>{{ \App\Services\UnitOfMeasure::format($suggestedQuantity, $product->orderUnit()) }}@if($product->purchaseUnitSize()) ({{ $product->formatQuantity($suggestedQuantity * $product->purchaseUnitSize()) }})@endif</span>
         </div>
     </div>
 </div>
