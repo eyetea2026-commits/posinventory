@@ -169,9 +169,9 @@
             return btn ? btn.disabled : false;
         }
 
-        // The ticked serials are checkboxes; their errors go on the serial search box.
+        // Recorded serials are hidden inputs; their errors go on the serial dropdown.
         function addAdjustmentFieldInput(form, field) {
-            return field === 'SerialNumbers' ? document.getElementById('SerialSearch') : form.querySelector('[name="' + field + '"]');
+            return field === 'SerialNumbers' ? document.getElementById('SerialNumberSelect') : form.querySelector('[name="' + field + '"]');
         }
 
         function clearAddAdjustmentFieldErrors() {

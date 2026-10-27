@@ -10,22 +10,13 @@
     @media (max-width: 899px) { .form-grid.adjustment-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 600px) { .form-grid.adjustment-form-grid { grid-template-columns: 1fr; } }
     .adjustment-serial-count { margin-left: 6px; font-size: 0.75rem; font-weight: 600; color: #34d399; }
-    .adjustment-serial-search { position: relative; }
-    .adjustment-serial-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
-    .adjustment-serial-search .form-input { padding-left: 34px; }
-    .adjustment-serial-list {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px;
-        max-height: 168px; overflow-y: auto; margin-top: 8px; padding: 8px;
-        border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px;
-    }
-    .adjustment-serial {
-        display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; cursor: pointer;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; color: #cbd5e1;
-        background: rgba(148, 163, 184, 0.08); border: 1px solid transparent;
-    }
-    .adjustment-serial:has(input:checked) { border-color: #ef4444; background: rgba(239, 68, 68, 0.12); color: #fecaca; }
-    .adjustment-serial input { margin: 0; accent-color: #ef4444; }
-    .adjustment-serial-empty { grid-column: 1 / -1; color: #94a3b8; font-size: 0.85rem; padding: 4px; }
+    .adjustment-serials-table { width: 100%; border-collapse: collapse; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; }
+    .adjustment-serials-table th { padding: 8px 10px; text-align: left; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; }
+    .adjustment-serials-table tbody td { padding: 8px 10px; border-top: 1px solid rgba(148, 163, 184, 0.12); color: #e2e8f0; }
+    .adjustment-serials-table tbody code { font-size: 0.88rem; color: #fecaca; }
+    .adjustment-serials-table .adjustment-serial-empty td { color: #94a3b8; font-size: 0.88rem; }
+    .adjustment-serials-table tfoot td { padding: 10px; border-top: 1px solid rgba(148, 163, 184, 0.2); vertical-align: middle; }
+    .adjustment-serials-table tfoot .btn { white-space: nowrap; }
 </style>
 <div class="form-grid adjustment-form-grid">
     <div class="form-group full-width">
@@ -47,15 +38,33 @@
         <span class="form-error" id="error-ProductID">@error('ProductID'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Serial-numbered products: tick (or scan) the exact pieces that were
-         damaged or lost; the quantity follows the number ticked. --}}
+    {{-- Serial-numbered products: record the exact pieces that were damaged
+         or lost, one row each, picked from the searchable dropdown (typing
+         or scanning the sticker into its search box finds it) and added
+         with Add Serial, like the product form's suppliers. The quantity
+         follows the number recorded. --}}
     <div class="form-group full-width" id="adjustment-serials-group" style="display: none;">
-        <label class="form-label" for="SerialSearch">Serial Numbers <span style="color: var(--danger);">*</span><span id="adjustment-serial-count" class="adjustment-serial-count"></span></label>
-        <div class="adjustment-serial-search">
-            <i class="fas fa-barcode"></i>
-            <input type="text" id="SerialSearch" class="form-input" placeholder="Scan or type a serial number..." autocomplete="off">
-        </div>
-        <div id="adjustment-serial-list" class="adjustment-serial-list"></div>
+        <label class="form-label" for="SerialNumberSelect">Serial Numbers <span style="color: var(--danger);">*</span><span id="adjustment-serial-count" class="adjustment-serial-count"></span></label>
+        <table class="adjustment-serials-table">
+            <thead>
+                <tr><th>Serial Number</th><th style="width: 1%;">Actions</th></tr>
+            </thead>
+            <tbody id="adjustment-serial-rows"></tbody>
+            <tfoot>
+                <tr>
+                    <td>
+                        <select id="SerialNumberSelect" class="form-select" aria-label="Serial Number">
+                            <option value="">Select Serial Number</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn-secondary" id="addSerialNumberBtn">
+                            <i class="fas fa-plus"></i> Add Serial
+                        </button>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
         <span class="form-error" id="error-SerialNumbers">@error('SerialNumbers'){{ $message }}@enderror</span>
     </div>
 
@@ -98,14 +107,17 @@
         var quantityInput = document.getElementById('QuantityAdjust');
         var unitLabel = document.getElementById('quantity-adjust-unit');
         var serialsGroup = document.getElementById('adjustment-serials-group');
-        var serialSearch = document.getElementById('SerialSearch');
-        var serialList = document.getElementById('adjustment-serial-list');
+        var serialSelect = document.getElementById('SerialNumberSelect');
+        var serialRows = document.getElementById('adjustment-serial-rows');
+        var addSerialBtn = document.getElementById('addSerialNumberBtn');
         var serialCount = document.getElementById('adjustment-serial-count');
         var serialError = document.getElementById('error-SerialNumbers');
         if (!productSelect || !quantityInput || !serialsGroup) return;
 
         var damagedReason = @json(\App\Models\StockAdjustment::REASON_DAMAGED);
-        var ticked = @json(array_values((array) old('SerialNumbers', [])));
+        // In-stock serials of the chosen product, and the ones recorded.
+        var available = [];
+        var recorded = @json(array_values((array) old('SerialNumbers', [])));
 
         window.syncStockAdjustmentReason = function (select) {
             var damagedHint = document.getElementById('damaged-reason-hint');
@@ -118,54 +130,69 @@
             try { return JSON.parse(option.dataset.serials); } catch (e) { return null; }
         }
 
-        function tickedBoxes() {
-            return serialList.querySelectorAll('input[type="checkbox"]:checked');
-        }
+        // One row per recorded serial (with the SerialNumbers[] value sent);
+        // the dropdown offers only the ones not recorded yet. The quantity
+        // of a serial-numbered product is the number recorded.
+        function renderSerials() {
+            serialRows.innerHTML = '';
+            recorded.forEach(function (serial, index) {
+                var row = document.createElement('tr');
+                var serialCell = document.createElement('td');
+                var code = document.createElement('code');
+                code.textContent = serial;
+                serialCell.appendChild(code);
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'SerialNumbers[]';
+                hidden.value = serial;
+                serialCell.appendChild(hidden);
+                var actionsCell = document.createElement('td');
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn btn-secondary';
+                removeBtn.title = 'Remove ' + serial;
+                removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                removeBtn.addEventListener('click', function () {
+                    recorded.splice(index, 1);
+                    renderSerials();
+                });
+                actionsCell.appendChild(removeBtn);
+                row.appendChild(serialCell);
+                row.appendChild(actionsCell);
+                serialRows.appendChild(row);
+            });
+            if (!recorded.length) {
+                serialRows.innerHTML = '<tr class="adjustment-serial-empty"><td colspan="2">No serial numbers added yet.</td></tr>';
+            }
 
-        // The quantity of a serial-numbered product is the number ticked.
-        function updateSerialCount() {
-            var count = tickedBoxes().length;
-            var total = serialList.querySelectorAll('input[type="checkbox"]').length;
-            serialCount.textContent = count + ' of ' + total + ' selected';
+            serialSelect.innerHTML = '';
+            var placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select Serial Number';
+            serialSelect.appendChild(placeholder);
+            available.filter(function (serial) { return recorded.indexOf(serial) === -1; }).forEach(function (serial) {
+                var option = document.createElement('option');
+                option.value = serial;
+                option.textContent = serial;
+                serialSelect.appendChild(option);
+            });
+
+            var count = recorded.length;
+            serialCount.textContent = count + ' of ' + available.length + ' added';
             quantityInput.value = count > 0 ? count : '';
-            serialSearch.setCustomValidity(count > 0 ? '' : 'Tick the serial number of each piece being removed.');
+            serialSelect.setCustomValidity(count > 0 ? '' : 'Add the serial number of each piece being removed.');
         }
 
-        function filterSerials() {
-            var query = serialSearch.value.trim().toUpperCase();
-            var shown = 0;
-            serialList.querySelectorAll('.adjustment-serial').forEach(function (label) {
-                var match = !query || label.dataset.serial.indexOf(query) !== -1;
-                label.style.display = match ? '' : 'none';
-                if (match) shown++;
-            });
-            var empty = serialList.querySelector('.adjustment-serial-empty');
-            if (empty) empty.style.display = shown ? 'none' : '';
-        }
-
-        function renderSerials(serials) {
-            serialList.innerHTML = '';
-            serials.forEach(function (serial) {
-                var label = document.createElement('label');
-                label.className = 'adjustment-serial';
-                label.dataset.serial = serial;
-                var box = document.createElement('input');
-                box.type = 'checkbox';
-                box.name = 'SerialNumbers[]';
-                box.value = serial;
-                box.checked = ticked.indexOf(serial) !== -1;
-                box.addEventListener('change', updateSerialCount);
-                label.appendChild(box);
-                label.appendChild(document.createTextNode(serial));
-                serialList.appendChild(label);
-            });
-            var empty = document.createElement('div');
-            empty.className = 'adjustment-serial-empty';
-            empty.textContent = 'No matching serial number.';
-            empty.style.display = 'none';
-            serialList.appendChild(empty);
-            ticked = [];
-        }
+        addSerialBtn.addEventListener('click', function () {
+            var serial = serialSelect.value;
+            if (serialError) serialError.textContent = '';
+            if (!serial) {
+                if (serialError) serialError.textContent = 'Select a serial number to add.';
+                return;
+            }
+            recorded.push(serial);
+            renderSerials();
+        });
 
         function syncProduct() {
             var option = productSelect.options[productSelect.selectedIndex];
@@ -179,45 +206,26 @@
             quantityInput.min = fractional ? '0.01' : '1';
             if (hasProduct) quantityInput.max = option.dataset.stock; else quantityInput.removeAttribute('max');
 
-            serialSearch.value = '';
             if (serialError) serialError.textContent = '';
             if (serials) {
-                renderSerials(serials);
+                // Kept only if they belong to this product (a re-shown form).
+                available = serials;
+                recorded = recorded.filter(function (serial) { return serials.indexOf(serial) !== -1; });
                 serialsGroup.style.display = '';
                 quantityInput.readOnly = true;
-                quantityInput.placeholder = 'Tick serial numbers';
-                updateSerialCount();
+                quantityInput.placeholder = 'Add serial numbers';
+                renderSerials();
             } else {
-                serialList.innerHTML = '';
+                available = [];
+                recorded = [];
+                serialRows.innerHTML = '';
                 serialsGroup.style.display = 'none';
-                serialSearch.setCustomValidity('');
+                serialSelect.setCustomValidity('');
                 if (quantityInput.readOnly) quantityInput.value = '';
                 quantityInput.readOnly = false;
                 quantityInput.placeholder = 'e.g., 5';
             }
         }
-
-        serialSearch.addEventListener('input', function () {
-            if (serialError) serialError.textContent = '';
-            filterSerials();
-        });
-
-        // A scanned sticker (or a typed number + Enter) ticks that piece.
-        serialSearch.addEventListener('keydown', function (e) {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            var code = serialSearch.value.trim().toUpperCase();
-            if (!code) return;
-            var label = serialList.querySelector('.adjustment-serial[data-serial="' + code.replace(/"/g, '') + '"]');
-            if (!label) {
-                if (serialError) serialError.textContent = code + ' is not an in-stock serial number of this product.';
-                return;
-            }
-            label.querySelector('input').checked = true;
-            serialSearch.value = '';
-            filterSerials();
-            updateSerialCount();
-        });
 
         productSelect.addEventListener('change', syncProduct);
         if (productSelect.form) {

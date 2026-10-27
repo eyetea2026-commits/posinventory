@@ -145,7 +145,11 @@ class SerialNumbersTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index'))->assertOk()
             ->assertSee('data-serials="'.e(json_encode(['SN00001', 'SN00003'])).'"', false)
             ->assertSee('data-serials=""', false)
-            ->assertSee('id="SerialSearch"', false);
+            // Recorded one row each: the searchable dropdown, then Add Serial.
+            ->assertSee('<tbody id="adjustment-serial-rows"></tbody>', false)
+            ->assertSee('<select id="SerialNumberSelect" class="form-select" aria-label="Serial Number">', false)
+            ->assertSee('id="addSerialNumberBtn"', false)
+            ->assertDontSee('id="SerialSearch"', false);
     }
 
     public function test_scanning_a_serial_sticker_finds_that_piece(): void
