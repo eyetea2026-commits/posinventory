@@ -8,7 +8,10 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\PaymentProof;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 // Covers the Cheque/Bank Transfer payment fix: previously account_number
@@ -27,6 +30,7 @@ class ChequeAndBankTransferPaymentTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake(PaymentProof::DISK);
 
         $cashierRole = Role::create(['role_name' => 'cashier']);
         $this->cashier = User::factory()->create(['role_id' => $cashierRole->id]);
@@ -39,12 +43,20 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 50, 'Status' => 'Available']);
     }
 
+    // GCash, Bank Transfer and Cheque sales need a proof of payment photo,
+    // so one is attached unless the test passes its own.
     private function baseCheckoutPayload(array $overrides = []): array
     {
-        return array_merge([
+        $payload = array_merge([
             'items' => [['id' => $this->product->ProductID, 'qty' => 1]],
             'payment_amount' => 1120, // 1000 + 12% VAT
         ], $overrides);
+
+        if (in_array($payload['payment_method'] ?? null, PaymentProof::METHODS, true) && ! array_key_exists('payment_proof', $payload)) {
+            $payload['payment_proof'] = UploadedFile::fake()->image('proof.jpg');
+        }
+
+        return $payload;
     }
 
     // ---- Cheque: valid payment persists every field ----

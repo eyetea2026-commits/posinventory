@@ -334,14 +334,16 @@ class CashierAuthController extends Controller
             'remarks' => 'nullable|string|max:500',
             // 7 whole-peso digits max, matching the POS input's own cap.
             'payment_amount' => 'nullable|numeric|min:0|max:9999999.99',
-            // Optional photo: GCash screenshot, bank transfer slip or cheque.
-            'payment_proof' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            // Required photo for GCash / Bank Transfer / Cheque: the GCash
+            // screenshot, bank transfer slip or the cheque itself.
+            'payment_proof' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), PaymentProof::METHODS, true)), 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             // Needs an Administrator's approval first (approveCustomDiscount()).
             'custom_discount_percent' => 'nullable|integer|min:1|max:99',
         ], [
             'items.*.qty.gt' => 'Every quantity must be greater than 0.',
             'items.*.qty.decimal' => 'Quantities can have up to 2 decimals.',
             'payment_amount.max' => 'Payment amount cannot exceed ₱9,999,999.99.',
+            'payment_proof.required' => 'Please upload the proof of payment photo.',
             'payment_proof.image' => 'The proof of payment must be a photo (JPG, PNG or WebP).',
             'payment_proof.mimes' => 'The proof of payment must be a photo (JPG, PNG or WebP).',
             'payment_proof.max' => 'The proof of payment photo must be 5 MB or smaller.',

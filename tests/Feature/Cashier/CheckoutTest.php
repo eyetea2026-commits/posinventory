@@ -13,9 +13,12 @@ use App\Models\SalesItem;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
+use App\Services\PaymentProof;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -171,12 +174,14 @@ class CheckoutTest extends TestCase
 
     public function test_gcash_payment_below_total_is_rejected(): void
     {
+        Storage::fake(PaymentProof::DISK);
         $product = $this->makeProduct(1000);
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
             'payment_method' => 'gcash',
             'payment_amount' => 500,
+            'payment_proof' => UploadedFile::fake()->image('gcash.jpg'),
         ]);
 
         $response->assertStatus(400);
@@ -186,6 +191,7 @@ class CheckoutTest extends TestCase
 
     public function test_gcash_payment_meeting_total_succeeds(): void
     {
+        Storage::fake(PaymentProof::DISK);
         $product = $this->makeProduct(1000);
 
         // 1000 subtotal, no discount, price is VAT-inclusive -> total 1000
@@ -193,6 +199,7 @@ class CheckoutTest extends TestCase
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
             'payment_method' => 'gcash',
             'payment_amount' => 1000,
+            'payment_proof' => UploadedFile::fake()->image('gcash.jpg'),
         ]);
 
         $response->assertOk();

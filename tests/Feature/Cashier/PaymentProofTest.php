@@ -14,7 +14,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-// GCash, Bank Transfer and Cheque sales can carry an optional proof of
+// GCash, Bank Transfer and Cheque sales must carry a proof of
 // payment photo. It's kept on the private disk and only shown to the
 // cashier who made the sale and to Administrators.
 class PaymentProofTest extends TestCase
@@ -78,13 +78,31 @@ class PaymentProofTest extends TestCase
             ->assertSee(route('payments.proof', $payment), false);
     }
 
-    public function test_the_proof_is_optional_and_only_for_gcash_bank_and_cheque(): void
+    public function test_gcash_bank_and_cheque_sales_cannot_complete_without_a_proof_photo(): void
     {
-        // No photo: the sale goes through as before.
-        $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), $this->sale())->assertOk();
+        $details = [
+            'gcash' => [],
+            'bank' => ['bank_name' => 'BPI', 'account_name' => 'Maria Santos', 'payment_date' => '2026-10-27', 'payment_time' => '14:30'],
+            'cheque' => ['bank_name' => 'BDO', 'account_name' => 'Juan Dela Cruz', 'payment_date' => '2026-10-27'],
+        ];
+
+        foreach ($details as $method => $fields) {
+            $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), $this->sale(['payment_method' => $method] + $fields))
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['payment_proof' => 'Please upload the proof of payment photo.']);
+        }
+
+        $this->assertSame(0, Payment::count());
+        $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->value('Quantity'));
+    }
+
+    public function test_cash_needs_no_proof_and_ignores_one_sent_with_it(): void
+    {
+        $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), $this->sale([
+            'payment_method' => 'cash', 'reference_number' => null,
+        ]))->assertOk();
         $this->assertNull(Payment::firstOrFail()->ProofImagePath);
 
-        // A photo sent with a cash sale is ignored.
         $this->actingAs($this->cashier)->post(route('cashier.process-sale'), $this->sale([
             'payment_method' => 'cash', 'reference_number' => null,
             'payment_proof' => UploadedFile::fake()->image('cash.jpg'),
@@ -117,11 +135,15 @@ class PaymentProofTest extends TestCase
         $this->assertSame([], Storage::disk(PaymentProof::DISK)->allFiles());
     }
 
-    public function test_the_pos_offers_the_proof_field(): void
+    public function test_the_pos_requires_the_proof_field_before_completing_the_sale(): void
     {
         $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()
             ->assertSee('<input type="file" id="payment-proof" accept="image/jpeg,image/png,image/webp"', false)
+            ->assertSee('Proof of Payment <span class="payment-proof-required">*</span>', false)
+            ->assertDontSee('(optional photo)')
             ->assertSee("const PAYMENT_PROOF_METHODS = ['gcash', 'bank', 'cheque'];", false)
+            ->assertSee('if (PAYMENT_PROOF_METHODS.includes(selectedPaymentMethod) && !proofInput.files.length) {', false)
+            ->assertSee("toastWarning('Please upload the proof of payment photo.');", false)
             ->assertSee("formData.append('payment_proof', proofFile);", false);
     }
 }

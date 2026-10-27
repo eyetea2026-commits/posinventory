@@ -185,8 +185,9 @@
     #payment-amount.auto-filled { color: #34d399; cursor: not-allowed; opacity: 0.9; }
     .payment-amount-hint { display: block; margin-top: 4px; color: #94a3b8; font-size: 0.72rem; }
 
-    .payment-proof-optional { color: #94a3b8; font-weight: 400; }
+    .payment-proof-required { color: #ef4444; }
     #payment-proof { width: 100%; padding: 8px; background: #1a1d2d; border: 1px dashed #4a5568; border-radius: 8px; color: #cbd5e1; }
+    #payment-proof.error { border-color: #ef4444; background: rgba(239, 68, 68, 0.08); }
     .payment-proof-preview { align-items: center; gap: 10px; margin-top: 8px; }
     .payment-proof-preview img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid #4a5568; }
     .payment-proof-preview button { background: none; border: 1px solid #4a5568; color: #fca5a5; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
@@ -437,10 +438,10 @@
             <input type="text" id="account-number" placeholder="Enter reference number...">
         </div>
 
-        {{-- Optional photo for GCash / Bank Transfer / Cheque: the GCash
+        {{-- Required photo for GCash / Bank Transfer / Cheque: the GCash
              screenshot, transfer slip or the cheque itself. --}}
         <div class="form-group" id="payment-proof-group" style="display: none;">
-            <label for="payment-proof">Proof of Payment <small class="payment-proof-optional">(optional photo)</small></label>
+            <label for="payment-proof">Proof of Payment <span class="payment-proof-required">*</span></label>
             <input type="file" id="payment-proof" accept="image/jpeg,image/png,image/webp" onchange="previewPaymentProof(this)">
             <div class="payment-proof-preview" id="payment-proof-preview" style="display: none;">
                 <img alt="Proof of payment preview">
@@ -1653,13 +1654,14 @@
         document.getElementById('approval-error').textContent = '';
     });
 
-    // Proof of payment photo (optional) for these methods only.
+    // Proof of payment photo, required for these methods only.
     const PAYMENT_PROOF_METHODS = ['gcash', 'bank', 'cheque'];
     const PAYMENT_PROOF_MAX_BYTES = 5 * 1024 * 1024;
 
     function previewPaymentProof(input) {
         const file = input.files && input.files[0];
         const preview = document.getElementById('payment-proof-preview');
+        input.classList.remove('error');
         if (!file) {
             preview.style.display = 'none';
             return;
@@ -1705,6 +1707,7 @@
 
         document.getElementById('account-number-group').style.display = method === 'gcash' ? 'block' : 'none';
         document.getElementById('payment-proof-group').style.display = PAYMENT_PROOF_METHODS.includes(method) ? 'block' : 'none';
+        document.getElementById('payment-proof').classList.remove('error');
         document.getElementById('cheque-details-group').style.display = method === 'cheque' ? 'block' : 'none';
         document.getElementById('bank-details-group').style.display = method === 'bank' ? 'block' : 'none';
 
@@ -1943,6 +1946,16 @@
             return;
         }
 
+        // GCash / Bank Transfer / Cheque can't complete without the proof
+        // of payment photo. ProcessSale enforces the same rule server-side.
+        const proofInput = document.getElementById('payment-proof');
+        if (PAYMENT_PROOF_METHODS.includes(selectedPaymentMethod) && !proofInput.files.length) {
+            proofInput.classList.add('error');
+            proofInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            toastWarning('Please upload the proof of payment photo.');
+            return;
+        }
+
         const data = {
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
@@ -1992,7 +2005,7 @@
                 return;
             }
 
-            // Sent as a form so the optional proof of payment photo can go with it.
+            // Sent as a form so the proof of payment photo can go with it.
             const formData = new FormData();
             appendFormData(formData, data, '');
             const proofFile = document.getElementById('payment-proof').files[0];
