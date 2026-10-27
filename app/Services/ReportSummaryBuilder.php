@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Http\Controllers\Admin\PurchaseOrderController;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,7 +23,7 @@ class ReportSummaryBuilder
     {
         return match ($type) {
             'inventory' => self::inventory($rows),
-            'reorder' => self::reorder($rows),
+            'receiving' => self::receiving($rows),
             'stock_adjustment' => self::stockAdjustment($rows),
             'orders' => self::orders($rows),
             'returns' => self::returns($rows),
@@ -72,19 +71,15 @@ class ReportSummaryBuilder
         ];
     }
 
-    // Rows are Inventory records (ReportController::reorderRows()) already
-    // filtered to Quantity <= ReorderThreshold, so every row here IS a
-    // product that needs reordering — no further filtering needed.
-    private static function reorder(Collection $rows): array
+    // Rows are delivery product lines (ReportController::receivingRows()) —
+    // Total Deliveries counts distinct deliveries, not rows; what each
+    // added to stock is in the product's base unit.
+    private static function receiving(Collection $rows): array
     {
         return [
-            ['label' => 'Products Needing Reorder', 'value' => $rows->count(), 'money' => false],
-            ['label' => 'Total Suggested Reorder Quantity', 'value' => $rows->sum(
-                fn ($r) => PurchaseOrderController::suggestedReorderQuantity($r->Quantity, (int) ($r->ReorderThreshold ?? 50))
-            ), 'money' => false, 'text' => UnitOfMeasure::totals($rows->map(fn ($r) => [
-                PurchaseOrderController::suggestedReorderQuantity($r->Quantity, (int) ($r->ReorderThreshold ?? 50)),
-                $r->product?->baseUnit(),
-            ]))],
+            ['label' => 'Total Deliveries', 'value' => $rows->pluck('DeliveryID')->unique()->count(), 'money' => false],
+            ['label' => 'Product Lines Received', 'value' => $rows->count(), 'money' => false],
+            ['label' => 'Total Quantity Added to Stock', 'value' => $rows->sum('BaseQuantity'), 'money' => false, 'text' => UnitOfMeasure::totals($rows->map(fn ($r) => [$r->BaseQuantity, $r->BaseUnit]))],
         ];
     }
 

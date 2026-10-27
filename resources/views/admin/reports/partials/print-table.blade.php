@@ -56,28 +56,28 @@
             @endforelse
         </tbody>
     </table>
-@elseif($type === 'reorder')
+@elseif($type === 'receiving')
     <table>
         <thead>
             <tr>
-                <th>Product</th><th>Category</th>
-                <th class="col-qty">Current Stock</th><th class="col-qty">Reorder Threshold</th>
-                <th class="col-qty">Suggested Reorder Qty</th><th>Preferred Supplier</th>
+                <th class="col-date">Date Received</th><th>Receipt No.</th><th>PO Number</th><th>Supplier</th>
+                <th>Product</th><th class="col-qty">Quantity</th><th class="col-qty">Added to Stock</th><th>Received By</th>
             </tr>
         </thead>
         <tbody>
             @forelse($rows as $row)
-                @php($supplierName = $row->product?->resolveReorderSupplier()?->supplier?->SupplierName)
                 <tr>
-                    <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                    <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
-                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
-                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->ReorderThreshold ?? 0, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
-                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity($row->Quantity, (int) ($row->ReorderThreshold ?? 50)), $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
-                    <td>{{ $supplierName ?? 'N/A' }}</td>
+                    <td class="col-date">{{ $row->ReceivedAt?->format('m/d/Y') ?? 'N/A' }}</td>
+                    <td>{{ $row->ReceiptNumber }}</td>
+                    <td>{{ $row->PONumber }}</td>
+                    <td>{{ $row->SupplierName }}</td>
+                    <td>{{ $row->ProductName }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit) }}</td>
+                    <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->BaseQuantity, $row->BaseUnit) }}</td>
+                    <td>{{ $row->ReceivedByName }}</td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="no-records"><strong>NO RECORDS FOUND</strong>No products are currently at or below their reorder threshold.</td></tr>
+                <tr><td colspan="8" class="no-records"><strong>NO RECORDS FOUND</strong>No deliveries were received within the selected report criteria.</td></tr>
             @endforelse
         </tbody>
     </table>

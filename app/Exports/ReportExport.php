@@ -2,11 +2,11 @@
 
 namespace App\Exports;
 
-use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Models\DamagedProduct;
 use App\Models\PurchaseOrder;
 use App\Services\ReportSummaryBuilder;
+use App\Services\UnitOfMeasure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -51,7 +51,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     {
         return match ($this->type) {
             'inventory' => ['Product', 'SKU', 'Barcode', 'Category', 'Supplier', 'Current Stock', 'Reorder Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Status'],
-            'reorder' => ['Product', 'Category', 'Current Stock', 'Reorder Threshold', 'Suggested Reorder Qty', 'Preferred Supplier'],
+            'receiving' => ['Date Received', 'Receipt Number', 'PO Number', 'Supplier', 'Product', 'Quantity', 'Added to Stock', 'Received By'],
             'stock_adjustment' => ['Reference', 'Date', 'Product', 'Adjustment', 'Reason'],
             'orders' => ['PO Number', 'Date', 'Supplier', 'Product', 'Qty', 'Unit Price', 'Subtotal', 'Status'],
             'returns' => ['Return Ref.', 'Date', 'Invoice', 'Customer', 'Product', 'Qty', 'Reason', 'Type', 'Status', 'Processed By'],
@@ -83,13 +83,15 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 ($row->QuantityAdjust >= 0 ? '+' : '').$row->QuantityAdjust,
                 $row->Reason,
             ],
-            'reorder' => [
-                $row->product?->ProductName ?? 'N/A',
-                $row->product?->category?->CategoryName ?? 'Uncategorized',
-                $row->Quantity,
-                $row->ReorderThreshold ?? 0,
-                PurchaseOrderController::suggestedReorderQuantity((int) $row->Quantity, (int) ($row->ReorderThreshold ?? 50)),
-                $row->product?->resolveReorderSupplier()?->supplier?->SupplierName ?? 'N/A',
+            'receiving' => [
+                self::mdy($row->ReceivedAt),
+                $row->ReceiptNumber,
+                $row->PONumber,
+                $row->SupplierName,
+                $row->ProductName,
+                UnitOfMeasure::cell($row->Quantity, $row->Unit),
+                UnitOfMeasure::cell($row->BaseQuantity, $row->BaseUnit),
+                $row->ReceivedByName,
             ],
             'orders' => [
                 $row->PONumber,
@@ -152,7 +154,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         return match ($this->type) {
             'inventory' => [7, 8, 9],
             'orders' => [6, 7],
-            'returns', 'damage', 'stock_adjustment', 'reorder' => [],
+            'returns', 'damage', 'stock_adjustment', 'receiving' => [],
             default => [7, 8, 9, 10],
         };
     }
@@ -173,6 +175,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     {
         return match ($this->type) {
             'sales', 'orders', 'damage', 'returns', 'stock_adjustment' => [2],
+            'receiving' => [1],
             default => [],
         };
     }
@@ -190,7 +193,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         return match ($this->type) {
             'inventory' => ['Total Inventory Value' => 9],
             'orders' => ['Total Amount' => 7],
-            'stock_adjustment', 'reorder' => [],
+            'stock_adjustment', 'receiving' => [],
             default => ['Net Sales' => 10, 'Discount' => 8, 'VAT' => 9],
         };
     }

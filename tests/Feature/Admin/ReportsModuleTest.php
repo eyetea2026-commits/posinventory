@@ -17,6 +17,8 @@ use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\StockAdjustment;
 use App\Models\StockReceiving;
+use App\Models\StockReceivingBatch;
+use App\Models\StockReceivingDelivery;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\ReportSummaryBuilder;
@@ -74,13 +76,15 @@ class ReportsModuleTest extends TestCase
         $response->assertOk();
         $response->assertSee('Sales and Revenue Report');
         $response->assertSee('Inventory Report');
-        $response->assertSee('Reorder Report');
         $response->assertSee('Damage Report');
         $response->assertSee('Refund Report');
         $response->assertSee('Stock Adjustment Report');
+        $response->assertSee('Stock Receiving Report');
+        $response->assertSee('value="receiving"', false);
         $response->assertSee('Purchase Order Report');
-        // Stock Receiving and Supplier were dropped from the curated list.
-        $response->assertDontSee('Stock Receiving Report');
+        // Reorder and Supplier were dropped from the curated list.
+        $response->assertDontSee('Reorder Report');
+        $response->assertDontSee('value="reorder"', false);
         $response->assertDontSee('Supplier Report');
         $response->assertDontSee('value="stock_receiving"', false);
         $response->assertDontSee('value="supplier"', false);
@@ -216,64 +220,99 @@ class ReportsModuleTest extends TestCase
         $this->assertSame(3, $adjustmentSummary['Total Quantity Decreased']['value']);
     }
 
-    // ---- Reorder: a live low-stock snapshot, reusing the same
-    // Quantity <= ReorderThreshold detection the dashboard's low-stock
-    // widget already uses ----
+    // ---- Stock Receiving report: one row per product line of each delivery
+    // received (Add to Inventory), filtered by the date it was received ----
 
-    public function test_reorder_report_shows_only_products_at_or_below_threshold(): void
+    private function receiveDelivery(string $receivedAt, string $receiptNumber, int $quantity = 5): StockReceivingDelivery
     {
-        Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 3, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);
-
-        $wellStocked = Product::create([
-            'ProductName' => 'Well Stocked Camera', 'Model' => 'CAM-99',
-            'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $this->product->CategoryID,
+        $order = PurchaseOrder::create([
+            'PONumber' => 'PO-'.$receiptNumber, 'SupplierID' => $this->supplier->SupplierID,
+            'PurchaseDate' => $receivedAt, 'Status' => 'fully_received',
         ]);
-        Inventory::create(['ProductID' => $wellStocked->ProductID, 'Quantity' => 100, 'ReorderThreshold' => 10, 'Status' => 'Available']);
+        $line = PurchaseOrderItem::create(['PurchaseOrderID' => $order->PurchaseOrderID, 'ProductID' => $this->product->ProductID, 'Quantity' => $quantity, 'CostPriceAtOrder' => 600]);
+        $batch = StockReceivingBatch::create(['PurchaseOrderID' => $order->PurchaseOrderID, 'Status' => StockReceivingBatch::STATUS_COMPLETED]);
+        $delivery = StockReceivingDelivery::create([
+            'StockReceivingBatchID' => $batch->StockReceivingBatchID,
+            'PurchaseOrderID' => $order->PurchaseOrderID, 'ReceiptNumber' => $receiptNumber,
+            'ReceivedBy' => $this->admin->id, 'ReceivedAt' => $receivedAt,
+        ]);
+        $delivery->items()->create([
+            'PurchaseOrderItemID' => $line->PurchaseOrderItemID, 'ProductID' => $this->product->ProductID,
+            'Quantity' => $quantity, 'BaseQuantity' => $quantity,
+        ]);
 
-        $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'reorder']));
-
-        $response->assertOk();
-        $html = $response->json('html');
-        $this->assertStringContainsString('Products Needing Reorder', $html);
-        $this->assertStringContainsString('DVR Camera', $html);
-        $this->assertStringNotContainsString('Well Stocked Camera', $html);
+        return $delivery;
     }
 
-    public function test_reorder_report_shows_preferred_supplier_and_create_po_action(): void
+    public function test_receiving_report_lists_deliveries_received_in_the_date_range(): void
     {
-        Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 2, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);
-        $this->product->suppliers()->create(['SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 600, 'IsPreferred' => true]);
+        $this->receiveDelivery('2026-06-15 10:00:00', 'RCPT-IN', 7);
+        $this->receiveDelivery('2020-01-01 10:00:00', 'RCPT-OLD');
 
-        $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'reorder']));
+        $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', [
+            'type' => 'receiving', 'date_from' => '2026-06-01', 'date_to' => '2026-06-30',
+        ]));
 
         $response->assertOk();
         $html = $response->json('html');
+        $this->assertStringContainsString('Stock Receiving', $html);
+        $this->assertStringContainsString('06/15/2026', $html);
+        $this->assertStringContainsString('RCPT-IN', $html);
+        $this->assertStringContainsString('PO-RCPT-IN', $html);
         $this->assertStringContainsString('Acme Supplies', $html);
-        $this->assertStringContainsString(route('admin.purchase-orders.create-from-reorder', $this->product->ProductID), $html);
+        $this->assertStringContainsString('DVR Camera', $html);
+        $this->assertStringContainsString(e($this->admin->full_name), $html);
+        $this->assertStringNotContainsString('RCPT-OLD', $html);
     }
 
-    public function test_reorder_report_csv_and_pdf_export_work(): void
+    public function test_receiving_report_shows_empty_state_without_deliveries(): void
     {
-        Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 1, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);
+        $html = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'receiving']))
+            ->assertOk()->json('html');
 
-        $csv = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'reorder', 'format' => 'csv']));
+        $this->assertStringContainsString('No reports or records found for the selected date range.', $html);
+    }
+
+    public function test_receiving_report_csv_and_pdf_export_work(): void
+    {
+        $this->receiveDelivery('2026-06-15 10:00:00', 'RCPT-CSV');
+
+        $csv = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'receiving', 'format' => 'csv']));
         $csv->assertOk();
         $csv->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+        $this->assertStringContainsString('RCPT-CSV', $csv->streamedContent());
 
-        $pdf = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'reorder', 'format' => 'pdf']));
+        $pdf = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'receiving', 'format' => 'pdf']));
         $pdf->assertOk();
     }
 
-    public function test_report_summary_builder_computes_reorder_aggregates(): void
+    public function test_report_summary_builder_computes_receiving_aggregates(): void
     {
-        Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 4, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);
-        $rows = Inventory::with('product')->get();
+        $this->receiveDelivery('2026-06-15 10:00:00', 'RCPT-A', 4);
+        $twoLines = $this->receiveDelivery('2026-06-16 10:00:00', 'RCPT-B', 6);
+        $twoLines->items()->create([
+            'PurchaseOrderItemID' => $twoLines->items()->first()->PurchaseOrderItemID, 'ProductID' => $this->product->ProductID,
+            'Quantity' => 2, 'BaseQuantity' => 2,
+        ]);
 
-        $summary = collect(ReportSummaryBuilder::forType('reorder', $rows))->keyBy('label');
+        $rows = (new \ReflectionMethod(ReportController::class, 'receivingRows'))->invoke(new ReportController, null, null);
+        $summary = collect(ReportSummaryBuilder::forType('receiving', $rows))->keyBy('label');
 
-        $this->assertSame(1, $summary['Products Needing Reorder']['value']);
-        // suggestedReorderQuantity(4, 10) brings stock up to 2x threshold: (10*2) - 4 = 16.
-        $this->assertSame(16, $summary['Total Suggested Reorder Quantity']['value']);
+        $this->assertSame(2, $summary['Total Deliveries']['value']);
+        $this->assertSame(3, $summary['Product Lines Received']['value']);
+        $this->assertEquals(12, $summary['Total Quantity Added to Stock']['value']);
+    }
+
+    public function test_old_reorder_report_link_shows_the_sales_report(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.reports.index', ['type' => 'reorder']))
+            ->assertOk()
+            ->assertDontSee('value="reorder"', false)
+            ->assertSee('Sales and Revenue Report');
+
+        $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'reorder']))
+            ->assertOk()
+            ->assertJsonPath('salesSummary.sales_total', 0);
     }
 
     public function test_inventory_report_filters_by_date_range_using_stock_activity(): void
@@ -494,7 +533,7 @@ class ReportsModuleTest extends TestCase
 
     public function test_excel_export_returns_a_valid_spreadsheet_for_every_report_type(): void
     {
-        foreach (['sales', 'inventory', 'reorder', 'stock_adjustment', 'orders', 'damage', 'returns'] as $type) {
+        foreach (['sales', 'inventory', 'receiving', 'stock_adjustment', 'orders', 'damage', 'returns'] as $type) {
             $response = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => $type, 'format' => 'excel']));
 
             $response->assertOk();
@@ -632,7 +671,7 @@ class ReportsModuleTest extends TestCase
         // is ever called with an invalid orientation string, so a clean 200
         // for every type confirms the per-type landscape/portrait branch
         // in ReportController::export() is wired correctly for all of them.
-        foreach (['sales', 'inventory', 'reorder', 'stock_adjustment', 'orders', 'damage', 'returns'] as $type) {
+        foreach (['sales', 'inventory', 'receiving', 'stock_adjustment', 'orders', 'damage', 'returns'] as $type) {
             $this->actingAs($this->admin)
                 ->get(route('admin.reports.export', ['type' => $type, 'format' => 'pdf']))
                 ->assertOk();
@@ -694,7 +733,7 @@ class ReportsModuleTest extends TestCase
 
     public function test_summary_cards_are_hidden_for_every_other_report_type(): void
     {
-        foreach (['inventory', 'reorder', 'damage', 'returns', 'stock_adjustment', 'orders'] as $type) {
+        foreach (['inventory', 'damage', 'returns', 'stock_adjustment', 'receiving', 'orders'] as $type) {
             $this->actingAs($this->admin)->get(route('admin.reports.index', ['type' => $type]))->assertOk()
                 ->assertSee('<div id="salesSummaryCards" class="stats-grid mt-4" style="display:none;">', false);
             $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => $type]))->assertOk()

@@ -15,11 +15,11 @@ use App\Models\SalesReturnItem;
 use App\Models\SalesTransaction;
 use App\Models\StockAdjustment;
 use App\Models\StockReceiving;
+use App\Models\StockReceivingDelivery;
 use App\Services\UnitOfMeasure;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -37,9 +37,21 @@ class ReportController extends Controller
         });
     }
 
+    /**
+     * The report types offered; anything else shows the Sales report.
+     */
+    private const REPORT_TYPES = ['sales', 'inventory', 'damage', 'returns', 'stock_adjustment', 'receiving', 'orders'];
+
+    private function reportType(Request $request): string
+    {
+        $type = (string) $request->query('type', 'sales');
+
+        return in_array($type, self::REPORT_TYPES, true) ? $type : 'sales';
+    }
+
     public function index(Request $request)
     {
-        $reportType = $request->get('type', 'sales');
+        $reportType = $this->reportType($request);
         [$dateFrom, $dateTo, $effectiveFrom, $effectiveTo, $dateRangeError] = $this->resolveDateRange($request);
 
         $data = $this->buildReportData($reportType, $effectiveFrom, $effectiveTo);
@@ -60,7 +72,7 @@ class ReportController extends Controller
      */
     public function preview(Request $request)
     {
-        $reportType = $request->get('type', 'sales');
+        $reportType = $this->reportType($request);
         [, , $effectiveFrom, $effectiveTo, $dateRangeError] = $this->resolveDateRange($request);
 
         $data = $this->buildReportData($reportType, $effectiveFrom, $effectiveTo);
@@ -378,7 +390,7 @@ class ReportController extends Controller
     // so the two surfaces never drift out of sync.
     public function printPreview(Request $request)
     {
-        $type = $request->get('type', 'sales');
+        $type = $this->reportType($request);
         [, , $dateFrom, $dateTo] = $this->resolveDateRange($request);
         $rows = $this->rowsForType($type, $dateFrom, $dateTo);
 
@@ -423,13 +435,14 @@ class ReportController extends Controller
             'orders' => 'Purchase Order',
             'returns' => 'Refund',
             'stock_adjustment' => 'Stock Adjustment',
+            'receiving' => 'Stock Receiving',
             default => ucfirst($type),
         };
     }
 
     public function export(Request $request)
     {
-        $type = $request->get('type', 'sales');
+        $type = $this->reportType($request);
         $format = $request->get('format', 'csv');
         [, , $dateFrom, $dateTo] = $this->resolveDateRange($request);
 
@@ -557,7 +570,7 @@ class ReportController extends Controller
             'salesRows' => $reportType === 'sales' ? $this->salesRows($dateFrom, $dateTo) : collect(),
             'salesSummary' => $reportType === 'sales' ? $this->salesSummary((float) ($sales->total_revenue ?? 0), $dateFrom, $dateTo) : null,
             'inventoryRows' => $reportType === 'inventory' ? $this->inventoryRows($dateFrom, $dateTo) : collect(),
-            'reorderRows' => $reportType === 'reorder' ? $this->reorderRows() : collect(),
+            'receivingRows' => $reportType === 'receiving' ? $this->receivingRows($dateFrom, $dateTo) : collect(),
             'stockAdjustmentRows' => $reportType === 'stock_adjustment' ? $this->stockAdjustmentRows($dateFrom, $dateTo) : collect(),
             'orderRows' => $reportType === 'orders' ? $this->orderRows($dateFrom, $dateTo) : collect(),
             'returnRows' => $reportType === 'returns' ? $this->returnRows($dateFrom, $dateTo) : collect(),
@@ -594,7 +607,7 @@ class ReportController extends Controller
     {
         return match ($type) {
             'inventory' => $this->inventoryRows($dateFrom, $dateTo),
-            'reorder' => $this->reorderRows(),
+            'receiving' => $this->receivingRows($dateFrom, $dateTo),
             'stock_adjustment' => $this->stockAdjustmentRows($dateFrom, $dateTo),
             'orders' => $this->orderItemRows($dateFrom, $dateTo),
             'returns' => $this->returnRows($dateFrom, $dateTo),
@@ -702,17 +715,30 @@ class ReportController extends Controller
             ->get();
     }
 
-    // Live snapshot (like inventoryRows()) rather than date-filtered: "needs
-    // reordering" is a fact about right-now stock levels, not a historical
-    // event, so it ignores the selected date range entirely. Reuses the
-    // exact same Quantity <= ReorderThreshold detection the dashboard's
-    // low-stock widget already uses, so the two can't disagree.
-    private function reorderRows()
+    // One row per product line of each delivery received (Stock Receiving's
+    // Add to Inventory), newest first: the quantity in the unit it was
+    // ordered in (2 rolls) and what it added to stock (1,000 meters).
+    private function receivingRows(?string $dateFrom, ?string $dateTo)
     {
-        return Inventory::with(['product.category', 'product.suppliers.supplier'])
-            ->whereColumn('Quantity', '<=', DB::raw('COALESCE(ReorderThreshold, 50)'))
-            ->orderBy('Quantity')
-            ->get();
+        return StockReceivingDelivery::with(['items.product', 'items.purchaseOrderItem', 'purchaseOrder.supplier', 'receivedByUser'])
+            ->when($dateFrom, fn ($q) => $q->whereDate('ReceivedAt', '>=', $dateFrom))
+            ->when($dateTo, fn ($q) => $q->whereDate('ReceivedAt', '<=', $dateTo))
+            ->orderByDesc('ReceivedAt')
+            ->orderByDesc('StockReceivingDeliveryID')
+            ->get()
+            ->flatMap(fn (StockReceivingDelivery $delivery) => $delivery->items->map(fn ($item) => (object) [
+                'DeliveryID' => $delivery->StockReceivingDeliveryID,
+                'ReceivedAt' => $delivery->ReceivedAt,
+                'ReceiptNumber' => $delivery->ReceiptNumber ?: 'N/A',
+                'PONumber' => $delivery->purchaseOrder?->PONumber ?? 'N/A',
+                'SupplierName' => $delivery->purchaseOrder?->supplier?->SupplierName ?? 'N/A',
+                'ProductName' => $item->product?->ProductName ?? 'N/A',
+                'Quantity' => $item->Quantity,
+                'Unit' => $item->purchaseOrderItem?->Unit,
+                'BaseQuantity' => $item->BaseQuantity ?? $item->Quantity,
+                'BaseUnit' => $item->product?->baseUnit(),
+                'ReceivedByName' => $delivery->receivedByUser?->full_name ?? 'N/A',
+            ]));
     }
 
     private function damageRows(?string $dateFrom, ?string $dateTo)
@@ -850,16 +876,19 @@ class ReportController extends Controller
                         $this->csvSafe($item->Reason),
                     ]);
                 }
-            } elseif ($type === 'reorder') {
-                fputcsv($handle, ['Product', 'Category', 'Current Stock', 'Reorder Threshold', 'Suggested Reorder Qty', 'Preferred Supplier']);
-                foreach ($this->reorderRows() as $item) {
+            } elseif ($type === 'receiving') {
+                fputcsv($handle, ['Delivery', 'Date Received', 'Receipt Number', 'PO Number', 'Supplier', 'Product', 'Quantity', 'Added to Stock', 'Received By']);
+                foreach ($this->receivingRows($dateFrom, $dateTo) as $item) {
                     fputcsv($handle, [
-                        $this->csvSafe($item->product?->ProductName ?? 'N/A'),
-                        $this->csvSafe($item->product?->category?->CategoryName ?? 'Uncategorized'),
-                        $item->Quantity,
-                        $item->ReorderThreshold ?? 0,
-                        PurchaseOrderController::suggestedReorderQuantity((int) $item->Quantity, (int) ($item->ReorderThreshold ?? 50)),
-                        $this->csvSafe($item->product?->resolveReorderSupplier()?->supplier?->SupplierName ?? 'N/A'),
+                        $item->DeliveryID,
+                        $this->fmtDate($item->ReceivedAt),
+                        $this->csvSafe($item->ReceiptNumber),
+                        $this->csvSafe($item->PONumber),
+                        $this->csvSafe($item->SupplierName),
+                        $this->csvSafe($item->ProductName),
+                        UnitOfMeasure::cell($item->Quantity, $item->Unit),
+                        UnitOfMeasure::cell($item->BaseQuantity, $item->BaseUnit),
+                        $this->csvSafe($item->ReceivedByName),
                     ]);
                 }
             } elseif ($type === 'orders') {

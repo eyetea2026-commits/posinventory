@@ -35,6 +35,11 @@ class StockReceivingDelivery extends Model
         return $this->hasMany(StockReceivingDeliveryItem::class, 'StockReceivingDeliveryID', 'StockReceivingDeliveryID');
     }
 
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'PurchaseOrderID', 'PurchaseOrderID');
+    }
+
     public function receivedByUser()
     {
         return $this->belongsTo(User::class, 'ReceivedBy', 'id');

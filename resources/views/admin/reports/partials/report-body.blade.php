@@ -63,39 +63,33 @@
             </table>
         </div>
     </div>
-@elseif($reportType === 'reorder')
+@elseif($reportType === 'receiving')
     <div class="card mt-4">
         <div class="card-header">
             <div>
-                <h2 class="card-title">Products Needing Reorder</h2>
-                <p class="card-subtitle">Live snapshot of products at or below their reorder threshold</p>
+                <h2 class="card-title">Stock Receiving</h2>
+                <p class="card-subtitle">Deliveries received from suppliers within the selected date range</p>
             </div>
         </div>
         <div class="table-container" style="max-height: 480px; overflow-y: auto;">
             <table class="table">
                 <thead>
-                    <tr><th>Product</th><th>Category</th><th>Current Stock</th><th>Reorder Threshold</th><th>Suggested Qty</th><th>Preferred Supplier</th><th>Actions</th></tr>
+                    <tr><th>Date Received</th><th>Receipt Number</th><th>PO Number</th><th>Supplier</th><th>Product</th><th>Quantity</th><th>Added to Stock</th><th>Received By</th></tr>
                 </thead>
                 <tbody>
-                    @forelse($reorderRows as $row)
-                        @php($supplierName = $row->product?->resolveReorderSupplier()?->supplier?->SupplierName)
+                    @forelse($receivingRows as $row)
                         <tr>
-                            <td>{{ $row->product?->ProductName ?? 'N/A' }}</td>
-                            <td>{{ $row->product?->category?->CategoryName ?? 'Uncategorized' }}</td>
-                            <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
-                            <td>{{ \App\Services\UnitOfMeasure::cell($row->ReorderThreshold ?? 0, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
-                            <td>{{ \App\Services\UnitOfMeasure::cell(\App\Http\Controllers\Admin\PurchaseOrderController::suggestedReorderQuantity($row->Quantity, (int) ($row->ReorderThreshold ?? 50)), $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
-                            <td>{{ $supplierName ?? 'N/A' }}</td>
-                            <td>
-                                @if($row->product)
-                                    <a href="{{ route('admin.purchase-orders.create-from-reorder', $row->product->ProductID) }}" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-cart-plus"></i> Create PO
-                                    </a>
-                                @endif
-                            </td>
+                            <td style="white-space:nowrap;">{{ $row->ReceivedAt?->format('m/d/Y') ?? 'N/A' }}</td>
+                            <td>{{ $row->ReceiptNumber }}</td>
+                            <td style="white-space:nowrap;">{{ $row->PONumber }}</td>
+                            <td>{{ $row->SupplierName }}</td>
+                            <td>{{ $row->ProductName }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit) }}</td>
+                            <td>{{ \App\Services\UnitOfMeasure::cell($row->BaseQuantity, $row->BaseUnit) }}</td>
+                            <td style="white-space:nowrap;">{{ $row->ReceivedByName }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted">No products are currently at or below their reorder threshold.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted">No reports or records found for the selected date range.</td></tr>
                     @endforelse
                 </tbody>
             </table>
