@@ -4,8 +4,10 @@
      as it's typed or pasted, including in boxes added later by JavaScript
      (POS cart, refunds). A minus sign is only allowed where the field's min
      is below zero. data-max-digits="3" caps a box at that many whole digits
-     (maxlength doesn't apply to number inputs). The text-type money boxes
-     strip letters themselves (window.attachMoneyInput). --}}
+     (maxlength doesn't apply to number inputs); data-clamp-max stops a box
+     at its max as it's typed (a received quantity at what's remaining).
+     The text-type money boxes strip letters themselves
+     (window.attachMoneyInput). --}}
 <script>
     (function () {
         if (window.__numericInputs) return;
@@ -50,6 +52,12 @@
             e.preventDefault();
             input.value = clean(input, text);
             input.dispatchEvent(new Event('input', { bubbles: true }));
+        }, true);
+
+        document.addEventListener('input', function (e) {
+            var input = e.target;
+            if (!isNumberInput(input) || input.dataset.clampMax === undefined || input.max === '') return;
+            if (parseFloat(input.value) > parseFloat(input.max)) input.value = input.max;
         }, true);
 
         document.addEventListener('input', function (e) {

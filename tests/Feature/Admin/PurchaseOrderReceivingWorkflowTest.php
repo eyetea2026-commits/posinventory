@@ -627,8 +627,12 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertOk();
         $html = $response->json('html');
         $this->assertStringContainsString('<th>Ordered</th>', $html);
-        $this->assertStringContainsString('<th>Still Owed</th>', $html);
-        $this->assertStringContainsString('<th>Receiving Now</th>', $html);
+        $this->assertStringContainsString('<th>Remaining</th>', $html);
+        $this->assertStringContainsString('<th>Received Quantity</th>', $html);
+        $this->assertStringNotContainsString('Still Owed', $html);
+        $this->assertStringNotContainsString('Receiving Now', $html);
+        // The box stops at what's remaining as it's typed.
+        $this->assertMatchesRegularExpression('/class="form-input receiving-now-input"[^>]*max="\d+" data-clamp-max/', $html);
         $this->assertStringContainsString('Receipt Number', $html);
         // One Receipt Number field for the whole delivery, not one per line.
         $this->assertSame(1, substr_count($html, 'name="receipt_number"'));

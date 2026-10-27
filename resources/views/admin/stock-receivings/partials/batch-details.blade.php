@@ -71,8 +71,8 @@
                         <th>Cancelled</th>
                     @endif
                     @if($isPending)
-                        <th>Still Owed</th>
-                        <th>Receiving Now</th>
+                        <th>Remaining</th>
+                        <th>Received Quantity</th>
                     @endif
                 </tr>
             </thead>
@@ -99,8 +99,9 @@
                             @php($basePlural = \App\Services\UnitOfMeasure::plural($baseUnit))
                             <td>
                                 <input type="hidden" name="items[{{ $loop->index }}][purchase_order_item_id]" value="{{ $item->PurchaseOrderItemID }}">
-                                {{-- This delivery only; defaults to everything still owed. --}}
-                                <input type="number" class="form-input receiving-now-input" style="max-width:110px;" name="items[{{ $loop->index }}][quantity_received]" min="0" max="{{ $item->remaining_quantity }}" value="{{ $item->remaining_quantity }}" @if($item->remaining_quantity <= 0) readonly @endif required oninput="window.updateReceivingTotal && window.updateReceivingTotal(this)">
+                                {{-- This delivery only; defaults to everything remaining and
+                                     stops at it as it's typed (never above Remaining or Ordered). --}}
+                                <input type="number" class="form-input receiving-now-input" style="max-width:110px;" name="items[{{ $loop->index }}][quantity_received]" min="0" max="{{ $item->remaining_quantity }}" data-clamp-max value="{{ $item->remaining_quantity }}" @if($item->remaining_quantity <= 0) readonly @endif required oninput="window.updateReceivingTotal && window.updateReceivingTotal(this)">
                                 @if($item->Unit && $item->Unit !== 'piece')<small style="display:block; color:#94a3b8;">{{ \App\Services\UnitOfMeasure::plural($item->Unit) }}</small>@endif
                                 @if($needsSize)
                                     <label class="receiving-size">
@@ -149,7 +150,7 @@
         </div>
         <table class="items-table">
             <thead>
-                <tr><th style="width: 1%;"></th><th>Product</th><th>Still Owed</th></tr>
+                <tr><th style="width: 1%;"></th><th>Product</th><th>Remaining</th></tr>
             </thead>
             <tbody>
                 @foreach($po->items->filter(fn ($item) => $item->remaining_quantity > 0) as $item)
