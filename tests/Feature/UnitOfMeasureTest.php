@@ -148,14 +148,14 @@ class UnitOfMeasureTest extends TestCase
         $this->assertTrue($product->fresh()->SellsByPurchaseUnit);
     }
 
-    public function test_the_form_reads_meter_and_roll_then_roll_then_the_threshold_in_meters(): void
+    public function test_the_form_reads_meter_and_roll_then_roll_then_the_price_per_meter(): void
     {
         $html = $this->actingAs($this->admin)->getJson(route('admin.products.edit', $this->wire))->assertOk()->json('html');
 
-        // The Selling Price sits beside the Cost Price (per meter), above the units.
-        $this->assertMatchesRegularExpression('/id="CostPrice".*?Selling Price \(₱\) <span class="uom-per-base">per meter<\/span>.*?id="SellingPrice"[^>]*value="10(.00)?".*?id="UnitOfMeasure"/s', $html);
-        // [Meter & Roll] | [Roll] | Reorder Threshold (meters), in that order, in one row.
-        $this->assertMatchesRegularExpression('/id="UnitOfMeasure".*?<option value="meter_roll"[^>]*selected>.*?id="PurchaseUnit".*?<option value="roll" selected>.*?Reorder Threshold <span class="uom-unit-note">\(<span class="uom-base-plural">meters<\/span>\)<\/span>.*?id="ReorderThreshold"/s', $html);
+        // [Meter & Roll] | [Roll] | ₱ 10 per meter, in that order, in one row.
+        $this->assertMatchesRegularExpression('/id="UnitOfMeasure".*?<option value="meter_roll"[^>]*selected>.*?id="PurchaseUnit".*?<option value="roll" selected>.*?id="SellingPrice"[^>]*value="10(.00)?".*?<span class="uom-per-base">per meter<\/span>/s', $html);
+        // The Reorder Threshold (in meters) sits above, beside Model and Brand.
+        $this->assertMatchesRegularExpression('/id="BrandID".*?Reorder Threshold <span class="uom-unit-note">\(<span class="uom-base-plural">meters<\/span>\)<\/span>.*?id="ReorderThreshold".*?id="UnitOfMeasure"/s', $html);
         // The roll size isn't asked here (it's entered at Stock Receiving).
         $this->assertStringNotContainsString('QuantityPerPurchaseUnit', $html);
         $this->assertStringNotContainsString('uom-one', $html);

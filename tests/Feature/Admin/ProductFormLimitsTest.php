@@ -13,7 +13,8 @@ use Tests\TestCase;
 // Cost and Selling Price take up to 5 whole-peso digits (99,999.99), the
 // Reorder Threshold up to 3 digits (999); number fields take no letters;
 // and the Add/Edit Product form reads Photo | Name, Category, Cost Price /
-// Model, Brand, Selling Price, then the units, pricing and suppliers.
+// Model, Brand, Reorder Threshold, then the units (with the Selling
+// Price), pricing and suppliers.
 class ProductFormLimitsTest extends TestCase
 {
     use RefreshDatabase;
@@ -86,11 +87,11 @@ class ProductFormLimitsTest extends TestCase
         $this->assertSame(1000.0, (float) $product->fresh()->CostPrice);
     }
 
-    public function test_the_form_reads_photo_beside_name_category_cost_then_model_brand_selling(): void
+    public function test_the_form_reads_photo_beside_name_category_cost_then_model_brand_threshold(): void
     {
         $html = $this->actingAs($this->admin)->get(route('admin.products.create'))->assertOk()->getContent();
 
-        $this->assertMatchesRegularExpression('/product-photo-field.*?id="ProductName".*?id="CategoryID".*?id="CostPrice".*?id="Model".*?id="BrandID".*?id="SellingPrice".*?name="Description".*?id="Barcode".*?id="UnitOfMeasure".*?id="PurchaseUnit".*?id="ReorderThreshold".*?Pricing Calculations.*?Suppliers for this Product/s', $html);
+        $this->assertMatchesRegularExpression('/product-photo-field.*?id="ProductName".*?id="CategoryID".*?id="CostPrice".*?id="Model".*?id="BrandID".*?id="ReorderThreshold".*?name="Description".*?id="Barcode".*?id="UnitOfMeasure".*?id="PurchaseUnit".*?id="SellingPrice".*?Pricing Calculations.*?Suppliers for this Product/s', $html);
         $this->assertMatchesRegularExpression('/id="ReorderThreshold"[^>]*\s+value="10" min="0" max="999" step="1" data-max-digits="3"/', $html);
         $this->assertStringContainsString('window.attachMoneyInput(costPriceInput, { maxIntegerDigits: 5 });', $html);
         $this->assertStringContainsString('window.attachMoneyInput(sellingPriceInput, { maxIntegerDigits: 5 });', $html);

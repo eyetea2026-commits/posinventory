@@ -6,11 +6,11 @@
      so modal JS can inject a 422 validation message into the same slot the
      @error directive fills on a real (non-AJAX) page submission. --}}
 {{-- The Product Photo down the left; beside it, three per row: Name /
-     Category / Cost Price, Model / Brand / Selling Price, then the
+     Category / Cost Price, Model / Brand / Reorder Threshold, then the
      Specifications, the Barcode (and SKU when editing) and the returns
-     option across. Below: Unit of Measurement (with the Reorder Threshold,
-     counted in the base unit), Pricing Calculations, and the product's
-     Suppliers. Two per row on tablets, one on phones. --}}
+     option across. Below: Unit of Measurement (with the Selling Price),
+     Pricing Calculations, and the product's Suppliers. Two per row on
+     tablets, one on phones. --}}
 <style>
     .form-grid.product-form-grid { grid-template-columns: minmax(170px, 0.85fr) repeat(3, minmax(0, 1fr)); }
     .form-grid.product-form-grid .product-photo-field { grid-column: 1; grid-row: 1 / span 5; }
@@ -30,6 +30,10 @@
     .uom-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
     .uom-grid .form-group { margin-bottom: 0; }
     .uom-per-base, .uom-unit-note { color: #94a3b8; font-weight: 400; font-size: 0.8em; }
+    .uom-price-input { display: flex; align-items: center; gap: 8px; }
+    .uom-price-input input { flex: 1; min-width: 0; text-align: right; }
+    .uom-price-input .uom-currency { color: #e2e8f0; font-size: 1.15rem; font-weight: 700; }
+    .uom-price-input .uom-per-base { color: #cbd5e1; font-size: 0.88rem; white-space: nowrap; }
     .uom-grid-options { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(148, 163, 184, 0.15); }
     .uom-fraction-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; cursor: pointer; }
     .uom-fraction-toggle input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: #3b82f6; }
@@ -158,10 +162,12 @@
         <span class="form-error" id="error-BrandID">@error('BrandID'){{ $message }}@enderror</span>
     </div>
 
+    {{-- Up to 3 digits (999), counted in the base unit. --}}
     <div class="form-group">
-        <label class="form-label" for="SellingPrice">Selling Price (₱) <span class="uom-per-base">per {{ $baseUnit }}</span></label>
-        <input type="text" name="Price" id="SellingPrice" class="form-input @error('Price') is-invalid @enderror" value="{{ old('Price', $product->Price ?? '') }}" placeholder="e.g., 21,818.18">
-        <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
+        <label class="form-label" for="ReorderThreshold">Reorder Threshold <span class="uom-unit-note">(<span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>)</span></label>
+        <input type="number" name="ReorderThreshold" id="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
+               value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" max="999" step="1" data-max-digits="3" placeholder="e.g., 10">
+        <span class="form-error" id="error-ReorderThreshold">@error('ReorderThreshold'){{ $message }}@enderror</span>
     </div>
 
     <div class="form-group product-span-3">
@@ -204,11 +210,11 @@
         </label>
     </div>
 
-    {{-- Unit of Measurement, read across like "Meter & Roll | Roll | 50
-         meters": stock is kept in the base unit (meters, pieces), bought by
+    {{-- Unit of Measurement, read across like "Meter & Roll | Roll | ₱15 per
+         meter": stock is kept in the base unit (meters, pieces), bought by
          the purchase unit (roll, box) - how many meters each roll holds is
-         entered at Stock Receiving - and restocked when it drops to the
-         Reorder Threshold (in the base unit). Below: decimals (1.5 meters). --}}
+         entered at Stock Receiving - and it's sold by the base unit at the
+         Selling Price. Below: decimals (1.5 meters). --}}
     <div class="form-group full-width uom-section" data-uom-section>
         <label class="form-label uom-title"><i class="fas fa-ruler-combined"></i> Unit of Measurement</label>
         <div class="uom-grid">
@@ -234,12 +240,15 @@
                 <span class="form-error" id="error-PurchaseUnit">@error('PurchaseUnit'){{ $message }}@enderror</span>
             </div>
 
-            {{-- Up to 3 digits (999). --}}
+            {{-- Up to 5 whole-peso digits (99,999.99). --}}
             <div class="form-group">
-                <label class="form-label" for="ReorderThreshold">Reorder Threshold <span class="uom-unit-note">(<span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>)</span></label>
-                <input type="number" name="ReorderThreshold" id="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
-                       value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" max="999" step="1" data-max-digits="3" placeholder="e.g., 10">
-                <span class="form-error" id="error-ReorderThreshold">@error('ReorderThreshold'){{ $message }}@enderror</span>
+                <label class="form-label" for="SellingPrice">Selling Price</label>
+                <div class="uom-price-input">
+                    <span class="uom-currency">₱</span>
+                    <input type="text" name="Price" id="SellingPrice" class="form-input @error('Price') is-invalid @enderror" value="{{ old('Price', $product->Price ?? '') }}">
+                    <span class="uom-per-base">per {{ $baseUnit }}</span>
+                </div>
+                <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
             </div>
         </div>
 
