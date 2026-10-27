@@ -44,12 +44,17 @@ Route::get('/', [AuthController::class, 'showLogin'])->name('welcome');
 // from Back, or another tab signed in/out) -- never on a timer, so an
 // unattended screen still times out normally. Says only whether this browser
 // is signed in, and as which user id, so a page can leave if that changed.
+// Every throttle below names its own counter (the third parameter). Without
+// a name, all throttled routes share ONE counter per visitor (per IP for
+// guests and sessionless polling, per user once signed in), so the
+// background polling of any open page used up the Send OTP and Log in
+// limits, and barcode scans used up the custom discount approvals.
 Route::get('/session/status', function () {
     return response()->json([
         'authenticated' => Auth::check(),
         'user_id' => Auth::id(),
     ]);
-})->name('session.status')->middleware('throttle:120,1');
+})->name('session.status')->middleware('throttle:120,1,session-status');
 
 // "This browser is still open" check-in, sent every 30 seconds by every
 // signed-in page (partials/session-guard). It runs WITHOUT the session
@@ -67,14 +72,14 @@ Route::get('/session/alive', function (Request $request) {
     return response()->noContent();
 })->name('session.alive')
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
-    ->middleware('throttle:120,1');
+    ->middleware('throttle:120,1,session-alive');
 
 // "Anything new?" check polled every few seconds by every signed-in page
 // (see LiveUpdatesController / partials/live-updates). Sessionless like
 // /session/alive, so polling never counts as activity.
 Route::get('/live/signature', LiveUpdatesController::class)->name('live.signature')
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
-    ->middleware('throttle:240,1');
+    ->middleware('throttle:240,1,live-signature');
 
 // Print bridge (see PrintBridgeController): only used on the cashier PC's
 // local copy, which the deployed POS sends receipt lines to. Sessionless and
@@ -82,14 +87,14 @@ Route::get('/live/signature', LiveUpdatesController::class)->name('live.signatur
 // controller itself only accepts this PC and the allowed site.
 Route::match(['post', 'options'], '/print-bridge', PrintBridgeController::class)->name('print-bridge')
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
-    ->middleware('throttle:60,1');
+    ->middleware('throttle:60,1,print-bridge');
 // throttle:15,1 is an outer safety net only — the real brute-force defense is
 // AuthController's own per-username RateLimiter (5 attempts/60s, with a
 // friendly "too many attempts" message). This route limit used to be 6/min,
 // which was tight enough that a handful of legitimate retries (typos, a
 // couple of wrong-password attempts) could trip Laravel's raw, unstyled 429
 // page before the friendly per-account lockout ever kicked in.
-Route::post('/login', [AuthController::class, 'login'])->name('login.post')->middleware('throttle:15,1');
+Route::post('/login', [AuthController::class, 'login'])->name('login.post')->middleware('throttle:15,1,login');
 
 // AJAX route to check user role for password reset eligibility. Deliberately
 // unauthenticated — it's called from the pre-login "forgot password" screen,
@@ -109,7 +114,7 @@ Route::post('/check-user-role', function (Request $request) {
     return response()->json([
         'message' => 'If this is a valid Administrator account, password reset instructions are available. Cashier accounts must contact an Administrator for a password reset.',
     ]);
-})->name('check.user.role')->middleware('throttle:10,1');
+})->name('check.user.role')->middleware('throttle:10,1,check-user-role');
 
 // API route for barcode scanning (POS) — cashier-only, mirrors every other
 // data-bearing route's auth requirement instead of being publicly reachable.
@@ -153,7 +158,7 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
         'selling_units' => array_values($product->sellingUnits()),
         'stock_label' => $product->stockLabel($product->inventory?->Quantity ?? 0),
     ]);
-})->middleware(['auth', 'role:cashier', 'throttle:300,1']);
+})->middleware(['auth', 'role:cashier', 'throttle:300,1,barcode-lookup']);
 
 // Smart post-login landing spot for the "dashboard" route name (nothing in
 // this app links here directly anymore — admin/cashier logins redirect
@@ -161,7 +166,7 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
 // anything still resolves an old intended-redirect to this URL).
 // Proof of payment photo (private): Administrators any, Cashiers their own sales.
 Route::get('/payments/{payment}/proof', PaymentProofController::class)
-    ->name('payments.proof')->middleware(['auth', 'throttle:120,1']);
+    ->name('payments.proof')->middleware(['auth', 'throttle:120,1,payment-proof']);
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth'])
@@ -172,9 +177,9 @@ Route::prefix('admin')->group(function () {
     Route::post('logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
     Route::get('forgot-password', [AdminAuthController::class, 'showForgot'])->name('admin.forgot');
-    Route::post('forgot-password', [AdminAuthController::class, 'sendOtp'])->name('admin.forgot.post')->middleware('throttle:6,1');
+    Route::post('forgot-password', [AdminAuthController::class, 'sendOtp'])->name('admin.forgot.post')->middleware('throttle:6,1,otp-send');
     Route::get('otp', [AdminAuthController::class, 'showOtpForm'])->name('admin.otp.form');
-    Route::post('otp', [AdminAuthController::class, 'verifyOtp'])->name('admin.otp.verify')->middleware('throttle:10,1');
+    Route::post('otp', [AdminAuthController::class, 'verifyOtp'])->name('admin.otp.verify')->middleware('throttle:10,1,otp-verify');
     Route::get('reset-password', [AdminAuthController::class, 'showResetForm'])->name('admin.password.reset.form');
     Route::post('reset-password', [AdminAuthController::class, 'resetPassword'])->name('admin.password.reset');
 
@@ -435,7 +440,7 @@ Route::prefix('admin')->group(function () {
 // (LoginSecurityController::authorizeAccess()) or an authenticated admin
 // session, so the in-app prompt's fetch calls reuse the exact same routes.
 // throttle limits brute-force guessing of a login-event ID.
-Route::prefix('admin/security')->middleware('throttle:30,1')->group(function () {
+Route::prefix('admin/security')->middleware('throttle:30,1,login-security')->group(function () {
     Route::get('login-events/{loginSecurityEvent}/review', [LoginSecurityController::class, 'review'])
         ->name('admin.security.review');
     Route::post('login-events/{loginSecurityEvent}/confirm', [LoginSecurityController::class, 'confirm'])
@@ -456,7 +461,7 @@ Route::prefix('cashier')->group(function () {
     Route::post('pos/apply-promo', [CashierAuthController::class, 'applyPromo'])->name('cashier.pos.apply-promo')->middleware(['auth', 'role:cashier']);
     Route::post('pos/process-sale', [CashierAuthController::class, 'processSale'])->name('cashier.process-sale')->middleware(['auth', 'role:cashier']);
     // Throttled: it checks Administrator passwords.
-    Route::post('pos/custom-discount/approve', [CashierAuthController::class, 'approveCustomDiscount'])->name('cashier.custom-discount.approve')->middleware(['auth', 'role:cashier', 'throttle:5,1']);
+    Route::post('pos/custom-discount/approve', [CashierAuthController::class, 'approveCustomDiscount'])->name('cashier.custom-discount.approve')->middleware(['auth', 'role:cashier', 'throttle:5,1,custom-discount']);
     Route::get('transactions', [CashierAuthController::class, 'transactions'])->name('cashier.transactions')->middleware(['auth', 'role:cashier']);
 
     // Return/Refund/Replacement routes
