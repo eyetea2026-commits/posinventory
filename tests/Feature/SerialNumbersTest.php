@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductSerial;
@@ -11,6 +12,7 @@ use App\Models\StockAdjustment;
 use App\Models\User;
 use App\Services\Code128Barcode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 // One serial number (SN00001, one count across all products) per piece in
@@ -71,17 +73,79 @@ class SerialNumbersTest extends TestCase
         $this->assertSame(['SN00011', 'SN00012'], array_slice($this->inStockSerials($this->camera), -2));
     }
 
-    public function test_an_adjustment_down_takes_the_oldest_serials_out_of_stock(): void
+    /**
+     * @param  list<string>  $serialNumbers
+     */
+    private function adjust(Product $product, int $quantity, string $reason, array $serialNumbers = []): TestResponse
+    {
+        return $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), [
+            'ProductID' => $product->ProductID, 'QuantityAdjust' => $quantity, 'Reason' => $reason,
+            'SerialNumbers' => $serialNumbers, 'Date' => now()->toDateString(),
+        ]);
+    }
+
+    public function test_an_adjustment_takes_out_the_ticked_serials(): void
     {
         $this->stock($this->camera, 3);
 
-        $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), [
-            'ProductID' => $this->camera->ProductID, 'QuantityAdjust' => -1,
-            'Reason' => StockAdjustment::REASON_LOST, 'Date' => now()->toDateString(),
-        ])->assertSessionHasNoErrors();
+        $this->adjust($this->camera, 1, StockAdjustment::REASON_LOST, ['SN00002'])->assertSessionHasNoErrors();
 
-        $this->assertSame(['SN00002', 'SN00003'], $this->inStockSerials($this->camera));
-        $this->assertSame(ProductSerial::STATUS_ADJUSTED_OUT, ProductSerial::where('SerialNumber', 'SN00001')->value('Status'));
+        $this->assertSame(['SN00001', 'SN00003'], $this->inStockSerials($this->camera));
+        $lost = ProductSerial::where('SerialNumber', 'SN00002')->firstOrFail();
+        $this->assertSame(ProductSerial::STATUS_LOST, $lost->Status);
+        $this->assertSame(StockAdjustment::firstOrFail()->AdjustmentID, $lost->StockAdjustmentID);
+        $this->assertSame(2, Inventory::where('ProductID', $this->camera->ProductID)->value('Quantity'));
+    }
+
+    public function test_damaged_serials_are_named_on_the_damage_record_and_the_adjustment_list(): void
+    {
+        $this->stock($this->camera, 3);
+
+        $this->adjust($this->camera, 2, StockAdjustment::REASON_DAMAGED, ['sn00003', 'SN00001'])->assertSessionHasNoErrors();
+
+        $this->assertSame(['SN00002'], $this->inStockSerials($this->camera));
+        $this->assertSame([ProductSerial::STATUS_DAMAGED, ProductSerial::STATUS_DAMAGED], ProductSerial::whereIn('SerialNumber', ['SN00001', 'SN00003'])->pluck('Status')->all());
+        $this->assertStringContainsString('Serial numbers: SN00001, SN00003', DamagedProduct::firstOrFail()->Description);
+
+        $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index'))->assertOk()->assertSee('SN00001, SN00003');
+        $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index', ['search' => 'SN00003']))->assertOk()->assertSee('Dome Camera');
+        $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index', ['search' => 'SN00002']))->assertOk()->assertSee('No Stock Adjustments');
+    }
+
+    public function test_a_serial_numbered_adjustment_needs_one_in_stock_serial_per_piece(): void
+    {
+        $this->stock($this->camera, 3);
+        ProductSerial::where('SerialNumber', 'SN00003')->update(['Status' => ProductSerial::STATUS_SOLD]);
+
+        $this->adjust($this->camera, 2, StockAdjustment::REASON_LOST, ['SN00001'])->assertSessionHasErrors('SerialNumbers');
+        $this->adjust($this->camera, 1, StockAdjustment::REASON_LOST)->assertSessionHasErrors('SerialNumbers');
+        $this->adjust($this->camera, 1, StockAdjustment::REASON_LOST, ['SN00003'])->assertSessionHasErrors('SerialNumbers');
+        $this->adjust($this->camera, 1, StockAdjustment::REASON_LOST, ['SN99999'])->assertSessionHasErrors('SerialNumbers');
+
+        $this->assertSame(0, StockAdjustment::count());
+        $this->assertSame(['SN00001', 'SN00002'], $this->inStockSerials($this->camera));
+        $this->assertSame(3, Inventory::where('ProductID', $this->camera->ProductID)->value('Quantity'));
+    }
+
+    public function test_products_without_serials_adjust_by_quantity_alone(): void
+    {
+        $this->stock($this->cable, 100);
+
+        $this->adjust($this->cable, 5, StockAdjustment::REASON_LOST)->assertSessionHasNoErrors();
+
+        $this->assertSame(95, Inventory::where('ProductID', $this->cable->ProductID)->value('Quantity'));
+    }
+
+    public function test_the_adjustment_form_offers_the_in_stock_serials_of_each_product(): void
+    {
+        $this->stock($this->camera, 3);
+        $this->stock($this->cable, 100);
+        ProductSerial::where('SerialNumber', 'SN00002')->update(['Status' => ProductSerial::STATUS_SOLD]);
+
+        $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index'))->assertOk()
+            ->assertSee('data-serials="'.e(json_encode(['SN00001', 'SN00003'])).'"', false)
+            ->assertSee('data-serials=""', false)
+            ->assertSee('id="SerialSearch"', false);
     }
 
     public function test_scanning_a_serial_sticker_finds_that_piece(): void

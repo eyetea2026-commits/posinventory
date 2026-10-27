@@ -7,7 +7,7 @@
 @section('header')
     <div class="header-title">
         <h1>New Stock Adjustment</h1>
-        <p>Increase or decrease a product's quantity with a recorded reason</p>
+        <p>Remove damaged or lost stock with a recorded reason</p>
     </div>
 @endsection
 

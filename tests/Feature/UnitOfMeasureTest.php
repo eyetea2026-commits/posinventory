@@ -405,10 +405,10 @@ class UnitOfMeasureTest extends TestCase
     public function test_stock_adjustments_are_in_the_base_unit_with_decimals_only_where_allowed(): void
     {
         $adjust = fn (Product $product, $quantity) => $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), [
-            'ProductID' => $product->ProductID, 'QuantityAdjust' => $quantity, 'Reason' => StockAdjustment::REASON_COUNT_ERROR, 'Date' => now()->toDateString(),
+            'ProductID' => $product->ProductID, 'QuantityAdjust' => $quantity, 'Reason' => StockAdjustment::REASON_LOST, 'Date' => now()->toDateString(),
         ]);
 
-        $adjust($this->wire, -0.5)->assertSessionHasNoErrors();
+        $adjust($this->wire, 0.5)->assertSessionHasNoErrors();
         $this->assertSame(4999.5, $this->stock($this->wire));
         $this->assertSame(-0.5, StockAdjustment::firstOrFail()->QuantityAdjust);
 

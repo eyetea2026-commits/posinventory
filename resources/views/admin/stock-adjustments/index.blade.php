@@ -57,7 +57,12 @@
                     @forelse($adjustments as $adjustment)
                         <tr>
                             <td>{{ \Illuminate\Support\Carbon::parse($adjustment->Date)->format('m/d/Y') }}</td>
-                            <td><strong>{{ $adjustment->product?->ProductName ?? 'Unknown' }}</strong></td>
+                            <td>
+                                <strong>{{ $adjustment->product?->ProductName ?? 'Unknown' }}</strong>
+                                @if($adjustment->serials->isNotEmpty())
+                                    <div class="adjustment-serial-numbers"><i class="fas fa-barcode"></i> {{ $adjustment->serials->pluck('SerialNumber')->implode(', ') }}</div>
+                                @endif
+                            </td>
                             <td>
                                 @if($adjustment->QuantityAdjust > 0)
                                     <span class="badge badge-success">+{{ \App\Services\UnitOfMeasure::number($adjustment->QuantityAdjust) }}{{ $adjustment->product && $adjustment->product->baseUnit() !== 'piece' ? ' '.\App\Services\UnitOfMeasure::label($adjustment->product->baseUnit(), $adjustment->QuantityAdjust) : '' }}</span>
@@ -156,7 +161,7 @@
         @endif
 
         // ---- New Stock Adjustment modal ----
-        const ADD_ADJUSTMENT_FIELD_IDS = ['ProductID', 'QuantityAdjust', 'Date', 'Reason'];
+        const ADD_ADJUSTMENT_FIELD_IDS = ['ProductID', 'SerialNumbers', 'QuantityAdjust', 'Date', 'Reason'];
         let addAdjustmentLastFocused = null;
 
         function addAdjustmentIsSubmitting() {
@@ -164,12 +169,17 @@
             return btn ? btn.disabled : false;
         }
 
+        // The ticked serials are checkboxes; their errors go on the serial search box.
+        function addAdjustmentFieldInput(form, field) {
+            return field === 'SerialNumbers' ? document.getElementById('SerialSearch') : form.querySelector('[name="' + field + '"]');
+        }
+
         function clearAddAdjustmentFieldErrors() {
             const form = document.getElementById('addAdjustmentForm');
             ADD_ADJUSTMENT_FIELD_IDS.forEach(function (field) {
                 const span = document.getElementById('error-' + field);
                 if (span) span.textContent = '';
-                const input = form.querySelector('[name="' + field + '"]');
+                const input = addAdjustmentFieldInput(form, field);
                 if (input) input.classList.remove('error');
             });
         }
@@ -178,10 +188,11 @@
             const form = document.getElementById('addAdjustmentForm');
             clearAddAdjustmentFieldErrors();
             let firstInvalid = null;
-            Object.keys(errors).forEach(function (field) {
+            Object.keys(errors).forEach(function (key) {
+                const field = key.split('.')[0];
                 const span = document.getElementById('error-' + field);
-                if (span) span.textContent = errors[field][0];
-                const input = form.querySelector('[name="' + field + '"]');
+                if (span) span.textContent = errors[key][0];
+                const input = addAdjustmentFieldInput(form, field);
                 if (input) {
                     input.classList.add('error');
                     if (!firstInvalid) firstInvalid = input;

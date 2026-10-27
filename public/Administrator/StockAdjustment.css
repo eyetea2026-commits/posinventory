@@ -234,3 +234,14 @@ body { background: linear-gradient(180deg, #020617 0%, #090f1e 100%); }
 .adjustment-qty.negative {
     color: var(--danger);
 }
+/* Serial numbers a Damaged/Lost adjustment took out. */
+.adjustment-serial-numbers {
+    margin-top: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.adjustment-serial-numbers i {
+    margin-right: 4px;
+}

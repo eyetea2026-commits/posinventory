@@ -13,7 +13,12 @@ class ProductSerial extends Model
 
     public const STATUS_SOLD = 'Sold';
 
+    // Older stock adjustments, made before the exact pieces were picked.
     public const STATUS_ADJUSTED_OUT = 'Adjusted Out';
+
+    public const STATUS_DAMAGED = 'Damaged';
+
+    public const STATUS_LOST = 'Lost';
 
     public const STATUS_REPLACEMENT = 'Given as Replacement';
 
@@ -28,6 +33,7 @@ class ProductSerial extends Model
         'SerialNumber',
         'Status',
         'SalesTransactionID',
+        'StockAdjustmentID',
         'StatusDate',
     ];
 
