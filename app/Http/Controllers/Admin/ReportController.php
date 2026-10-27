@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Exports\ReportExport;
 use App\Http\Controllers\Controller;
-use App\Models\Billing;
 use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
@@ -13,6 +12,7 @@ use App\Models\PurchaseOrderItem;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
+use App\Models\SalesTransaction;
 use App\Models\StockAdjustment;
 use App\Models\StockReceiving;
 use App\Services\UnitOfMeasure;
@@ -128,16 +128,15 @@ class ReportController extends Controller
 
     private function salesDetail($id): ?array
     {
-        $billing = Billing::with(['transaction.staff.user', 'transaction.items.product', 'discount', 'payment'])
+        $transaction = SalesTransaction::with(['staff.user', 'items.product', 'discount', 'payment'])
             ->find($id);
 
-        if (! $billing) {
+        if (! $transaction) {
             return null;
         }
 
-        $transaction = $billing->transaction;
-        $cashierName = $transaction?->staff?->user?->full_name ?? 'Unknown User';
-        $reportNumber = 'SALE-'.str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT);
+        $cashierName = $transaction->staff?->user?->full_name ?? 'Unknown User';
+        $reportNumber = 'SALE-'.str_pad((string) $transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
         // Per-item DiscountAmount is this line's own share of the sale's
         // promo discount (see SalesItem::getRefundableUnitPriceAttribute()
@@ -163,10 +162,10 @@ class ReportController extends Controller
                     ['label' => 'Report ID', 'value' => $reportNumber],
                     ['label' => 'Cashier Name', 'value' => $cashierName],
                     ['label' => 'Transaction Date & Time', 'value' => $this->fmtDateTime($transaction?->SalesTransactionDate)],
-                    ['label' => 'Customer Name', 'value' => self::customerLabel($billing->CustomerName)],
-                    ['label' => 'Payment Method', 'value' => $billing->payment?->PaymentMethod ? ucfirst($billing->payment->PaymentMethod) : 'N/A'],
-                    ...($billing->payment?->ProofImagePath
-                        ? [['label' => 'Proof of Payment', 'value' => 'View photo', 'url' => route('payments.proof', $billing->payment)]]
+                    ['label' => 'Customer Name', 'value' => self::customerLabel($transaction->CustomerName)],
+                    ['label' => 'Payment Method', 'value' => $transaction->payment?->PaymentMethod ? ucfirst($transaction->payment->PaymentMethod) : 'N/A'],
+                    ...($transaction->payment?->ProofImagePath
+                        ? [['label' => 'Proof of Payment', 'value' => 'View photo', 'url' => route('payments.proof', $transaction->payment)]]
                         : []),
                 ],
             ],
@@ -179,7 +178,7 @@ class ReportController extends Controller
         // A sale can have more than one partial return (multi-item returns),
         // so this checks for ANY processed refund against this transaction,
         // not a 1:1 link.
-        $wasRefunded = $transaction && SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
+        $wasRefunded = SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
             ->where('ReturnType', 'refund')
             ->where('Status', SalesReturn::STATUS_PROCESSED)
             ->exists();
@@ -288,14 +287,14 @@ class ReportController extends Controller
 
     private function returnDetail($id): ?array
     {
-        $return = SalesReturn::with(['items.product', 'staff.user.role', 'transaction.billing.payment', 'approvedByUser'])
+        $return = SalesReturn::with(['items.product', 'staff.user.role', 'transaction.payment', 'approvedByUser'])
             ->find($id);
 
         if (! $return) {
             return null;
         }
 
-        $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? 'N/A';
+        $receiptNumber = $return->transaction?->payment?->ReceiptNumber ?? 'N/A';
         $returnType = ucfirst($return->ReturnType);
 
         $itemsTable = [
@@ -521,26 +520,26 @@ class ReportController extends Controller
      */
     private function buildReportData(string $reportType, ?string $dateFrom, ?string $dateTo): array
     {
-        $salesQuery = Billing::query();
+        $salesQuery = SalesTransaction::query();
         if ($dateFrom) {
-            $salesQuery->whereDate('BillingDate', '>=', $dateFrom);
+            $salesQuery->whereDate('SalesTransactionDate', '>=', $dateFrom);
         }
         if ($dateTo) {
-            $salesQuery->whereDate('BillingDate', '<=', $dateTo);
+            $salesQuery->whereDate('SalesTransactionDate', '<=', $dateTo);
         }
-        $sales = $salesQuery->selectRaw('SUM(BillingAmount) as total_revenue, COUNT(*) as total_sales')->first();
+        $sales = $salesQuery->selectRaw('SUM(TotalAmount) as total_revenue, COUNT(*) as total_sales')->first();
 
-        $todaySales = Billing::whereDate('BillingDate', today())
-            ->selectRaw('SUM(BillingAmount) as total, COUNT(*) as count')
+        $todaySales = SalesTransaction::whereDate('SalesTransactionDate', today())
+            ->selectRaw('SUM(TotalAmount) as total, COUNT(*) as count')
             ->first();
 
-        $weekSales = Billing::whereBetween('BillingDate', [now()->startOfWeek(), now()->endOfWeek()])
-            ->selectRaw('SUM(BillingAmount) as total, COUNT(*) as count')
+        $weekSales = SalesTransaction::whereBetween('SalesTransactionDate', [now()->startOfWeek(), now()->endOfWeek()])
+            ->selectRaw('SUM(TotalAmount) as total, COUNT(*) as count')
             ->first();
 
-        $monthSales = Billing::whereMonth('BillingDate', now()->month)
-            ->whereYear('BillingDate', now()->year)
-            ->selectRaw('SUM(BillingAmount) as total, COUNT(*) as count')
+        $monthSales = SalesTransaction::whereMonth('SalesTransactionDate', now()->month)
+            ->whereYear('SalesTransactionDate', now()->year)
+            ->selectRaw('SUM(TotalAmount) as total, COUNT(*) as count')
             ->first();
 
         $suppliers = StockReceiving::selectRaw('COUNT(DISTINCT SupplierID) as total_suppliers')->first();
@@ -555,7 +554,7 @@ class ReportController extends Controller
             'totalSuppliers' => $suppliers->total_suppliers ?? 0,
             'purchaseOrders' => $purchaseOrders,
             'pendingReturns' => $pendingReturns,
-            'salesRows' => $reportType === 'sales' ? $this->salesBillingRows($dateFrom, $dateTo) : collect(),
+            'salesRows' => $reportType === 'sales' ? $this->salesRows($dateFrom, $dateTo) : collect(),
             'salesSummary' => $reportType === 'sales' ? $this->salesSummary((float) ($sales->total_revenue ?? 0), $dateFrom, $dateTo) : null,
             'inventoryRows' => $reportType === 'inventory' ? $this->inventoryRows($dateFrom, $dateTo) : collect(),
             'reorderRows' => $reportType === 'reorder' ? $this->reorderRows() : collect(),
@@ -604,20 +603,20 @@ class ReportController extends Controller
         };
     }
 
-    private function salesBillingRows(?string $dateFrom, ?string $dateTo)
+    private function salesRows(?string $dateFrom, ?string $dateTo)
     {
-        return Billing::query()
-            ->when($dateFrom, fn ($q) => $q->whereDate('BillingDate', '>=', $dateFrom))
-            ->when($dateTo, fn ($q) => $q->whereDate('BillingDate', '<=', $dateTo))
-            ->with(['payment', 'transaction.items'])
-            ->orderByDesc('BillingDate')
-            ->orderByDesc('BillingID')
+        return SalesTransaction::query()
+            ->when($dateFrom, fn ($q) => $q->whereDate('SalesTransactionDate', '>=', $dateFrom))
+            ->when($dateTo, fn ($q) => $q->whereDate('SalesTransactionDate', '<=', $dateTo))
+            ->with(['payment', 'items'])
+            ->orderByDesc('SalesTransactionDate')
+            ->orderByDesc('SalesTransactionID')
             ->get();
     }
 
     // Print/PDF/Excel Sales Report: one row per product per invoice, so the
     // documented columns (Product/Qty/Unit Price) mean something — unlike
-    // the on-screen preview (which still uses salesBillingRows() above,
+    // the on-screen preview (which still uses salesRows() above,
     // deliberately untouched), this is export-only. Discount/VAT/Total are
     // transaction-level facts in this system (never stored per item), so
     // they're only populated on each invoice's first item row — showing
@@ -625,44 +624,44 @@ class ReportController extends Controller
     // happened. ReportSummaryBuilder::sales() relies on exactly this shape.
     private function salesItemRows(?string $dateFrom, ?string $dateTo)
     {
-        $billings = $this->salesBillingRows($dateFrom, $dateTo)->load('transaction.items.product');
+        $sales = $this->salesRows($dateFrom, $dateTo)->load('items.product');
 
         $rows = collect();
 
-        foreach ($billings as $billing) {
-            $items = $billing->transaction?->items ?? collect();
-            $receiptNumber = $billing->payment?->ReceiptNumber ?? ('BILL-'.str_pad((string) $billing->BillingID, 6, '0', STR_PAD_LEFT));
+        foreach ($sales as $sale) {
+            $items = $sale->items;
+            $receiptNumber = $sale->payment?->ReceiptNumber ?? ('RCT-'.str_pad((string) $sale->SalesTransactionID, 6, '0', STR_PAD_LEFT));
 
             if ($items->isEmpty()) {
-                $rows->push($this->salesItemRow($billing, $receiptNumber, null, true));
+                $rows->push($this->salesItemRow($sale, $receiptNumber, null, true));
 
                 continue;
             }
 
             foreach ($items as $index => $item) {
-                $rows->push($this->salesItemRow($billing, $receiptNumber, $item, $index === 0));
+                $rows->push($this->salesItemRow($sale, $receiptNumber, $item, $index === 0));
             }
         }
 
         return $rows;
     }
 
-    private function salesItemRow(Billing $billing, string $receiptNumber, ?SalesItem $item, bool $isFirst): object
+    private function salesItemRow(SalesTransaction $sale, string $receiptNumber, ?SalesItem $item, bool $isFirst): object
     {
         return (object) [
             'ReceiptNumber' => $receiptNumber,
-            'BillingDate' => $billing->BillingDate,
-            'CustomerName' => self::customerLabel($billing->CustomerName),
-            'PaymentMethod' => $billing->payment?->PaymentMethod,
+            'SaleDate' => $sale->SalesTransactionDate,
+            'CustomerName' => self::customerLabel($sale->CustomerName),
+            'PaymentMethod' => $sale->payment?->PaymentMethod,
             'ProductName' => $item?->product?->ProductName ?? 'N/A',
             // In the unit it was sold in (UnitPrice is per that unit).
             'Quantity' => $item?->Quantity ?? 0,
             'Unit' => $item?->Unit,
             'UnitPrice' => $item?->UnitPrice ?? 0,
             'ItemTotal' => round(($item?->Quantity ?? 0) * ($item?->UnitPrice ?? 0), 2),
-            'Discount' => $isFirst ? (float) ($billing->DiscountAmount ?? 0) : null,
-            'VatAmount' => $isFirst ? (float) ($billing->VatAmount ?? 0) : null,
-            'BillingAmount' => $isFirst ? (float) $billing->BillingAmount : null,
+            'Discount' => $isFirst ? (float) ($sale->DiscountAmount ?? 0) : null,
+            'VatAmount' => $isFirst ? (float) ($sale->VatAmount ?? 0) : null,
+            'TotalAmount' => $isFirst ? (float) $sale->TotalAmount : null,
             'is_first' => $isFirst,
         ];
     }
@@ -772,14 +771,14 @@ class ReportController extends Controller
     // multi-item return request now flattens to one CSV/report row per item.
     private function returnRows(?string $dateFrom, ?string $dateTo)
     {
-        return SalesReturn::with(['items.product', 'staff.user', 'processedByUser', 'transaction.billing.payment'])
+        return SalesReturn::with(['items.product', 'staff.user', 'processedByUser', 'transaction.payment'])
             ->when($dateFrom, fn ($q) => $q->whereDate('ReturnDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('ReturnDate', '<=', $dateTo))
             ->orderByDesc('ReturnDate')
             ->orderByDesc('SalesReturnID')
             ->get()
             ->flatMap(function (SalesReturn $return) {
-                $receiptNumber = $return->transaction?->billing?->payment?->ReceiptNumber ?? ('TXN-'.$return->SalesTransactionID);
+                $receiptNumber = $return->transaction?->payment?->ReceiptNumber ?? ('TXN-'.$return->SalesTransactionID);
                 // Only set once an admin actually finalizes the refund/replacement —
                 // falls back to whoever logged the request so pending rows aren't blank.
                 $processedBy = $return->processedByUser?->full_name ?? $return->staff?->user?->full_name ?? 'N/A';
@@ -821,11 +820,11 @@ class ReportController extends Controller
 
             if ($type === 'sales') {
                 fputcsv($handle, ['ID', 'Date', 'Amount', 'Customer', 'Payment Method']);
-                foreach ($this->salesBillingRows($dateFrom, $dateTo) as $item) {
+                foreach ($this->salesRows($dateFrom, $dateTo) as $item) {
                     fputcsv($handle, [
-                        $item->BillingID,
-                        $this->fmtDate($item->BillingDate),
-                        $this->money($item->BillingAmount),
+                        $item->SalesTransactionID,
+                        $this->fmtDate($item->SalesTransactionDate),
+                        $this->money($item->TotalAmount),
                         $this->csvSafe(self::customerLabel($item->CustomerName)),
                         $this->csvSafe($item->payment?->PaymentMethod ?? 'N/A'),
                     ]);

@@ -117,13 +117,13 @@
                 <tbody>
                     @forelse($salesRows as $row)
                         <tr>
-                            <td>{{ $row->BillingID }}</td>
-                            <td>{{ \Illuminate\Support\Carbon::parse($row->BillingDate)->format('m/d/Y') }}</td>
-                            <td class="text-success">₱{{ number_format($row->BillingAmount, 2) }}</td>
+                            <td>{{ $row->SalesTransactionID }}</td>
+                            <td>{{ \Illuminate\Support\Carbon::parse($row->SalesTransactionDate)->format('m/d/Y') }}</td>
+                            <td class="text-success">₱{{ number_format($row->TotalAmount, 2) }}</td>
                             <td>{{ \App\Http\Controllers\Admin\ReportController::customerLabel($row->CustomerName) }}</td>
                             <td>{{ $row->payment?->PaymentMethod ? ucfirst($row->payment->PaymentMethod) : 'N/A' }}</td>
                             <td>
-                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('sales', {{ $row->BillingID }})">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('sales', {{ $row->SalesTransactionID }})">
                                     <i class="fas fa-eye"></i> View Details
                                 </button>
                             </td>

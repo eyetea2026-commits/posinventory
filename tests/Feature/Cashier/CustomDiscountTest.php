@@ -3,12 +3,12 @@
 namespace Tests\Feature\Cashier;
 
 use App\Models\ActivityLog;
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\SalesItem;
+use App\Models\SalesTransaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -69,12 +69,12 @@ class CustomDiscountTest extends TestCase
 
         $sale = $this->sell([['id' => $camera->ProductID, 'qty' => 1], ['id' => $cable->ProductID, 'qty' => 2]], 1800, 10)->assertOk();
 
-        $billing = Billing::latest('BillingID')->firstOrFail();
+        $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertEquals(2000, (float) $billing->Subtotal);
         $this->assertEquals(10, (float) $billing->CustomDiscountPercent);
         $this->assertEquals(200, (float) $billing->CustomDiscountAmount);
         $this->assertEquals(200, (float) $billing->DiscountAmount);
-        $this->assertEquals(1800, (float) $billing->BillingAmount);
+        $this->assertEquals(1800, (float) $billing->TotalAmount);
         $this->assertSame($this->admin->id, $billing->CustomDiscountApprovedBy);
 
         // Split across the lines, so a refund pays back what was paid.
@@ -95,7 +95,7 @@ class CustomDiscountTest extends TestCase
         $this->sell([['id' => $camera->ProductID, 'qty' => 1]], 900, 10)
             ->assertStatus(403)
             ->assertJson(['success' => false]);
-        $this->assertSame(0, Billing::count());
+        $this->assertSame(0, SalesTransaction::count());
     }
 
     public function test_the_wrong_password_or_a_cashier_password_is_refused(): void

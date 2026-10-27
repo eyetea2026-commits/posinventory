@@ -1,4 +1,4 @@
-{{-- Used promos — Billing rows referencing a Discount. Billing stores one
+{{-- Used promos — sales referencing a Discount. A sale stores one
      aggregate DiscountAmount per sale, not a per-line breakdown, so
      "Products" here is a labelled best-effort showing the promo's current
      assignment rather than a precise historical per-product figure the
@@ -17,18 +17,18 @@
             </tr>
         </thead>
         <tbody>
-            @forelse($used as $billing)
-                @php $discount = $billing->discount; @endphp
+            @forelse($used as $sale)
+                @php $discount = $sale->discount; @endphp
                 <tr>
                     <td>{{ $discount->Name ?? '—' }}</td>
-                    {{-- PromoCode is frozen on the Billing row at sale time, so it
+                    {{-- PromoCode is frozen on the sale at sale time, so it
                          still reads correctly even if the Discount was later
                          renamed/edited/soft-deleted. --}}
-                    <td><code>{{ $billing->PromoCode ?? '—' }}</code></td>
+                    <td><code>{{ $sale->PromoCode ?? '—' }}</code></td>
                     <td>{{ $discount && $discount->products->isNotEmpty() ? $discount->products->pluck('ProductName')->implode(', ') : '—' }}</td>
-                    <td>₱{{ number_format($billing->DiscountAmount, 2) }}</td>
-                    <td>{{ \Illuminate\Support\Carbon::parse($billing->BillingDate)->format('m/d/Y') }}</td>
-                    <td>RCT-{{ str_pad($billing->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
+                    <td>₱{{ number_format($sale->DiscountAmount, 2) }}</td>
+                    <td>{{ \Illuminate\Support\Carbon::parse($sale->SalesTransactionDate)->format('m/d/Y') }}</td>
+                    <td>RCT-{{ str_pad($sale->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</td>
                     <td><span class="badge badge-success">Used</span></td>
                 </tr>
             @empty

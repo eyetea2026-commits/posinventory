@@ -171,7 +171,7 @@
             @forelse($rows as $row)
                 <tr>
                     <td><code>{{ $row->ReceiptNumber }}</code></td>
-                    <td class="col-date">{{ \Illuminate\Support\Carbon::parse($row->BillingDate)->format('m/d/Y') }}</td>
+                    <td class="col-date">{{ \Illuminate\Support\Carbon::parse($row->SaleDate)->format('m/d/Y') }}</td>
                     <td>{{ $row->CustomerName }}</td>
                     <td>{{ ucfirst($row->PaymentMethod ?? 'N/A') }}</td>
                     <td>{{ $row->ProductName }}</td>
@@ -179,7 +179,7 @@
                     <td class="col-money">₱{{ number_format($row->UnitPrice, 2) }}</td>
                     <td class="col-money">{{ $row->Discount !== null ? '₱' . number_format($row->Discount, 2) : '—' }}</td>
                     <td class="col-money">{{ $row->VatAmount !== null ? '₱' . number_format($row->VatAmount, 2) : '—' }}</td>
-                    <td class="col-money col-total">{{ $row->BillingAmount !== null ? '₱' . number_format($row->BillingAmount, 2) : '—' }}</td>
+                    <td class="col-money col-total">{{ $row->TotalAmount !== null ? '₱' . number_format($row->TotalAmount, 2) : '—' }}</td>
                 </tr>
             @empty
                 <tr><td colspan="10" class="no-records"><strong>NO RECORDS FOUND</strong>No sales records match the selected report criteria.</td></tr>

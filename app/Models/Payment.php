@@ -19,7 +19,7 @@ class Payment extends Model
         'PaymentAmount',
         'PaymentMethod',
         'ReceiptNumber',
-        'BillingID',
+        'SalesTransactionID',
         'ReferenceNumber',
         'BankName',
         'AccountName',
@@ -35,8 +35,8 @@ class Payment extends Model
         'PaymentDate' => 'date',
     ];
 
-    public function billing()
+    public function transaction()
     {
-        return $this->belongsTo(Billing::class, 'BillingID', 'BillingID');
+        return $this->belongsTo(SalesTransaction::class, 'SalesTransactionID', 'SalesTransactionID');
     }
 }

@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Http\Controllers\Admin\DashboardController;
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
@@ -65,9 +64,9 @@ class DashboardChartsTest extends TestCase
             'Quantity' => $quantity, 'UnitPrice' => $unitPrice, 'ProductID' => $product->ProductID,
             'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
-        Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => $quantity * $unitPrice,
-            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => $quantity * $unitPrice,
         ]);
     }
 
@@ -206,13 +205,12 @@ class DashboardChartsTest extends TestCase
 
     private function billOn(string $date, float $amount): void
     {
-        Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => $amount,
-            'BillingDate' => $date,
-            'SalesTransactionID' => SalesTransaction::create([
-                'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => $date,
-                'StaffID' => $this->staffForBills()->StaffID,
-            ])->SalesTransactionID,
+        tap(SalesTransaction::findOrFail(SalesTransaction::create([
+            'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => $date,
+            'StaffID' => $this->staffForBills()->StaffID,
+        ])->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => $amount,
         ]);
     }
 
@@ -370,7 +368,7 @@ class DashboardChartsTest extends TestCase
     public function test_live_inventory_endpoint_reports_sales_today_and_transactions_matching_db_state(): void
     {
         $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 20);
-        $this->recordSale($product, 3, 500); // BillingAmount = 1500, dated now()
+        $this->recordSale($product, 3, 500); // TotalAmount = 1500, dated now()
 
         $response = $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'));
 

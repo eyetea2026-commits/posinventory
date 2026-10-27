@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Auth;
 use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
-use App\Models\Billing;
 use App\Models\Discount;
 use App\Models\Inventory;
 use App\Models\Payment;
@@ -190,7 +189,7 @@ class CashierAuthController extends Controller
 
         $receiptMatchIds = $search ? $this->todaysReceiptIdsMatching($search, $todayStart, $tomorrowStart) : [];
 
-        $transactions = SalesTransaction::with(['staff.user', 'billing.payment', 'items.product'])
+        $transactions = SalesTransaction::with(['staff.user', 'payment', 'items.product'])
             ->where('SalesTransactionDate', '>=', $todayStart)
             ->where('SalesTransactionDate', '<', $tomorrowStart)
             ->when($search, function ($query) use ($search, $receiptMatchIds) {
@@ -570,7 +569,7 @@ class CashierAuthController extends Controller
                 }
                 $discountAmount = round($discountAmount, 2);
 
-                // Billing only has room for one DiscountID/PromoCode (it
+                // The sale only has room for one DiscountID/PromoCode (it
                 // predates per-product promo assignment) — when every
                 // discounted line in this sale came from the same promo,
                 // which is the normal case, it's recorded exactly as
@@ -599,7 +598,7 @@ class CashierAuthController extends Controller
                 $subtotal = round($subtotal, 2);
                 // The custom discount is a percent of what's left after the
                 // product promos; $discountAmount becomes the sale's whole
-                // discount (promos + custom), as Billing has always stored it.
+                // discount (promos + custom), as the sale has always stored it.
                 $afterPromos = round($subtotal - $discountAmount, 2);
                 $customDiscountAmount = $customDiscountPercent !== null ? round($afterPromos * $customDiscountPercent / 100, 2) : 0.0;
                 $discountAmount = round($discountAmount + $customDiscountAmount, 2);
@@ -629,21 +628,17 @@ class CashierAuthController extends Controller
                     ]);
                 }
 
-                // Create sales transaction
+                // Create the sale with what it came to — Subtotal /
+                // DiscountAmount / VatAmount are stored (not just the
+                // total) so the receipt can later show exactly what was
+                // charged at sale time, immune to the Discount's rate being
+                // edited afterward.
                 $transaction = SalesTransaction::create([
                     'CustomerName' => $customerName,
                     'SalesTransactionDate' => now(),
                     'StaffID' => $staff->StaffID,
-                ]);
-
-                // Create billing — Subtotal/DiscountAmount/VatAmount are
-                // stored here (not just BillingAmount) so the receipt can
-                // later show exactly what was charged at sale time, immune
-                // to the Discount's rate being edited afterward.
-                $billing = Billing::create([
-                    'CustomerName' => $customerName,
                     'VatApplied' => '12%',
-                    'BillingAmount' => $total,
+                    'TotalAmount' => $total,
                     'Subtotal' => $subtotal,
                     'DiscountAmount' => $discountAmount,
                     'CustomDiscountPercent' => $customDiscountPercent,
@@ -651,9 +646,7 @@ class CashierAuthController extends Controller
                     'CustomDiscountApprovedBy' => $customDiscountApprovedBy,
                     'PromoCode' => $discount?->PromoCode,
                     'VatAmount' => $vatAmount,
-                    'BillingDate' => now(),
                     'DiscountID' => $discount?->DiscountID,
-                    'SalesTransactionID' => $transaction->SalesTransactionID,
                 ]);
 
                 // Create payment
@@ -664,7 +657,7 @@ class CashierAuthController extends Controller
                     'PaymentAmount' => $paymentAmount,
                     'PaymentMethod' => $paymentMethod,
                     'ReceiptNumber' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
-                    'BillingID' => $billing->BillingID,
+                    'SalesTransactionID' => $transaction->SalesTransactionID,
                     'ReferenceNumber' => $referenceNumber,
                     'BankName' => $bankName,
                     'AccountName' => $accountName,
@@ -756,7 +749,7 @@ class CashierAuthController extends Controller
         // Dispatched after the transaction has committed — a notification
         // failure must never roll back an otherwise-successful sale.
         try {
-            $completedTransaction = SalesTransaction::with(['items', 'billing'])->find($result['transaction_id']);
+            $completedTransaction = SalesTransaction::with(['items'])->find($result['transaction_id']);
             if ($completedTransaction) {
                 Notification::send(User::admins(), new SaleCompleted($completedTransaction));
             }
@@ -857,7 +850,7 @@ class CashierAuthController extends Controller
 
         $staff = Staff::where('UserID', Auth::id())->first();
 
-        $transaction = SalesTransaction::with(['items.product', 'billing'])
+        $transaction = SalesTransaction::with(['items.product', 'payment', 'discount'])
             ->where('SalesTransactionID', $transactionId)
             ->where('StaffID', $staff->StaffID ?? 0)
             ->first();
@@ -877,7 +870,8 @@ class CashierAuthController extends Controller
      */
     private function buildReceiptData(SalesTransaction $transaction, string $receiptNumber): array
     {
-        $billing = $transaction->billing;
+        // The sale holds what it came to (subtotal, discounts, VAT, total).
+        $sale = $transaction;
         $items = $transaction->items->map(function ($item) {
             return [
                 'id' => $item->ProductID,
@@ -891,34 +885,34 @@ class CashierAuthController extends Controller
             ];
         })->toArray();
 
-        $hasDiscount = $billing && $billing->DiscountID !== null;
+        $hasDiscount = $sale->DiscountID !== null;
         $promoCode = null;
         $promoProductName = null;
 
-        if ($billing && $billing->Subtotal !== null) {
+        if ($sale->Subtotal !== null) {
             // Historically-accurate path: read back exactly what was charged
             // at sale time, immune to the Discount's rate/code being edited
-            // since then (PromoCode is frozen onto Billing itself for that
+            // since then (PromoCode is frozen onto the sale itself for that
             // reason). The rate shown is derived from the promo'd product's
             // OWN line subtotal, not the whole cart — a promo only ever
             // discounts the one product it's tied to — so the percentage and
             // amount on screen always agree with each other.
-            $subtotal = (float) $billing->Subtotal;
+            $subtotal = (float) $sale->Subtotal;
             // DiscountAmount holds promos + custom discount; the receipt
             // shows the two on separate lines.
-            $customDiscountAmount = (float) ($billing->CustomDiscountAmount ?? 0);
-            $discountAmount = round((float) $billing->DiscountAmount - $customDiscountAmount, 2);
-            $vatAmount = (float) $billing->VatAmount;
-            $total = (float) $billing->BillingAmount;
+            $customDiscountAmount = (float) ($sale->CustomDiscountAmount ?? 0);
+            $discountAmount = round((float) $sale->DiscountAmount - $customDiscountAmount, 2);
+            $vatAmount = (float) $sale->VatAmount;
+            $total = (float) $sale->TotalAmount;
 
             $discountRate = 0;
             if ($hasDiscount) {
-                $promoCode = $billing->PromoCode ?? $billing->discount?->PromoCode;
+                $promoCode = $sale->PromoCode ?? $sale->discount?->PromoCode;
                 // A promo can be assigned to several products — every line on
                 // THIS receipt that's one of them contributed to the frozen
                 // DiscountAmount above, so all of them are named here.
-                $promoProductIds = $billing->discount
-                    ? $billing->discount->products()->pluck('Product.ProductID')->all()
+                $promoProductIds = $sale->discount
+                    ? $sale->discount->products()->pluck('Product.ProductID')->all()
                     : [];
                 $promoLines = collect($items)->whereIn('id', $promoProductIds);
                 $promoProductName = $promoLines->isNotEmpty() ? $promoLines->pluck('name')->implode(', ') : null;
@@ -935,8 +929,8 @@ class CashierAuthController extends Controller
             }, $items));
 
             $discountRate = 0;
-            if ($billing && $billing->discount) {
-                $discountRate = $billing->discount->DiscountRate ?? 0;
+            if ($sale->discount) {
+                $discountRate = $sale->discount->DiscountRate ?? 0;
             }
             $discountAmount = $subtotal * ($discountRate / 100);
             $vatAmount = ($subtotal - $discountAmount) * 0.12;
@@ -944,7 +938,7 @@ class CashierAuthController extends Controller
         }
 
         // Get payment info
-        $payment = Payment::where('BillingID', $billing?->BillingID)->first();
+        $payment = $transaction->payment;
         $paymentAmount = $payment ? ($payment->PaymentAmount ?? $total) : $total;
         $change = max(0, $paymentAmount - $total);
         $paymentMethod = $payment?->PaymentMethod ?? 'cash';
@@ -964,8 +958,8 @@ class CashierAuthController extends Controller
             'discountAmount' => $discountAmount,
             'promoCode' => $promoCode,
             'promoProductName' => $promoProductName,
-            'customDiscountPercent' => $billing?->CustomDiscountPercent !== null ? (float) $billing->CustomDiscountPercent : null,
-            'customDiscountAmount' => (float) ($billing?->CustomDiscountAmount ?? 0),
+            'customDiscountPercent' => $sale->CustomDiscountPercent !== null ? (float) $sale->CustomDiscountPercent : null,
+            'customDiscountAmount' => (float) ($sale->CustomDiscountAmount ?? 0),
             'vatAmount' => $vatAmount,
             'total' => $total,
             'paymentMethod' => $paymentMethod,

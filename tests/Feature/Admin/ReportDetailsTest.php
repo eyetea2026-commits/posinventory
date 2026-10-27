@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\DamagedProduct;
 use App\Models\Discount;
@@ -78,13 +77,14 @@ class ReportDetailsTest extends TestCase
             'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
         $discount = Discount::firstOrCreate(['DiscountRate' => 0]);
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1800,
-            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        $billing = tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 1800,
+            'DiscountID' => $discount->DiscountID,
         ]);
-        Payment::create(['PaymentAmount' => 1800, 'PaymentMethod' => 'cash', 'ReceiptNumber' => 'RCT-000001', 'BillingID' => $billing->BillingID]);
+        Payment::create(['PaymentAmount' => 1800, 'PaymentMethod' => 'cash', 'ReceiptNumber' => 'RCT-000001', 'SalesTransactionID' => $billing->SalesTransactionID]);
 
-        $response = $this->fetchDetails('sales', $billing->BillingID);
+        $response = $this->fetchDetails('sales', $billing->SalesTransactionID);
 
         $response->assertOk();
         $response->assertJsonFragment(['label' => 'Cashier Name', 'value' => 'Jane Doe']);
@@ -108,12 +108,12 @@ class ReportDetailsTest extends TestCase
             'Quantity' => 1, 'UnitPrice' => 1000,
             'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1000,
-            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        $billing = tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 1000,
         ]);
 
-        $response = $this->fetchDetails('sales', $billing->BillingID);
+        $response = $this->fetchDetails('sales', $billing->SalesTransactionID);
 
         $response->assertOk();
         $response->assertJsonMissing(['warning' => 'This sale has been refunded.']);
@@ -128,9 +128,9 @@ class ReportDetailsTest extends TestCase
             'Quantity' => 1, 'UnitPrice' => 1000,
             'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1000,
-            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        $billing = tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 1000,
         ]);
 
         $return = SalesReturn::create([
@@ -144,7 +144,7 @@ class ReportDetailsTest extends TestCase
             'Quantity' => 1, 'UnitPrice' => 1000, 'Reason' => 'Factory Defect',
         ]);
 
-        $response = $this->fetchDetails('sales', $billing->BillingID);
+        $response = $this->fetchDetails('sales', $billing->SalesTransactionID);
 
         $response->assertOk();
         $response->assertJsonFragment(['warning' => 'This sale has been refunded.']);
@@ -162,9 +162,9 @@ class ReportDetailsTest extends TestCase
             'Quantity' => 1, 'UnitPrice' => 1000,
             'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1000,
-            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        $billing = tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 1000,
         ]);
 
         SalesReturn::create([
@@ -180,7 +180,7 @@ class ReportDetailsTest extends TestCase
             'ReturnDate' => now()->format('Y-m-d'), 'Status' => SalesReturn::STATUS_PROCESSED,
         ]);
 
-        $response = $this->fetchDetails('sales', $billing->BillingID);
+        $response = $this->fetchDetails('sales', $billing->SalesTransactionID);
 
         $response->assertOk();
         $response->assertJsonMissing(['warning' => 'This sale has been refunded.']);
@@ -300,9 +300,10 @@ class ReportDetailsTest extends TestCase
         ]);
         SalesItem::create(['Quantity' => 1, 'UnitPrice' => 1000, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID]);
         $discount = Discount::firstOrCreate(['DiscountRate' => 0]);
-        Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1000,
-            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 1000,
+            'DiscountID' => $discount->DiscountID,
         ]);
 
         $po = PurchaseOrder::create([

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Billing;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\SalesItem;
@@ -32,13 +31,13 @@ class DashboardController extends Controller
         $yesterday = $today->copy()->subDay();
 
         // KPI cards
-        $salesToday = (float) Billing::whereDate('BillingDate', $today)->sum('BillingAmount');
-        $salesYesterday = (float) Billing::whereDate('BillingDate', $yesterday)->sum('BillingAmount');
+        $salesToday = (float) SalesTransaction::whereDate('SalesTransactionDate', $today)->sum('TotalAmount');
+        $salesYesterday = (float) SalesTransaction::whereDate('SalesTransactionDate', $yesterday)->sum('TotalAmount');
         $salesChangePct = $salesYesterday > 0
             ? round((($salesToday - $salesYesterday) / $salesYesterday) * 100, 1)
             : null;
 
-        $transactionsToday = Billing::whereDate('BillingDate', $today)->count();
+        $transactionsToday = SalesTransaction::whereDate('SalesTransactionDate', $today)->count();
         $totalSuppliers = Supplier::count();
 
         $inventorySnapshot = $this->buildInventorySnapshot();
@@ -104,8 +103,8 @@ class DashboardController extends Controller
 
         $today = today();
         $yesterday = $today->copy()->subDay();
-        $salesToday = (float) Billing::whereDate('BillingDate', $today)->sum('BillingAmount');
-        $salesYesterday = (float) Billing::whereDate('BillingDate', $yesterday)->sum('BillingAmount');
+        $salesToday = (float) SalesTransaction::whereDate('SalesTransactionDate', $today)->sum('TotalAmount');
+        $salesYesterday = (float) SalesTransaction::whereDate('SalesTransactionDate', $yesterday)->sum('TotalAmount');
         $salesChangePct = $salesYesterday > 0
             ? round((($salesToday - $salesYesterday) / $salesYesterday) * 100, 1)
             : null;
@@ -120,7 +119,7 @@ class DashboardController extends Controller
             'categoryChart' => $this->buildCategorySalesChart(),
             'salesToday' => $salesToday,
             'salesChangePct' => $salesChangePct,
-            'transactionsToday' => Billing::whereDate('BillingDate', $today)->count(),
+            'transactionsToday' => SalesTransaction::whereDate('SalesTransactionDate', $today)->count(),
             'recentTransactionsHtml' => view('admin.dashboard.partials.recent-transactions', [
                 'recentTransactions' => $recentTransactions,
                 'txnSort' => $request->query('txn_sort', 'date_desc'),
@@ -142,8 +141,7 @@ class DashboardController extends Controller
 
         return SalesTransaction::query()
             ->select('SalesTransaction.*')
-            ->leftJoin('Billing', 'Billing.SalesTransactionID', '=', 'SalesTransaction.SalesTransactionID')
-            ->with(['staff.user', 'billing.payment'])
+            ->with(['staff.user', 'payment'])
             // Searches every transaction, not just the newest page.
             ->when($txnSearch, function ($query, $search) {
                 $search = trim($search);
@@ -154,7 +152,7 @@ class DashboardController extends Controller
                 $query->where(function ($inner) use ($search, $receiptId) {
                     $inner->where('SalesTransaction.SalesTransactionID', 'like', "%{$search}%")
                         ->when($receiptId, fn ($q) => $q->orWhere('SalesTransaction.SalesTransactionID', $receiptId))
-                        ->orWhereHas('billing.payment', fn ($payment) => $payment->where('ReceiptNumber', 'like', "%{$search}%"))
+                        ->orWhereHas('payment', fn ($payment) => $payment->where('ReceiptNumber', 'like', "%{$search}%"))
                         ->orWhere('SalesTransaction.CustomerName', 'like', "%{$search}%")
                         ->orWhereHas('staff', function ($staff) use ($search) {
                             $staff->where('FirstName', 'like', "%{$search}%")
@@ -162,8 +160,8 @@ class DashboardController extends Controller
                         });
                 });
             })
-            ->when($txnSort === 'amount_desc', fn ($q) => $q->orderByDesc('Billing.BillingAmount'))
-            ->when($txnSort === 'amount_asc', fn ($q) => $q->orderBy('Billing.BillingAmount'))
+            ->when($txnSort === 'amount_desc', fn ($q) => $q->orderByDesc('SalesTransaction.TotalAmount'))
+            ->when($txnSort === 'amount_asc', fn ($q) => $q->orderBy('SalesTransaction.TotalAmount'))
             ->when($txnSort === 'date_asc', fn ($q) => $q->orderBy('SalesTransaction.SalesTransactionDate'))
             ->when(! in_array($txnSort, ['amount_desc', 'amount_asc', 'date_asc']), fn ($q) => $q->orderByDesc('SalesTransaction.SalesTransactionDate'))
             ->paginate(10, ['*'], 'txn_page')
@@ -325,8 +323,8 @@ class DashboardController extends Controller
         $compareEnd = $start->copy()->subDay();
         $compareStart = $compareEnd->copy()->subDays($days - 1);
 
-        $rows = $this->trendWindow($start, $end, 'BillingDate', 'd');
-        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'BillingDate', 'd');
+        $rows = $this->trendWindow($start, $end, 'DATE(SalesTransactionDate)', 'd');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'DATE(SalesTransactionDate)', 'd');
 
         $labels = [];
         $data = [];
@@ -352,8 +350,8 @@ class DashboardController extends Controller
         $compareEnd = $start->copy()->subDay();
         $compareStart = $compareEnd->copy()->subWeeks($weeks - 1)->startOfWeek();
 
-        $rows = $this->trendWindow($start, $end, 'YEARWEEK(BillingDate, 3)', 'yw');
-        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'YEARWEEK(BillingDate, 3)', 'yw');
+        $rows = $this->trendWindow($start, $end, 'YEARWEEK(SalesTransactionDate, 3)', 'yw');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'YEARWEEK(SalesTransactionDate, 3)', 'yw');
 
         $labels = [];
         $data = [];
@@ -383,8 +381,8 @@ class DashboardController extends Controller
         $compareEnd = $start->copy()->subDay();
         $compareStart = $compareEnd->copy()->subMonthsNoOverflow($months - 1)->startOfMonth();
 
-        $rows = $this->trendWindow($start, $end, "DATE_FORMAT(BillingDate, '%Y-%m')", 'ym');
-        $compareRows = $this->trendWindow($compareStart, $compareEnd, "DATE_FORMAT(BillingDate, '%Y-%m')", 'ym');
+        $rows = $this->trendWindow($start, $end, "DATE_FORMAT(SalesTransactionDate, '%Y-%m')", 'ym');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, "DATE_FORMAT(SalesTransactionDate, '%Y-%m')", 'ym');
 
         $labels = [];
         $data = [];
@@ -412,8 +410,8 @@ class DashboardController extends Controller
         $compareEnd = $start->copy()->subDay();
         $compareStart = $compareEnd->copy()->subYears($years - 1)->startOfYear();
 
-        $rows = $this->trendWindow($start, $end, 'YEAR(BillingDate)', 'y');
-        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'YEAR(BillingDate)', 'y');
+        $rows = $this->trendWindow($start, $end, 'YEAR(SalesTransactionDate)', 'y');
+        $compareRows = $this->trendWindow($compareStart, $compareEnd, 'YEAR(SalesTransactionDate)', 'y');
 
         $labels = [];
         $data = [];
@@ -441,8 +439,9 @@ class DashboardController extends Controller
      */
     private function trendWindow($start, $end, string $groupRaw, string $groupAlias)
     {
-        return Billing::whereBetween('BillingDate', [$start->toDateString(), $end->toDateString()])
-            ->selectRaw("{$groupRaw} as {$groupAlias}, SUM(BillingAmount) as total")
+        return SalesTransaction::whereDate('SalesTransactionDate', '>=', $start->toDateString())
+            ->whereDate('SalesTransactionDate', '<=', $end->toDateString())
+            ->selectRaw("{$groupRaw} as {$groupAlias}, SUM(TotalAmount) as total")
             ->groupBy($groupAlias)
             ->pluck('total', $groupAlias);
     }
@@ -513,10 +512,11 @@ class DashboardController extends Controller
             ],
         };
 
-        $current = Billing::whereBetween('BillingDate', [$start->toDateString(), $today->toDateString()]);
+        $current = SalesTransaction::whereDate('SalesTransactionDate', '>=', $start->toDateString())
+            ->whereDate('SalesTransactionDate', '<=', $today->toDateString());
         $invoiceCount = (clone $current)->count();
-        $revenueTotal = round((float) $current->sum('BillingAmount'), 2);
-        $previousRevenue = round((float) Billing::whereBetween('BillingDate', [$previousStart->toDateString(), $previousEnd->toDateString()])->sum('BillingAmount'), 2);
+        $revenueTotal = round((float) $current->sum('TotalAmount'), 2);
+        $previousRevenue = round((float) SalesTransaction::whereDate('SalesTransactionDate', '>=', $previousStart->toDateString())->whereDate('SalesTransactionDate', '<=', $previousEnd->toDateString())->sum('TotalAmount'), 2);
 
         return [
             'invoiceCount' => $invoiceCount,

@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Http\Controllers\Admin\ReportController;
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\DamagedProduct;
 use App\Models\Inventory;
@@ -50,7 +49,7 @@ class ReportsModuleTest extends TestCase
         $this->supplier = Supplier::create(['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0000', 'Email' => 'acme@example.com', 'Address' => 'N/A']);
     }
 
-    private function makeBilling(float $amount, string $billingDate): Billing
+    private function makeSale(float $amount, string $billingDate): SalesTransaction
     {
         $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);
         $cashierUser = User::factory()->create(['role_id' => $cashierRole->id]);
@@ -62,9 +61,9 @@ class ReportsModuleTest extends TestCase
             'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => $billingDate, 'StaffID' => $staff->StaffID,
         ]);
 
-        return Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => $amount,
-            'BillingDate' => $billingDate, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        return tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => $amount,
         ]);
     }
 
@@ -379,7 +378,7 @@ class ReportsModuleTest extends TestCase
 
     public function test_preview_endpoint_returns_total_revenue_for_the_filtered_range(): void
     {
-        $this->makeBilling(1500, '2026-06-15');
+        $this->makeSale(1500, '2026-06-15');
 
         $response = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', [
             'type' => 'sales', 'date_from' => '2026-06-01', 'date_to' => '2026-06-30',
@@ -407,7 +406,7 @@ class ReportsModuleTest extends TestCase
 
     public function test_print_preview_renders_branded_report_with_date_range_and_generated_by(): void
     {
-        $this->makeBilling(750, '2026-06-15');
+        $this->makeSale(750, '2026-06-15');
 
         $response = $this->actingAs($this->admin)->get(route('admin.reports.print', [
             'type' => 'sales', 'date_from' => '2026-06-01', 'date_to' => '2026-06-30',
@@ -459,15 +458,15 @@ class ReportsModuleTest extends TestCase
 
     // ReportSummaryBuilder::sales() now expects the item-level row shape
     // ReportController::salesItemRows() produces (Quantity/ItemTotal on
-    // every row; Discount/VatAmount/BillingAmount only on each invoice's
+    // every row; Discount/VatAmount/TotalAmount only on each invoice's
     // first item row) — constructed directly here since that method is
     // private; the real explosion is covered end-to-end by
     // test_sales_report_export_explodes_to_one_row_per_line_item below.
     public function test_report_summary_builder_computes_sales_aggregates(): void
     {
         $rows = collect([
-            (object) ['Quantity' => 2, 'ItemTotal' => 2000.0, 'Discount' => 0.0, 'VatAmount' => 120.0, 'BillingAmount' => 1120.0, 'is_first' => true],
-            (object) ['Quantity' => 1, 'ItemTotal' => 1000.0, 'Discount' => null, 'VatAmount' => null, 'BillingAmount' => null, 'is_first' => false],
+            (object) ['Quantity' => 2, 'ItemTotal' => 2000.0, 'Discount' => 0.0, 'VatAmount' => 120.0, 'TotalAmount' => 1120.0, 'is_first' => true],
+            (object) ['Quantity' => 1, 'ItemTotal' => 1000.0, 'Discount' => null, 'VatAmount' => null, 'TotalAmount' => null, 'is_first' => false],
         ]);
 
         $summary = collect(ReportSummaryBuilder::forType('sales', $rows))->keyBy('label');
@@ -511,7 +510,7 @@ class ReportsModuleTest extends TestCase
             'ProductName' => 'IP Camera', 'Model' => 'CAM-02',
             'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
         ]);
-        $billing = $this->makeBilling(1120, '2026-06-15');
+        $billing = $this->makeSale(1120, '2026-06-15');
         $billing->update(['Subtotal' => 1000, 'DiscountAmount' => 0, 'VatAmount' => 120]);
         SalesItem::create(['Quantity' => 2, 'UnitPrice' => 400, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
         SalesItem::create(['Quantity' => 1, 'UnitPrice' => 200, 'ProductID' => $secondProduct->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
@@ -533,7 +532,7 @@ class ReportsModuleTest extends TestCase
             'ProductName' => 'IP Camera', 'Model' => 'CAM-02',
             'Price' => 500, 'CostPrice' => 300, 'CategoryID' => $this->product->CategoryID,
         ]);
-        $billing = $this->makeBilling(1120, '2026-06-15');
+        $billing = $this->makeSale(1120, '2026-06-15');
         $billing->update(['Subtotal' => 1000, 'DiscountAmount' => 0, 'VatAmount' => 120]);
         SalesItem::create(['Quantity' => 2, 'UnitPrice' => 400, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
         SalesItem::create(['Quantity' => 1, 'UnitPrice' => 200, 'ProductID' => $secondProduct->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
@@ -561,7 +560,7 @@ class ReportsModuleTest extends TestCase
     // must show Total ₱2,800, not ₱3,000).
     public function test_sales_report_total_column_reflects_the_discount_not_the_gross_line_amount(): void
     {
-        $billing = $this->makeBilling(2800, '2026-06-20');
+        $billing = $this->makeSale(2800, '2026-06-20');
         $billing->update(['Subtotal' => 3000, 'DiscountAmount' => 200, 'VatAmount' => 300]);
         SalesItem::create(['Quantity' => 1, 'UnitPrice' => 3000, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
 
@@ -655,7 +654,7 @@ class ReportsModuleTest extends TestCase
         $response->assertSee('Generated by CCTV Express POS');
     }
 
-    private function makeRefund(Billing $billing, float $amount, string $date, string $type = 'refund', string $status = SalesReturn::STATUS_PROCESSED): SalesReturn
+    private function makeRefund(SalesTransaction $billing, float $amount, string $date, string $type = 'refund', string $status = SalesReturn::STATUS_PROCESSED): SalesReturn
     {
         return SalesReturn::create([
             'SalesTransactionID' => $billing->SalesTransactionID, 'ProductID' => $this->product->ProductID,
@@ -668,9 +667,9 @@ class ReportsModuleTest extends TestCase
     // total refunded, and what's left after refunds, for the selected range.
     public function test_sales_report_shows_sale_refund_and_after_refund_totals_above_the_filters(): void
     {
-        $inRange = $this->makeBilling(5000, '2026-05-10');
-        $this->makeBilling(2500, '2026-05-12');
-        $outside = $this->makeBilling(9999, '2026-04-01');
+        $inRange = $this->makeSale(5000, '2026-05-10');
+        $this->makeSale(2500, '2026-05-12');
+        $outside = $this->makeSale(9999, '2026-04-01');
         $this->makeRefund($inRange, 1200, '2026-05-11');
         // Not counted: outside the range, a replacement (goods, not money), still pending.
         $this->makeRefund($outside, 700, '2026-04-02');
@@ -723,7 +722,7 @@ class ReportsModuleTest extends TestCase
     // dates are picked, never "All Time".
     public function test_downloaded_reports_show_the_peso_sign(): void
     {
-        $billing = $this->makeBilling(1500, '2026-06-15');
+        $billing = $this->makeSale(1500, '2026-06-15');
         SalesItem::create(['Quantity' => 1, 'UnitPrice' => 1500, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
 
         $csv = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'csv']))->streamedContent();
@@ -754,7 +753,7 @@ class ReportsModuleTest extends TestCase
     public function test_excel_download_without_dates_says_as_of_today(): void
     {
         $this->travelTo(now()->setDate(2026, 10, 13));
-        $this->makeBilling(1500, '2026-10-10');
+        $this->makeSale(1500, '2026-10-10');
 
         $response = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'excel']))->assertOk();
 
@@ -769,8 +768,8 @@ class ReportsModuleTest extends TestCase
     // "N/A" on the Sales and Revenue and Refund reports; real names stay.
     public function test_walk_in_customers_show_as_na_on_sales_and_refund_reports(): void
     {
-        $walkIn = $this->makeBilling(1000, '2026-05-10');
-        $named = $this->makeBilling(2000, '2026-05-11');
+        $walkIn = $this->makeSale(1000, '2026-05-10');
+        $named = $this->makeSale(2000, '2026-05-11');
         $named->update(['CustomerName' => 'Juan Dela Cruz']);
         $refund = $this->makeRefund($walkIn, 500, '2026-05-12');
         $refund->update(['CustomerName' => 'Walk-in Customer']);
@@ -798,7 +797,7 @@ class ReportsModuleTest extends TestCase
     // green approved/settled, red declined/written off.
     public function test_refund_and_damage_report_statuses_are_coloured(): void
     {
-        $billing = $this->makeBilling(1000, now()->format('Y-m-d'));
+        $billing = $this->makeSale(1000, now()->format('Y-m-d'));
         foreach ([SalesReturn::STATUS_PENDING, SalesReturn::STATUS_APPROVED, SalesReturn::STATUS_DECLINED] as $status) {
             $return = $this->makeRefund($billing, 100, now()->format('Y-m-d'), 'refund', $status);
             SalesReturnItem::create([

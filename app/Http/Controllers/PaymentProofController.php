@@ -22,7 +22,7 @@ class PaymentProofController extends Controller
 
         if (! $user->isAdmin()) {
             $staffId = Staff::where('UserID', $user->id)->value('StaffID');
-            $ownSale = $staffId !== null && (int) $payment->billing?->transaction?->StaffID === (int) $staffId;
+            $ownSale = $staffId !== null && (int) $payment->transaction?->StaffID === (int) $staffId;
             abort_unless($ownSale, 403);
         }
 

@@ -3,7 +3,6 @@
 namespace Tests\Feature\Cashier;
 
 use App\Models\ActivityLog;
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Discount;
 use App\Models\Inventory;
@@ -74,15 +73,15 @@ class ReturnProcessingTest extends TestCase
         ]);
 
         $discount = Discount::firstOrCreate(['DiscountRate' => 0]);
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 2000,
-            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID,
-            'SalesTransactionID' => $this->transaction->SalesTransactionID,
+        $billing = tap(SalesTransaction::findOrFail($this->transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 2000,
+            'DiscountID' => $discount->DiscountID,
         ]);
         Payment::create([
             'PaymentAmount' => 2000, 'PaymentMethod' => 'cash',
             'ReceiptNumber' => 'RCT-'.str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
-            'BillingID' => $billing->BillingID,
+            'SalesTransactionID' => $billing->SalesTransactionID,
         ]);
     }
 
@@ -212,15 +211,15 @@ class ReturnProcessingTest extends TestCase
             'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
         $discount = Discount::firstOrCreate(['DiscountRate' => 20]);
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1600,
-            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID,
-            'SalesTransactionID' => $transaction->SalesTransactionID,
+        $billing = tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 1600,
+            'DiscountID' => $discount->DiscountID,
         ]);
         Payment::create([
             'PaymentAmount' => 1600, 'PaymentMethod' => 'cash',
             'ReceiptNumber' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
-            'BillingID' => $billing->BillingID,
+            'SalesTransactionID' => $billing->SalesTransactionID,
         ]);
 
         $return = SalesReturn::create([

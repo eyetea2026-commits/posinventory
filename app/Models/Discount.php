@@ -57,9 +57,12 @@ class Discount extends Model
         self::STATUS_EXPIRED => 'Expired',
     ];
 
-    public function billings()
+    /**
+     * The sales this promo was applied to.
+     */
+    public function salesTransactions()
     {
-        return $this->hasMany(Billing::class, 'DiscountID', 'DiscountID');
+        return $this->hasMany(SalesTransaction::class, 'DiscountID', 'DiscountID');
     }
 
     // Legacy singular relation — still resolves correctly for pre-pivot

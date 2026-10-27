@@ -33,7 +33,7 @@ class LiveDataVersions
         'stock_adjustments' => ['stockadjustment', 'inventory', 'product'],
         'damages' => ['damagedproduct', 'salesreturn', 'salesreturnitem', 'replacement', 'product'],
         'inventory' => ['inventory', 'product', 'category', 'brand'],
-        'sales' => ['salestransaction', 'salesitem', 'payment', 'billing', 'salesreturn', 'salesreturnitem', 'replacement'],
+        'sales' => ['salestransaction', 'salesitem', 'payment', 'salesreturn', 'salesreturnitem', 'replacement'],
         'discounts' => ['discount', 'discountproduct', 'product'],
         'users' => ['users', 'roles'],
         'activity' => ['activitylog'],

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Cashier;
 
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Role;
 use App\Models\SalesTransaction;
@@ -197,9 +196,9 @@ class CashierScopingAndSearchTest extends TestCase
     public function test_transactions_list_does_not_show_sale_totals(): void
     {
         $transaction = $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
-        Billing::create([
-            'CustomerName' => 'Juan Dela Cruz', 'VatApplied' => '12%', 'BillingAmount' => 129610.86,
-            'BillingDate' => now(), 'SalesTransactionID' => $transaction->SalesTransactionID,
+        tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 129610.86,
         ]);
 
         $page = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));

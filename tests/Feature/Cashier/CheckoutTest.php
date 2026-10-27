@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Cashier;
 
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Discount;
 use App\Models\Inventory;
@@ -64,10 +63,10 @@ class CheckoutTest extends TestCase
         ]);
 
         $response->assertOk();
-        $billing = Billing::latest('BillingID')->firstOrFail();
+        $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertEquals($price, (float) $billing->Subtotal);
         $this->assertEquals($expectedVat, (float) $billing->VatAmount);
-        $this->assertEquals($price, (float) $billing->BillingAmount);
+        $this->assertEquals($price, (float) $billing->TotalAmount);
     }
 
     public static function vatOnTotalProvider(): array
@@ -92,10 +91,10 @@ class CheckoutTest extends TestCase
         ]);
 
         $response->assertOk();
-        $billing = Billing::latest('BillingID')->firstOrFail();
+        $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertEquals(4500.0, (float) $billing->Subtotal);
         $this->assertEquals(540.0, (float) $billing->VatAmount);
-        $this->assertEquals(4500.0, (float) $billing->BillingAmount);
+        $this->assertEquals(4500.0, (float) $billing->TotalAmount);
     }
 
     // ---- Receipt item table: Description | Quantity | Amount, each cell
@@ -219,7 +218,6 @@ class CheckoutTest extends TestCase
 
         $response->assertOk();
         $this->assertDatabaseHas('SalesTransaction', ['CustomerName' => 'N/A']);
-        $this->assertDatabaseHas('Billing', ['CustomerName' => 'N/A']);
         $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'Walk-in Customer']);
     }
 
@@ -235,13 +233,11 @@ class CheckoutTest extends TestCase
             ])->assertOk();
         }
         DB::table('SalesTransaction')->where('CustomerName', 'N/A')->update(['CustomerName' => 'Walk-in Customer']);
-        DB::table('Billing')->where('CustomerName', 'N/A')->update(['CustomerName' => 'Walk-in Customer']);
 
         $migration = require database_path('migrations/2026_10_13_111641_change_walk_in_customer_names_to_na.php');
         $migration->up();
 
         $this->assertSame(['N/A', 'Narvaiz'], DB::table('SalesTransaction')->orderBy('SalesTransactionID')->pluck('CustomerName')->all());
-        $this->assertSame(['N/A', 'Narvaiz'], DB::table('Billing')->orderBy('BillingID')->pluck('CustomerName')->all());
     }
 
     // ---- Insufficient stock is rejected server-side, not just hidden by
@@ -391,7 +387,7 @@ class CheckoutTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('success', true);
-        $this->assertEquals(0.0, (float) Billing::latest('BillingID')->value('BillingAmount'));
+        $this->assertEquals(0.0, (float) SalesTransaction::latest('SalesTransactionID')->value('TotalAmount'));
         $this->assertSame(49, Inventory::where('ProductID', $product->ProductID)->value('Quantity'));
     }
 
@@ -416,7 +412,7 @@ class CheckoutTest extends TestCase
         $sale->assertOk();
         $receiptNumber = $sale->json('receipt_number');
 
-        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $billing = SalesTransaction::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1000.00, (float) $billing->Subtotal);
         $this->assertEquals(100.00, (float) $billing->DiscountAmount);
         $this->assertEquals(108.00, (float) $billing->VatAmount); // 900 * 0.12
@@ -450,15 +446,15 @@ class CheckoutTest extends TestCase
             'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
         // Simulate a historical row: Subtotal/DiscountAmount/VatAmount left null.
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer', 'VatApplied' => '12%', 'BillingAmount' => 1008,
-            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID,
-            'SalesTransactionID' => $transaction->SalesTransactionID,
+        $billing = tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 1008,
+            'DiscountID' => $discount->DiscountID,
         ]);
         Payment::create([
             'PaymentAmount' => 1008, 'PaymentMethod' => 'cash',
             'ReceiptNumber' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
-            'BillingID' => $billing->BillingID,
+            'SalesTransactionID' => $billing->SalesTransactionID,
         ]);
 
         $receiptNumber = 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);

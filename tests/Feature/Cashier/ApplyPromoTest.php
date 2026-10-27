@@ -2,13 +2,13 @@
 
 namespace Tests\Feature\Cashier;
 
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Discount;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\SalesItem;
+use App\Models\SalesTransaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -164,11 +164,11 @@ class ApplyPromoTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('success', true);
 
-        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $billing = SalesTransaction::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(3000.0, (float) $billing->Subtotal);
         $this->assertEquals(200.0, (float) $billing->DiscountAmount);
         $this->assertEquals(336.0, (float) $billing->VatAmount);
-        $this->assertEquals(2800.0, (float) $billing->BillingAmount);
+        $this->assertEquals(2800.0, (float) $billing->TotalAmount);
         $this->assertSame('SUMMER20', $billing->PromoCode);
     }
 
@@ -189,10 +189,10 @@ class ApplyPromoTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('success', true);
-        $billing = Billing::latest('BillingID')->firstOrFail();
+        $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertNull($billing->DiscountID);
         $this->assertEquals(0.0, (float) $billing->DiscountAmount);
-        $this->assertEquals(2000.0, (float) $billing->BillingAmount);
+        $this->assertEquals(2000.0, (float) $billing->TotalAmount);
     }
 
     // Even though the DiscountProduct assignment row still exists, an
@@ -212,10 +212,10 @@ class ApplyPromoTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('success', true);
-        $billing = Billing::latest('BillingID')->firstOrFail();
+        $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertNull($billing->DiscountID);
         $this->assertEquals(0.0, (float) $billing->DiscountAmount);
-        $this->assertEquals(1000.0, (float) $billing->BillingAmount);
+        $this->assertEquals(1000.0, (float) $billing->TotalAmount);
     }
 
     public function test_receipt_shows_promo_code_and_correct_line_based_discount_rate(): void
@@ -274,11 +274,11 @@ class ApplyPromoTest extends TestCase
         ]);
 
         $response->assertOk();
-        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $billing = SalesTransaction::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(3000.0, (float) $billing->Subtotal);
         $this->assertEquals(600.0, (float) $billing->DiscountAmount);
         $this->assertEquals(288.0, (float) $billing->VatAmount);
-        $this->assertEquals(2400.0, (float) $billing->BillingAmount);
+        $this->assertEquals(2400.0, (float) $billing->TotalAmount);
     }
 
     public function test_checkout_discounts_only_the_assigned_product_actually_in_the_cart(): void
@@ -304,11 +304,11 @@ class ApplyPromoTest extends TestCase
         ]);
 
         $response->assertOk();
-        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $billing = SalesTransaction::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1500.0, (float) $billing->Subtotal);
         $this->assertEquals(200.0, (float) $billing->DiscountAmount);
         $this->assertEquals(156.0, (float) $billing->VatAmount);
-        $this->assertEquals(1300.0, (float) $billing->BillingAmount);
+        $this->assertEquals(1300.0, (float) $billing->TotalAmount);
     }
 
     // Apply Promo is fully automatic now, computed straight from
@@ -330,11 +330,11 @@ class ApplyPromoTest extends TestCase
         ]);
 
         $response->assertOk();
-        $billing = Billing::where('DiscountID', $discount->DiscountID)->firstOrFail();
+        $billing = SalesTransaction::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1000.0, (float) $billing->Subtotal);
         $this->assertEquals(150.0, (float) $billing->DiscountAmount);
         $this->assertEquals(102.0, (float) $billing->VatAmount);
-        $this->assertEquals(850.0, (float) $billing->BillingAmount);
+        $this->assertEquals(850.0, (float) $billing->TotalAmount);
         $this->assertSame('FIXED150', $billing->PromoCode);
     }
 
@@ -371,7 +371,7 @@ class ApplyPromoTest extends TestCase
 
     // Two different products can each carry their own, entirely independent
     // active promo at once (nothing stops that — the "no overlap" rule only
-    // blocks two promos targeting the SAME product). Billing only has room
+    // blocks two promos targeting the SAME product). A sale only has room
     // for one DiscountID/PromoCode, predating per-product assignment, so
     // this can't attribute the receipt's promo-code line to a single promo
     // — but the total discount charged must still be exactly correct.
@@ -393,11 +393,11 @@ class ApplyPromoTest extends TestCase
         ]);
 
         $response->assertOk();
-        $billing = Billing::latest('BillingID')->firstOrFail();
+        $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertEquals(3000.0, (float) $billing->Subtotal);
         $this->assertEquals(500.0, (float) $billing->DiscountAmount);
         $this->assertEquals(300.0, (float) $billing->VatAmount);
-        $this->assertEquals(2500.0, (float) $billing->BillingAmount);
+        $this->assertEquals(2500.0, (float) $billing->TotalAmount);
         $this->assertNull($billing->DiscountID);
     }
 

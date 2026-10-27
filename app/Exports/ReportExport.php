@@ -125,7 +125,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
             ],
             default => [
                 $row->ReceiptNumber,
-                self::mdy($row->BillingDate),
+                self::mdy($row->SaleDate),
                 $row->CustomerName,
                 ucfirst($row->PaymentMethod ?? 'N/A'),
                 $row->ProductName,
@@ -138,7 +138,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 // as Discount/VatAmount above, so "Total" here always
                 // agrees with them instead of ignoring the discount shown
                 // two columns over.
-                $row->BillingAmount,
+                $row->TotalAmount,
             ],
         };
     }
@@ -181,7 +181,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     // be a live =SUM() formula over, instead of the static number
     // ReportSummaryBuilder already computed — kept in sync by hand since
     // both read from the same headings()/map() column order above. Sales'
-    // "Total" column holds each invoice's actual net total (BillingAmount,
+    // "Total" column holds each invoice's actual net total (TotalAmount,
     // first row only), which is exactly "Net Sales" — "Subtotal (Gross
     // Sales)" (ItemTotal) has no visible grid column of its own, so it
     // keeps the static PHP-computed value instead of a mismatched SUM().

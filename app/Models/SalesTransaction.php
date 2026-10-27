@@ -12,12 +12,26 @@ class SalesTransaction extends Model
     public $timestamps = false;
 
     protected $table = 'SalesTransaction';
+
     protected $primaryKey = 'SalesTransactionID';
 
+    // The sale and what it came to: the subtotal, promo and custom
+    // discounts, VAT and the total due (the customer pays at once; how is
+    // in Payment).
     protected $fillable = [
         'CustomerName',
         'SalesTransactionDate',
         'StaffID',
+        'Subtotal',
+        'DiscountAmount',
+        'CustomDiscountPercent',
+        'CustomDiscountAmount',
+        'CustomDiscountApprovedBy',
+        'PromoCode',
+        'VatApplied',
+        'VatAmount',
+        'TotalAmount',
+        'DiscountID',
     ];
 
     protected $casts = [
@@ -34,8 +48,21 @@ class SalesTransaction extends Model
         return $this->hasMany(SalesItem::class, 'SalesTransactionID', 'SalesTransactionID');
     }
 
-    public function billing()
+    public function payment()
     {
-        return $this->hasOne(Billing::class, 'SalesTransactionID', 'SalesTransactionID');
+        return $this->hasOne(Payment::class, 'SalesTransactionID', 'SalesTransactionID');
+    }
+
+    public function discount()
+    {
+        return $this->belongsTo(Discount::class, 'DiscountID', 'DiscountID');
+    }
+
+    /**
+     * The Administrator whose password approved the custom discount.
+     */
+    public function customDiscountApprover()
+    {
+        return $this->belongsTo(User::class, 'CustomDiscountApprovedBy', 'id');
     }
 }

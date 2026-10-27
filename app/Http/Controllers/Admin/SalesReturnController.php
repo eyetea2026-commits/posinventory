@@ -45,7 +45,7 @@ class SalesReturnController extends Controller
         ];
 
         $returns = SalesReturn::with([
-            'transaction.billing.payment',
+            'transaction.payment',
             'transaction.staff.user',
             'items.product.category',
             'staff.user',
@@ -81,7 +81,7 @@ class SalesReturnController extends Controller
     public function show(SalesReturn $salesReturn)
     {
         $salesReturn->load([
-            'transaction.billing.payment',
+            'transaction.payment',
             'transaction.staff.user',
             'items.product.category',
             'staff.user.role',
@@ -145,7 +145,7 @@ class SalesReturnController extends Controller
                 'TransactionDate' => optional($transaction?->SalesTransactionDate)->format('m/d/Y h:i A'),
                 'CustomerName' => ReportController::customerLabel($salesReturn->CustomerName ?? $transaction?->CustomerName),
                 'OriginalCashier' => $transaction?->staff?->user?->full_name,
-                'PaymentMethod' => $transaction?->billing?->payment?->PaymentMethod,
+                'PaymentMethod' => $transaction?->payment?->PaymentMethod,
             ],
             'items' => $items,
             'requestedBy' => $requestedBy,

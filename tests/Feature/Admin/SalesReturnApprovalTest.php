@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\ActivityLog;
-use App\Models\Billing;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\DamagedProduct;
@@ -76,20 +75,17 @@ class SalesReturnApprovalTest extends TestCase
         ]);
 
         $discount = Discount::firstOrCreate(['DiscountRate' => 0]);
-        $billing = Billing::create([
-            'CustomerName' => 'Walk-in Customer',
+        $billing = tap(SalesTransaction::findOrFail($this->transaction->SalesTransactionID))->update([
             'VatApplied' => '12%',
-            'BillingAmount' => 2000,
-            'BillingDate' => now(),
+            'TotalAmount' => 2000,
             'DiscountID' => $discount->DiscountID,
-            'SalesTransactionID' => $this->transaction->SalesTransactionID,
         ]);
 
         Payment::create([
             'PaymentAmount' => 2000,
             'PaymentMethod' => 'cash',
             'ReceiptNumber' => 'RCT-'.str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
-            'BillingID' => $billing->BillingID,
+            'SalesTransactionID' => $billing->SalesTransactionID,
         ]);
     }
 

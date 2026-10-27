@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
-use App\Models\Billing;
 use App\Models\Discount;
 use App\Models\Product;
+use App\Models\SalesTransaction;
 use App\Models\User;
 use App\Notifications\DiscountUpdated;
 use App\Services\ActionNotifier;
@@ -361,8 +361,8 @@ class DiscountController extends Controller
     // Delete promo code
     public function destroy(Discount $discount)
     {
-        // Check if discount is used in any billing
-        if ($discount->billings()->count() > 0) {
+        // Check if the promo was applied to any sale
+        if ($discount->salesTransactions()->count() > 0) {
             return redirect()->route('admin.discounts.index')->with('error', 'Cannot delete a promo that is associated with past transactions.');
         }
 
@@ -480,13 +480,13 @@ class DiscountController extends Controller
 
     // Remove one product from a promo's assignment (the "Applied list"
     // row action). Blocked, like destroy(), once the promo has been used
-    // in any past transaction — Billing doesn't track a per-product
+    // in any past transaction — a sale doesn't track a per-product
     // breakdown of a multi-product promo's discount, so this is a
     // conservative "the whole promo was used" guard rather than a
     // per-product one.
     public function detachProduct(Discount $discount, Product $product)
     {
-        if ($discount->billings()->count() > 0) {
+        if ($discount->salesTransactions()->count() > 0) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot remove — this promo has already been used in past transactions.',
@@ -501,8 +501,8 @@ class DiscountController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // History modal data — Expired (past EndDate) and Used (referenced by
-    // a Billing) promos. Neither is ever deleted; this is purely a
+    // History modal data — Expired (past EndDate) and Used (applied to a
+    // sale) promos. Neither is ever deleted; this is purely a
     // read-only audit view over records that already exist.
     public function history(Request $request)
     {
@@ -515,9 +515,9 @@ class DiscountController extends Controller
             ->orderByDesc('EndDate')
             ->paginate(10, ['*'], 'expired_page');
 
-        $used = Billing::with(['discount.products', 'transaction'])
+        $used = SalesTransaction::with(['discount.products'])
             ->whereNotNull('DiscountID')
-            ->orderByDesc('BillingDate')
+            ->orderByDesc('SalesTransactionDate')
             ->paginate(10, ['*'], 'used_page');
 
         return response()->json([

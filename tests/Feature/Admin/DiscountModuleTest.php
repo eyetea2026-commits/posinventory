@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\Billing;
 use App\Models\Category;
 use App\Models\Discount;
 use App\Models\Product;
@@ -451,7 +450,7 @@ class DiscountModuleTest extends TestCase
     {
         $discount = Discount::create($this->basePromoPayload());
         $discount->products()->attach($this->product->ProductID);
-        $this->createBillingFor($discount);
+        $this->createSaleFor($discount);
 
         $response = $this->actingAs($this->admin)->deleteJson(route('admin.discounts.detach-product', [$discount, $this->product]));
 
@@ -479,7 +478,7 @@ class DiscountModuleTest extends TestCase
     {
         $discount = Discount::create(array_merge($this->basePromoPayload(), ['PromoCode' => 'USEDPROMO']));
         $discount->products()->attach($this->product->ProductID);
-        $this->createBillingFor($discount);
+        $this->createSaleFor($discount);
 
         $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.history'));
 
@@ -738,7 +737,7 @@ class DiscountModuleTest extends TestCase
     public function test_destroy_is_blocked_once_referenced_by_a_billing_record(): void
     {
         $discount = Discount::create($this->basePromoPayload());
-        $this->createBillingFor($discount);
+        $this->createSaleFor($discount);
 
         $response = $this->actingAs($this->admin)->delete(route('admin.discounts.destroy', $discount));
 
@@ -1047,7 +1046,7 @@ class DiscountModuleTest extends TestCase
         $this->assertFalse(Route::has('admin.discounts.deactivate'));
     }
 
-    private function createBillingFor(Discount $discount): Billing
+    private function createSaleFor(Discount $discount): SalesTransaction
     {
         $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);
         $cashier = User::factory()->create(['role_id' => $cashierRole->id]);
@@ -1057,10 +1056,11 @@ class DiscountModuleTest extends TestCase
         ]);
         $transaction = SalesTransaction::create(['CustomerName' => 'Walk-in', 'SalesTransactionDate' => now(), 'StaffID' => $staff->StaffID]);
 
-        return Billing::create([
-            'CustomerName' => 'Walk-in', 'VatApplied' => '12%', 'BillingAmount' => 800,
-            'BillingDate' => now(), 'DiscountID' => $discount->DiscountID, 'PromoCode' => $discount->PromoCode,
-            'SalesTransactionID' => $transaction->SalesTransactionID,
+        return tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
+            'VatApplied' => '12%',
+            'TotalAmount' => 800,
+            'DiscountID' => $discount->DiscountID,
+            'PromoCode' => $discount->PromoCode,
         ]);
     }
 }

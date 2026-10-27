@@ -24,8 +24,7 @@ class SaleCompleted extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $billing = $this->transaction->billing;
-        $total = $billing ? number_format((float) $billing->BillingAmount, 2) : '0.00';
+        $total = number_format((float) $this->transaction->TotalAmount, 2);
         $cashierName = $this->transaction->staff?->user?->full_name ?? $this->transaction->staff?->FirstName ?? 'Unknown cashier';
 
         return (new MailMessage)
@@ -41,8 +40,7 @@ class SaleCompleted extends Notification
 
     public function toDatabase(object $notifiable): array
     {
-        $billing = $this->transaction->billing;
-        $total = $billing ? number_format((float) $billing->BillingAmount, 2) : '0.00';
+        $total = number_format((float) $this->transaction->TotalAmount, 2);
 
         return [
             'title' => 'Sale Completed',

@@ -107,7 +107,7 @@ class CashierReturnController extends Controller
                 return response()->json(['success' => false, 'message' => 'Enter a valid receipt/invoice number.'], 400);
             }
 
-            $transaction = SalesTransaction::with(['items.product.category', 'billing.payment', 'staff.user'])
+            $transaction = SalesTransaction::with(['items.product.category', 'payment', 'staff.user'])
                 ->find($transactionId);
 
             if (! $transaction) {
@@ -128,7 +128,7 @@ class CashierReturnController extends Controller
             }
 
             if ($transactions->count() === 1) {
-                $transaction = $transactions->first()->load(['items.product.category', 'billing.payment', 'staff.user']);
+                $transaction = $transactions->first()->load(['items.product.category', 'payment', 'staff.user']);
 
                 return response()->json(['success' => true, 'multiple' => false, 'transaction' => $this->buildTransactionDetails($transaction)]);
             }
@@ -149,7 +149,7 @@ class CashierReturnController extends Controller
         // The QR code at the bottom of every receipt holds its receipt
         // number (e.g. RCT-000066): scanning it here opens that receipt.
         if (! $product && preg_match('/^RCT-?\d+$/i', $query)) {
-            $transaction = SalesTransaction::with(['items.product.category', 'billing.payment', 'staff.user'])
+            $transaction = SalesTransaction::with(['items.product.category', 'payment', 'staff.user'])
                 ->find((int) preg_replace('/[^0-9]/', '', $query));
 
             if (! $transaction) {
@@ -177,7 +177,7 @@ class CashierReturnController extends Controller
         }
 
         if ($transactions->count() === 1) {
-            $transaction = $transactions->first()->load(['items.product.category', 'billing.payment', 'staff.user']);
+            $transaction = $transactions->first()->load(['items.product.category', 'payment', 'staff.user']);
 
             return response()->json(['success' => true, 'multiple' => false, 'transaction' => $this->buildTransactionDetails($transaction)]);
         }
@@ -197,7 +197,7 @@ class CashierReturnController extends Controller
      */
     public function getTransactionDetails($transactionId)
     {
-        $transaction = SalesTransaction::with(['items.product.category', 'billing.payment', 'staff.user'])
+        $transaction = SalesTransaction::with(['items.product.category', 'payment', 'staff.user'])
             ->where('SalesTransactionID', $transactionId)
             ->first();
 
@@ -250,7 +250,7 @@ class CashierReturnController extends Controller
             'InvoiceNumber' => $receiptNumber,
             'TransactionDate' => optional($transaction->SalesTransactionDate)->format('m/d/Y h:i A'),
             'CustomerName' => $transaction->CustomerName,
-            'PaymentMethod' => $transaction->billing?->payment?->PaymentMethod,
+            'PaymentMethod' => $transaction->payment?->PaymentMethod,
             'OriginalCashier' => $transaction->staff?->user?->full_name,
             'items' => $items,
         ];

@@ -34,7 +34,7 @@ class ReportSummaryBuilder
     }
 
     // Rows are item-level (ReportController::salesItemRows()) — Quantity is
-    // summed across every row, but Discount/VatAmount/BillingAmount are
+    // summed across every row, but Discount/VatAmount/TotalAmount are
     // only populated on each invoice's first item row (is_first), so
     // summing them still counts each invoice exactly once.
     private static function sales(Collection $rows): array
@@ -45,7 +45,7 @@ class ReportSummaryBuilder
             ['label' => 'Subtotal (Gross Sales)', 'value' => round($rows->sum('ItemTotal'), 2), 'money' => true],
             ['label' => 'Discount', 'value' => round($rows->sum('Discount'), 2), 'money' => true],
             ['label' => 'VAT', 'value' => round($rows->sum('VatAmount'), 2), 'money' => true],
-            ['label' => 'Net Sales', 'value' => round($rows->sum('BillingAmount'), 2), 'money' => true],
+            ['label' => 'Net Sales', 'value' => round($rows->sum('TotalAmount'), 2), 'money' => true],
         ];
     }
 
