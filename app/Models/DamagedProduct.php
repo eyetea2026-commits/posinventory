@@ -80,6 +80,19 @@ class DamagedProduct extends Model
         self::SOURCE_MANUAL => 'Manual Entry',
     ];
 
+    /**
+     * Status colour in reports: still waiting yellow, settled with the
+     * supplier green, written off red.
+     */
+    public static function statusTone(?string $status): string
+    {
+        return match ($status) {
+            self::STATUS_RETURNED_TO_SUPPLIER, self::STATUS_REPLACEMENT_RECEIVED => 'success',
+            self::STATUS_DISPOSED, self::STATUS_CANCELLED => 'danger',
+            default => 'warning',
+        };
+    }
+
     const DAMAGE_TYPES = [
         'factory_defect' => 'Factory Defect',
         'damaged_product' => 'Damaged Product',

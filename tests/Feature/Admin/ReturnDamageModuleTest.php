@@ -49,4 +49,19 @@ class ReturnDamageModuleTest extends TestCase
             $page->assertSee('bg-[#273449] font-medium text-white', false);
         }
     }
+
+    // The status tabs are coloured: Pending yellow, Approved green, Declined
+    // red, filled solid when selected.
+    public function test_the_status_tabs_are_coloured_per_status(): void
+    {
+        $page = $this->actingAs($this->admin)->get(route('admin.sales-returns.index'))->assertOk();
+        $page->assertSee('class="btn status-tab--pending"', false);
+        $page->assertSee('class="btn status-tab--approved"', false);
+        $page->assertSee('class="btn status-tab--declined"', false);
+        $page->assertSee('.status-tabs .status-tab--declined.active { color: #fff; background: #ef4444;', false);
+
+        $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['status' => 'approved']))->assertOk()
+            ->assertSee('class="btn status-tab--approved active"', false)
+            ->assertSee('class="btn status-tab--pending"', false);
+    }
 }

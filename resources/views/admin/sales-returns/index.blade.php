@@ -31,10 +31,23 @@
                 'processed' => ['label' => 'Refunded', 'count' => $statusCounts['processed']],
             ];
         @endphp
+        {{-- Pending yellow, Approved green, Declined red (filled when selected). --}}
+        <style>
+            .status-tabs .status-tab--pending { color: #fcd34d; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.45); }
+            .status-tabs .status-tab--approved { color: #6ee7b7; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.45); }
+            .status-tabs .status-tab--declined { color: #fca5a5; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.45); }
+            .status-tabs .status-tab--pending.active { color: #1c1300; background: #f59e0b; border-color: #f59e0b; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3); }
+            .status-tabs .status-tab--approved.active { color: #fff; background: #10b981; border-color: #10b981; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3); }
+            .status-tabs .status-tab--declined.active { color: #fff; background: #ef4444; border-color: #ef4444; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3); }
+        </style>
         @foreach($tabs as $value => $tab)
+            @php
+                $isActiveTab = ($status ?? '') === $value;
+                $tone = in_array($value, ['pending', 'approved', 'declined'], true) ? 'status-tab--'.$value : null;
+            @endphp
             <a
                 href="{{ route('admin.sales-returns.index', array_filter(['status' => $value, 'search' => $search])) }}"
-                class="btn {{ ($status ?? '') === $value ? 'btn-primary' : 'btn-secondary' }}"
+                class="btn {{ $tone ? $tone.($isActiveTab ? ' active' : '') : ($isActiveTab ? 'btn-primary' : 'btn-secondary') }}"
                 style="text-decoration: none;"
             >
                 {{ $tab['label'] }} <span style="opacity: 0.75;">({{ $tab['count'] }})</span>

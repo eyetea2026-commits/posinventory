@@ -39,6 +39,10 @@
         .col-qty, td.col-qty { text-align: center; }
         .col-money, td.col-money { text-align: right; }
         .col-total, td.col-total { text-align: right; font-weight: bold; }
+        /* Status: yellow waiting, green approved/settled, red declined/written off. */
+        td.status-warning { color: #b45309; font-weight: bold; }
+        td.status-success { color: #047857; font-weight: bold; }
+        td.status-danger { color: #dc2626; font-weight: bold; }
         @media print { .no-print { display: none; } body { padding: 0; } }
     </style>
 </head>

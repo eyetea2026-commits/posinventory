@@ -793,4 +793,41 @@ class ReportsModuleTest extends TestCase
         $this->assertStringNotContainsString('Walk-in', $csv);
         $this->assertStringContainsString('N/A', $csv);
     }
+
+    // Refund and Damage report statuses are coloured: yellow still waiting,
+    // green approved/settled, red declined/written off.
+    public function test_refund_and_damage_report_statuses_are_coloured(): void
+    {
+        $billing = $this->makeBilling(1000, now()->format('Y-m-d'));
+        foreach ([SalesReturn::STATUS_PENDING, SalesReturn::STATUS_APPROVED, SalesReturn::STATUS_DECLINED] as $status) {
+            $return = $this->makeRefund($billing, 100, now()->format('Y-m-d'), 'refund', $status);
+            SalesReturnItem::create([
+                'SalesReturnID' => $return->SalesReturnID, 'ProductID' => $this->product->ProductID,
+                'Quantity' => 1, 'UnitPrice' => 100, 'Reason' => 'Factory Defect',
+            ]);
+        }
+        foreach ([DamagedProduct::STATUS_FOR_SUPPLIER_RETURN, DamagedProduct::STATUS_REPLACEMENT_RECEIVED, DamagedProduct::STATUS_DISPOSED] as $status) {
+            DamagedProduct::create([
+                'ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID,
+                'Quantity' => 1, 'Description' => 'Cracked', 'DateRecorded' => now()->format('Y-m-d'),
+                'DamageType' => 'broken', 'Status' => $status, 'SourceModule' => DamagedProduct::SOURCE_MANUAL,
+            ]);
+        }
+
+        $refunds = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'returns']))->assertOk()->json('html');
+        $this->assertStringContainsString('<span class="badge badge-warning">Pending</span>', $refunds);
+        $this->assertStringContainsString('<span class="badge badge-success">Approved</span>', $refunds);
+        $this->assertStringContainsString('<span class="badge badge-danger">Declined</span>', $refunds);
+
+        $damage = $this->actingAs($this->admin)->getJson(route('admin.reports.preview', ['type' => 'damage']))->assertOk()->json('html');
+        $this->assertStringContainsString('<span class="badge badge-warning">Pending Supplier Return</span>', $damage);
+        $this->assertStringContainsString('<span class="badge badge-success">Replacement Received</span>', $damage);
+        $this->assertStringContainsString('<span class="badge badge-danger">Disposed</span>', $damage);
+
+        $printed = $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'returns']))->assertOk()->getContent();
+        $this->assertStringContainsString('<td class="status-warning">Pending</td>', $printed);
+        $this->assertStringContainsString('<td class="status-success">Approved</td>', $printed);
+        $this->assertStringContainsString('<td class="status-danger">Declined</td>', $printed);
+        $this->assertStringContainsString('td.status-danger { color: #dc2626;', $printed);
+    }
 }

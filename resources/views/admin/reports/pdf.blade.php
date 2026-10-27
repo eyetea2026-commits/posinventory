@@ -27,6 +27,10 @@
         .col-qty, td.col-qty { text-align: center; }
         .col-money, td.col-money { text-align: right; }
         .col-total, td.col-total { text-align: right; font-weight: bold; }
+        /* Status: yellow waiting, green approved/settled, red declined/written off. */
+        td.status-warning { color: #b45309; font-weight: bold; }
+        td.status-success { color: #047857; font-weight: bold; }
+        td.status-danger { color: #dc2626; font-weight: bold; }
         .no-records { text-align: center; padding: 30px 15px; color: #555; }
         .no-records strong { display: block; font-size: 12px; color: #222; margin-bottom: 3px; }
         p.grand-total { text-align: right; font-weight: bold; margin-top: 10px; }

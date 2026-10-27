@@ -65,6 +65,19 @@ class SalesReturn extends Model
     // Store policy: how many days after purchase a product remains eligible for return.
     const RETURN_WINDOW_DAYS = 7;
 
+    /**
+     * Status colour in lists and reports: Pending yellow, Approved (and
+     * Refunded) green, Declined red.
+     */
+    public static function statusTone(?string $status): string
+    {
+        return match ($status) {
+            self::STATUS_APPROVED, self::STATUS_PROCESSED => 'success',
+            self::STATUS_DECLINED => 'danger',
+            default => 'warning',
+        };
+    }
+
     public function transaction()
     {
         return $this->belongsTo(SalesTransaction::class, 'SalesTransactionID', 'SalesTransactionID');

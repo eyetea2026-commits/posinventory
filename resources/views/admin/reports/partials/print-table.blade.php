@@ -125,7 +125,7 @@
                     <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td>{{ ucfirst(str_replace('_', ' ', $row->Reason)) }}</td>
                     <td>{{ ucfirst($row->ReturnType ?? 'refund') }}</td>
-                    <td>{{ ucfirst($row->Status) }}</td>
+                    <td class="status-{{ \App\Models\SalesReturn::statusTone($row->Status) }}">{{ ucfirst($row->Status) }}</td>
                     <td>{{ $row->ProcessedByName }}</td>
                 </tr>
             @empty
@@ -151,7 +151,7 @@
                     <td class="col-qty">{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                     <td>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$row->DamageType] ?? $row->DamageType }}</td>
                     <td>{{ $row->Description ?: '—' }}</td>
-                    <td>{{ ucfirst(str_replace('_', ' ', $row->Status)) }}</td>
+                    <td class="status-{{ \App\Models\DamagedProduct::statusTone($row->Status) }}">{{ ucfirst(str_replace('_', ' ', $row->Status)) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="8" class="no-records"><strong>NO RECORDS FOUND</strong>No damage records match the selected report criteria.</td></tr>

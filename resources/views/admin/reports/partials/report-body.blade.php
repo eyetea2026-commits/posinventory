@@ -189,7 +189,7 @@
                             <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                             <td>{{ ucfirst(str_replace('_', ' ', $row->Reason)) }}</td>
                             <td>{{ $row->CashierName }}</td>
-                            <td><span class="badge badge-info">{{ ucfirst($row->Status) }}</span></td>
+                            <td><span class="badge badge-{{ \App\Models\SalesReturn::statusTone($row->Status) }}">{{ ucfirst($row->Status) }}</span></td>
                             <td>{{ \Illuminate\Support\Carbon::parse($row->ReturnDate)->format('m/d/Y') }}</td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('returns', {{ $row->SalesReturnID }})">
@@ -226,7 +226,7 @@
                             <td>{{ $row->supplier?->SupplierName ?? 'N/A' }}</td>
                             <td>{{ \App\Services\UnitOfMeasure::cell($row->Quantity, $row->Unit ?? ($row->product ?? null)?->baseUnit()) }}</td>
                             <td>{{ \App\Models\DamagedProduct::DAMAGE_TYPES[$row->DamageType] ?? $row->DamageType }}</td>
-                            <td><span class="badge badge-info">{{ \App\Models\DamagedProduct::STATUS_LABELS[$row->Status] ?? $row->Status }}</span></td>
+                            <td><span class="badge badge-{{ \App\Models\DamagedProduct::statusTone($row->Status) }}">{{ \App\Models\DamagedProduct::STATUS_LABELS[$row->Status] ?? $row->Status }}</span></td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="viewReportDetails('damage', {{ $row->DamageID }})">
                                     <i class="fas fa-eye"></i> View Details
