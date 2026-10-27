@@ -15,6 +15,12 @@ class PurchaseOrderItem extends Model
 
     protected $table = 'PurchaseOrderItem';
 
+    // Current Price: up to 6 whole-peso digits.
+    const MAX_COST_PRICE = 999999.99;
+
+    // Quantity ordered: up to 3 digits.
+    const MAX_QUANTITY = 999;
+
     protected $primaryKey = 'PurchaseOrderItemID';
 
     // Quantity, ReceivedQuantity and CancelledQuantity are in the unit it

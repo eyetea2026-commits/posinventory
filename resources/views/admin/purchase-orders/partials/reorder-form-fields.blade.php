@@ -95,7 +95,7 @@
         </div>
         <div class="form-group">
             <label class="form-label" for="CostPrice">Current Price (per {{ $orderUnit }}) <span style="color: var(--danger);">*</span></label>
-            <input type="number" id="CostPrice" name="CostPrice" class="form-input" min="0.01" step="0.01"
+            <input type="number" id="CostPrice" name="CostPrice" class="form-input" min="0.01" max="{{ \App\Models\PurchaseOrderItem::MAX_COST_PRICE }}" step="0.01" data-max-digits="6"
                    value="{{ old('CostPrice', $hasPreviousCostPrice ? number_format($previousCostPrice, 2, '.', '') : '') }}" required>
             <span class="form-error" id="error-CostPrice">@error('CostPrice'){{ $message }}@enderror</span>
         </div>
@@ -204,7 +204,7 @@
     <div class="form-grid">
         <div class="form-group">
             <label class="form-label" for="OrderQuantity">Order Quantity ({{ \App\Services\UnitOfMeasure::plural($orderUnit) }}) <span style="color: var(--danger);">*</span></label>
-            <input type="number" id="OrderQuantity" name="OrderQuantity" class="form-input" min="1" value="{{ old('OrderQuantity', $suggestedQuantity) }}" required>
+            <input type="number" id="OrderQuantity" name="OrderQuantity" class="form-input" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_QUANTITY }}" data-max-digits="3" value="{{ old('OrderQuantity', $suggestedQuantity) }}" required>
             <span class="form-error" id="error-OrderQuantity">@error('OrderQuantity'){{ $message }}@enderror</span>
         </div>
         <div class="form-group full-width">

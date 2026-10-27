@@ -90,9 +90,9 @@
                         <td>{{ $row['thresholdLabel'] }}</td>
                         {{-- Prices and quantity are per purchase unit (a roll, a box). --}}
                         <td>{{ $row['previousPrice'] > 0 ? '₱'.number_format($row['previousPrice'], 2).'/'.$row['unit'] : 'N/A' }}</td>
-                        <td><div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" step="0.01" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price per {{ $row['unit'] }}"><span>/{{ $row['unit'] }}</span></div></td>
+                        <td><div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" max="{{ \App\Models\PurchaseOrderItem::MAX_COST_PRICE }}" step="0.01" data-max-digits="6" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price per {{ $row['unit'] }}"><span>/{{ $row['unit'] }}</span></div></td>
                         <td>
-                            <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" step="1" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
+                            <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_QUANTITY }}" step="1" data-max-digits="3" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
                             @if($row['unitHolds'])<small class="po-unit-holds">last {{ $row['unit'] }}: {{ $row['unitHolds'] }}</small>@endif
                         </td>
                         <td>
@@ -220,7 +220,9 @@
             const qty = row.querySelector('input[name$="[quantity]"]');
             const supplier = row.querySelector('.po-item-supplier');
             [[price, !(parseFloat(price.value) > 0), 'Enter a Current Price for "' + name + '".'],
+             [price, parseFloat(price.value) > parseFloat(price.max), 'Current Price for "' + name + '" can be at most 6 digits.'],
              [qty, !(parseInt(qty.value, 10) >= 1), 'Enter a Quantity for "' + name + '".'],
+             [qty, parseInt(qty.value, 10) > parseInt(qty.max, 10), 'Quantity for "' + name + '" can be at most 3 digits.'],
              [supplier, supplier && !supplier.value, 'Choose a supplier for "' + name + '".']].forEach(function (check) {
                 const field = check[0];
                 if (!field) return;

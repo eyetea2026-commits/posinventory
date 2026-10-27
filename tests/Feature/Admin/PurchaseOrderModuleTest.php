@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Http\Controllers\Admin\PurchaseOrderController;
 use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Inventory;
@@ -259,6 +260,40 @@ class PurchaseOrderModuleTest extends TestCase
         $zero->assertSessionHasErrors('CostPrice');
 
         $this->assertSame(0, PurchaseOrder::count());
+    }
+
+    public function test_store_limits_current_price_to_6_digits_and_quantity_to_3(): void
+    {
+        $line = fn (array $values) => [
+            'PurchaseDate' => now()->format('Y-m-d'),
+            'items' => [['product_id' => $this->product->ProductID, 'supplier_id' => $this->supplier->SupplierID] + $values],
+        ];
+
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $line(['quantity' => 5, 'cost_price' => 1000000]))
+            ->assertSessionHasErrors(['items.0.cost_price' => 'Current Price can be at most 6 digits (₱999,999.99).']);
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $line(['quantity' => 1000, 'cost_price' => 500]))
+            ->assertSessionHasErrors(['items.0.quantity' => 'Quantity can be at most 3 digits (999).']);
+        $this->assertSame(0, PurchaseOrder::count());
+
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $line(['quantity' => 999, 'cost_price' => 999999.99]))
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('PurchaseOrderItem', ['ProductID' => $this->product->ProductID, 'Quantity' => 999, 'CostPriceAtOrder' => 999999.99]);
+    }
+
+    public function test_store_from_reorder_limits_current_price_to_6_digits_and_quantity_to_3(): void
+    {
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store-from-reorder', $this->product), ['OrderQuantity' => 20, 'CostPrice' => 1000000, 'SupplierID' => $this->supplier->SupplierID])
+            ->assertSessionHasErrors('CostPrice');
+        $this->actingAs($this->admin)->post(route('admin.purchase-orders.store-from-reorder', $this->product), ['OrderQuantity' => 1000, 'CostPrice' => 850, 'SupplierID' => $this->supplier->SupplierID])
+            ->assertSessionHasErrors('OrderQuantity');
+
+        $this->assertSame(0, PurchaseOrder::count());
+    }
+
+    public function test_suggested_order_quantity_never_exceeds_3_digits(): void
+    {
+        // (999 - 0) + 999 = 1,998 pieces short, capped at what the box takes.
+        $this->assertSame(999, PurchaseOrderController::suggestedOrderQuantity($this->product, 0, 999));
     }
 
     public function test_status_is_always_draft_regardless_of_what_the_request_sends(): void
@@ -677,7 +712,9 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order '.preg_quote($this->product->ProductName, '#').'" checked#', $html);
         $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order AAA Plenty Cam"  onchange#', $html);
         // Suggested reorder quantity: (10 - 2) + 10 = 18.
-        $this->assertStringContainsString('name="items['.$this->product->ProductID.'][quantity]" min="1" step="1" value="18"', $html);
+        $this->assertStringContainsString('name="items['.$this->product->ProductID.'][quantity]" min="1" max="999" step="1" data-max-digits="3" value="18"', $html);
+        // Current Price: up to 6 whole digits; Quantity: up to 3.
+        $this->assertStringContainsString('name="items['.$this->product->ProductID.'][cost_price]" min="0.01" max="999999.99" step="0.01" data-max-digits="6"', $html);
         // Dropdown beside the Order Items label: Low Stock (default) / All Products.
         $this->assertMatchesRegularExpression('#<h3>Order Items</h3>\s*<select id="po-items-view"#', $html);
         $this->assertStringContainsString('<option value="low" selected>Low Stock</option>', $html);

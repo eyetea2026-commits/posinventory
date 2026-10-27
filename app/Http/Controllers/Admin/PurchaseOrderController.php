@@ -254,8 +254,8 @@ class PurchaseOrderController extends Controller
             'Notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', Rule::exists('Product', 'ProductID')->where('IsActive', true)],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
-            'items.*.cost_price' => ['required', 'numeric', 'min:0.01'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:'.PurchaseOrderItem::MAX_QUANTITY],
+            'items.*.cost_price' => ['required', 'numeric', 'min:0.01', 'max:'.PurchaseOrderItem::MAX_COST_PRICE],
             'items.*.supplier_id' => ['nullable', 'integer', 'exists:Supplier,SupplierID'],
         ], [
             'items.required' => 'Tick at least one product to order.',
@@ -263,9 +263,11 @@ class PurchaseOrderController extends Controller
             'items.*.product_id.exists' => 'One of the selected products is inactive and can no longer be ordered.',
             'items.*.quantity.required' => 'Quantity is required for every ticked product.',
             'items.*.quantity.min' => 'Quantity must be at least 1.',
+            'items.*.quantity.max' => 'Quantity can be at most 3 digits ('.PurchaseOrderItem::MAX_QUANTITY.').',
             'items.*.cost_price.required' => 'Current Price is required for every ticked product.',
             'items.*.cost_price.numeric' => 'Current Price must be a valid number.',
             'items.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
+            'items.*.cost_price.max' => 'Current Price can be at most 6 digits (₱'.number_format(PurchaseOrderItem::MAX_COST_PRICE, 2).').',
         ]);
 
         // The supplier picked in the row is used; a row sent without one
@@ -370,8 +372,8 @@ class PurchaseOrderController extends Controller
         $knownSupplierIds = $product->suppliers()->pluck('SupplierID')->all();
 
         $data = $request->validate([
-            'OrderQuantity' => ['required', 'integer', 'min:1'],
-            'CostPrice' => ['required', 'numeric', 'min:0.01'],
+            'OrderQuantity' => ['required', 'integer', 'min:1', 'max:'.PurchaseOrderItem::MAX_QUANTITY],
+            'CostPrice' => ['required', 'numeric', 'min:0.01', 'max:'.PurchaseOrderItem::MAX_COST_PRICE],
             'Remarks' => ['nullable', 'string', 'max:1000'],
             'SupplierID' => $knownSupplierIds
                 ? ['required', 'integer', Rule::in($knownSupplierIds)]
@@ -380,6 +382,8 @@ class PurchaseOrderController extends Controller
             'CostPrice.required' => 'Current Price is required.',
             'CostPrice.numeric' => 'Current Price must be a valid number.',
             'CostPrice.min' => 'Current Price must be greater than ₱0.00.',
+            'CostPrice.max' => 'Current Price can be at most 6 digits (₱'.number_format(PurchaseOrderItem::MAX_COST_PRICE, 2).').',
+            'OrderQuantity.max' => 'Quantity can be at most 3 digits ('.PurchaseOrderItem::MAX_QUANTITY.').',
         ]);
 
         $purchaseOrder = DB::transaction(function () use ($data, $product) {
@@ -455,7 +459,11 @@ class PurchaseOrderController extends Controller
             return 1;
         }
 
-        return (int) ceil(round(self::suggestedReorderQuantity($quantity, $threshold) / (float) $product->quantityPerOrderUnit(), 4));
+        // Capped at what the Quantity box accepts (3 digits).
+        return min(
+            (int) ceil(round(self::suggestedReorderQuantity($quantity, $threshold) / (float) $product->quantityPerOrderUnit(), 4)),
+            PurchaseOrderItem::MAX_QUANTITY
+        );
     }
 
     /**
