@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Admin OTP Verification - CCTV Express TACURONG</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
-    <link rel="stylesheet" href="{{ asset('Administrator/Login.css') }}">
+    <link rel="stylesheet" href="{{ asset('Administrator/Login.css') }}?v=2">
     <style>
         .otp-bubble-group {
             display: flex;
@@ -16,23 +16,44 @@
         .otp-bubble {
             width: 48px;
             height: 56px;
-            border-radius: 16px;
-            border: 1px solid rgba(148, 163, 184, 0.26);
-            background: rgba(15, 23, 42, 0.6);
-            color: #f8fafc;
+            border-radius: 14px;
+            border: 1px solid transparent;
+            background: #2d3748;
+            color: #e2e8f0;
+            font-family: inherit;
             font-size: 1.5rem;
             font-weight: 700;
             text-align: center;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
         .otp-bubble:focus {
             outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
-            transform: translateY(-2px);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
         }
         .otp-bubble.filled {
-            border-color: rgba(16, 185, 129, 0.5);
+            border-color: rgba(59, 130, 246, 0.6);
+        }
+        .otp-resend {
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            text-align: center;
+        }
+        .otp-resend p {
+            margin: 0 0 12px;
+            font-size: 0.88rem;
+        }
+        .otp-resend .button-secondary {
+            width: auto;
+            min-height: 40px;
+            padding: 0 18px;
+            font-size: 0.9rem;
+        }
+        .otp-resend-countdown {
+            display: none;
+            margin: 8px 0 0;
+            color: #64748b;
+            font-size: 0.82rem;
         }
         @media (max-width: 420px) {
             .otp-bubble-group { gap: 7px; }
@@ -86,14 +107,14 @@
                 </div>
             </form>
 
-            <div style="margin-top: 20px; text-align: center;">
-                <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 12px;">Didn't receive the code?</p>
+            <div class="otp-resend">
+                <p>Didn't receive the code?</p>
                 <form method="POST" action="{{ route('admin.forgot.post') }}" style="display: inline;" id="resendOtpForm">
                     @csrf
                     <input type="hidden" name="email" value="{{ $email }}" />
-                    <button type="submit" class="button-secondary" id="resendOtpBtn" style="min-height: 44px; padding: 0 18px; font-size: 0.9rem;">Resend OTP</button>
+                    <button type="submit" class="button-secondary" id="resendOtpBtn">Resend OTP</button>
                 </form>
-                <p id="resendCountdownText" style="color: #64748b; font-size: 0.82rem; margin-top: 8px; display: none;"></p>
+                <p id="resendCountdownText" class="otp-resend-countdown"></p>
             </div>
         </section>
     </div>

@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
 class AdminForgotPasswordTest extends TestCase
@@ -42,6 +43,29 @@ class AdminForgotPasswordTest extends TestCase
         // the form without touching anything works.
         $response->assertSee('type="hidden" id="email_hidden" name="email" value="administrator@cctvexpress.local"', false);
         $response->assertSee('Not you? Enter a different email');
+    }
+
+    // The Forgot Password, OTP and Reset Password screens share the login
+    // page's look: solid system blue, not the old blue-to-green gradient.
+    public function test_password_reset_screens_use_the_system_colors(): void
+    {
+        $this->get(route('admin.forgot'))->assertOk()
+            ->assertSee('Administrator/Login.css?v=2', false);
+
+        view()->share('errors', new ViewErrorBag);
+        $otp = view('auth.admin.otp', ['email' => 'admin@cctvexpress.local', 'otpExpiryMinutes' => 5, 'sentAt' => now()->toIso8601String(), 'resendCooldownSeconds' => 45])->render();
+        $reset = view('auth.admin.reset')->render();
+        foreach ([$otp, $reset] as $html) {
+            $this->assertStringContainsString('Administrator/Login.css?v=2', $html);
+        }
+        $this->assertStringContainsString('class="otp-resend"', $otp);
+        $this->assertStringNotContainsString('style="min-height: 44px;', $otp);
+
+        $css = file_get_contents(public_path('Administrator/Login.css'));
+        $this->assertStringContainsString('background: #3b82f6;', $css);
+        $this->assertStringContainsString('background: #1a1d2d;', $css);
+        $this->assertStringContainsString('background: #2d3748;', $css);
+        $this->assertStringNotContainsString('linear-gradient(135deg, #3b82f6, #10b981)', $css);
     }
 
     public function test_forgot_page_falls_back_to_manual_entry_with_multiple_admins(): void

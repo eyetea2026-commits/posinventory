@@ -1,7 +1,10 @@
+/* Forgot Password / OTP / Reset Password pages. Same look as the login
+   page (welcome.blade.php) and the rest of the system: dark navy page,
+   a #1a1d2d card, #2d3748 fields and solid blue (#3b82f6) actions. */
 :root {
     color-scheme: dark;
-    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #050816;
+    font-family: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
+    background: #020617;
     color: #e2e8f0;
 }
 * {
@@ -13,110 +16,60 @@ html {
     min-height: 100%;
 }
 body {
-    background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.15), transparent 24%),
-                radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.14), transparent 30%),
-                linear-gradient(180deg, #020617 0%, #090f1e 100%);
+    background: linear-gradient(180deg, #020617 0%, #090f1e 100%);
     color: #e2e8f0;
-}
-body::before {
-    content: "";
-    position: fixed;
-    left: 50%;
-    top: 10%;
-    transform: translateX(-50%);
-    width: 640px;
-    height: 640px;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.18), transparent 42%);
-    pointer-events: none;
-    opacity: 0.85;
-    z-index: 0;
 }
 .login-background {
     display: grid;
     place-items: center;
     min-height: 100vh;
-    padding: 24px;
+    padding: 32px;
 }
 .login-card,
 .welcome-card {
-    position: relative;
-    width: min(100%, 560px);
-    padding: 44px;
-    border-radius: 34px;
-    background: rgba(10, 18, 35, 0.96);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    box-shadow: 0 50px 120px rgba(2, 10, 25, 0.55);
-    backdrop-filter: blur(18px);
-    overflow: visible;
-    z-index: 1;
-}
-.login-card::before,
-.welcome-card::before {
-    content: "";
-    position: absolute;
-    top: -80px;
-    right: -70px;
-    width: 240px;
-    height: 240px;
-    background: rgba(59, 130, 246, 0.18);
-    border-radius: 50%;
-    filter: blur(24px);
-    z-index: -1;
-    pointer-events: none;
-}
-.login-card::after,
-.welcome-card::after {
-    content: "";
-    position: absolute;
-    bottom: -70px;
-    left: -70px;
-    width: 220px;
-    height: 220px;
-    background: rgba(16, 185, 129, 0.16);
-    border-radius: 50%;
-    filter: blur(22px);
-    z-index: -1;
-    pointer-events: none;
+    width: min(100%, 440px);
+    padding: 32px;
+    border-radius: 18px;
+    background: #1a1d2d;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
 }
 .brand {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-bottom: 32px;
-    color: #f8fafc;
-    text-align: center;
-    font-size: 1.05rem;
-    line-height: 1.3;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    gap: 10px;
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    font-weight: 600;
 }
 .brand-dot {
-    width: 14px;
-    height: 14px;
+    flex: none;
+    width: 10px;
+    height: 10px;
     border-radius: 9999px;
-    background: linear-gradient(135deg, #3b82f6, #10b981);
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.26);
+    background: #3b82f6;
 }
 .login-card h1,
 .welcome-card h1 {
-    margin: 0 0 10px;
-    font-size: clamp(2.6rem, 4vw, 3.2rem);
-    letter-spacing: -0.05em;
-    line-height: 1.02;
+    margin: 0 0 8px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #f8fafc;
 }
 .login-card p,
 .welcome-card p {
-    margin: 0 0 28px;
-    color: #cbd5e1;
-    opacity: 0.88;
-    line-height: 1.85;
-    font-size: 1rem;
+    margin: 0 0 20px;
+    color: #94a3b8;
+    line-height: 1.6;
+    font-size: 0.9rem;
 }
 .button-grid {
     display: grid;
-    gap: 16px;
+    gap: 12px;
 }
 .button,
 .button-secondary,
@@ -125,68 +78,90 @@ body::before {
     justify-content: center;
     align-items: center;
     width: 100%;
-    min-height: 54px;
+    min-height: 46px;
     padding: 0 22px;
-    border-radius: 16px;
+    border-radius: 14px;
     border: none;
+    font-family: inherit;
     font-size: 1rem;
     font-weight: 700;
     text-decoration: none;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    transition: transform 0.15s ease, background-color 0.15s ease;
     cursor: pointer;
 }
 .button {
     color: #fff;
-    background: linear-gradient(135deg, #3b82f6, #10b981);
-    box-shadow: 0 18px 35px rgba(16, 185, 129, 0.24);
+    background: #3b82f6;
+    box-shadow: 0 12px 26px rgba(59, 130, 246, 0.35);
+}
+.button:hover {
+    background: #2563eb;
 }
 .button:hover,
 .button-secondary:hover,
 .button-accent:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
 }
 .button-secondary {
-    color: #fff;
-    background: rgba(148, 163, 184, 0.14);
-    border: 1px solid rgba(148, 163, 184, 0.26);
+    color: #e2e8f0;
+    background: #2d3748;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+}
+.button-secondary:hover {
+    background: #374151;
 }
 .button:disabled,
 .button-secondary:disabled,
 .button-accent:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
     transform: none;
 }
 .button-accent {
     color: #fff;
-    background: #0ea5e9;
+    background: #3b82f6;
 }
 .form-field {
     display: grid;
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: 8px;
+    margin-bottom: 16px;
 }
 .form-field label {
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     color: #94a3b8;
 }
 .form-field input {
     width: 100%;
-    padding: 16px 18px;
-    border-radius: 18px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(9, 16, 33, 0.88);
-    color: #f8fafc;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: #2d3748;
+    color: #e2e8f0;
+    font-family: inherit;
+    font-size: 0.95rem;
     outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    transition: box-shadow 0.15s ease;
 }
 .form-field input::placeholder {
-    color: rgba(203, 213, 225, 0.65);
+    color: #94a3b8;
 }
 .form-field input:focus {
-    border-color: rgba(59, 130, 246, 0.72);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
-    transform: translateY(-1px);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+.form-field input:disabled {
+    color: #cbd5e1;
+    cursor: default;
+}
+/* Chrome/Edge paint autofilled fields pale, ignoring the dark background
+   (same override as the login page). */
+.form-field input:-webkit-autofill,
+.form-field input:-webkit-autofill:hover,
+.form-field input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #e2e8f0;
+    -webkit-box-shadow: 0 0 0 1000px #2d3748 inset;
+    box-shadow: 0 0 0 1000px #2d3748 inset;
+    caret-color: #e2e8f0;
+    transition: background-color 9999s ease-in-out 0s;
 }
 /* .forgot-disabled / .login-footer a below each set an explicit `display`,
    which outranks the UA stylesheet's `[hidden] { display: none }` rule on
@@ -200,30 +175,25 @@ body::before {
     position: relative;
 }
 .password-field input {
-    padding-right: 50px;
-    transition: background-color 0.3s ease, border-color 0.3s ease;
+    padding-right: 46px;
 }
 .toggle-password {
     position: absolute;
-    right: 18px;
+    right: 16px;
     top: 38px;
     cursor: pointer;
     color: #94a3b8;
-    font-size: 1.1rem;
-    transition: color 0.3s ease, transform 0.2s ease;
+    font-size: 1rem;
+    transition: color 0.15s ease;
 }
 .toggle-password:hover {
-    color: #3b82f6;
-    transform: scale(1.1);
-}
-.toggle-password:active {
-    transform: scale(0.95);
+    color: #e2e8f0;
 }
 .checkbox-field {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     color: #cbd5e1;
 }
 .checkbox-field input {
@@ -237,60 +207,55 @@ body::before {
     gap: 12px;
 }
 .small-link {
-    color: #93c5fd;
+    color: #60a5fa;
     text-decoration: none;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
+    font-weight: 600;
 }
 .small-link:hover {
     text-decoration: underline;
 }
 .forgot-link {
-    color: #fbbf24;
+    color: #60a5fa;
     text-decoration: none;
-    font-size: 0.95rem;
-    font-weight: 500;
+    font-size: 0.88rem;
+    font-weight: 600;
 }
 .forgot-link:hover {
     text-decoration: underline;
-    color: #fcd34d;
 }
 .status-message,
 .error-message {
-    margin-bottom: 22px;
-    padding: 16px 18px;
-    border-radius: 18px;
-    font-size: 0.95rem;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 0.88rem;
 }
 .status-message {
-    background: rgba(16, 185, 129, 0.12);
-    color: #a7f3d0;
-    border: 1px solid rgba(16, 185, 129, 0.22);
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
 }
 .error-message {
-    background: rgba(248, 113, 113, 0.12);
-    color: #fecaca;
-    border: 1px solid rgba(248, 113, 113, 0.22);
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
 }
 .field-error {
-    color: #fecaca;
-    font-size: 0.9rem;
+    color: #ef4444;
+    font-size: 0.82rem;
 }
 .login-footer {
-    margin-top: 24px;
+    margin-top: 16px;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 12px;
     color: #94a3b8;
-    font-size: 0.95rem;
-    position: relative;
-    z-index: 10;
+    font-size: 0.88rem;
 }
 .login-footer a {
-    color: #93c5fd;
+    color: #60a5fa;
     text-decoration: none;
-    position: relative;
-    z-index: 10;
+    font-weight: 600;
     cursor: pointer;
     display: inline-block;
     padding: 4px 0;
@@ -301,19 +266,13 @@ body::before {
 .login-footer a:active {
     opacity: 0.7;
 }
-@media (max-width: 680px) {
+@media (max-width: 480px) {
+    .login-background {
+        padding: 16px;
+    }
+
     .login-card,
     .welcome-card {
-        padding: 32px 26px;
-    }
-
-    .login-card h1,
-    .welcome-card h1 {
-        font-size: 2.3rem;
-    }
-
-    .login-footer {
-        flex-direction: column;
-        align-items: stretch;
+        padding: 24px;
     }
 }
