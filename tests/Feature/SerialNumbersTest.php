@@ -152,6 +152,22 @@ class SerialNumbersTest extends TestCase
             ->assertDontSee('id="SerialSearch"', false);
     }
 
+    // Saving from the modal re-renders the page in the background; the
+    // modal takes its Product list (stock and serials) from that page, so a
+    // serial just taken out isn't offered again.
+    public function test_after_an_adjustment_the_form_no_longer_offers_that_serial(): void
+    {
+        $this->stock($this->camera, 3);
+
+        $this->adjust($this->camera, 1, StockAdjustment::REASON_DAMAGED, ['SN00001'])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index'))->assertOk()
+            ->assertSee('data-serials="'.e(json_encode(['SN00002', 'SN00003'])).'"', false)
+            ->assertSee('Dome Camera (DC-1) — 2 pieces in stock')
+            ->assertSee("const newProducts = parsed.querySelector('#ProductID');", false)
+            ->assertSee('currentProducts.innerHTML = newProducts.innerHTML;', false);
+    }
+
     public function test_scanning_a_serial_sticker_finds_that_piece(): void
     {
         $this->stock($this->camera, 2);

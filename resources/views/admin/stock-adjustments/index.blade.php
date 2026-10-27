@@ -220,6 +220,16 @@
             if (newTbody && currentTbody) {
                 currentTbody.innerHTML = newTbody.innerHTML;
             }
+
+            // The Product list too: stock left and in-stock serials changed,
+            // so the next adjustment can't pick a serial already taken out.
+            const newProducts = parsed.querySelector('#ProductID');
+            const currentProducts = document.getElementById('ProductID');
+            if (newProducts && currentProducts) {
+                currentProducts.innerHTML = newProducts.innerHTML;
+                currentProducts.value = '';
+                currentProducts.dispatchEvent(new Event('change'));
+            }
         }
 
         function resetAddAdjustmentSubmitButton() {
