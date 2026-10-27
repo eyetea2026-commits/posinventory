@@ -264,7 +264,8 @@
                 <button type="button" class="btn btn-secondary" id="batchDetailsCloseBtn">
                     <i class="fas fa-times"></i> Close
                 </button>
-                <button type="button" class="btn btn-primary" id="addToInventoryBtn" style="display:none;">
+                <style>#addToInventoryBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }</style>
+                <button type="button" class="btn btn-primary" id="addToInventoryBtn" style="display:none;" disabled>
                     <i class="fas fa-boxes-stacked"></i> Add to Inventory
                 </button>
             </div>
@@ -385,16 +386,29 @@
         // delivery on record.
         let receiptNumberCheckInFlight = 0;
 
+        // Add to Inventory stays disabled until the delivery has a Receipt
+        // Number that isn't already used (StockReceivingController::
+        // addToInventory() requires one too).
+        function syncAddToInventoryButton() {
+            const input = document.getElementById('batchReceiptNumberInput');
+            const button = document.getElementById('addToInventoryBtn');
+            const ready = !!input && input.value.trim() !== '' && !input.classList.contains('is-invalid');
+            button.disabled = !ready;
+            button.title = ready ? '' : (input && input.classList.contains('is-invalid') ? 'This Receipt Number is already used for another delivery.' : 'Enter the Receipt Number first.');
+        }
+
         function initBatchReceiptNumberChecks() {
             const input = document.getElementById('batchReceiptNumberInput');
             if (!input) return;
             const errorEl = input.parentElement.querySelector('.receipt-number-error');
             let debounceTimer = null;
+            syncAddToInventoryButton();
 
             input.addEventListener('input', function () {
                 input.classList.remove('is-invalid');
                 if (errorEl) errorEl.textContent = '';
                 clearTimeout(debounceTimer);
+                syncAddToInventoryButton();
 
                 const value = input.value.trim();
                 if (!value) return;
@@ -416,6 +430,7 @@
                             if (data && data.used) {
                                 input.classList.add('is-invalid');
                                 if (errorEl) errorEl.textContent = 'Already used for another delivery.';
+                                syncAddToInventoryButton();
                             }
                         })
                         .catch(function () {

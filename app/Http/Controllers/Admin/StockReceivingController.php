@@ -103,8 +103,10 @@ class StockReceivingController extends Controller
             // each one holds in this delivery (1 roll = 1,000 meters).
             'items.*.quantity_per_unit' => ['nullable', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             // One Receipt Number for the whole delivery (every product on
-            // this Purchase Order), not one per product line.
-            'receipt_number' => ['nullable', 'string', 'max:50'],
+            // this Purchase Order), not one per product line. Required.
+            'receipt_number' => ['required', 'string', 'max:50'],
+        ], [
+            'receipt_number.required' => 'Enter the Receipt Number of this delivery.',
         ]);
 
         // Must not match any other delivery. Checked up front so a duplicate

@@ -77,6 +77,7 @@ class DeliveryNotificationsTest extends TestCase
         $item = PurchaseOrderItem::where('PurchaseOrderID', $batch->PurchaseOrderID)->first();
 
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'DR-NOTIFY-1',
             'items' => [['purchase_order_item_id' => $item->PurchaseOrderItemID, 'quantity_received' => 6]],
         ])->assertRedirect(route('admin.stock-receivings.index'));
 
@@ -98,6 +99,7 @@ class DeliveryNotificationsTest extends TestCase
 
         // More than was ordered -- rejected, nothing written.
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'DR-NOTIFY-2',
             'items' => [['purchase_order_item_id' => $item->PurchaseOrderItemID, 'quantity_received' => 99]],
         ]);
 

@@ -245,6 +245,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
 
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'DR-PRINT-1',
             'items' => [
                 ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50],
                 ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
@@ -383,6 +384,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $inventoryBBefore = Inventory::where('ProductID', $this->productB->ProductID)->value('Quantity');
 
         $response = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'DR-OVER-1',
             'items' => [
                 // Over the ordered 50 -- must reject the whole batch, not
                 // just this line, leaving Product B's otherwise-valid line
@@ -413,6 +415,7 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
         $itemB = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productB->ProductID)->first();
         $payload = [
+            'receipt_number' => 'DR-TWICE-1',
             'items' => [
                 ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 50],
                 ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
@@ -426,6 +429,32 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
         $second->assertSessionHas('error');
         $this->assertSame($inventoryAAfterFirst, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
+    }
+
+    // Add to Inventory needs the delivery's Receipt Number; the button stays
+    // disabled until one is typed.
+    public function test_add_to_inventory_requires_a_receipt_number(): void
+    {
+        $po = $this->makeDraftOrder();
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
+        $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
+        $itemA = PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->first();
+        $inventoryBefore = Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity');
+
+        foreach (['', '   '] as $receiptNumber) {
+            $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+                'receipt_number' => $receiptNumber,
+                'items' => [['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 10]],
+            ])->assertSessionHasErrors(['receipt_number' => 'Enter the Receipt Number of this delivery.']);
+        }
+
+        $this->assertSame($inventoryBefore, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
+
+        $html = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', $batch))->json('html');
+        $this->assertMatchesRegularExpression('/id="batchReceiptNumberInput"[^>]*required/', $html);
+        $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'))->assertOk()
+            ->assertSee('id="addToInventoryBtn" style="display:none;" disabled>', false)
+            ->assertSee('function syncAddToInventoryButton()', false);
     }
 
     public function test_one_receipt_number_covers_every_product_in_the_delivery(): void

@@ -51,8 +51,8 @@
     @csrf
     @if($isPending)
         <div class="batch-receipt-number">
-            <label for="batchReceiptNumberInput" class="detail-label">Receipt Number <span class="batch-receipt-hint">(one for this delivery)</span></label>
-            <input type="text" id="batchReceiptNumberInput" class="form-input receipt-number-input" name="receipt_number" data-batch-id="{{ $batch->StockReceivingBatchID }}" maxlength="50" value="" placeholder="e.g., SUP-2026-0001">
+            <label for="batchReceiptNumberInput" class="detail-label">Receipt Number <span class="required">*</span> <span class="batch-receipt-hint">(one for this delivery)</span></label>
+            <input type="text" id="batchReceiptNumberInput" class="form-input receipt-number-input" name="receipt_number" data-batch-id="{{ $batch->StockReceivingBatchID }}" maxlength="50" value="" required placeholder="e.g., SUP-2026-0001">
             <span class="form-error receipt-number-error"></span>
         </div>
     @endif
