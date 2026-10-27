@@ -369,6 +369,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.stock-receivings.batches.show')->middleware(['auth', 'role:admin']);
     Route::post('stock-receivings/batches/{stockReceivingBatch}/add-to-inventory', [StockReceivingController::class, 'addToInventory'])
         ->name('admin.stock-receivings.batches.add-to-inventory')->middleware(['auth', 'role:admin']);
+    Route::post('stock-receivings/batches/{stockReceivingBatch}/reorder', [StockReceivingController::class, 'reorderFromAnotherSupplier'])
+        ->name('admin.stock-receivings.batches.reorder')->middleware(['auth', 'role:admin']);
 
     Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])
         ->name('admin.purchase-orders.index')->middleware(['auth', 'role:admin']);

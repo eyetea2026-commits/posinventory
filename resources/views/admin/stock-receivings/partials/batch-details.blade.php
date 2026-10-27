@@ -119,6 +119,51 @@
     </div>
 </form>
 
+{{-- The supplier has no stock: what's still owed on the ticked products is
+     cancelled here and ordered from another supplier as a new Draft
+     purchase order (StockReceivingController::reorderFromAnotherSupplier()).
+     Opened by the modal's "Reorder from Another Supplier" button. --}}
+@if($canReorder ?? false)
+    <form id="reorderElsewhereForm" class="reorder-elsewhere" method="POST" action="{{ route('admin.stock-receivings.batches.reorder', $batch) }}" style="display: none;">
+        @csrf
+        <div class="section-title"><i class="fas fa-rotate"></i> Reorder from Another Supplier</div>
+        <p class="reorder-elsewhere-hint">If {{ $po->supplier?->SupplierName ?? 'the supplier' }} has no stock, tick what should come from another supplier. What's still owed on those products is cancelled on {{ $po->PONumber }} and ordered as a new Draft purchase order, which you review and print in Purchase Orders.</p>
+        <div class="reorder-elsewhere-fields">
+            <label>
+                <span class="reorder-elsewhere-label">New Supplier <span class="required">*</span></span>
+                <select name="supplier_id" id="reorderSupplierSelect" class="form-select" required>
+                    <option value="">Select Supplier</option>
+                    @foreach(($reorderSuppliers ?? collect())->groupBy(fn ($row) => $row['suppliesThese'] ? 'Supplies these products' : 'Other suppliers') as $group => $rows)
+                        <optgroup label="{{ $group }}">
+                            @foreach($rows as $row)
+                                <option value="{{ $row['supplier']->SupplierID }}">{{ $row['supplier']->SupplierName }}</option>
+                            @endforeach
+                        </optgroup>
+                    @endforeach
+                </select>
+            </label>
+            <label>
+                <span class="reorder-elsewhere-label">Reason <span class="required">*</span></span>
+                <input type="text" name="reason" class="form-input" maxlength="255" required value="Supplier has no stock">
+            </label>
+        </div>
+        <table class="items-table">
+            <thead>
+                <tr><th style="width: 1%;"></th><th>Product</th><th>Still Owed</th></tr>
+            </thead>
+            <tbody>
+                @foreach($po->items->filter(fn ($item) => $item->remaining_quantity > 0) as $item)
+                    <tr>
+                        <td><input type="checkbox" name="items[]" value="{{ $item->PurchaseOrderItemID }}" checked aria-label="Reorder {{ $item->product?->ProductName }}"></td>
+                        <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
+                        <td>{{ $item->tableQuantity($item->remaining_quantity) }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </form>
+@endif
+
 @php($deliveries = $po->deliveries()->with(['items.product', 'receivedByUser'])->orderBy('ReceivedAt')->get())
 @if($deliveries->isNotEmpty())
     {{-- Every delivery received against this order so far. --}}

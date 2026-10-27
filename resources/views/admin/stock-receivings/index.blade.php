@@ -264,7 +264,19 @@
                 <button type="button" class="btn btn-secondary" id="batchDetailsCloseBtn">
                     <i class="fas fa-times"></i> Close
                 </button>
-                <style>#addToInventoryBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }</style>
+                <style>
+                    #addToInventoryBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+                    #reorderElsewhereBtn { color: #fcd34d; border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.12); }
+                    .reorder-elsewhere { margin-top: 18px; padding: 14px 16px; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; background: rgba(245, 158, 11, 0.06); }
+                    .reorder-elsewhere-hint { color: #cbd5e1; font-size: 0.86rem; margin: 0 0 12px; }
+                    .reorder-elsewhere-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+                    .reorder-elsewhere-fields label { display: flex; flex-direction: column; gap: 6px; }
+                    .reorder-elsewhere-label { color: #94a3b8; font-size: 0.82rem; font-weight: 600; }
+                    @media (max-width: 600px) { .reorder-elsewhere-fields { grid-template-columns: 1fr; } }
+                </style>
+                <button type="button" class="btn btn-secondary" id="reorderElsewhereBtn" style="display:none;">
+                    <i class="fas fa-rotate"></i> <span>Reorder from Another Supplier</span>
+                </button>
                 <button type="button" class="btn btn-primary" id="addToInventoryBtn" style="display:none;" disabled>
                     <i class="fas fa-boxes-stacked"></i> Add to Inventory
                 </button>
@@ -465,6 +477,10 @@
 
             const addToInventoryBtn = document.getElementById('addToInventoryBtn');
             addToInventoryBtn.style.display = 'none';
+            const reorderBtn = document.getElementById('reorderElsewhereBtn');
+            reorderBtn.style.display = 'none';
+            reorderBtn.disabled = false;
+            reorderBtn.innerHTML = '<i class="fas fa-rotate"></i> <span>Reorder from Another Supplier</span>';
 
             fetch('{{ url('admin/stock-receivings/batches') }}/' + batchId, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
@@ -479,6 +495,7 @@
                     // a Completed batch's read-only view has no action to
                     // take.
                     addToInventoryBtn.style.display = data.isPending ? '' : 'none';
+                    reorderBtn.style.display = data.canReorder ? '' : 'none';
                     if (data.isPending) initBatchReceiptNumberChecks();
                 })
                 .catch(function () {
@@ -502,6 +519,50 @@
         });
         document.getElementById('batchDetailsCloseBtn').addEventListener('click', closeBatchDetailsModal);
         document.getElementById('addToInventoryBtn').addEventListener('click', submitAddToInventory);
+        document.getElementById('reorderElsewhereBtn').addEventListener('click', reorderFromAnotherSupplier);
+
+        // The supplier has no stock: the first click opens the reorder panel
+        // (inside the fetched delivery details), the second confirms it.
+        function reorderFromAnotherSupplier() {
+            const form = document.getElementById('reorderElsewhereForm');
+            const button = document.getElementById('reorderElsewhereBtn');
+            if (!form) return;
+
+            if (form.style.display === 'none') {
+                form.style.display = '';
+                button.querySelector('span').textContent = 'Confirm Reorder';
+                form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                document.getElementById('reorderSupplierSelect').focus();
+                return;
+            }
+
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            if (!form.querySelector('input[name="items[]"]:checked')) {
+                Swal.fire({ title: 'Nothing Selected', text: 'Tick at least one product to reorder.', icon: 'warning', confirmButtonColor: '#f59e0b' });
+                return;
+            }
+
+            const supplierSelect = document.getElementById('reorderSupplierSelect');
+            const supplierName = supplierSelect.options[supplierSelect.selectedIndex].text;
+            Swal.fire({
+                title: 'Reorder from Another Supplier',
+                text: 'Cancel what is still owed on the ticked products and order them from ' + supplierName + ' as a new Draft purchase order?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Reorder',
+                cancelButtonText: 'No',
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: '#64748b'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reordering...';
+                form.submit();
+            });
+        }
 
         // Add to Inventory — a real (non-AJAX) form submission: the backend
         // redirects back to this same page with a flash message either way

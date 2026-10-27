@@ -17,9 +17,11 @@ use App\Models\User;
 use App\Notifications\DeliveryDue;
 use App\Notifications\DeliveryReceived;
 use App\Notifications\ProductReceived;
+use App\Services\ActionNotifier;
 use App\Services\UnitOfMeasure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -75,15 +77,165 @@ class StockReceivingController extends Controller
     {
         $stockReceivingBatch->load(['purchaseOrder.supplier', 'purchaseOrder.items.product']);
 
+        $isPending = $stockReceivingBatch->Status === StockReceivingBatch::STATUS_PENDING;
+        $canReorder = $isPending && $stockReceivingBatch->purchaseOrder->items->contains(fn (PurchaseOrderItem $item) => $item->remaining_quantity > 0);
+
         return response()->json([
             'html' => view('admin.stock-receivings.partials.batch-details', [
                 'batch' => $stockReceivingBatch,
+                'canReorder' => $canReorder,
+                'reorderSuppliers' => $canReorder ? self::reorderSuppliersFor($stockReceivingBatch->purchaseOrder) : collect(),
             ])->render(),
             // Lets the modal shell's own static "Add to Inventory" button
             // (kept there, alongside Close, rather than rendered inside the
             // fetched partial) know whether to show itself.
-            'isPending' => $stockReceivingBatch->Status === StockReceivingBatch::STATUS_PENDING,
+            'isPending' => $isPending,
+            'canReorder' => $canReorder,
         ]);
+    }
+
+    /**
+     * Active suppliers other than this order's, the ones already linked to
+     * its products first.
+     *
+     * @return Collection<int, array{supplier: Supplier, suppliesThese: bool}>
+     */
+    private static function reorderSuppliersFor(PurchaseOrder $purchaseOrder)
+    {
+        $productIds = $purchaseOrder->items->pluck('ProductID');
+        $linked = DB::table('ProductSupplier')->whereIn('ProductID', $productIds)->pluck('SupplierID')->unique()->all();
+
+        return Supplier::where('Status', Supplier::STATUS_ACTIVE)
+            ->where('SupplierID', '!=', $purchaseOrder->SupplierID)
+            ->orderBy('SupplierName')
+            ->get()
+            ->map(fn (Supplier $supplier) => ['supplier' => $supplier, 'suppliesThese' => in_array($supplier->SupplierID, $linked)])
+            ->sortByDesc('suppliesThese')
+            ->values();
+    }
+
+    /**
+     * The supplier has no stock for some (or all) of what's still owed:
+     * that remainder is cancelled on this order and ordered from another
+     * supplier as a new Draft purchase order (reviewed and printed like any
+     * other). Once nothing is owed here the order leaves Stock Receiving:
+     * Cancelled if nothing at all arrived, Closed otherwise.
+     */
+    public function reorderFromAnotherSupplier(Request $request, StockReceivingBatch $stockReceivingBatch)
+    {
+        $validator = validator($request->all(), [
+            'supplier_id' => ['required', 'integer', 'exists:Supplier,SupplierID'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*' => ['integer'],
+            'reason' => ['required', 'string', 'max:255'],
+        ], [
+            'supplier_id.required' => 'Choose the supplier to reorder from.',
+            'items.required' => 'Tick at least one product to reorder.',
+            'reason.required' => 'Enter why the products are being reordered (e.g. the supplier has no stock).',
+        ]);
+        if ($validator->fails()) {
+            return back()->with('error', $validator->errors()->first());
+        }
+        $data = $validator->validated();
+
+        $newSupplier = Supplier::find($data['supplier_id']);
+        if ($newSupplier->Status !== Supplier::STATUS_ACTIVE) {
+            return back()->with('error', "\"{$newSupplier->SupplierName}\" is inactive. Choose an active supplier.");
+        }
+
+        $original = null;
+        $newOrder = null;
+        $reordered = [];
+
+        try {
+            DB::transaction(function () use ($data, $stockReceivingBatch, $newSupplier, &$original, &$newOrder, &$reordered) {
+                $batch = StockReceivingBatch::where('StockReceivingBatchID', $stockReceivingBatch->StockReceivingBatchID)
+                    ->where('Status', StockReceivingBatch::STATUS_PENDING)
+                    ->lockForUpdate()
+                    ->first();
+                $original = $batch ? PurchaseOrder::with('supplier')
+                    ->where('PurchaseOrderID', $batch->PurchaseOrderID)
+                    ->whereIn('Status', [PurchaseOrder::STATUS_PENDING, PurchaseOrder::STATUS_APPROVED, PurchaseOrder::STATUS_PARTIALLY_RECEIVED])
+                    ->lockForUpdate()
+                    ->first() : null;
+                if (! $original) {
+                    throw new \RuntimeException('This delivery is no longer waiting to be received.');
+                }
+                if ((int) $original->SupplierID === (int) $newSupplier->SupplierID) {
+                    throw new \RuntimeException('Choose a different supplier from the one on this order.');
+                }
+
+                $items = PurchaseOrderItem::with('product.suppliers')
+                    ->where('PurchaseOrderID', $original->PurchaseOrderID)
+                    ->whereIn('PurchaseOrderItemID', $data['items'])
+                    ->lockForUpdate()
+                    ->get();
+
+                $lines = [];
+                foreach ($items as $item) {
+                    $remaining = $item->remaining_quantity;
+                    if ($remaining <= 0 || ! $item->product) {
+                        continue;
+                    }
+                    $item->update(['CancelledQuantity' => (int) $item->CancelledQuantity + $remaining]);
+
+                    // The new supplier's own cost for the product when known,
+                    // else what it cost on this order; editable on the draft.
+                    $supplierCost = $item->product->suppliers->firstWhere('SupplierID', $newSupplier->SupplierID)?->CostPrice;
+                    $lines[] = [
+                        'ProductID' => $item->ProductID,
+                        'Quantity' => $remaining,
+                        ...PurchaseOrderItem::unitFor($item->product),
+                        'CostPriceAtOrder' => $supplierCost !== null
+                            ? PurchaseOrderController::costPerPurchaseUnit($item->product, $supplierCost)
+                            : $item->CostPriceAtOrder,
+                    ];
+                    $reordered[] = "{$remaining} x \"{$item->product->ProductName}\"";
+                }
+                if ($lines === []) {
+                    throw new \RuntimeException('Those products have nothing left to reorder.');
+                }
+
+                $newOrder = PurchaseOrder::create([
+                    'PurchaseDate' => now()->toDateString(),
+                    'Notes' => "Reorder of {$original->PONumber} (".($original->supplier?->SupplierName ?? 'previous supplier')."): {$data['reason']}",
+                    'Status' => PurchaseOrder::STATUS_DRAFT,
+                    'SupplierID' => $newSupplier->SupplierID,
+                    'CreatedBy' => auth()->id(),
+                ]);
+                $newOrder->update(['PONumber' => 'PO-'.now()->format('Y').'-'.str_pad((string) $newOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT)]);
+                foreach ($lines as $line) {
+                    PurchaseOrderItem::create(['PurchaseOrderID' => $newOrder->PurchaseOrderID, ...$line]);
+                }
+
+                $original->load('items');
+                $settled = $original->isSettled();
+                $original->update([
+                    'Status' => ! $settled ? $original->Status : ($original->hasAnyReceivedQuantity() ? PurchaseOrder::STATUS_CLOSED : PurchaseOrder::STATUS_CANCELLED),
+                    'RemainderCancelReason' => "Reordered from {$newSupplier->SupplierName} as {$newOrder->PONumber}: {$data['reason']}",
+                    'RemainderCancelledBy' => auth()->id(),
+                    'RemainderCancelledAt' => now(),
+                ]);
+                // Nothing more is coming on this order: it leaves Pending.
+                if ($settled) {
+                    $batch->update(['Status' => StockReceivingBatch::STATUS_COMPLETED, 'CompletedAt' => now()]);
+                }
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $summary = implode(', ', $reordered);
+        ActivityLog::record('purchase_order.reordered_elsewhere', "Reordered {$summary} from \"{$newSupplier->SupplierName}\" as PO #{$newOrder->PONumber} instead of PO #{$original->PONumber}: {$data['reason']}");
+        ActionNotifier::toAdmins(
+            'Reordered from Another Supplier',
+            "{$summary} on {$original->PONumber} will come from \"{$newSupplier->SupplierName}\" instead ({$data['reason']}). Draft {$newOrder->PONumber} is ready to review and print.",
+            route('admin.purchase-orders.index'),
+            'clipboard-check',
+            'warning'
+        );
+
+        return redirect()->route('admin.stock-receivings.index')->with('success', "Draft purchase order {$newOrder->PONumber} created for {$newSupplier->SupplierName}. Review and print it in Purchase Orders to send it.");
     }
 
     // The core of the Pending -> Completed workflow. Everything below runs
