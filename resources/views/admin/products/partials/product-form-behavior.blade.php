@@ -37,8 +37,21 @@ window.initProductAddForm = function (formId, options) {
 
     var DEFAULT_PROFIT_MARGIN = 0.45; // Store default for new products — mirrors Product::PROFIT_MARGIN server-side.
 
-    window.attachMoneyInput(costPriceInput);
-    window.attachMoneyInput(sellingPriceInput);
+    // Prices: up to 5 whole-peso digits (99,999.99), the same limit
+    // ProductController validates; letters are stripped as they're typed.
+    var MAX_PRICE = 99999.99;
+    window.attachMoneyInput(costPriceInput, { maxIntegerDigits: 5 });
+    window.attachMoneyInput(sellingPriceInput, { maxIntegerDigits: 5 });
+    var sellingPriceErrorEl = form.querySelector('#error-Price');
+
+    // A Selling Price worked out from the Cost Price and margin can still
+    // come out above the limit; say so right away instead of on save.
+    function checkSellingPriceLimit(sellingPrice) {
+        if (!sellingPriceErrorEl) return;
+        var tooHigh = sellingPrice > MAX_PRICE;
+        sellingPriceErrorEl.textContent = tooHigh ? 'The Selling Price can only have up to 5 digits (₱99,999.99). Lower the Profit Margin or the Cost Price.' : '';
+        sellingPriceInput.classList.toggle('is-invalid', tooHigh);
+    }
 
     // Brand is dependent on Category: every <option> in #BrandID already
     // carries the Brand's own Category as data-category — show only the
@@ -286,6 +299,7 @@ window.initProductAddForm = function (formId, options) {
     }
 
     function updateMarkupDisplays(costPrice, sellingPrice) {
+        checkSellingPriceLimit(sellingPrice);
         var markupPrice = sellingPrice - costPrice;
         var markupPercent = costPrice > 0 ? ((markupPrice / costPrice) * 100) : 0;
 

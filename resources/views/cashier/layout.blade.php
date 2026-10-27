@@ -14,6 +14,7 @@
     @include('partials.session-guard')
     @include('partials.live-updates')
     @include('partials.searchable-select')
+    @include('partials.numeric-inputs')
     @include('partials.date-input-guard')
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

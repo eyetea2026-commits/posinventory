@@ -71,6 +71,12 @@ class Product extends Model
     // default for one product; the formula only applies when none is given.
     const PROFIT_MARGIN = 0.45;
 
+    // Cost and Selling Price: up to 5 whole-peso digits.
+    const MAX_PRICE = 99999.99;
+
+    // Reorder Threshold: up to 3 digits.
+    const MAX_REORDER_THRESHOLD = 999;
+
     public static function computeSellingPrice(float $costPrice): float
     {
         return round($costPrice / (1 - self::PROFIT_MARGIN), 2);

@@ -237,11 +237,9 @@ class ProductController extends Controller
             'Model' => ['required', 'string', 'max:100'],
             'Description' => ['nullable', 'string', 'max:500'],
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode'],
-            'CostPrice' => ['required', 'numeric', 'min:0.01'],
-            'Price' => ['nullable', 'numeric', 'min:0.01'],
+            ...self::priceRules(),
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
-            'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
             // Ticked: "Not returnable / refundable" (Product.IsReturnable = false).
             'NonReturnable' => ['nullable', 'boolean'],
             // Any size up to 5 MB is accepted; it's stored shrunk (ProductImage).
@@ -261,9 +259,11 @@ class ProductController extends Controller
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
+            ...self::priceMessages(),
             ...self::unitOfMeasureMessages(),
         ]);
         $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']));
+        $data['Price'] = self::sellingPriceFrom($data);
 
         // Brand is managed via Brand Management (Category module) and is
         // always scoped to one Category — the Add Product form's Brand
@@ -353,6 +353,49 @@ class ProductController extends Controller
         }
 
         return redirect()->route('admin.products.index')->with('status', 'Product added successfully.');
+    }
+
+    /**
+     * Prices of the Add/Edit Product form: up to 5 whole-peso digits
+     * (99,999.99), and a Reorder Threshold of up to 3 digits (999).
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private static function priceRules(): array
+    {
+        return [
+            'CostPrice' => ['required', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
+            'Price' => ['nullable', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
+            'ReorderThreshold' => ['nullable', 'integer', 'min:0', 'max:'.Product::MAX_REORDER_THRESHOLD],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function priceMessages(): array
+    {
+        return [
+            'CostPrice.max' => 'The Cost Price can only have up to 5 digits (₱99,999.99).',
+            'Price.max' => 'The Selling Price can only have up to 5 digits (₱99,999.99).',
+            'ReorderThreshold.max' => 'The Reorder Threshold can only have up to 3 digits (999).',
+        ];
+    }
+
+    /**
+     * The Selling Price to save: the one entered, or else the Cost Price at
+     * the default margin, which also has to stay within the 5-digit limit.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function sellingPriceFrom(array $data): float
+    {
+        $price = isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']);
+        if ($price > Product::MAX_PRICE) {
+            throw ValidationException::withMessages(['Price' => 'The Selling Price can only have up to 5 digits (₱99,999.99). Enter a lower Selling Price.']);
+        }
+
+        return $price;
     }
 
     /**
@@ -561,11 +604,9 @@ class ProductController extends Controller
             'Model' => ['required', 'string', 'max:100'],
             'Description' => ['nullable', 'string', 'max:500'],
             'Barcode' => ['required', 'string', 'max:100', 'unique:Product,Barcode,'.$product->ProductID.',ProductID'],
-            'CostPrice' => ['required', 'numeric', 'min:0.01'],
-            'Price' => ['nullable', 'numeric', 'min:0.01'],
+            ...self::priceRules(),
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
-            'ReorderThreshold' => ['nullable', 'integer', 'min:0'],
             // Ticked: "Not returnable / refundable" (Product.IsReturnable = false).
             'NonReturnable' => ['nullable', 'boolean'],
             'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
@@ -574,9 +615,11 @@ class ProductController extends Controller
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',
             'Barcode.unique' => 'This barcode is already assigned to another product.',
+            ...self::priceMessages(),
             ...self::unitOfMeasureMessages(),
         ]);
         $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']), $product);
+        $data['Price'] = self::sellingPriceFrom($data);
 
         // See store() — re-verify the selected Brand actually belongs to the
         // selected Category rather than trusting the client.
