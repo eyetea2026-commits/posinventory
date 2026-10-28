@@ -49,8 +49,6 @@ class SalesReturn extends Model
 
     const TYPE_REFUND = 'refund';
 
-    const TYPE_REPLACEMENT = 'replacement';
-
     // Reasons a cashier can choose for a return. "Other" was removed, so
     // every returned unit is either a factory defect or damaged.
     const REASON_CODES = [
@@ -112,11 +110,6 @@ class SalesReturn extends Model
     public function processedByUser()
     {
         return $this->belongsTo(User::class, 'ProcessedBy', 'id');
-    }
-
-    public function replacement()
-    {
-        return $this->hasOne(Replacement::class, 'SalesReturnID', 'SalesReturnID');
     }
 
     public function damagedProduct()

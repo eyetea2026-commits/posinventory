@@ -173,14 +173,6 @@
                         <button class="btn-process" onclick="showProcessRefundModal({{ $refund->SalesReturnID }})">
                             <i class="fas fa-check"></i> Process Refund
                         </button>
-                        @elseif($refund->Status === 'approved' && $refund->ReturnType === 'replacement')
-                        <button class="btn-process" onclick="showProcessReplacementModal({{ $refund->SalesReturnID }}, {{ $refund->total_quantity }})">
-                            <i class="fas fa-exchange-alt"></i> Process Replacement
-                        </button>
-                        @elseif($refund->Status === 'processed' && $refund->ReturnType === 'replacement')
-                        <a class="btn-view" href="{{ route('cashier.refunds.slip', $refund) }}" target="_blank">
-                            <i class="fas fa-print"></i> Slip
-                        </a>
                         @endif
                     </td>
                 </tr>
@@ -310,48 +302,11 @@
     </div>
 </div>
 
-<!-- Process Replacement Modal -->
-<div class="modal" id="process-replacement-modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2><i class="fas fa-exchange-alt"></i> Process Replacement</h2>
-            <button class="modal-close" onclick="closeProcessReplacementModal()">&times;</button>
-        </div>
-        <div class="form-group">
-            <label>Search Replacement Item</label>
-            <input type="text" id="replacement-search-input" placeholder="Search by name, SKU, or barcode..." oninput="searchReplacementInventory()">
-        </div>
-        <div class="transaction-items" id="replacement-product-list"></div>
-
-        <form id="process-replacement-form">
-            @csrf
-            <input type="hidden" id="process-replacement-id">
-            <input type="hidden" id="selected-replacement-product-id">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Replacement Quantity</label>
-                    <input type="number" id="replacement-quantity" min="1" value="1">
-                </div>
-                <div class="form-group">
-                    <label>Notes</label>
-                    <input type="text" id="replacement-notes" placeholder="Optional notes">
-                </div>
-            </div>
-            <button type="submit" class="btn-submit">
-                <i class="fas fa-check"></i> Confirm Replacement
-            </button>
-        </form>
-    </div>
-</div>
-
 <script>
 let selectedItems = {};
 let selectedRefundPaymentMethod = 'cash';
 let currentRefundAmount = 0;
 let searchMode = 'receipt';
-let currentReplacementCategoryId = null;
-let selectedReplacementProduct = null;
-let currentMaxReplacementQty = 1;
 
 // Customer names, return reasons, and product/category text all originate
 // as free text from request forms — escape every server-supplied string
@@ -693,7 +648,6 @@ function viewRefundDetails(refundId) {
                         ${r.return_type === 'refund' ? kv('Refund Amount', `<span style="color:#10b981;">${window.formatPeso(r.refund_amount)}</span>`) : ''}
                         ${r.refund_method ? kv('Refund Method', escapeHtml(r.refund_method)) : ''}
                         ${r.refund_date ? kv('Refund Date', escapeHtml(r.refund_date)) : ''}
-                        ${r.replacement ? kv('Replacement', `${Number(r.replacement.quantity)} x ${escapeHtml(r.replacement.product_name)} (Slip ${escapeHtml(r.replacement.slip_number)})`, true) : ''}
                         ${r.remarks ? kv('Remarks', escapeHtml(r.remarks), true) : ''}
                         ${r.decline_reason ? kv('Decline Reason', escapeHtml(r.decline_reason), true) : ''}
                     </div>
@@ -792,101 +746,5 @@ document.getElementById('process-refund-form').addEventListener('submit', functi
     });
 });
 
-function showProcessReplacementModal(refundId, maxQty) {
-    document.getElementById('process-replacement-id').value = refundId;
-    currentMaxReplacementQty = maxQty;
-    document.getElementById('replacement-quantity').max = maxQty;
-    document.getElementById('replacement-quantity').value = 1;
-    document.getElementById('replacement-search-input').value = '';
-    document.getElementById('replacement-product-list').innerHTML = '';
-    selectedReplacementProduct = null;
-    document.getElementById('process-replacement-modal').classList.add('active');
-}
-
-function closeProcessReplacementModal() {
-    document.getElementById('process-replacement-modal').classList.remove('active');
-}
-
-let replacementSearchTimer = null;
-function searchReplacementInventory() {
-    clearTimeout(replacementSearchTimer);
-    replacementSearchTimer = setTimeout(() => {
-        const q = document.getElementById('replacement-search-input').value.trim();
-        fetch(`{{ route('cashier.replacement-inventory.search') }}?q=${encodeURIComponent(q)}`)
-            .then(response => response.json())
-            .then(data => {
-                const list = document.getElementById('replacement-product-list');
-                list.innerHTML = data.products.map(p => `
-                    <div class="refund-product-row" onclick='selectReplacementProduct(${Number(p.ProductID)}, "${escapeHtml(p.ProductName).replace(/"/g, '&quot;')}", ${Number(p.Stock)})'>
-                        <div>
-                            <strong>${escapeHtml(p.ProductName)}</strong><br>
-                            <small>SKU: ${escapeHtml(p.SKU ?? 'N/A')} | Barcode: ${escapeHtml(p.Barcode ?? 'N/A')}</small>
-                        </div>
-                        <div style="text-align:right;">Stock: ${Number(p.Stock)}</div>
-                    </div>
-                `).join('');
-            });
-    }, 300);
-}
-
-function selectReplacementProduct(productId, name, stock) {
-    document.querySelectorAll('#replacement-product-list .refund-product-row').forEach(el => el.classList.remove('selected'));
-    event.target.closest('.refund-product-row').classList.add('selected');
-    selectedReplacementProduct = { productId, name, stock };
-}
-
-document.getElementById('process-replacement-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    if (!selectedReplacementProduct) {
-        toastWarning('Please select a replacement product.');
-        return;
-    }
-
-    const qty = parseInt(document.getElementById('replacement-quantity').value);
-    if (qty > selectedReplacementProduct.stock) {
-        toastWarning('Insufficient stock for the selected replacement item.');
-        return;
-    }
-    if (qty > currentMaxReplacementQty) {
-        toastWarning('Replacement quantity cannot exceed the approved return quantity.');
-        return;
-    }
-
-    const refundId = document.getElementById('process-replacement-id').value;
-
-    window.confirmAction({
-        title: 'Process Replacement',
-        text: 'Replace with ' + qty + ' x ' + selectedReplacementProduct.name + '?',
-        icon: 'question',
-        confirmText: 'Process Replacement',
-        confirmColor: '#10b981',
-    }).then(function (result) {
-        if (!result.isConfirmed) return;
-
-        fetch(`/cashier/refunds/${refundId}/process-replacement`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                _token: '{{ csrf_token() }}',
-                replacement_product_id: selectedReplacementProduct.productId,
-                quantity: qty,
-                notes: document.getElementById('replacement-notes').value,
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                toastSuccess('Replacement processed successfully! Slip: ' + data.slip_number).then(function () {
-                    closeProcessReplacementModal();
-                    location.reload();
-                });
-            } else {
-                toastError(data.message, 'Error');
-            }
-        })
-        .catch(() => toastError('Error processing replacement'));
-    });
-});
 </script>
 @endsection

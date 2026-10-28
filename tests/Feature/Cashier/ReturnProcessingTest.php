@@ -8,7 +8,6 @@ use App\Models\Discount;
 use App\Models\Inventory;
 use App\Models\Payment;
 use App\Models\Product;
-use App\Models\Replacement;
 use App\Models\Role;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
@@ -18,6 +17,7 @@ use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class ReturnProcessingTest extends TestCase
@@ -29,8 +29,6 @@ class ReturnProcessingTest extends TestCase
     private Staff $staff;
 
     private Product $product;
-
-    private Product $replacementProduct;
 
     private SalesTransaction $transaction;
 
@@ -53,12 +51,6 @@ class ReturnProcessingTest extends TestCase
             'Price' => 1000, 'CategoryID' => $category->CategoryID,
         ]);
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
-
-        $this->replacementProduct = Product::create([
-            'ProductName' => 'DVR Camera (New Unit)', 'Model' => 'CAM-01B',
-            'Price' => 1000, 'CategoryID' => $category->CategoryID,
-        ]);
-        Inventory::create(['ProductID' => $this->replacementProduct->ProductID, 'Quantity' => 3, 'Status' => 'Available']);
 
         $this->transaction = SalesTransaction::create([
             'CustomerName' => 'Walk-in Customer',
@@ -87,7 +79,7 @@ class ReturnProcessingTest extends TestCase
 
     // A second, unrelated cashier -- used only by the ownership-scoping
     // tests below (audit finding F1) to prove one cashier can't reach
-    // another's refund/replacement records.
+    // another's refund records.
     private function makeOtherCashier(): Staff
     {
         $otherUser = User::factory()->create(['role_id' => $this->cashierUser->role_id]);
@@ -264,93 +256,24 @@ class ReturnProcessingTest extends TestCase
         }
     }
 
-    public function test_process_replacement_rejects_non_approved_or_wrong_type(): void
+    // Returns are refund-only: the replacement screens, routes, and slip
+    // were removed together with the Replacement table.
+    public function test_replacement_processing_is_gone_from_the_cashier_returns_page(): void
     {
-        $return = $this->makeReturn(['Status' => 'approved', 'ReturnType' => 'refund']);
+        foreach (['cashier.refunds.process-replacement', 'cashier.refunds.slip', 'cashier.replacement-inventory.search'] as $name) {
+            $this->assertFalse(Route::has($name), $name);
+        }
 
-        $response = $this->actingAs($this->cashierUser)->postJson(
-            route('cashier.refunds.process-replacement', $return),
-            ['replacement_product_id' => $this->replacementProduct->ProductID, 'quantity' => 1]
-        );
+        $return = $this->makeReturn(['Status' => 'approved']);
+        $this->actingAs($this->cashierUser)->postJson("/cashier/refunds/{$return->SalesReturnID}/process-replacement", ['quantity' => 1])->assertNotFound();
+        $this->actingAs($this->cashierUser)->get("/cashier/refunds/{$return->SalesReturnID}/slip")->assertNotFound();
 
-        $response->assertStatus(400);
-    }
-
-    public function test_process_replacement_decrements_stock_and_creates_record(): void
-    {
-        $return = $this->makeReturn(['Status' => 'approved', 'ReturnType' => 'replacement', 'Quantity' => 1]);
-
-        $response = $this->actingAs($this->cashierUser)->postJson(
-            route('cashier.refunds.process-replacement', $return),
-            ['replacement_product_id' => $this->replacementProduct->ProductID, 'quantity' => 1]
-        );
-
-        $response->assertJson(['success' => true]);
-        $return->refresh();
-        $this->assertSame('processed', $return->Status);
-        $this->assertSame(2, Inventory::where('ProductID', $this->replacementProduct->ProductID)->first()->Quantity);
-        $this->assertDatabaseCount('Replacement', 1);
-        $this->assertTrue(ActivityLog::where('Action', 'return.replacement_processed')->exists());
-    }
-
-    // Real returns created through the item-based flow (SalesReturn::create
-    // in store()) never populate the legacy header Quantity/Reason columns —
-    // only makeReturn()'s test fixture does, to mirror an old backfill
-    // migration. A return built the way production actually builds one
-    // (items only, no header Quantity) must still let a replacement of the
-    // full item quantity through instead of comparing against a null header
-    // column.
-    public function test_process_replacement_succeeds_for_a_multi_item_return_with_no_legacy_header_quantity(): void
-    {
-        $return = SalesReturn::create([
-            'SalesTransactionID' => $this->transaction->SalesTransactionID,
-            'ReturnType' => 'replacement',
-            'ReturnDate' => now()->format('Y-m-d'),
-            'Status' => 'approved',
-            'StaffID' => $this->staff->StaffID,
-        ]);
-
-        SalesReturnItem::create([
-            'SalesReturnID' => $return->SalesReturnID,
-            'ProductID' => $this->product->ProductID,
-            'Quantity' => 1,
-            'UnitPrice' => 1000,
-            'Reason' => 'Factory Defect',
-        ]);
-        SalesReturnItem::create([
-            'SalesReturnID' => $return->SalesReturnID,
-            'ProductID' => $this->product->ProductID,
-            'Quantity' => 1,
-            'UnitPrice' => 1000,
-            'Reason' => 'Other',
-        ]);
-
-        $this->assertNull($return->Quantity);
-
-        $response = $this->actingAs($this->cashierUser)->postJson(
-            route('cashier.refunds.process-replacement', $return),
-            ['replacement_product_id' => $this->replacementProduct->ProductID, 'quantity' => 2]
-        );
-
-        $response->assertJson(['success' => true]);
-        $return->refresh();
-        $this->assertSame('processed', $return->Status);
-        $this->assertSame(1, Inventory::where('ProductID', $this->replacementProduct->ProductID)->first()->Quantity);
-    }
-
-    public function test_process_replacement_fails_cleanly_on_insufficient_stock(): void
-    {
-        $return = $this->makeReturn(['Status' => 'approved', 'ReturnType' => 'replacement', 'Quantity' => 5]);
-
-        $response = $this->actingAs($this->cashierUser)->postJson(
-            route('cashier.refunds.process-replacement', $return),
-            ['replacement_product_id' => $this->replacementProduct->ProductID, 'quantity' => 5]
-        );
-
-        $response->assertStatus(400);
-        $this->assertSame(3, Inventory::where('ProductID', $this->replacementProduct->ProductID)->first()->Quantity);
-        $this->assertDatabaseCount('Replacement', 0);
-        $this->assertSame('approved', $return->fresh()->Status);
+        $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))->assertOk()
+            ->assertSee('Process Refund')
+            ->assertDontSee('Process Replacement');
+        $this->actingAs($this->cashierUser)->getJson(route('cashier.refunds.details', $return->SalesReturnID))
+            ->assertJsonPath('success', true)
+            ->assertJsonMissingPath('refund.replacement');
     }
 
     public function test_search_transaction_by_receipt_and_customer_and_barcode(): void
@@ -521,7 +444,7 @@ class ReturnProcessingTest extends TestCase
     }
 
     // ---- Ownership scoping on the read/process endpoints (audit finding
-    // F1): a Cashier may only reach their OWN refund/replacement records,
+    // F1): a Cashier may only reach their OWN refund records,
     // never another Cashier's, even by ID directly. ----
 
     public function test_print_refund_receipt_is_denied_for_a_different_cashiers_return(): void
@@ -533,26 +456,6 @@ class ReturnProcessingTest extends TestCase
         $own->assertOk();
 
         $other = $this->actingAs($otherCashier)->get(route('cashier.refunds.receipt', $return->SalesReturnID));
-        $other->assertNotFound();
-    }
-
-    public function test_print_replacement_slip_is_denied_for_a_different_cashiers_return(): void
-    {
-        $return = $this->makeReturn(['Status' => 'processed', 'ReturnType' => 'replacement']);
-        Replacement::create([
-            'SalesReturnID' => $return->SalesReturnID,
-            'ReplacementProductID' => $this->replacementProduct->ProductID,
-            'Quantity' => 1,
-            'ProcessedBy' => $this->cashierUser->id,
-            'ReplacementDate' => now()->format('Y-m-d'),
-            'SlipNumber' => 'RPL-000001',
-        ]);
-        $otherCashier = $this->makeOtherCashier()->user;
-
-        $own = $this->actingAs($this->cashierUser)->get(route('cashier.refunds.slip', $return->SalesReturnID));
-        $own->assertOk();
-
-        $other = $this->actingAs($otherCashier)->get(route('cashier.refunds.slip', $return->SalesReturnID));
         $other->assertNotFound();
     }
 
@@ -576,21 +479,6 @@ class ReturnProcessingTest extends TestCase
 
         $response = $this->actingAs($otherCashier)->postJson(route('cashier.refunds.process', $return->SalesReturnID), [
             'refund_method' => 'cash',
-        ]);
-
-        $response->assertStatus(404);
-        $response->assertJsonPath('success', false);
-        $this->assertSame('approved', $return->fresh()->Status);
-    }
-
-    public function test_process_replacement_is_denied_for_a_different_cashiers_return(): void
-    {
-        $return = $this->makeReturn(['Status' => 'approved', 'ReturnType' => 'replacement']);
-        $otherCashier = $this->makeOtherCashier()->user;
-
-        $response = $this->actingAs($otherCashier)->postJson(route('cashier.refunds.process-replacement', $return->SalesReturnID), [
-            'replacement_product_id' => $this->replacementProduct->ProductID,
-            'quantity' => 1,
         ]);
 
         $response->assertStatus(404);

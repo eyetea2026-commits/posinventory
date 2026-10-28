@@ -20,8 +20,6 @@ class ProductSerial extends Model
 
     public const STATUS_LOST = 'Lost';
 
-    public const STATUS_REPLACEMENT = 'Given as Replacement';
-
     public const STATUS_REMOVED = 'Removed from Stock';
 
     protected $table = 'ProductSerial';

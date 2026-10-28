@@ -466,17 +466,14 @@ Route::prefix('cashier')->group(function () {
     Route::post('pos/custom-discount/approve', [CashierAuthController::class, 'approveCustomDiscount'])->name('cashier.custom-discount.approve')->middleware(['auth', 'role:cashier', 'throttle:5,1,custom-discount']);
     Route::get('transactions', [CashierAuthController::class, 'transactions'])->name('cashier.transactions')->middleware(['auth', 'role:cashier']);
 
-    // Return/Refund/Replacement routes
+    // Return/Refund routes
     Route::get('refunds', [CashierReturnController::class, 'index'])->name('cashier.refunds')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/search', [CashierReturnController::class, 'searchTransaction'])->name('cashier.refunds.search')->middleware(['auth', 'role:cashier']);
     Route::post('refunds/create', [CashierReturnController::class, 'createRefund'])->name('cashier.refunds.create')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/{transactionId}/transaction', [CashierReturnController::class, 'getTransactionDetails'])->name('cashier.refunds.transaction')->middleware(['auth', 'role:cashier']);
     Route::post('refunds/{salesReturn}/process-refund', [CashierReturnController::class, 'processRefund'])->name('cashier.refunds.process')->middleware(['auth', 'role:cashier']);
-    Route::post('refunds/{salesReturn}/process-replacement', [CashierReturnController::class, 'processReplacement'])->name('cashier.refunds.process-replacement')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/{salesReturn}/details', [CashierReturnController::class, 'getRefundDetails'])->name('cashier.refunds.details')->middleware(['auth', 'role:cashier']);
-    Route::get('refunds/{salesReturn}/slip', [CashierReturnController::class, 'printReplacementSlip'])->name('cashier.refunds.slip')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/{salesReturn}/receipt', [CashierReturnController::class, 'printRefundReceipt'])->name('cashier.refunds.receipt')->middleware(['auth', 'role:cashier']);
-    Route::get('replacement-inventory/search', [CashierReturnController::class, 'searchReplacementInventory'])->name('cashier.replacement-inventory.search')->middleware(['auth', 'role:cashier']);
     Route::get('stats', [CashierReturnController::class, 'getCashierStats'])->name('cashier.stats')->middleware(['auth', 'role:cashier']);
 
     // Notification routes

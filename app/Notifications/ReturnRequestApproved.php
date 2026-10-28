@@ -42,7 +42,7 @@ class ReturnRequestApproved extends Notification
         }
 
         return $message
-            ->line('**Action Required:** you may now process the refund or replacement for this request.')
+            ->line('**Action Required:** you may now process the refund for this request.')
             ->action('View Request', route('cashier.refunds'));
     }
 

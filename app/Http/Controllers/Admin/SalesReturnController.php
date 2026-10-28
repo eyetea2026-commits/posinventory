@@ -51,7 +51,6 @@ class SalesReturnController extends Controller
             'staff.user',
             'approvedByUser',
             'processedByUser',
-            'replacement.product',
         ])
             ->when($search, function ($query, $search) {
                 $query->where('Status', 'like', "%{$search}%")
@@ -87,7 +86,6 @@ class SalesReturnController extends Controller
             'staff.user.role',
             'approvedByUser',
             'processedByUser',
-            'replacement.product',
         ]);
 
         // Who actually submitted THIS return request (SalesReturn.StaffID) —
@@ -164,11 +162,6 @@ class SalesReturnController extends Controller
                 'DaysSincePurchase' => $salesReturn->days_since_purchase,
                 'ReturnWindowDays' => SalesReturn::RETURN_WINDOW_DAYS,
                 'EligibleForReturn' => $salesReturn->is_within_return_window,
-                'Replacement' => $salesReturn->replacement ? [
-                    'ProductName' => $salesReturn->replacement->product?->ProductName,
-                    'Quantity' => $salesReturn->replacement->Quantity,
-                    'SlipNumber' => $salesReturn->replacement->SlipNumber,
-                ] : null,
             ],
         ]);
     }

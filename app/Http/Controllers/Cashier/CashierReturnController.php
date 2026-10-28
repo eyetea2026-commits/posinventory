@@ -7,8 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
 use App\Models\Product;
-use App\Models\ProductSerial;
-use App\Models\Replacement;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
@@ -64,7 +62,7 @@ class CashierReturnController extends Controller
         $status = $request->get('status');
         $returnType = $request->get('return_type');
 
-        $refunds = SalesReturn::with(['staff', 'salesTransaction', 'product', 'items.product', 'replacement.product'])
+        $refunds = SalesReturn::with(['staff', 'salesTransaction', 'product', 'items.product'])
             ->where('StaffID', $staff->StaffID ?? 0)
             ->when($search, function ($query) use ($search) {
                 // Grouped in its own closure -- an ungrouped orWhere() here
@@ -193,7 +191,7 @@ class CashierReturnController extends Controller
     }
 
     /**
-     * Get transaction details for the refund/replacement request form.
+     * Get transaction details for the refund request form.
      */
     public function getTransactionDetails($transactionId)
     {
@@ -280,9 +278,8 @@ class CashierReturnController extends Controller
             // In the unit the product was sold in (meters, boxes...).
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
             'items.*.reason_code' => 'required|in:'.implode(',', array_keys(SalesReturn::REASON_CODES)),
-            // Replacement retired as a request-time option (2026-07-19) — cashiers can
-            // no longer originate one. processReplacement() below is left intact so
-            // any pre-existing replacement-type SalesReturn rows can still be processed.
+            // Every return is settled by a refund (replacements were retired
+            // on 2026-07-19 and their table removed on 2026-10-29).
             'return_type' => 'required|in:refund',
             'remarks' => 'nullable|string|max:500',
         ]);
@@ -553,139 +550,6 @@ class CashierReturnController extends Controller
         ]);
     }
 
-    /**
-     * Search inventory for a replacement product (optionally scoped to a category).
-     */
-    public function searchReplacementInventory(Request $request)
-    {
-        $data = $request->validate([
-            'q' => 'nullable|string|max:100',
-            'category_id' => 'nullable|integer',
-        ]);
-
-        $products = Product::with('inventory')
-            ->when($data['q'] ?? null, function ($query, $q) {
-                $query->where(function ($sub) use ($q) {
-                    $sub->where('ProductName', 'like', "%{$q}%")
-                        ->orWhere('SKU', $q)
-                        ->orWhere('Barcode', $q);
-                });
-            })
-            ->when($data['category_id'] ?? null, function ($query, $categoryId) {
-                $query->where('CategoryID', $categoryId);
-            })
-            ->orderBy('ProductName')
-            ->take(30)
-            ->get()
-            ->map(function ($product) {
-                return [
-                    'ProductID' => $product->ProductID,
-                    'ProductName' => $product->ProductName,
-                    'SKU' => $product->SKU,
-                    'Barcode' => $product->Barcode,
-                    'Price' => $product->Price,
-                    'Stock' => $product->inventory?->Quantity ?? 0,
-                    'StockLabel' => $product->formatQuantity($product->inventory?->Quantity ?? 0),
-                ];
-            });
-
-        return response()->json(['success' => true, 'products' => $products]);
-    }
-
-    /**
-     * Process a replacement after admin approval.
-     */
-    public function processReplacement(Request $request, $salesReturnId)
-    {
-        $data = $request->validate([
-            'replacement_product_id' => 'required|integer|exists:Product,ProductID',
-            'quantity' => 'required|integer|min:1',
-            'notes' => 'nullable|string|max:255',
-        ]);
-
-        $staffId = $this->currentStaffId();
-
-        // Owner-scoped: a Cashier may only complete a replacement they
-        // themselves filed (see CashierReturnController audit finding F2/F1).
-        $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->first();
-
-        if (! $salesReturn) {
-            return response()->json(['success' => false, 'message' => 'Return request not found.'], 404);
-        }
-
-        if ($salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REPLACEMENT) {
-            return response()->json(['success' => false, 'message' => 'Return must be an approved replacement-type request before processing.'], 400);
-        }
-
-        if ($data['quantity'] > $salesReturn->total_quantity) {
-            return response()->json(['success' => false, 'message' => 'Replacement quantity cannot exceed the approved return quantity.'], 400);
-        }
-
-        try {
-            $replacement = DB::transaction(function () use ($salesReturnId, $staffId, $data) {
-                // Re-fetch and lock the SalesReturn row itself (the earlier
-                // check above is only a fast-fail before the lock exists).
-                // Without this, two near-simultaneous requests for the same
-                // return can both read Status=approved before either
-                // commits, and both process the same replacement — this
-                // lock plus the re-check below serializes them so only the
-                // first succeeds.
-                $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->lockForUpdate()->first();
-
-                if (! $salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REPLACEMENT) {
-                    throw new \RuntimeException('This return has already been processed or is no longer approved.');
-                }
-
-                if ($data['quantity'] > $salesReturn->total_quantity) {
-                    throw new \RuntimeException('Replacement quantity cannot exceed the approved return quantity.');
-                }
-
-                $inventory = Inventory::where('ProductID', $data['replacement_product_id'])->lockForUpdate()->first();
-
-                if (! $inventory || $inventory->Quantity < $data['quantity']) {
-                    throw new \RuntimeException('Insufficient stock for the selected replacement item. Available: '.($inventory?->Quantity ?? 0));
-                }
-
-                $inventory->Quantity -= $data['quantity'];
-                $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                SerialNumbers::removingAs(ProductSerial::STATUS_REPLACEMENT, fn () => $inventory->save());
-
-                $slipNumber = 'RPL-'.str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT);
-
-                $replacement = Replacement::create([
-                    'SalesReturnID' => $salesReturn->SalesReturnID,
-                    'ReplacementProductID' => $data['replacement_product_id'],
-                    'Quantity' => $data['quantity'],
-                    'ProcessedBy' => auth()->id(),
-                    'ReplacementDate' => now()->format('Y-m-d'),
-                    'SlipNumber' => $slipNumber,
-                    'Notes' => $data['notes'] ?? null,
-                ]);
-
-                $salesReturn->update([
-                    'Status' => SalesReturn::STATUS_PROCESSED,
-                    'ProcessedBy' => auth()->id(),
-                ]);
-
-                return $replacement;
-            });
-        } catch (\RuntimeException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
-        }
-
-        $replacementProduct = Product::find($data['replacement_product_id']);
-        ActivityLog::record('return.replacement_processed', "Processed replacement for return #{$salesReturn->SalesReturnID}: {$data['quantity']} x \"{$replacementProduct?->ProductName}\" (slip {$replacement->SlipNumber})");
-        $replacementText = "Replacement of {$data['quantity']} x \"{$replacementProduct?->ProductName}\" has been processed (slip {$replacement->SlipNumber}).";
-        ActionNotifier::toAdmins('Replacement Processed', $replacementText, route('admin.sales-returns.index'), 'rotate-ccw', 'success');
-        ActionNotifier::toUser(auth()->user(), 'Replacement Processed', $replacementText, route('cashier.refunds'), 'rotate-ccw', 'success');
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Replacement processed successfully.',
-            'slip_number' => $replacement->SlipNumber,
-        ]);
-    }
-
     public function printRefundReceipt($salesReturnId)
     {
         // Owner-scoped, same as viewReceipt() on the Transaction History
@@ -707,26 +571,12 @@ class CashierReturnController extends Controller
         ]);
     }
 
-    public function printReplacementSlip($salesReturnId)
-    {
-        $salesReturn = SalesReturn::with(['product', 'items.product', 'salesTransaction', 'replacement.product', 'replacement.processedByUser'])
-            ->where('SalesReturnID', $salesReturnId)
-            ->where('StaffID', $this->currentStaffId())
-            ->first();
-
-        if (! $salesReturn || ! $salesReturn->replacement) {
-            abort(404, 'Replacement slip not found');
-        }
-
-        return view('cashier.replacement-slip', ['salesReturn' => $salesReturn, 'replacement' => $salesReturn->replacement]);
-    }
-
     /**
-     * Get refund/replacement details.
+     * Get refund details.
      */
     public function getRefundDetails($refundId)
     {
-        $refund = SalesReturn::with(['transaction', 'items.product', 'replacement.product'])
+        $refund = SalesReturn::with(['transaction', 'items.product'])
             ->where('SalesReturnID', $refundId)
             ->where('StaffID', $this->currentStaffId())
             ->first();
@@ -771,11 +621,6 @@ class CashierReturnController extends Controller
                 'refund_amount' => $items->sum('line_total'),
                 'refund_method' => $refund->RefundMethod,
                 'refund_date' => $refund->RefundDate,
-                'replacement' => $refund->replacement ? [
-                    'product_name' => $refund->replacement->product?->ProductName,
-                    'quantity' => $refund->replacement->Quantity,
-                    'slip_number' => $refund->replacement->SlipNumber,
-                ] : null,
             ],
         ]);
     }
