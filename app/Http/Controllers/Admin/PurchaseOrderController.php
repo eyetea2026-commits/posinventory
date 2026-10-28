@@ -227,6 +227,13 @@ class PurchaseOrderController extends Controller
                     'unitPlural' => UnitOfMeasure::plural($product->orderUnit()),
                     'unitHolds' => $product->purchaseUnitSize() ? $product->formatQuantity($product->purchaseUnitSize()) : null,
                     'suggestedQuantity' => max(1, self::suggestedOrderQuantity($product, $quantity, $threshold)),
+                    // The Meter column: meters in one unit ordered (a roll's
+                    // last size, or 1 when ordered by the meter); null while a
+                    // roll's size isn't known yet. Not shown for other units.
+                    'countsMeters' => $product->baseUnit() === 'meter',
+                    'metersPerUnit' => $product->baseUnit() === 'meter' && (! $product->hasPurchaseUnit() || $product->purchaseUnitSize())
+                        ? $product->quantityPerOrderUnit()
+                        : null,
                     // Picked by default: the preferred supplier, or the only one.
                     'supplier' => $link?->supplier,
                     // The Supplier dropdown: this product's own suppliers

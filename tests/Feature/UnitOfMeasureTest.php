@@ -404,6 +404,24 @@ class UnitOfMeasureTest extends TestCase
         $this->assertSame(30, PurchaseOrderController::suggestedOrderQuantity(Product::create(['ProductName' => 'Camera', 'Model' => 'C-1', 'Price' => 100, 'CategoryID' => $this->category->CategoryID]), 0, 15));
     }
 
+    public function test_create_purchase_order_shows_the_meters_ordered_beside_the_quantity(): void
+    {
+        $newWire = Product::create([
+            'ProductName' => 'Coaxial RG59', 'Model' => 'RG59', 'Price' => 8, 'CostPrice' => 5, 'CategoryID' => $this->category->CategoryID,
+            'UnitOfMeasure' => 'meter', 'PurchaseUnit' => 'roll', 'AllowsFractionalQuantity' => true,
+        ]);
+
+        $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('#<th>Current Price</th>\s*<th>Quantity</th>\s*<th>Meter</th>\s*<th>Supplier</th>#', $html);
+        // 1 roll suggested x 5,000 meters per roll; the page keeps it in step with the quantity.
+        $this->assertStringContainsString('<td class="po-meters" data-meters-per-unit="5000">5,000 meters</td>', $html);
+        $this->assertStringContainsString('function syncOrderMeters(row)', $html);
+        // A roll not received yet has no size; products not in meters show a dash.
+        $this->assertMatchesRegularExpression('#'.preg_quote($newWire->ProductName, '#').'.*?<td class="po-meters po-meters-none" title="The meters per roll are entered at Stock Receiving">N/A</td>#s', $html);
+        $this->assertMatchesRegularExpression('#RJ45 Connector.*?<td class="po-meters po-meters-none">—</td>#s', $html);
+    }
+
     public function test_stock_adjustments_are_in_the_base_unit_with_decimals_only_where_allowed(): void
     {
         $adjust = fn (Product $product, $quantity) => $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), [

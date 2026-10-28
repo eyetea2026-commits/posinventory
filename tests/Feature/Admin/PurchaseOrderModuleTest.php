@@ -706,7 +706,7 @@ class PurchaseOrderModuleTest extends TestCase
 
         $this->assertStringNotContainsString('<select id="SupplierID" name="SupplierID"', $html);
         $this->assertStringNotContainsString('name="ExpectedDeliveryDate"', $html);
-        $this->assertMatchesRegularExpression('#<th><label class="po-select-all"><input type="checkbox" id="po-select-all"[^>]*> Select All</label></th>\s*<th>Product</th>\s*<th>Threshold</th>\s*<th>Previous Price</th>\s*<th>Current Price</th>\s*<th>Quantity</th>\s*<th>Supplier</th>#', $html);
+        $this->assertMatchesRegularExpression('#<th><label class="po-select-all"><input type="checkbox" id="po-select-all"[^>]*> Select All</label></th>\s*<th>Product</th>\s*<th>Threshold</th>\s*<th>Previous Price</th>\s*<th>Current Price</th>\s*<th>Quantity</th>\s*<th>Meter</th>\s*<th>Supplier</th>#', $html);
         // Low stock first (even though "AAA" sorts earlier) and ticked.
         $this->assertLessThan(strpos($html, 'AAA Plenty Cam'), strpos($html, $this->product->ProductName.'<span class="po-low">Low Stock</span>'));
         $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order '.preg_quote($this->product->ProductName, '#').'" checked#', $html);

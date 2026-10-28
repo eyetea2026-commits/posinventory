@@ -29,6 +29,8 @@
     .po-items-table .po-unit-input input { min-width: 0; }
     .po-items-table .po-unit-input span { color: #94a3b8; font-size: 0.78rem; white-space: nowrap; }
     .po-items-table .po-unit-holds { display: block; color: #64748b; font-size: 0.72rem; margin-top: 2px; }
+    .po-items-table td.po-meters { white-space: nowrap; color: #e2e8f0; }
+    .po-items-table td.po-meters-none { color: #64748b; }
     .po-items-table .po-low { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 0.68rem; font-weight: 700; }
     .po-items-table input[type="number"], .po-items-table select { width: 100%; min-width: 90px; padding: 6px 8px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.82rem; text-align: center; }
     .po-items-table input:disabled, .po-items-table select:disabled { opacity: 0.45; }
@@ -72,6 +74,7 @@
                     <th>Previous Price</th>
                     <th>Current Price</th>
                     <th>Quantity</th>
+                    <th>Meter</th>
                     <th>Supplier</th>
                 </tr>
             </thead>
@@ -95,6 +98,14 @@
                             <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_QUANTITY }}" step="1" data-max-digits="3" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
                             @if($row['unitHolds'])<small class="po-unit-holds">last {{ $row['unit'] }}: {{ $row['unitHolds'] }}</small>@endif
                         </td>
+                        {{-- Quantity x meters per roll, kept in step as the quantity changes. --}}
+                        @if(! $row['countsMeters'])
+                            <td class="po-meters po-meters-none">—</td>
+                        @elseif($row['metersPerUnit'])
+                            <td class="po-meters" data-meters-per-unit="{{ $row['metersPerUnit'] }}">{{ \App\Services\UnitOfMeasure::format($row['suggestedQuantity'] * $row['metersPerUnit'], 'meter') }}</td>
+                        @else
+                            <td class="po-meters po-meters-none" title="The meters per {{ $row['unit'] }} are entered at Stock Receiving">N/A</td>
+                        @endif
                         <td>
                             {{-- The preferred (or only) supplier is picked already; it can be changed for this order. --}}
                             <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">
@@ -117,7 +128,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7">No active products to order.</td></tr>
+                    <tr><td colspan="8">No active products to order.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -131,6 +142,19 @@
 </div>
 
 <script>
+    // The Meter column: quantity x meters per roll.
+    function syncOrderMeters(row) {
+        const cell = row.querySelector('td.po-meters[data-meters-per-unit]');
+        const qty = row.querySelector('input[name$="[quantity]"]');
+        if (!cell || !qty) return;
+        const meters = (parseInt(qty.value, 10) || 0) * parseFloat(cell.dataset.metersPerUnit);
+        cell.textContent = meters.toLocaleString('en-US', { maximumFractionDigits: 2 }) + (meters === 1 ? ' meter' : ' meters');
+    }
+
+    document.addEventListener('input', function (e) {
+        if (e.target.matches && e.target.matches('#order-items input[name$="[quantity]"]')) syncOrderMeters(e.target.closest('tr'));
+    });
+
     // Only ticked rows are sent: an unticked row's fields are disabled.
     function syncOrderItems() {
         const rows = Array.from(document.querySelectorAll('#order-items .po-item-row'));
@@ -199,6 +223,7 @@
         document.querySelectorAll('#order-items .po-item-row').forEach(function (row) {
             const supplier = row.querySelector('.po-item-supplier');
             row.dataset.supplier = supplier ? supplier.value : row.dataset.supplier;
+            syncOrderMeters(row);
         });
         syncOrderItems();
     }
