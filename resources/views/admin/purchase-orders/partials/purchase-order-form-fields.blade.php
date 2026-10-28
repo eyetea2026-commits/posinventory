@@ -29,8 +29,8 @@
     .po-items-table .po-unit-input input { min-width: 0; }
     .po-items-table .po-unit-input span { color: #94a3b8; font-size: 0.78rem; white-space: nowrap; }
     .po-items-table .po-unit-holds { display: block; color: #64748b; font-size: 0.72rem; margin-top: 2px; }
-    .po-items-table td.po-meters { white-space: nowrap; color: #e2e8f0; }
     .po-items-table td.po-meters-none { color: #64748b; }
+    .po-items-table .po-meters-total { display: block; color: #64748b; font-size: 0.72rem; margin-top: 2px; white-space: nowrap; }
     .po-items-table .po-low { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 0.68rem; font-weight: 700; }
     .po-items-table input[type="number"], .po-items-table select { width: 100%; min-width: 90px; padding: 6px 8px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.82rem; text-align: center; }
     .po-items-table input:disabled, .po-items-table select:disabled { opacity: 0.45; }
@@ -98,13 +98,15 @@
                             <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_QUANTITY }}" step="1" data-max-digits="3" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
                             @if($row['unitHolds'])<small class="po-unit-holds">last {{ $row['unit'] }}: {{ $row['unitHolds'] }}</small>@endif
                         </td>
-                        {{-- Quantity x meters per roll, kept in step as the quantity changes. --}}
-                        @if(! $row['countsMeters'])
-                            <td class="po-meters po-meters-none">—</td>
-                        @elseif($row['metersPerUnit'])
-                            <td class="po-meters" data-meters-per-unit="{{ $row['metersPerUnit'] }}">{{ \App\Services\UnitOfMeasure::format($row['suggestedQuantity'] * $row['metersPerUnit'], 'meter') }}</td>
+                        {{-- How long each roll is (typed; starts at the last roll
+                             received), with the total meters under it. --}}
+                        @if($row['ordersRollMeters'])
+                            <td class="po-meters">
+                                <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][meters_per_roll]" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_METERS_PER_ROLL }}" step="1" data-max-digits="4" value="{{ $row['metersPerRoll'] && $row['metersPerRoll'] <= \App\Models\PurchaseOrderItem::MAX_METERS_PER_ROLL ? \App\Casts\Quantity::normalize($row['metersPerRoll']) : '' }}" placeholder="e.g. 500" required aria-label="Meters per {{ $row['unit'] }}"><span>m/{{ $row['unit'] }}</span></div>
+                                <small class="po-meters-total"></small>
+                            </td>
                         @else
-                            <td class="po-meters po-meters-none" title="The meters per {{ $row['unit'] }} are entered at Stock Receiving">N/A</td>
+                            <td class="po-meters-none">—</td>
                         @endif
                         <td>
                             {{-- The preferred (or only) supplier is picked already; it can be changed for this order. --}}
@@ -142,17 +144,18 @@
 </div>
 
 <script>
-    // The Meter column: quantity x meters per roll.
+    // The Meter column: total = rolls x meters per roll, under the box.
     function syncOrderMeters(row) {
-        const cell = row.querySelector('td.po-meters[data-meters-per-unit]');
+        const perRoll = row.querySelector('input[name$="[meters_per_roll]"]');
         const qty = row.querySelector('input[name$="[quantity]"]');
-        if (!cell || !qty) return;
-        const meters = (parseInt(qty.value, 10) || 0) * parseFloat(cell.dataset.metersPerUnit);
-        cell.textContent = meters.toLocaleString('en-US', { maximumFractionDigits: 2 }) + (meters === 1 ? ' meter' : ' meters');
+        const total = row.querySelector('.po-meters-total');
+        if (!perRoll || !qty || !total) return;
+        const meters = (parseInt(qty.value, 10) || 0) * (parseInt(perRoll.value, 10) || 0);
+        total.textContent = meters > 0 ? 'total: ' + meters.toLocaleString('en-US') + (meters === 1 ? ' meter' : ' meters') : '';
     }
 
     document.addEventListener('input', function (e) {
-        if (e.target.matches && e.target.matches('#order-items input[name$="[quantity]"]')) syncOrderMeters(e.target.closest('tr'));
+        if (e.target.matches && e.target.matches('#order-items input[name$="[quantity]"], #order-items input[name$="[meters_per_roll]"]')) syncOrderMeters(e.target.closest('tr'));
     });
 
     // Only ticked rows are sent: an unticked row's fields are disabled.
@@ -244,17 +247,25 @@
             const price = row.querySelector('input[name$="[cost_price]"]');
             const qty = row.querySelector('input[name$="[quantity]"]');
             const supplier = row.querySelector('.po-item-supplier');
-            [[price, !(parseFloat(price.value) > 0), 'Enter a Current Price for "' + name + '".'],
-             [price, parseFloat(price.value) > parseFloat(price.max), 'Current Price for "' + name + '" can be at most 6 digits.'],
-             [qty, !(parseInt(qty.value, 10) >= 1), 'Enter a Quantity for "' + name + '".'],
-             [qty, parseInt(qty.value, 10) > parseInt(qty.max, 10), 'Quantity for "' + name + '" can be at most 3 digits.'],
-             [supplier, supplier && !supplier.value, 'Choose a supplier for "' + name + '".']].forEach(function (check) {
+            const perRoll = row.querySelector('input[name$="[meters_per_roll]"]');
+            // One check per field, in column order: its problem, or ''.
+            function problem(field, empty, emptyMessage, tooBig, tooBigMessage) {
+                if (!field) return '';
+                return empty ? emptyMessage : (tooBig ? tooBigMessage : '');
+            }
+            [[price, problem(price, !(parseFloat(price.value) > 0), 'Enter a Current Price for "' + name + '".',
+                parseFloat(price.value) > parseFloat(price.max), 'Current Price for "' + name + '" can be at most 6 digits.')],
+             [qty, problem(qty, !(parseInt(qty.value, 10) >= 1), 'Enter a Quantity for "' + name + '".',
+                parseInt(qty.value, 10) > parseInt(qty.max, 10), 'Quantity for "' + name + '" can be at most 3 digits.')],
+             [perRoll, problem(perRoll, perRoll && !(parseInt(perRoll.value, 10) >= 1), 'Enter how many meters each roll of "' + name + '" is.',
+                perRoll && parseInt(perRoll.value, 10) > parseInt(perRoll.max, 10), 'Meter for "' + name + '" can be at most 4 digits.')],
+             [supplier, problem(supplier, supplier && !supplier.value, 'Choose a supplier for "' + name + '".', false, '')]].forEach(function (check) {
                 const field = check[0];
                 if (!field) return;
-                field.classList.toggle('error', check[1]);
-                if (check[1] && !firstInvalid) {
+                field.classList.toggle('error', check[1] !== '');
+                if (check[1] !== '' && !firstInvalid) {
                     firstInvalid = field;
-                    message = check[2];
+                    message = check[1];
                 }
             });
         });

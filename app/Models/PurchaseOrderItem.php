@@ -21,6 +21,9 @@ class PurchaseOrderItem extends Model
     // Quantity ordered: up to 3 digits.
     const MAX_QUANTITY = 999;
 
+    // Meters per roll typed on the order (100, 250, 1,000...): up to 4 digits.
+    const MAX_METERS_PER_ROLL = 9999;
+
     protected $primaryKey = 'PurchaseOrderItemID';
 
     // Quantity, ReceivedQuantity and CancelledQuantity are in the unit it

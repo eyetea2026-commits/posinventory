@@ -227,13 +227,11 @@ class PurchaseOrderController extends Controller
                     'unitPlural' => UnitOfMeasure::plural($product->orderUnit()),
                     'unitHolds' => $product->purchaseUnitSize() ? $product->formatQuantity($product->purchaseUnitSize()) : null,
                     'suggestedQuantity' => max(1, self::suggestedOrderQuantity($product, $quantity, $threshold)),
-                    // The Meter column: meters in one unit ordered (a roll's
-                    // last size, or 1 when ordered by the meter); null while a
-                    // roll's size isn't known yet. Not shown for other units.
-                    'countsMeters' => $product->baseUnit() === 'meter',
-                    'metersPerUnit' => $product->baseUnit() === 'meter' && (! $product->hasPurchaseUnit() || $product->purchaseUnitSize())
-                        ? $product->quantityPerOrderUnit()
-                        : null,
+                    // The Meter column: how long each roll of this order is,
+                    // typed in (rolls come 100, 250, 1,000 meters...); starts
+                    // at the last roll received. Only for wire ordered by the roll.
+                    'ordersRollMeters' => self::ordersRollMeters($product),
+                    'metersPerRoll' => $product->purchaseUnitSize(),
                     // Picked by default: the preferred supplier, or the only one.
                     'supplier' => $link?->supplier,
                     // The Supplier dropdown: this product's own suppliers
@@ -264,6 +262,7 @@ class PurchaseOrderController extends Controller
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:'.PurchaseOrderItem::MAX_QUANTITY],
             'items.*.cost_price' => ['required', 'numeric', 'min:0.01', 'max:'.PurchaseOrderItem::MAX_COST_PRICE],
             'items.*.supplier_id' => ['nullable', 'integer', 'exists:Supplier,SupplierID'],
+            'items.*.meters_per_roll' => ['nullable', 'integer', 'min:1', 'max:'.PurchaseOrderItem::MAX_METERS_PER_ROLL],
         ], [
             'items.required' => 'Tick at least one product to order.',
             'items.min' => 'Tick at least one product to order.',
@@ -275,6 +274,9 @@ class PurchaseOrderController extends Controller
             'items.*.cost_price.numeric' => 'Current Price must be a valid number.',
             'items.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
             'items.*.cost_price.max' => 'Current Price can be at most 6 digits (₱'.number_format(PurchaseOrderItem::MAX_COST_PRICE, 2).').',
+            'items.*.meters_per_roll.integer' => 'Meter must be a whole number of meters per roll.',
+            'items.*.meters_per_roll.min' => 'Meter must be at least 1 meter per roll.',
+            'items.*.meters_per_roll.max' => 'Meter can be at most 4 digits ('.number_format(PurchaseOrderItem::MAX_METERS_PER_ROLL).' meters per roll).',
         ]);
 
         // The supplier picked in the row is used; a row sent without one
@@ -313,12 +315,20 @@ class PurchaseOrderController extends Controller
                 ]);
 
                 foreach ($items as $item) {
+                    $product = $products->get($item['product_id']);
+                    $unit = PurchaseOrderItem::unitFor($product);
+                    // A wire roll's length as typed in the Meter column;
+                    // Stock Receiving starts from it.
+                    if (self::ordersRollMeters($product) && ! empty($item['meters_per_roll'])) {
+                        $unit['QuantityPerUnit'] = (int) $item['meters_per_roll'];
+                    }
+
                     PurchaseOrderItem::create([
                         'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                         'ProductID' => $item['product_id'],
                         'Quantity' => $item['quantity'],
                         // In the product's purchase unit (rolls, boxes).
-                        ...PurchaseOrderItem::unitFor($products->get($item['product_id'])),
+                        ...$unit,
                         'CostPriceAtOrder' => $item['cost_price'],
                     ]);
                 }
@@ -453,6 +463,15 @@ class PurchaseOrderController extends Controller
     public static function suggestedReorderQuantity(int|float $quantity, int $threshold): int|float
     {
         return Quantity::normalize(max($threshold - $quantity, 0) + $threshold);
+    }
+
+    /**
+     * Counted in meters and ordered by the roll (wire): the order says how
+     * many meters each roll is.
+     */
+    public static function ordersRollMeters(Product $product): bool
+    {
+        return $product->baseUnit() === 'meter' && $product->hasPurchaseUnit();
     }
 
     /**

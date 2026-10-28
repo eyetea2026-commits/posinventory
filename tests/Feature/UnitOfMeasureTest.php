@@ -404,7 +404,7 @@ class UnitOfMeasureTest extends TestCase
         $this->assertSame(30, PurchaseOrderController::suggestedOrderQuantity(Product::create(['ProductName' => 'Camera', 'Model' => 'C-1', 'Price' => 100, 'CategoryID' => $this->category->CategoryID]), 0, 15));
     }
 
-    public function test_create_purchase_order_shows_the_meters_ordered_beside_the_quantity(): void
+    public function test_create_purchase_order_has_a_typable_meter_box_for_the_roll_length(): void
     {
         $newWire = Product::create([
             'ProductName' => 'Coaxial RG59', 'Model' => 'RG59', 'Price' => 8, 'CostPrice' => 5, 'CategoryID' => $this->category->CategoryID,
@@ -414,12 +414,42 @@ class UnitOfMeasureTest extends TestCase
         $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
 
         $this->assertMatchesRegularExpression('#<th>Current Price</th>\s*<th>Quantity</th>\s*<th>Meter</th>\s*<th>Supplier</th>#', $html);
-        // 1 roll suggested x 5,000 meters per roll; the page keeps it in step with the quantity.
-        $this->assertStringContainsString('<td class="po-meters" data-meters-per-unit="5000">5,000 meters</td>', $html);
+        // Meters per roll, up to 4 digits, starting at the last roll received (5,000).
+        $this->assertStringContainsString('name="items['.$this->wire->ProductID.'][meters_per_roll]" min="1" max="9999" step="1" data-max-digits="4" value="5000" placeholder="e.g. 500" required', $html);
+        // No roll received yet: typed in.
+        $this->assertStringContainsString('name="items['.$newWire->ProductID.'][meters_per_roll]" min="1" max="9999" step="1" data-max-digits="4" value="" placeholder="e.g. 500" required', $html);
         $this->assertStringContainsString('function syncOrderMeters(row)', $html);
-        // A roll not received yet has no size; products not in meters show a dash.
-        $this->assertMatchesRegularExpression('#'.preg_quote($newWire->ProductName, '#').'.*?<td class="po-meters po-meters-none" title="The meters per roll are entered at Stock Receiving">N/A</td>#s', $html);
-        $this->assertMatchesRegularExpression('#RJ45 Connector.*?<td class="po-meters po-meters-none">—</td>#s', $html);
+        // Products not counted in meters show a dash and send no meters.
+        $this->assertStringNotContainsString('name="items['.$this->rj45->ProductID.'][meters_per_roll]"', $html);
+        $this->assertMatchesRegularExpression('#RJ45 Connector.*?<td class="po-meters-none">—</td>#s', $html);
+    }
+
+    public function test_the_typed_roll_length_is_saved_on_the_order_and_starts_stock_receiving(): void
+    {
+        $supplier = Supplier::create(['SupplierName' => 'Cable Depot', 'ContactNumber' => '0912-345-6789', 'Address' => 'N/A']);
+        $order = fn (array $line) => $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
+            'PurchaseDate' => now()->toDateString(),
+            'items' => [$line + ['cost_price' => 2500, 'supplier_id' => $supplier->SupplierID]],
+        ]);
+
+        $order(['product_id' => $this->wire->ProductID, 'quantity' => 2, 'meters_per_roll' => 10000])
+            ->assertSessionHasErrors(['items.0.meters_per_roll' => 'Meter can be at most 4 digits (9,999 meters per roll).']);
+        $order(['product_id' => $this->wire->ProductID, 'quantity' => 2, 'meters_per_roll' => 0])->assertSessionHasErrors('items.0.meters_per_roll');
+        $this->assertSame(0, PurchaseOrder::count());
+
+        $order(['product_id' => $this->wire->ProductID, 'quantity' => 2, 'meters_per_roll' => 250])->assertSessionHasNoErrors();
+        $line = PurchaseOrderItem::firstOrFail();
+        $this->assertSame(['roll', 250, 2], [$line->Unit, $line->QuantityPerUnit, $line->Quantity]);
+        $this->assertSame(500, $line->toBaseQuantity($line->Quantity));
+
+        // Stock Receiving's "Meters per roll" starts at 250.
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $line->purchaseOrder));
+        $receivingHtml = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', StockReceivingBatch::firstOrFail()))->assertOk()->json('html');
+        $this->assertMatchesRegularExpression('#name="items\[0\]\[quantity_per_unit\]"[^>]*value="250"#', $receivingHtml);
+
+        // Ignored for a product not counted in meters.
+        $order(['product_id' => $this->rj45->ProductID, 'quantity' => 1, 'meters_per_roll' => 50])->assertSessionHasNoErrors();
+        $this->assertSame(100, PurchaseOrderItem::where('ProductID', $this->rj45->ProductID)->firstOrFail()->QuantityPerUnit);
     }
 
     public function test_stock_adjustments_are_in_the_base_unit_with_decimals_only_where_allowed(): void
