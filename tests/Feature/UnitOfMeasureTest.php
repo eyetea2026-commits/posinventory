@@ -374,25 +374,48 @@ class UnitOfMeasureTest extends TestCase
             'receipt_number' => $receipt, 'items' => [['purchase_order_item_id' => $line->PurchaseOrderItemID, 'quantity_received' => $rolls, 'quantity_per_unit' => $metersPerRoll]],
         ]);
 
-        // The receiving screen asks how many meters each roll holds.
+        // The receiving screen shows the meters per roll it was ordered at, locked.
         $receivingHtml = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', $batch))->assertOk()->json('html');
         $this->assertStringContainsString('Meters per roll', $receivingHtml);
-        $this->assertStringContainsString('name="items[0][quantity_per_unit]"', $receivingHtml);
+        $this->assertStringContainsString('name="items[0][quantity_per_unit]" value="5000" readonly title="As ordered on the purchase order"', $receivingHtml);
+        $this->assertStringContainsString('as ordered', $receivingHtml);
 
-        // How many meters each roll holds is entered at receiving.
-        $receive(1, null, 'DR-0')->assertSessionHas('error', 'Enter how many meters each roll of "UTP Cable CAT6" holds.');
-        $this->assertSame(5000, $this->stock($this->wire));
-
-        $receive(1, 5000, 'DR-1')->assertSessionHas('success');
+        // Exactly as ordered: a different number sent is ignored.
+        $receive(1, 4800, 'DR-1')->assertSessionHas('success');
         $this->assertSame(10000, $this->stock($this->wire));
         $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $line->purchaseOrder->fresh()->Status);
 
-        // The next roll can be a different length.
-        $receive(1, 4800, 'DR-2')->assertSessionHas('success');
-        $this->assertSame(14800, $this->stock($this->wire));
+        $receive(1, null, 'DR-2')->assertSessionHas('success');
+        $this->assertSame(15000, $this->stock($this->wire));
         $this->assertSame(PurchaseOrder::STATUS_FULLY_RECEIVED, $line->purchaseOrder->fresh()->Status);
-        $this->assertSame([5000, 4800], StockReceivingDeliveryItem::orderBy('StockReceivingDeliveryItemID')->pluck('BaseQuantity')->map(fn ($meters) => Quantity::normalize($meters))->all());
-        $this->assertSame(4800, $this->wire->fresh()->purchaseUnitSize(), 'the last roll size is kept');
+        $this->assertSame([5000, 5000], StockReceivingDeliveryItem::orderBy('StockReceivingDeliveryItemID')->pluck('BaseQuantity')->map(fn ($meters) => Quantity::normalize($meters))->all());
+        $this->assertSame(5000, $this->wire->fresh()->purchaseUnitSize(), 'the last roll size is kept');
+    }
+
+    // An order made before the Meter column (no roll length on it) still
+    // asks at receiving, up to 4 digits.
+    public function test_an_older_roll_order_without_a_length_asks_for_it_at_receiving(): void
+    {
+        $supplier = Supplier::create(['SupplierName' => 'Cable Depot', 'ContactNumber' => '0912-345-6789', 'Address' => 'N/A']);
+        $order = PurchaseOrder::create(['PONumber' => 'PO-OLD-1', 'SupplierID' => $supplier->SupplierID, 'PurchaseDate' => now()->toDateString(), 'Status' => PurchaseOrder::STATUS_DRAFT]);
+        $line = PurchaseOrderItem::create([
+            'PurchaseOrderID' => $order->PurchaseOrderID, 'ProductID' => $this->wire->ProductID, 'Quantity' => 1,
+            'Unit' => 'roll', 'QuantityPerUnit' => 1, 'CostPriceAtOrder' => 2500,
+        ]);
+        $this->wire->update(['QuantityPerPurchaseUnit' => 1]);
+        $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $order));
+        $batch = StockReceivingBatch::firstOrFail();
+        $receive = fn ($metersPerRoll) => $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
+            'receipt_number' => 'DR-OLD', 'items' => [['purchase_order_item_id' => $line->PurchaseOrderItemID, 'quantity_received' => 1, 'quantity_per_unit' => $metersPerRoll]],
+        ]);
+
+        $receivingHtml = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', $batch))->assertOk()->json('html');
+        $this->assertStringContainsString('name="items[0][quantity_per_unit]" min="0.01"  max="9999" data-max-digits="4"', $receivingHtml);
+
+        $receive(null)->assertSessionHas('error', 'Enter how many meters each roll of "UTP Cable CAT6" holds.');
+        $receive(10000)->assertSessionHas('error', 'Meters per roll of "UTP Cable CAT6" can be at most 4 digits (9,999).');
+        $receive(305)->assertSessionHas('success');
+        $this->assertSame(5305, $this->stock($this->wire));
     }
 
     public function test_reordering_suggests_whole_rolls(): void

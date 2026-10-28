@@ -57,6 +57,23 @@ class PurchaseOrderItem extends Model
     }
 
     /**
+     * The meters per roll this wire was ordered at (the Meter column of
+     * Create Purchase Order): Stock Receiving takes exactly that. Null for
+     * anything else, or an older order that never said.
+     */
+    public function orderedMetersPerRoll(): int|float|null
+    {
+        $product = $this->product;
+
+        return $product
+            && $product->baseUnit() === 'meter'
+            && ($this->Unit ?: UnitOfMeasure::DEFAULT) !== 'meter'
+            && (float) $this->QuantityPerUnit > 1
+            ? $this->QuantityPerUnit
+            : null;
+    }
+
+    /**
      * How many base units this many ordered units add to stock.
      */
     public function toBaseQuantity(int|float $quantity): int|float

@@ -18,6 +18,8 @@
         /* Roll/box size on a "Received Quantity" line (batch-details). */
         .receiving-size { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; color: #cbd5e1; font-size: 0.78rem; font-weight: 600; }
         .receiving-size .receiving-size-input { max-width: 130px; }
+        .receiving-size .receiving-size-input[readonly] { opacity: 0.8; cursor: not-allowed; }
+        .receiving-size-note { display: block; color: #94a3b8; font-size: 0.72rem; }
         .receiving-size-total { display: block; margin-top: 4px; color: #6ee7b7; font-size: 0.78rem; font-weight: 600; }
         .receiving-size-total:empty { display: none; }
 

@@ -333,10 +333,15 @@ class StockReceivingController extends Controller
                     // this delivery, and kept as the product's last roll size.
                     $product = $item->product;
                     if ($product && ($item->Unit ?: UnitOfMeasure::DEFAULT) !== $product->baseUnit()) {
-                        $size = Quantity::normalize($row['quantity_per_unit'] ?? 0);
+                        // Wire comes in exactly the meters per roll it was
+                        // ordered at; whatever was sent is ignored.
+                        $size = $item->orderedMetersPerRoll() ?? Quantity::normalize($row['quantity_per_unit'] ?? 0);
                         $unitName = $item->Unit ?: UnitOfMeasure::DEFAULT;
                         if (! $size) {
                             throw new \RuntimeException('Enter how many '.UnitOfMeasure::plural($product->baseUnit())." each {$unitName} of \"{$product->ProductName}\" holds.");
+                        }
+                        if ($product->baseUnit() === 'meter' && $size > PurchaseOrderItem::MAX_METERS_PER_ROLL) {
+                            throw new \RuntimeException("Meters per {$unitName} of \"{$product->ProductName}\" can be at most 4 digits (".number_format(PurchaseOrderItem::MAX_METERS_PER_ROLL).').');
                         }
                         if (is_float($size) && ! $product->AllowsFractionalQuantity) {
                             throw new \RuntimeException("\"{$product->ProductName}\" is counted in whole ".UnitOfMeasure::plural($product->baseUnit()).'.');

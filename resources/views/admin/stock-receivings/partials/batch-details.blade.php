@@ -96,6 +96,8 @@
                             @php($baseUnit = $item->product?->baseUnit() ?? 'piece')
                             @php($needsSize = $item->product && ($item->Unit ?: 'piece') !== $baseUnit)
                             @php($size = $needsSize ? ((float) $item->QuantityPerUnit > 1 ? $item->QuantityPerUnit : $item->product->purchaseUnitSize()) : null)
+                            {{-- Wire: exactly the meters per roll it was ordered at. --}}
+                            @php($orderedSize = $needsSize ? $item->orderedMetersPerRoll() : null)
                             @php($basePlural = \App\Services\UnitOfMeasure::plural($baseUnit))
                             <td>
                                 <input type="hidden" name="items[{{ $loop->index }}][purchase_order_item_id]" value="{{ $item->PurchaseOrderItemID }}">
@@ -106,9 +108,14 @@
                                 @if($needsSize)
                                     <label class="receiving-size">
                                         <span>{{ ucfirst($basePlural) }} per {{ $item->Unit }}</span>
-                                        <input type="number" class="form-input receiving-size-input" name="items[{{ $loop->index }}][quantity_per_unit]" min="0.01" step="{{ $item->product->AllowsFractionalQuantity ? '0.01' : '1' }}"
-                                               value="{{ $size ? \App\Casts\Quantity::normalize($size) : '' }}" placeholder="e.g. 1000" @if($item->remaining_quantity > 0) required @else readonly @endif oninput="window.updateReceivingTotal && window.updateReceivingTotal(this)">
+                                        @if($orderedSize)
+                                            <input type="number" class="form-input receiving-size-input" name="items[{{ $loop->index }}][quantity_per_unit]" value="{{ \App\Casts\Quantity::normalize($orderedSize) }}" readonly title="As ordered on the purchase order">
+                                        @else
+                                            <input type="number" class="form-input receiving-size-input" name="items[{{ $loop->index }}][quantity_per_unit]" min="0.01" @if($baseUnit === 'meter') max="{{ \App\Models\PurchaseOrderItem::MAX_METERS_PER_ROLL }}" data-max-digits="4" @endif step="{{ $item->product->AllowsFractionalQuantity ? '0.01' : '1' }}"
+                                                   value="{{ $size ? \App\Casts\Quantity::normalize($size) : '' }}" placeholder="e.g. 1000" @if($item->remaining_quantity > 0) required @else readonly @endif oninput="window.updateReceivingTotal && window.updateReceivingTotal(this)">
+                                        @endif
                                     </label>
+                                    @if($orderedSize)<small class="receiving-size-note">as ordered</small>@endif
                                     <small class="receiving-size-total" data-base-plural="{{ $basePlural }}">{{ $size && $item->remaining_quantity > 0 ? '= '.\App\Services\UnitOfMeasure::number($item->remaining_quantity * $size).' '.$basePlural.' to stock' : '' }}</small>
                                 @endif
                             </td>
