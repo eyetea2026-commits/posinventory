@@ -20,6 +20,7 @@
         .receiving-size .receiving-size-input { max-width: 130px; }
         .receiving-size .receiving-size-input[readonly] { opacity: 0.8; cursor: not-allowed; }
         .receiving-size-note { display: block; color: #94a3b8; font-size: 0.72rem; }
+        .po-number-cell, .receiving-status-badge { white-space: nowrap; }
         .receiving-size-total { display: block; margin-top: 4px; color: #6ee7b7; font-size: 0.78rem; font-weight: 600; }
         .receiving-size-total:empty { display: none; }
 
@@ -146,6 +147,7 @@
                             <th>PO Number</th>
                             <th>Supplier</th>
                             <th>Items</th>
+                            <th>Status</th>
                             <th>Expected Delivery</th>
                             <th>Actions</th>
                         </tr>
@@ -157,6 +159,7 @@
                                 <td><span class="badge badge-primary po-number-cell">{{ $batch->purchaseOrder->PONumber }}</span></td>
                                 <td><strong class="supplier-name-cell">{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
+                                <td><span class="badge badge-{{ \App\Models\PurchaseOrder::statusTone($batch->purchaseOrder->Status) }} receiving-status-badge">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$batch->purchaseOrder->Status] ?? ucfirst($batch->purchaseOrder->Status) }}</span></td>
                                 <td>{{ $batch->purchaseOrder->ExpectedDeliveryDate ? \Illuminate\Support\Carbon::parse($batch->purchaseOrder->ExpectedDeliveryDate)->format('m/d/Y') : 'Not set' }}</td>
                                 <td>
                                     <div class="actions-group">
@@ -168,7 +171,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <div class="empty-icon"><i class="fas fa-truck"></i></div>
                                         <p class="empty-title">No Pending Deliveries</p>
@@ -178,7 +181,7 @@
                             </tr>
                         @endforelse
                         <tr class="no-results-row" style="display:none;">
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="empty-state">
                                     <div class="empty-icon"><i class="fas fa-search"></i></div>
                                     <p class="empty-title">No Matching Deliveries</p>
@@ -202,6 +205,7 @@
                             <th>PO Number</th>
                             <th>Supplier</th>
                             <th>Items</th>
+                            <th>Status</th>
                             <th>Completed</th>
                             <th>Actions</th>
                         </tr>
@@ -213,6 +217,7 @@
                                 <td><span class="badge badge-primary po-number-cell">{{ $batch->purchaseOrder->PONumber }}</span></td>
                                 <td><strong class="supplier-name-cell">{{ $batch->purchaseOrder->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
                                 <td>{{ $batch->purchaseOrder->items->count() }} items</td>
+                                <td><span class="badge badge-{{ \App\Models\PurchaseOrder::statusTone($batch->purchaseOrder->Status) }} receiving-status-badge">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$batch->purchaseOrder->Status] ?? ucfirst($batch->purchaseOrder->Status) }}</span></td>
                                 <td>{{ $batch->CompletedAt?->format('m/d/Y g:i A') ?? 'N/A' }}</td>
                                 <td>
                                     <div class="actions-group">
@@ -224,7 +229,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <div class="empty-icon"><i class="fas fa-box-open"></i></div>
                                         <p class="empty-title">No Completed Deliveries</p>
@@ -234,7 +239,7 @@
                             </tr>
                         @endforelse
                         <tr class="no-results-row" style="display:none;">
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="empty-state">
                                     <div class="empty-icon"><i class="fas fa-search"></i></div>
                                     <p class="empty-title">No Matching Deliveries</p>

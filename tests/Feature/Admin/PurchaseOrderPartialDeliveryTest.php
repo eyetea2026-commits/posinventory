@@ -93,6 +93,25 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
         $this->assertStringContainsString('Cancel Remaining Items', $html);
     }
 
+    // The Stock Receiving lists show each order's status, colored like the
+    // Purchase Orders list: Pending (gray), Partially Received (yellow),
+    // Fully Received (green).
+    public function test_stock_receiving_lists_show_the_order_status(): void
+    {
+        $statusCell = fn (string $tone, string $label) => '<td><span class="badge badge-'.$tone.' receiving-status-badge">'.$label.'</span></td>';
+        $page = fn () => $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'))->assertOk();
+
+        $page()->assertSeeInOrder(['<th>Items</th>', '<th>Status</th>', '<th>Expected Delivery</th>'], false)
+            ->assertSeeInOrder(['<th>Items</th>', '<th>Status</th>', '<th>Completed</th>'], false)
+            ->assertSee($statusCell('secondary', 'Pending'), false);
+
+        $this->receive(['Camera' => 100, 'HDD' => 50], 'DR-001');
+        $page()->assertSee($statusCell('warning', 'Partially Received'), false);
+
+        $this->receive(['HDD' => 50, 'DVR' => 100], 'DR-002');
+        $page()->assertSee($statusCell('success', 'Fully Received'), false);
+    }
+
     public function test_a_delivery_cannot_bring_more_than_is_still_owed(): void
     {
         $this->receive(['HDD' => 50], 'DR-001');

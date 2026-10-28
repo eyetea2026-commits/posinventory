@@ -60,6 +60,21 @@ class PurchaseOrder extends Model
         self::STATUS_CLOSED => 'Closed',
     ];
 
+    /**
+     * The badge color of a status in lists (Purchase Orders, Stock
+     * Receiving): green Fully Received, yellow Partially Received.
+     */
+    public static function statusTone(?string $status): string
+    {
+        return match ($status) {
+            self::STATUS_FULLY_RECEIVED => 'success',
+            self::STATUS_PARTIALLY_RECEIVED => 'warning',
+            self::STATUS_APPROVED => 'info',
+            self::STATUS_CANCELLED => 'danger',
+            default => 'secondary',
+        };
+    }
+
     // Statuses where the supplier/items are still safe to change — once
     // approved, receiving starts referencing these exact line IDs.
     const EDITABLE_STATUSES = [self::STATUS_DRAFT, self::STATUS_PENDING];

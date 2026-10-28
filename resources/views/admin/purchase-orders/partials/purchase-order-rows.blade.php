@@ -19,17 +19,7 @@
         <td><strong>{{ $order->supplier?->SupplierName ?? 'Unknown' }}</strong></td>
         <td>{{ \Illuminate\Support\Carbon::parse($order->PurchaseDate)->format('m/d/Y') }}</td>
         <td>
-            @php
-                $badgeClass = match($order->Status) {
-                    \App\Models\PurchaseOrder::STATUS_FULLY_RECEIVED => 'badge-success',
-                    \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'badge-warning',
-                    \App\Models\PurchaseOrder::STATUS_APPROVED => 'badge-info',
-                    \App\Models\PurchaseOrder::STATUS_CANCELLED => 'badge-danger',
-                    \App\Models\PurchaseOrder::STATUS_CLOSED => 'badge-secondary',
-                    default => 'badge-secondary',
-                };
-            @endphp
-            <span class="badge {{ $badgeClass }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$order->Status] ?? ucfirst($order->Status) }}</span>
+            <span class="badge badge-{{ \App\Models\PurchaseOrder::statusTone($order->Status) }}">{{ \App\Models\PurchaseOrder::STATUS_LABELS[$order->Status] ?? ucfirst($order->Status) }}</span>
         </td>
         {{-- How many different products this order is for (not their
              quantities): ordering 3 products shows "3 products". --}}
