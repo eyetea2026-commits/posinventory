@@ -146,7 +146,7 @@
             const topBarText = document.getElementById('lv2TopBarText');
             const posScreen = document.getElementById('lv2PosScreen');
             const posScreenText = document.getElementById('lv2PosScreenText');
-            const GREETING = 'Hello, There! Welcome to CCTV Express Solution Tacurong';
+            const GREETING = 'Hello, There! Welcome to CCTV Express Tacurong';
 
             let mouthTalkTimer = null;
             let blinkTimer = null;
@@ -228,22 +228,49 @@
                 startMouthTalking();
                 typeText(GREETING, stopMouthTalking);
 
-                // Best-effort audio only. Chrome (and others) commonly
-                // reject speechSynthesis.speak() with a "not-allowed" error
-                // when the page hasn't had a prior user gesture, so the
-                // visual sequence never waits on this succeeding — it's
-                // paced entirely by typeText()'s own timer instead.
+                speakAloud();
+            }
+
+            // The greeting is read aloud by the browser's own voice. Chrome,
+            // Edge and phone browsers block sound on a page nobody has
+            // clicked yet, so if this first try doesn't start, the greeting
+            // is spoken on the first click, tap or key press on the page
+            // instead (once). The visual sequence never waits on the voice.
+            let greetingSpoken = false;
+
+            function speakAloud() {
+                if (greetingSpoken || !('speechSynthesis' in window)) return;
                 try {
-                    if ('speechSynthesis' in window) {
-                        const utterance = new SpeechSynthesisUtterance(GREETING);
-                        utterance.lang = 'en-US';
-                        utterance.rate = 0.95;
-                        utterance.pitch = 1.1;
-                        window.speechSynthesis.speak(utterance);
-                    }
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(GREETING);
+                    utterance.lang = 'en-US';
+                    utterance.rate = 0.95;
+                    utterance.pitch = 1.1;
+                    utterance.onstart = function () {
+                        greetingSpoken = true;
+                        removeVoiceRetry();
+                    };
+                    window.speechSynthesis.speak(utterance);
                 } catch (e) {
-                    // Ignored — the visual sequence proceeds regardless.
+                    // No voice on this browser: the greeting still types out.
                 }
+            }
+
+            function speakOnFirstInteraction() {
+                removeVoiceRetry();
+                speakAloud();
+            }
+
+            function removeVoiceRetry() {
+                ['pointerdown', 'keydown', 'touchstart'].forEach(function (type) {
+                    document.removeEventListener(type, speakOnFirstInteraction, true);
+                });
+            }
+
+            if ('speechSynthesis' in window) {
+                ['pointerdown', 'keydown', 'touchstart'].forEach(function (type) {
+                    document.addEventListener(type, speakOnFirstInteraction, true);
+                });
             }
 
             // Runs the POS ring-up on its own clock — a fixed number of key
