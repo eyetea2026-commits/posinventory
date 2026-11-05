@@ -254,13 +254,15 @@ class PurchaseOrderController extends Controller
      */
     public function store(Request $request)
     {
+        $this->stripPriceCommas($request);
+
         $data = $request->validate([
             'PurchaseDate' => ['required', 'date'],
             'Notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', Rule::exists('Product', 'ProductID')->where('IsActive', true)],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:'.PurchaseOrderItem::MAX_QUANTITY],
-            'items.*.cost_price' => ['required', 'numeric', 'min:0.01', 'max:'.PurchaseOrderItem::MAX_COST_PRICE],
+            'items.*.cost_price' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:'.PurchaseOrderItem::MAX_COST_PRICE],
             'items.*.supplier_id' => ['nullable', 'integer', 'exists:Supplier,SupplierID'],
             'items.*.meters_per_roll' => ['nullable', 'integer', 'min:1', 'max:'.PurchaseOrderItem::MAX_METERS_PER_ROLL],
         ], [
@@ -272,8 +274,9 @@ class PurchaseOrderController extends Controller
             'items.*.quantity.max' => 'Quantity can be at most 3 digits ('.PurchaseOrderItem::MAX_QUANTITY.').',
             'items.*.cost_price.required' => 'Current Price is required for every ticked product.',
             'items.*.cost_price.numeric' => 'Current Price must be a valid number.',
+            'items.*.cost_price.decimal' => 'Current Price can have at most 2 decimal places.',
             'items.*.cost_price.min' => 'Current Price must be greater than ₱0.00.',
-            'items.*.cost_price.max' => 'Current Price can be at most 6 digits (₱'.number_format(PurchaseOrderItem::MAX_COST_PRICE, 2).').',
+            'items.*.cost_price.max' => 'Current Price can be at most 5 digits (₱'.number_format(PurchaseOrderItem::MAX_COST_PRICE, 2).').',
             'items.*.meters_per_roll.integer' => 'Meter must be a whole number of meters per roll.',
             'items.*.meters_per_roll.min' => 'Meter must be at least 1 meter per roll.',
             'items.*.meters_per_roll.max' => 'Meter can be at most 4 digits ('.number_format(PurchaseOrderItem::MAX_METERS_PER_ROLL).' meters per roll).',
@@ -388,9 +391,11 @@ class PurchaseOrderController extends Controller
         // also creates the missing ProductSupplier link below.
         $knownSupplierIds = $product->suppliers()->pluck('SupplierID')->all();
 
+        $this->stripPriceCommas($request);
+
         $data = $request->validate([
             'OrderQuantity' => ['required', 'integer', 'min:1', 'max:'.PurchaseOrderItem::MAX_QUANTITY],
-            'CostPrice' => ['required', 'numeric', 'min:0.01', 'max:'.PurchaseOrderItem::MAX_COST_PRICE],
+            'CostPrice' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:'.PurchaseOrderItem::MAX_COST_PRICE],
             'Remarks' => ['nullable', 'string', 'max:1000'],
             'SupplierID' => $knownSupplierIds
                 ? ['required', 'integer', Rule::in($knownSupplierIds)]
@@ -398,8 +403,9 @@ class PurchaseOrderController extends Controller
         ], [
             'CostPrice.required' => 'Current Price is required.',
             'CostPrice.numeric' => 'Current Price must be a valid number.',
+            'CostPrice.decimal' => 'Current Price can have at most 2 decimal places.',
             'CostPrice.min' => 'Current Price must be greater than ₱0.00.',
-            'CostPrice.max' => 'Current Price can be at most 6 digits (₱'.number_format(PurchaseOrderItem::MAX_COST_PRICE, 2).').',
+            'CostPrice.max' => 'Current Price can be at most 5 digits (₱'.number_format(PurchaseOrderItem::MAX_COST_PRICE, 2).').',
             'OrderQuantity.max' => 'Quantity can be at most 3 digits ('.PurchaseOrderItem::MAX_QUANTITY.').',
         ]);
 
@@ -508,6 +514,29 @@ class PurchaseOrderController extends Controller
         }
 
         return round((float) ($costPrice ?? 0) * (float) $product->quantityPerOrderUnit(), 2);
+    }
+
+    /**
+     * The Current Price boxes show thousands separators (99,999.99); the
+     * commas are dropped before the price is validated and saved.
+     */
+    private function stripPriceCommas(Request $request): void
+    {
+        $withoutCommas = fn ($price) => is_string($price) ? str_replace(',', '', trim($price)) : $price;
+
+        if ($request->has('CostPrice')) {
+            $request->merge(['CostPrice' => $withoutCommas($request->input('CostPrice'))]);
+        }
+
+        $items = $request->input('items');
+        if (is_array($items)) {
+            foreach ($items as $key => $item) {
+                if (is_array($item) && array_key_exists('cost_price', $item)) {
+                    $items[$key]['cost_price'] = $withoutCommas($item['cost_price']);
+                }
+            }
+            $request->merge(['items' => $items]);
+        }
     }
 
     // Scans every product and drafts exactly one automatic Purchase Order

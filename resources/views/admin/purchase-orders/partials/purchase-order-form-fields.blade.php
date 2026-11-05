@@ -32,7 +32,7 @@
     .po-items-table td.po-meters-none { color: #64748b; }
     .po-items-table .po-meters-total { display: block; color: #64748b; font-size: 0.72rem; margin-top: 2px; white-space: nowrap; }
     .po-items-table .po-low { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 0.68rem; font-weight: 700; }
-    .po-items-table input[type="number"], .po-items-table select { width: 100%; min-width: 90px; padding: 6px 8px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.82rem; text-align: center; }
+    .po-items-table input[type="number"], .po-items-table input[type="text"], .po-items-table select { width: 100%; min-width: 90px; padding: 6px 8px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.82rem; text-align: center; }
     .po-items-table input:disabled, .po-items-table select:disabled { opacity: 0.45; }
     .po-items-table input.error, .po-items-table select.error { border-color: #ef4444; }
     .po-items-table select.po-item-supplier { min-width: 200px; text-align: left; }
@@ -93,7 +93,7 @@
                         <td>{{ $row['thresholdLabel'] }}</td>
                         {{-- Prices and quantity are per purchase unit (a roll, a box). --}}
                         <td>{{ $row['previousPrice'] > 0 ? '₱'.number_format($row['previousPrice'], 2).'/'.$row['unit'] : 'N/A' }}</td>
-                        <td><div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][cost_price]" min="0.01" max="{{ \App\Models\PurchaseOrderItem::MAX_COST_PRICE }}" step="0.01" data-max-digits="6" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2, '.', '') : '' }}" required aria-label="Current price per {{ $row['unit'] }}"><span>/{{ $row['unit'] }}</span></div></td>
+                        <td><div class="po-unit-input"><input type="text" name="items[{{ $product->ProductID }}][cost_price]" data-money-digits="5" data-max="{{ \App\Models\PurchaseOrderItem::MAX_COST_PRICE }}" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2) : '' }}" placeholder="0.00" required aria-label="Current price per {{ $row['unit'] }}"><span>/{{ $row['unit'] }}</span></div></td>
                         <td>
                             <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_QUANTITY }}" step="1" data-max-digits="3" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
                             @if($row['unitHolds'])<small class="po-unit-holds">last {{ $row['unit'] }}: {{ $row['unitHolds'] }}</small>@endif
@@ -253,8 +253,8 @@
                 if (!field) return '';
                 return empty ? emptyMessage : (tooBig ? tooBigMessage : '');
             }
-            [[price, problem(price, !(parseFloat(price.value) > 0), 'Enter a Current Price for "' + name + '".',
-                parseFloat(price.value) > parseFloat(price.max), 'Current Price for "' + name + '" can be at most 6 digits.')],
+            [[price, problem(price, !(window.parseMoney(price.value) > 0), 'Enter a Current Price for "' + name + '".',
+                window.parseMoney(price.value) > parseFloat(price.dataset.max), 'Current Price for "' + name + '" can be at most 5 digits (₱99,999.99).')],
              [qty, problem(qty, !(parseInt(qty.value, 10) >= 1), 'Enter a Quantity for "' + name + '".',
                 parseInt(qty.value, 10) > parseInt(qty.max, 10), 'Quantity for "' + name + '" can be at most 3 digits.')],
              [perRoll, problem(perRoll, perRoll && !(parseInt(perRoll.value, 10) >= 1), 'Enter how many meters each roll of "' + name + '" is.',

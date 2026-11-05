@@ -15,8 +15,9 @@ class PurchaseOrderItem extends Model
 
     protected $table = 'PurchaseOrderItem';
 
-    // Current Price: up to 6 whole-peso digits.
-    const MAX_COST_PRICE = 999999.99;
+    // Current Price: up to 5 whole-peso digits and 2 decimals (99,999.99),
+    // the same limit as a product's prices.
+    const MAX_COST_PRICE = 99999.99;
 
     // Quantity ordered: up to 3 digits.
     const MAX_QUANTITY = 999;

@@ -95,8 +95,8 @@
         </div>
         <div class="form-group">
             <label class="form-label" for="CostPrice">Current Price (per {{ $orderUnit }}) <span style="color: var(--danger);">*</span></label>
-            <input type="number" id="CostPrice" name="CostPrice" class="form-input" min="0.01" max="{{ \App\Models\PurchaseOrderItem::MAX_COST_PRICE }}" step="0.01" data-max-digits="6"
-                   value="{{ old('CostPrice', $hasPreviousCostPrice ? number_format($previousCostPrice, 2, '.', '') : '') }}" required>
+            <input type="text" id="CostPrice" name="CostPrice" class="form-input" data-money-digits="5" data-max="{{ \App\Models\PurchaseOrderItem::MAX_COST_PRICE }}"
+                   value="{{ old('CostPrice', $hasPreviousCostPrice ? number_format($previousCostPrice, 2) : '') }}" placeholder="0.00" required>
             <span class="form-error" id="error-CostPrice">@error('CostPrice'){{ $message }}@enderror</span>
         </div>
     </div>

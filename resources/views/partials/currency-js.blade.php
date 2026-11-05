@@ -63,4 +63,13 @@
         if (input.value) input.value = group(input.value.replace(/[^0-9.]/g, ''));
         input.addEventListener('input', reformat);
     };
+
+    // A text box marked data-money-digits="5" becomes a money box (up to
+    // 99,999.99) the first time it's focused, including boxes added later
+    // (the Create Purchase Order rows are loaded into a modal).
+    document.addEventListener('focusin', function (e) {
+        var input = e.target;
+        if (!(input instanceof HTMLInputElement) || !input.dataset.moneyDigits) return;
+        window.attachMoneyInput(input, { maxIntegerDigits: parseInt(input.dataset.moneyDigits, 10) });
+    });
 </script>
