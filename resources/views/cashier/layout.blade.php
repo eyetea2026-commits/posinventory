@@ -277,7 +277,17 @@
             cursor: pointer;
             padding: 4px;
         }
-        .notif-bell-btn:hover { color: #e2e8f0; }
+        .notif-bell-btn:hover, .theme-toggle-btn:hover { color: #e2e8f0; }
+        .theme-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.05rem;
+            cursor: pointer;
+            padding: 4px;
+        }
         .notif-badge {
             position: absolute;
             top: -2px;
@@ -326,6 +336,8 @@
         .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; flex-shrink: 0; }
     </style>
     @include('partials.responsive-ui')
+    {{-- Last in <head>: Light / Dark Mode reads every stylesheet above. --}}
+    @include('partials.theme')
 </head>
 <body>
     <div class="mobile-header">

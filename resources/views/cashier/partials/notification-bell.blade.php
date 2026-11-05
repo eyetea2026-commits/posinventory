@@ -1,3 +1,8 @@
+{{-- Light / Dark Mode sits beside the bell, outside its live region. --}}
+<button type="button" class="theme-toggle-btn" data-theme-toggle title="Switch between Light Mode and Dark Mode" aria-label="Switch between Light Mode and Dark Mode">
+    <span class="theme-label-light" title="Light Mode"><i class="fas fa-sun"></i></span>
+    <span class="theme-label-dark" title="Dark Mode"><i class="fas fa-moon"></i></span>
+</button>
 <div class="notif-bell-wrap" data-live-region="cashier-notif-bell" data-live-topics="notifications">
     <button type="button" class="notif-bell-btn" onclick="toggleNotifDropdown(event)">
         <i class="fas fa-bell"></i>

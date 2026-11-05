@@ -1032,8 +1032,12 @@
         let leastSellingRaw = @json($leastSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
 
         const PALETTE = ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c', '#94a3b8'];
-        Chart.defaults.color = '#94a3b8';
-        Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.1)';
+        // Canvas colors aren't CSS, so the charts pick their own for Light
+        // Mode, and are drawn again (page reload) when the theme changes.
+        const IS_LIGHT = window.getTheme && window.getTheme() === 'light';
+        document.addEventListener('themechange', function () { window.location.reload(); });
+        Chart.defaults.color = IS_LIGHT ? '#475569' : '#94a3b8';
+        Chart.defaults.borderColor = IS_LIGHT ? 'rgba(71, 85, 105, 0.15)' : 'rgba(148, 163, 184, 0.1)';
         Chart.defaults.font.family = "'Public Sans', Inter, sans-serif";
 
         function escapeHtml(str) {
@@ -1226,7 +1230,7 @@
                             pointRadius: peakPointRadii(trendData.daily.data, 2.5, 3),
                             pointHoverRadius: 4,
                             pointBorderWidth: 1.5,
-                            pointBorderColor: '#05070d',
+                            pointBorderColor: IS_LIGHT ? '#ffffff' : '#05070d',
                             pointBackgroundColor: '#3b82f6',
                             pointHoverBorderWidth: 1.5,
                             order: 1,
@@ -1380,7 +1384,7 @@
                     datasets: [{
                         data: categoryChartData.data,
                         backgroundColor: PALETTE,
-                        borderColor: '#0f172a',
+                        borderColor: IS_LIGHT ? '#ffffff' : '#0f172a',
                         borderWidth: 2,
                         hoverOffset: 10,
                     }],

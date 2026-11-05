@@ -221,6 +221,8 @@
         }
     </style>
     @include('partials.responsive-ui')
+    {{-- Last in <head>: Light / Dark Mode reads every stylesheet above. --}}
+    @include('partials.theme')
 </head>
 <body x-data="{ sidebarOpen: false }">
     {{-- Mobile/tablet top bar: hamburger button to open the sidebar drawer --}}
@@ -261,6 +263,11 @@
                 @endif
 
                 <div class="header-controls" x-data="{ notifOpen: false, profileOpen: false }">
+                    {{-- Light / Dark Mode: shows the mode it switches to. --}}
+                    <button type="button" class="header-icon-btn" data-theme-toggle title="Switch between Light Mode and Dark Mode" aria-label="Switch between Light Mode and Dark Mode">
+                        <span class="theme-label-light" title="Light Mode"><i class="fas fa-sun"></i></span>
+                        <span class="theme-label-dark" title="Dark Mode"><i class="fas fa-moon"></i></span>
+                    </button>
                     <div style="position: relative;" @click.outside="notifOpen = false">
                         <button type="button" class="header-icon-btn" @click="notifOpen = !notifOpen; profileOpen = false">
                             <i class="fas fa-bell"></i>

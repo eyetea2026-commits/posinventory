@@ -556,7 +556,9 @@
                 if (!scrolls) return;
                 let background = style.backgroundColor;
                 const alpha = background.match(/rgba\([^)]*,\s*([\d.]+)\)/);
-                if (background === 'transparent' || (alpha && Number(alpha[1]) < 0.9)) background = '#0f172a';
+                if (background === 'transparent' || (alpha && Number(alpha[1]) < 0.9)) {
+                    background = window.getTheme && window.getTheme() === 'light' ? '#ffffff' : '#0f172a';
+                }
                 box.style.setProperty('--ui-modal-bg', background);
                 box.style.setProperty('--ui-pad-top', style.paddingTop);
                 box.style.setProperty('--ui-pad-bottom', style.paddingBottom);
