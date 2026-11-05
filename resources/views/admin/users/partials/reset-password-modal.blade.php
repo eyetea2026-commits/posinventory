@@ -38,7 +38,12 @@
             <div class="form-grid">
                 <div class="form-group full-width">
                     <label class="form-label">Your Password <span class="required">*</span></label>
-                    <input type="password" id="adminCredentialsPassword" class="form-input" autocomplete="current-password" required>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="adminCredentialsPassword" class="form-input" autocomplete="current-password" required>
+                        <button type="button" class="password-toggle-btn" aria-label="Show password">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                     <span class="form-hint" id="adminCredentialsHint" style="display:block; margin-top:6px; color: var(--text-secondary); font-size:0.85rem;">For security, confirm it's you before continuing.</span>
                     <span class="form-error" id="error-admin-credentials"></span>
                 </div>
@@ -110,6 +115,23 @@
     let resetPasswordLastFocused = null;
     let verifiedAdminPassword = null;
 
+    // Show/hide eye buttons of both pop-ups, wired here so they work on
+    // every page that includes this partial (the Edit User page loads it
+    // without user-form-behavior); data-toggle-wired keeps that partial's
+    // own wiring from binding them a second time.
+    function setPasswordVisible(btn, visible) {
+        if (!btn) return;
+        btn.previousElementSibling.type = visible ? 'text' : 'password';
+        btn.innerHTML = visible ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
+        btn.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    }
+    document.querySelectorAll('#adminCredentialsModal .password-toggle-btn, #resetPasswordModal .password-toggle-btn').forEach(function (btn) {
+        btn.dataset.toggleWired = '1';
+        btn.addEventListener('click', function () {
+            setPasswordVisible(btn, btn.previousElementSibling.type === 'password');
+        });
+    });
+
     // ---- Generic "Enter Your Credentials" gate ----
 
     let adminCredentialsLastFocused = null;
@@ -131,6 +153,7 @@
 
         document.getElementById('adminCredentialsPassword').value = '';
         document.getElementById('adminCredentialsPassword').classList.remove('error');
+        setPasswordVisible(document.querySelector('#adminCredentialsModal .password-toggle-btn'), false);
         document.getElementById('error-admin-credentials').textContent = '';
         document.getElementById('adminCredentialsHint').textContent = options.hint || 'For security, confirm it\'s you before continuing.';
         hideAdminCredentialsGeneralError();

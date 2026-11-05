@@ -192,7 +192,7 @@ window.initUserAddForm = function (formId, options) {
 document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.password-toggle-btn').forEach(function (btn) {
         var input = btn.previousElementSibling;
-        if (!input) return;
+        if (!input || btn.dataset.toggleWired) return;
         btn.addEventListener('click', function () {
             var showing = input.type === 'text';
             input.type = showing ? 'password' : 'text';
