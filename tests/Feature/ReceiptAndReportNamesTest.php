@@ -87,6 +87,12 @@ class ReceiptAndReportNamesTest extends TestCase
                 ->assertDontSee('<small>Owner</small>', false);
         }
 
+        // The one signature, Prepared By, is centered on the page (print and PDF).
+        $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
+            ->assertSee('.signature-area { display: flex; justify-content: center;', false)
+            ->assertSee('.signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto;', false);
+        $this->assertStringContainsString('.signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto;', file_get_contents(resource_path('views/admin/reports/pdf.blade.php')));
+
         // The exported PDF uses the same footer.
         $this->actingAs($this->admin)->view('admin.reports.partials.report-footer', ['pdf' => true])
             ->assertSee('Prepared By')
