@@ -383,7 +383,6 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertSee('DVR Camera');
         $response->assertSee('CCTV Express');
         $response->assertSee('Prepared By');
-        $response->assertSee('Approved By');
         $response->assertSee($this->admin->full_name);
         // 10 ordered x 600 cost = 6,000.00 grand total — ordered-based,
         // same as the Line Total column everywhere else in the PO module.
@@ -392,20 +391,22 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertSee('Supplier Information');
         $response->assertSee('Order Summary');
         $response->assertSee('Remarks');
-        // "Checked By" was a signature line nothing in this system ever
-        // fills in (no "checked by" concept exists anywhere else in the PO
-        // lifecycle) — removed from the print layout.
+        // Prepared By is the only signature line: "Checked By" and
+        // "Approved By" were removed from the print layout.
         $response->assertDontSee('Checked By');
+        $response->assertDontSee('Approved By');
     }
 
-    public function test_print_preview_shows_pending_approval_when_not_yet_approved(): void
+    public function test_print_preview_has_no_approval_line_when_not_yet_approved(): void
     {
         $po = $this->makeOrder();
 
         $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
 
         $response->assertOk();
-        $response->assertSee('Pending Approval');
+        $response->assertSee('Prepared By');
+        $response->assertDontSee('Approved By');
+        $response->assertDontSee('Pending Approval');
     }
 
     public function test_show_ajax_branch_returns_read_only_details_without_status_or_action_buttons(): void

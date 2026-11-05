@@ -75,4 +75,23 @@ class ReceiptAndReportNamesTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.reports.index'))->assertOk()
             ->assertSee('<p class="report-printed-by">Printed by Maria Santos Reyes on <span data-printed-at></span></p>', false);
     }
+
+    public function test_reports_have_no_checked_by_or_approved_by_signature(): void
+    {
+        foreach (['sales', 'inventory', 'damage', 'returns', 'stock_adjustment', 'receiving', 'orders'] as $type) {
+            $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => $type]))->assertOk()
+                ->assertSee('<small class="sig-caption">Prepared By</small>', false)
+                ->assertDontSee('Checked By')
+                ->assertDontSee('Approved By')
+                ->assertDontSee('<small>Manager</small>', false)
+                ->assertDontSee('<small>Owner</small>', false);
+        }
+
+        // The exported PDF uses the same footer.
+        $this->actingAs($this->admin)->view('admin.reports.partials.report-footer', ['pdf' => true])
+            ->assertSee('Prepared By')
+            ->assertSee('Confidential Report')
+            ->assertDontSee('Checked By')
+            ->assertDontSee('Approved By');
+    }
 }

@@ -462,7 +462,8 @@ class ReportsModuleTest extends TestCase
         $response->assertSee('Branch');
         $response->assertSee('Main Branch');
         $response->assertSee('Report Summary');
-        $response->assertSee('Checked By');
+        $response->assertSee('Prepared By');
+        $response->assertDontSee('Checked By');
         $response->assertSee('750.00');
     }
 

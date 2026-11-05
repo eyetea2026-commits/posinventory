@@ -31,7 +31,7 @@
         .summary-box .summary-row.grand { border-top: 1px solid #1a1a1a; margin-top: 4px; padding-top: 8px; font-weight: bold; font-size: 14px; }
         .remarks-text { margin: 4px 0 0; color: #333; }
         .signature-area { display: flex; justify-content: space-between; margin-top: 60px; gap: 20px; }
-        .signature-block { flex: 1; text-align: center; }
+        .signature-block { flex: 0 0 32%; width: 32%; text-align: center; }
         .signature-line { border-top: 1px solid #1a1a1a; padding-top: 6px; margin-top: 50px; }
         .signature-line small { color: #666; }
         .doc-footer { text-align: center; margin-top: 50px; padding-top: 10px; border-top: 1px solid #ccc; color: #888; font-size: 10.5px; }
@@ -111,12 +111,6 @@
             <div class="signature-line">
                 {{ $purchaseOrder->createdByUser?->full_name ?? 'N/A' }}
                 <br><small>Prepared By</small>
-            </div>
-        </div>
-        <div class="signature-block">
-            <div class="signature-line">
-                {{ $purchaseOrder->approvedByUser?->full_name ?? 'Pending Approval' }}
-                <br><small>Approved By</small>
             </div>
         </div>
     </div>

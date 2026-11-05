@@ -973,7 +973,7 @@ class PurchaseOrderController extends Controller
             // for some reason — the admin still needs the document.
         }
 
-        $purchaseOrder->refresh()->load(['supplier', 'items.product', 'createdByUser', 'approvedByUser']);
+        $purchaseOrder->refresh()->load(['supplier', 'items.product', 'createdByUser']);
 
         return view('admin.purchase-orders.print', ['purchaseOrder' => $purchaseOrder]);
     }

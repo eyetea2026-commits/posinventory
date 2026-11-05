@@ -29,7 +29,7 @@
         .report-summary-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold; margin-bottom: 6px; }
         .report-summary .summary-row { display: flex; justify-content: space-between; padding: 3px 0; width: 320px; margin-left: auto; }
         .signature-area { display: flex; justify-content: space-between; margin-top: 60px; gap: 20px; }
-        .signature-block { flex: 1; text-align: center; }
+        .signature-block { flex: 0 0 32%; width: 32%; text-align: center; }
         .signature-line { border-top: 1px solid #1a1a1a; padding-top: 6px; margin-top: 50px; }
         .signature-line small { display: block; color: #333; }
         .signature-line small.sig-caption { color: #777; margin-top: 2px; }

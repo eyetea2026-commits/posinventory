@@ -6,17 +6,11 @@
      Included by both admin/reports/pdf.blade.php and
      admin/reports/print.blade.php. Expects: $pdf (bool) — PDF additionally
      gets "Confidential Report". "Prepared By" is filled in with the name of
-     the Administrator printing/exporting the report; "Checked By" and
-     "Approved By" stay blank for signing (no approval workflow here). --}}
+     the Administrator printing/exporting the report; it is the only
+     signature line (no Checked By / Approved By). --}}
 <div class="signature-area">
     <div class="signature-block">
         <div class="signature-line"><strong>{{ auth()->user()?->full_name ?? '' }}</strong>&nbsp;<br><small>Administrator</small><br><small class="sig-caption">Prepared By</small></div>
-    </div>
-    <div class="signature-block">
-        <div class="signature-line">&nbsp;<br><small>Manager</small><br><small class="sig-caption">Checked By</small></div>
-    </div>
-    <div class="signature-block">
-        <div class="signature-line">&nbsp;<br><small>Owner</small><br><small class="sig-caption">Approved By</small></div>
     </div>
 </div>
 
