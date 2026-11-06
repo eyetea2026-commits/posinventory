@@ -50,6 +50,18 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Slow Requests
+    |--------------------------------------------------------------------------
+    |
+    | A page or save that takes at least this many seconds to answer is
+    | written to the log as "Slow request" (App\Http\Middleware\LogSlowRequests).
+    |
+    */
+
+    'slow_request_seconds' => (float) env('LOG_SLOW_REQUEST_SECONDS', 10),
+
     'channels' => [
 
         'stack' => [

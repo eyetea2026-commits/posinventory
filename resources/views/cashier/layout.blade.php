@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Cashier - {{ config('app.name') }}</title>
+    @include('partials.error-reporter')
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <link rel="stylesheet" href="{{ asset('Administrator/Dashboard.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

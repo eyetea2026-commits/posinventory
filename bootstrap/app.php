@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\LogSlowRequests;
 use App\Http\Middleware\PreventBackHistory;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,7 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // No page is ever kept in the browser's cache, so Back after logout
         // can't redisplay a signed-in page (see PreventBackHistory).
+        // A page or save slower than logging.slow_request_seconds is noted
+        // in laravel.log as "Slow request" (see LogSlowRequests).
         $middleware->web(append: [
+            LogSlowRequests::class,
             PreventBackHistory::class,
         ]);
 

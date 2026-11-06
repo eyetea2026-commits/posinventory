@@ -21,6 +21,7 @@ use App\Http\Controllers\Auth\AdminAuthController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\CashierAuthController;
 use App\Http\Controllers\Cashier\CashierReturnController;
+use App\Http\Controllers\ClientErrorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LiveUpdatesController;
 use App\Http\Controllers\PaymentProofController;
@@ -39,6 +40,11 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 // why this replaced separate admin/cashier login forms and a portal-picker
 // landing page.
 Route::get('/', [AuthController::class, 'showLogin'])->name('welcome');
+
+// JavaScript errors from any page (signed in or not, the login page too),
+// written to laravel.log as "Browser error" (partials/error-reporter).
+Route::post('/client-errors', [ClientErrorController::class, 'store'])
+    ->name('client-errors.store')->middleware('throttle:30,1,client-errors');
 
 // Polled by every page only when it's shown again (tab refocused, restored
 // from Back, or another tab signed in/out) -- never on a timer, so an
