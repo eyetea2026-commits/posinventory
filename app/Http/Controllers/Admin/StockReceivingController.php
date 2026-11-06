@@ -265,6 +265,14 @@ class StockReceivingController extends Controller
         // is reported before anything is written.
         $receiptNumber = filled($data['receipt_number'] ?? null) ? trim($data['receipt_number']) : null;
 
+        // Pressed again for a delivery this order already has (the first
+        // click went through but the page was slow to answer): nothing is
+        // added twice, and the user is told it's already in.
+        if ($receiptNumber !== null && StockReceivingDelivery::where('StockReceivingBatchID', $stockReceivingBatch->StockReceivingBatchID)->where('ReceiptNumber', $receiptNumber)->exists()) {
+            return redirect()->route('admin.stock-receivings.index')
+                ->with('success', "This delivery (Receipt Number \"{$receiptNumber}\") was already added to Inventory.");
+        }
+
         if ($receiptNumber !== null && self::receiptNumberIsUsed($receiptNumber, $stockReceivingBatch->StockReceivingBatchID)) {
             return back()->with('error', "Receipt Number \"{$receiptNumber}\" has already been used for another delivery.");
         }

@@ -93,6 +93,32 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
         $this->assertStringContainsString('Cancel Remaining Items', $html);
     }
 
+    // Add to Inventory pressed again for the same delivery (the first click
+    // went through while the page was slow): nothing is added twice, and the
+    // owner is told the delivery is already in.
+    public function test_pressing_add_to_inventory_again_does_not_add_the_delivery_twice(): void
+    {
+        $this->receive(['Camera' => 100, 'HDD' => 50], 'SUP1')->assertSessionMissing('error');
+
+        $this->receive(['Camera' => 100, 'HDD' => 50], 'SUP1')
+            ->assertRedirect(route('admin.stock-receivings.index'))
+            ->assertSessionHas('success', 'This delivery (Receipt Number "SUP1") was already added to Inventory.')
+            ->assertSessionMissing('error');
+
+        $this->assertSame(100, $this->stock('Camera'));
+        $this->assertSame(50, $this->stock('HDD'));
+        $this->assertSame(1, StockReceivingDelivery::where('StockReceivingBatchID', $this->batch->StockReceivingBatchID)->count());
+    }
+
+    // The pop-up shows a message's quote marks as quote marks, not &quot;.
+    public function test_the_stock_receiving_pop_up_shows_quote_marks_as_they_are(): void
+    {
+        $this->actingAs($this->admin)->withSession(['error' => 'Receipt Number "SUP1" has already been used for another delivery.'])
+            ->get(route('admin.stock-receivings.index'))->assertOk()
+            ->assertSee('text: "Receipt Number \u0022SUP1\u0022 has already been used for another delivery.",', false)
+            ->assertDontSee("text: 'Receipt Number &quot;SUP1&quot;", false);
+    }
+
     // The Stock Receiving lists show each order's status, colored like the
     // Purchase Orders list: Pending (gray), Partially Received (yellow),
     // Fully Received (green).

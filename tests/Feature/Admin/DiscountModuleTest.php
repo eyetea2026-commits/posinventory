@@ -797,14 +797,14 @@ class DiscountModuleTest extends TestCase
 
         // window.submitAjaxForm() (ajax-modal-form.blade.php) doesn't just
         // check the message is present somewhere on the page — it scrapes
-        // for this exact literal Swal.fire({title:'Success', text:'...'})
-        // shape to tell a successful save from a failed one. A page that
-        // renders the same message through a different helper (e.g.
-        // toastSuccess()) still passes assertSee() above but silently
-        // reports every save as failed in the browser — this regex is what
-        // actually caught that regression.
+        // for this exact literal Swal.fire({title:'Success', text:"..."})
+        // shape (the message written with @json) to tell a successful save
+        // from a failed one. A page that renders the same message through a
+        // different helper (e.g. toastSuccess()) still passes assertSee()
+        // above but silently reports every save as failed in the browser —
+        // this regex is what actually caught that regression.
         $this->assertMatchesRegularExpression(
-            "/title:\s*'Success',\s*text:\s*'Promo code created successfully\.'/",
+            "/title:\s*'Success',\s*text:\s*\"Promo code created successfully\.\"/",
             $response->getContent()
         );
     }

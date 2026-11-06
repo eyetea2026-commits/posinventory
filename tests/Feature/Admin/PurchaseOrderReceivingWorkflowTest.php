@@ -427,7 +427,14 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
         $second = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), $payload);
 
-        $second->assertSessionHas('error');
+        // Nothing is added twice; the owner is told the delivery is already in.
+        $second->assertSessionHas('success', 'This delivery (Receipt Number "DR-TWICE-1") was already added to Inventory.');
+        $this->assertSame($inventoryAAfterFirst, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
+
+        // A second delivery under a different receipt is still refused once
+        // the order is complete.
+        $third = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), ['receipt_number' => 'DR-TWICE-2'] + $payload);
+        $third->assertSessionHas('error');
         $this->assertSame($inventoryAAfterFirst, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
     }
 

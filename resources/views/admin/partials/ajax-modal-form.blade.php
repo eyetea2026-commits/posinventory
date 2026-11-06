@@ -21,6 +21,20 @@
      instead, so the message actually says what went wrong — without
      leaking exception detail into the production UI. --}}
 <script>
+// The message of a matched Swal.fire({... text: ...}): written as a JSON
+// string ("..." with JSON escapes) or, on older pages, '...' with HTML
+// escapes (&quot;); either way the plain text comes back.
+function flashText(match) {
+    if (!match) return null;
+    const literal = match[1];
+    if (literal.charAt(0) === '"') {
+        try { return JSON.parse(literal); } catch (e) { return literal.slice(1, -1); }
+    }
+    const decoder = document.createElement('textarea');
+    decoder.innerHTML = literal.slice(1, -1);
+    return decoder.value;
+}
+
 window.submitAjaxForm = function (form, url, callbacks) {
     callbacks = callbacks || {};
 
@@ -58,13 +72,13 @@ window.submitAjaxForm = function (form, url, callbacks) {
         const marker = 'Auto-show session messages';
         const idx = html.indexOf(marker);
         const tail = idx >= 0 ? html.slice(idx) : html;
-        const successMatch = tail.match(/title:\s*'Success',\s*text:\s*'([^']*)'/);
-        const errorMatch = tail.match(/title:\s*'Error',\s*text:\s*'([^']*)'/);
+        const successText = flashText(tail.match(/title:\s*'Success',\s*text:\s*("(?:[^"\\]|\\.)*"|'[^']*')/));
+        const errorText = flashText(tail.match(/title:\s*'Error',\s*text:\s*("(?:[^"\\]|\\.)*"|'[^']*')/));
 
-        if (successMatch) {
-            if (callbacks.onSuccess) callbacks.onSuccess(html, successMatch[1]);
-        } else if (errorMatch) {
-            if (callbacks.onOtherError) callbacks.onOtherError(errorMatch[1]);
+        if (successText !== null) {
+            if (callbacks.onSuccess) callbacks.onSuccess(html, successText);
+        } else if (errorText !== null) {
+            if (callbacks.onOtherError) callbacks.onOtherError(errorText);
         } else {
             if (callbacks.onOtherError) callbacks.onOtherError('Unable to save. The page may be out of date — please refresh and try again.');
         }

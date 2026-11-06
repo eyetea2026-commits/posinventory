@@ -534,7 +534,7 @@
         @if(session('success'))
             Swal.fire({
                 title: 'Success',
-                text: '{{ session('success') }}',
+                text: @json(session('success')),
                 icon: 'success',
                 confirmButtonColor: '#10b981',
                 timer: 3000,

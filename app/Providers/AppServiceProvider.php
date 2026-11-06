@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Http\Controllers\Admin\StockReceivingController;
 use App\Models\Inventory;
+use App\Notifications\Channels\MailAfterResponseChannel;
 use App\Observers\InventoryObserver;
 use App\Services\LiveDataVersions;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -31,6 +33,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Inventory::observe(InventoryObserver::class);
+
+        // Notification emails are sent after the response, so no Save waits
+        // on the mail server (see MailAfterResponseChannel).
+        Notification::extend('mail', fn ($app) => $app->make(MailAfterResponseChannel::class));
 
         // Real-time pages: every write the app makes bumps that table's
         // version, so open pages showing that data refresh by themselves

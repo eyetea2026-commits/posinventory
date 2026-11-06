@@ -1461,7 +1461,7 @@
     @if(session('status'))
         Swal.fire({
             title: 'Success',
-            text: '{{ session('status') }}',
+            text: @json(session('status')),
             icon: 'success',
             confirmButtonColor: '#10b981',
             timer: 2000,
@@ -1471,7 +1471,7 @@
     @if(session('error'))
         Swal.fire({
             title: 'Error',
-            text: '{{ session('error') }}',
+            text: @json(session('error')),
             icon: 'error',
             confirmButtonColor: '#ef4444'
         });
