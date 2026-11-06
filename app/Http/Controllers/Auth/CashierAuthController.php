@@ -67,10 +67,17 @@ class CashierAuthController extends Controller
 
     public function pos()
     {
-        // Newest product first on the POS grid.
-        $products = Product::active()->with(['inventory', 'category'])->orderByDesc('ProductID')->get()->filter(function ($product) {
-            return $product->inventory && $product->inventory->Quantity > 0;
-        });
+        // POS grid order: consumables (connectors, junction boxes...) first,
+        // then the other items added with a click (no serial sticker to
+        // scan), then serial-numbered items; newest first within each.
+        $products = Product::active()->with(['inventory', 'category'])->orderByDesc('ProductID')->get()
+            ->filter(fn ($product) => $product->inventory && $product->inventory->Quantity > 0)
+            ->sortBy(fn ($product) => match (true) {
+                strcasecmp((string) $product->category?->CategoryName, 'CONSUMABLES') === 0 => 0,
+                ! $product->tracksSerialNumbers() => 1,
+                default => 2,
+            })
+            ->values();
 
         return view('cashier.pos', [
             'products' => $products,
