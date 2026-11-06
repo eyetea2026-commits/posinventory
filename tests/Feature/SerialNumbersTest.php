@@ -12,6 +12,7 @@ use App\Models\StockAdjustment;
 use App\Models\User;
 use App\Services\Code128Barcode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -260,6 +261,33 @@ class SerialNumbersTest extends TestCase
         $this->assertStringContainsString('font-size: 12pt;">₱1,500.00</div>', $html);
         $this->assertStringContainsString('alt="SN00001"', $html);
         $this->assertStringContainsString('<div class="serial">SN00001</div>', $html);
+    }
+
+    public function test_missing_serials_are_generated_for_stock_saved_without_them(): void
+    {
+        // The camera already has its serials; a second camera's stock was
+        // copied straight into the table (no observer), like the live copy.
+        $this->stock($this->camera, 2);
+        $nvr = Product::create(['ProductName' => 'NVR 8CH', 'Model' => 'NVR-8', 'Price' => 5000, 'CategoryID' => $this->camera->CategoryID]);
+        DB::table('Inventory')->insert(['ProductID' => $nvr->ProductID, 'Quantity' => 3, 'ReorderThreshold' => 1, 'Status' => 'Available']);
+        DB::table('Inventory')->insert(['ProductID' => $this->cable->ProductID, 'Quantity' => 50, 'ReorderThreshold' => 1, 'Status' => 'Available']);
+        $this->assertSame([], $this->inStockSerials($nvr));
+
+        $this->artisan('serials:generate', ['--dry-run' => true])
+            ->expectsOutputToContain('Would make 3 serial number(s) for 1 product(s)')
+            ->assertSuccessful();
+        $this->assertSame([], $this->inStockSerials($nvr));
+
+        $this->artisan('serials:generate')
+            ->expectsOutputToContain('Made 3 serial number(s) for 1 product(s)')
+            ->assertSuccessful();
+        $this->assertSame(['SN00003', 'SN00004', 'SN00005'], $this->inStockSerials($nvr));
+        // Existing serials untouched; wires never get any.
+        $this->assertSame(['SN00001', 'SN00002'], $this->inStockSerials($this->camera));
+        $this->assertSame([], $this->inStockSerials($this->cable));
+
+        // Running it again makes nothing.
+        $this->artisan('serials:generate')->expectsOutputToContain('Made 0 serial number(s) for 0 product(s)')->assertSuccessful();
     }
 
     public function test_a_category_chooses_whether_its_pieces_get_serial_numbers(): void
