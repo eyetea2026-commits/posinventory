@@ -245,6 +245,23 @@ class SerialNumbersTest extends TestCase
         $this->assertStringNotContainsString('Print Stickers (PDF)', $html);
     }
 
+    public function test_the_sticker_is_a_price_tag_with_name_sku_peso_price_barcode_and_serial(): void
+    {
+        $this->stock($this->camera, 1);
+        $this->camera->update(['SKU' => 'SKU-000123']);
+
+        $html = view('admin.products.serial-stickers-pdf', [
+            'product' => $this->camera->fresh(),
+            'pages' => $this->camera->serials()->get()->chunk(40),
+        ])->render();
+
+        $this->assertStringContainsString('<div class="name">Dome Camera</div>', $html);
+        $this->assertStringContainsString('<div class="sku">SKU-000123</div>', $html);
+        $this->assertStringContainsString('font-size: 12pt;">₱1,500.00</div>', $html);
+        $this->assertStringContainsString('alt="SN00001"', $html);
+        $this->assertStringContainsString('<div class="serial">SN00001</div>', $html);
+    }
+
     public function test_a_category_chooses_whether_its_pieces_get_serial_numbers(): void
     {
         $this->actingAs($this->admin)->get(route('admin.categories.create'))->assertOk()
