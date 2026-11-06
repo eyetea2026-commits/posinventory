@@ -128,6 +128,24 @@ class AutomaticReorderTest extends TestCase
         $response->assertDontSee('openReorderModal('.$this->product->ProductID.')', false);
     }
 
+    // An inactive product can't be ordered, so the Inventory list doesn't
+    // offer it; if the pop-up is opened anyway, it shows the server's reason
+    // instead of "undefined".
+    public function test_an_inactive_low_stock_product_is_not_offered_for_reorder(): void
+    {
+        $this->product->update(['IsActive' => false]);
+
+        $this->actingAs($this->admin)->get(route('admin.inventory.index'))->assertOk()
+            ->assertDontSee('openReorderModal('.$this->product->ProductID.')', false);
+
+        $this->actingAs($this->admin)->getJson(route('admin.purchase-orders.create-from-reorder', $this->product))
+            ->assertStatus(422)->assertJson(['message' => 'This product is inactive and can no longer be ordered.']);
+
+        $page = $this->actingAs($this->admin)->get(route('admin.inventory.index'))->getContent();
+        $this->assertStringContainsString("if (!result.ok || typeof data.html !== 'string') {", $page);
+        $this->assertStringContainsString("message.textContent = data.message || 'Failed to load product details. Please try again.';", $page);
+    }
+
     public function test_store_from_reorder_creates_po_using_resolved_supplier_and_cost(): void
     {
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550, 'IsPreferred' => 1]);

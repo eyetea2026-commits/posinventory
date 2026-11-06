@@ -62,7 +62,8 @@
                 >
                     <i class="fas fa-eye"></i>
                 </a>
-                @if($stock['label'] !== 'In Stock')
+                {{-- Only for products that can still be ordered (inactive ones are refused). --}}
+                @if($stock['label'] !== 'In Stock' && $product->IsActive)
                     <button
                         type="button"
                         onclick="openReorderModal({{ $product->ProductID }})"

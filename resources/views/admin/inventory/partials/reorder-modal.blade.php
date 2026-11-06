@@ -119,12 +119,26 @@
         fetch(REORDER_FETCH_URL_TEMPLATE.replace('__PRODUCT_ID__', productId), {
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
         })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                body.innerHTML = data.html;
+            .then(function (r) {
+                return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data }; });
+            })
+            .then(function (result) {
+                const data = result.data || {};
                 const titleEl = document.getElementById('reorderPurchaseOrderModalTitle');
+                // Refused (an inactive product) or failed: say why, never "undefined".
+                if (!result.ok || typeof data.html !== 'string') {
+                    if (titleEl) titleEl.innerHTML = '<i class="fas fa-cart-plus"></i> Create Purchase Order';
+                    const message = document.createElement('p');
+                    message.style.cssText = 'color:#fca5a5;padding:20px;text-align:center;';
+                    message.textContent = data.message || 'Failed to load product details. Please try again.';
+                    body.innerHTML = '';
+                    body.appendChild(message);
+                    return;
+                }
+                body.innerHTML = data.html;
                 if (titleEl) {
-                    titleEl.innerHTML = '<i class="fas fa-cart-plus"></i> Create Purchase Order &mdash; ' + data.productName;
+                    titleEl.innerHTML = '<i class="fas fa-cart-plus"></i> Create Purchase Order &mdash; ';
+                    titleEl.appendChild(document.createTextNode(data.productName || ''));
                 }
                 submitBtn.disabled = false;
             })
