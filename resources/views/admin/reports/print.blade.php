@@ -5,9 +5,9 @@
     <title>{{ \App\Http\Controllers\Admin\ReportController::typeLabel($type) }} Report</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
-        /* Every report prints on A4 bond paper in landscape (277 x 190 mm
+        /* Every report prints on A4 bond paper in landscape, 20 mm margins left and right (257 x 180 mm
            inside the margins); the table always fits the page width. */
-        @page { size: A4 landscape; margin: 10mm; }
+        @page { size: A4 landscape; margin: 15mm 20mm; }
         body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: 1100px; margin: 0 auto; padding: 30px; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 12px; }
         .company-logo { width: 56px; height: 56px; object-fit: contain; margin: 0 auto 8px; display: block; }

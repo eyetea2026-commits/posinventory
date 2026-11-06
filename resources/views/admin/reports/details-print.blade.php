@@ -12,7 +12,7 @@
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
         /* A4 bond paper, landscape, like every report. */
-        @page { size: A4 landscape; margin: 10mm; }
+        @page { size: A4 landscape; margin: 15mm 20mm; }
         body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: 1100px; margin: 0 auto; padding: 30px; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 12px; }
         .company-logo { width: 56px; height: 56px; object-fit: contain; margin: 0 auto 8px; display: block; }

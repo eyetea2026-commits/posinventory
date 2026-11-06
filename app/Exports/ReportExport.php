@@ -266,7 +266,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                     ->setFitToWidth(1)
                     ->setFitToHeight(0)
                     ->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
-                $sheet->getPageMargins()->setTop(0.4)->setBottom(0.4)->setLeft(0.4)->setRight(0.4);
+                $sheet->getPageMargins()->setTop(0.6)->setBottom(0.6)->setLeft(0.8)->setRight(0.8);
                 $sheet->getPageSetup()->setHorizontalCentered(true);
 
                 if ($dataRowCount > 0) {

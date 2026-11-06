@@ -5,7 +5,7 @@
     <title>{{ \App\Http\Controllers\Admin\ReportController::typeLabel($type) }} Report</title>
     <style>
         /* A4 landscape (setPaper in ReportController::export()). */
-        @page { margin: 12mm 10mm 16mm; }
+        @page { margin: 15mm 20mm 18mm; }
         /* DejaVu Sans ships with dompdf and has the ₱ glyph; the generic
            sans-serif maps to Helvetica, which printed every ₱ as "?". */
         body { font-family: 'DejaVu Sans', sans-serif; font-size: 11px; color: #1a1a1a; }
