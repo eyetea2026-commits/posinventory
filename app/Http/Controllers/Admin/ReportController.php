@@ -20,6 +20,7 @@ use App\Services\UnitOfMeasure;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -104,10 +105,47 @@ class ReportController extends Controller
      */
     public function details(Request $request)
     {
-        $type = $request->get('type');
-        $id = $request->get('id');
+        $payload = $this->detailPayload($request->get('type'), $request->get('id'));
 
-        $payload = match ($type) {
+        if (! $payload) {
+            return response()->json(['error' => 'Report record not found.'], 404);
+        }
+
+        return response()->json($payload);
+    }
+
+    /**
+     * Print Preview of one record's View Details: the same sections as the
+     * pop-up, on a white page of its own (company header, Print button,
+     * Prepared By), like the report's own Print Preview.
+     */
+    public function detailsPrint(Request $request)
+    {
+        $payload = $this->detailPayload($request->get('type'), $request->get('id'));
+
+        abort_unless($payload, 404, 'Report record not found.');
+
+        // A sale's items print in the Sales Report's own table format (with
+        // its note and Report Summary) instead of the pop-up's simple table.
+        $receiptRows = $request->get('type') === 'sales'
+            ? $this->receiptItemRows(SalesTransaction::with(['payment', 'items.product'])->findOrFail($request->get('id')))
+            : null;
+
+        return view('admin.reports.details-print', [
+            'title' => $payload['title'],
+            'sections' => collect($payload['sections'] ?? [])
+                ->reject(fn (array $section) => $receiptRows && ($section['heading'] ?? null) === 'Products Sold')
+                ->values()->all(),
+            'receiptRows' => $receiptRows,
+        ]);
+    }
+
+    /**
+     * @return array{title: string, sections: array<int, array<string, mixed>>}|null
+     */
+    private function detailPayload(?string $type, mixed $id): ?array
+    {
+        return match ($type) {
             'sales' => $this->salesDetail($id),
             'inventory' => $this->inventoryDetail($id),
             'orders' => $this->orderDetail($id),
@@ -115,12 +153,6 @@ class ReportController extends Controller
             'damage' => $this->damageDetail($id),
             default => null,
         };
-
-        if (! $payload) {
-            return response()->json(['error' => 'Report record not found.'], 404);
-        }
-
-        return response()->json($payload);
     }
 
     private function money($value): string
@@ -639,27 +671,29 @@ class ReportController extends Controller
     {
         $sales = $this->salesRows($dateFrom, $dateTo)->load('items.product');
 
-        $rows = collect();
-
-        foreach ($sales as $sale) {
-            $items = $sale->items;
-            $receiptNumber = $sale->payment?->ReceiptNumber ?? ('RCT-'.str_pad((string) $sale->SalesTransactionID, 6, '0', STR_PAD_LEFT));
-
-            if ($items->isEmpty()) {
-                $rows->push($this->salesItemRow($sale, $receiptNumber, null, true));
-
-                continue;
-            }
-
-            foreach ($items as $index => $item) {
-                $rows->push($this->salesItemRow($sale, $receiptNumber, $item, $index === 0));
-            }
-        }
-
-        return $rows;
+        return $sales->flatMap(fn (SalesTransaction $sale) => $this->receiptItemRows($sale))->values();
     }
 
-    private function salesItemRow(SalesTransaction $sale, string $receiptNumber, ?SalesItem $item, bool $isFirst): object
+    /**
+     * One sale's rows in the Sales Report table: one per item, the receipt's
+     * Discount/VAT/Total on its last item row, closing the receipt like the
+     * bottom of a paper receipt.
+     */
+    private function receiptItemRows(SalesTransaction $sale): Collection
+    {
+        $items = $sale->items;
+        $receiptNumber = $sale->payment?->ReceiptNumber ?? ('RCT-'.str_pad((string) $sale->SalesTransactionID, 6, '0', STR_PAD_LEFT));
+
+        if ($items->isEmpty()) {
+            return collect([$this->salesItemRow($sale, $receiptNumber, null, true)]);
+        }
+
+        $lastIndex = $items->count() - 1;
+
+        return $items->values()->map(fn (SalesItem $item, int $index) => $this->salesItemRow($sale, $receiptNumber, $item, $index === $lastIndex));
+    }
+
+    private function salesItemRow(SalesTransaction $sale, string $receiptNumber, ?SalesItem $item, bool $isLast): object
     {
         return (object) [
             'ReceiptNumber' => $receiptNumber,
@@ -672,10 +706,10 @@ class ReportController extends Controller
             'Unit' => $item?->Unit,
             'UnitPrice' => $item?->UnitPrice ?? 0,
             'ItemTotal' => round(($item?->Quantity ?? 0) * ($item?->UnitPrice ?? 0), 2),
-            'Discount' => $isFirst ? (float) ($sale->DiscountAmount ?? 0) : null,
-            'VatAmount' => $isFirst ? (float) ($sale->VatAmount ?? 0) : null,
-            'TotalAmount' => $isFirst ? (float) $sale->TotalAmount : null,
-            'is_first' => $isFirst,
+            'Discount' => $isLast ? (float) ($sale->DiscountAmount ?? 0) : null,
+            'VatAmount' => $isLast ? (float) ($sale->VatAmount ?? 0) : null,
+            'TotalAmount' => $isLast ? (float) $sale->TotalAmount : null,
+            'is_last' => $isLast,
         ];
     }
 

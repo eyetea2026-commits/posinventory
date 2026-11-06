@@ -163,8 +163,8 @@
         <thead>
             <tr>
                 <th>Invoice No</th><th class="col-date">Date</th><th>Customer</th><th>Payment</th><th>Product</th>
-                <th class="col-qty">Qty</th><th class="col-money">Unit Price</th><th class="col-money">Discount</th>
-                <th class="col-money">VAT</th><th class="col-money">Total</th>
+                <th class="col-qty">Qty</th><th class="col-money">Unit Price</th><th class="col-money">Receipt Discount</th>
+                <th class="col-money">Receipt VAT</th><th class="col-money">Receipt Total</th>
             </tr>
         </thead>
         <tbody>
@@ -186,11 +186,14 @@
             @endforelse
         </tbody>
     </table>
+    <p class="receipt-note" style="margin: 6px 0 0; font-size: 10px; color: #555;">Receipt Discount, Receipt VAT and Receipt Total are for the whole receipt (all its items), so they are shown once, on the receipt's last item. Prices include VAT, so Receipt VAT is the VAT inside the Receipt Total (Receipt Total × 12/112), not added on top.</p>
 @endif
 
 <div class="report-summary">
     <div class="report-summary-title">Report Summary</div>
     @foreach(\App\Services\ReportSummaryBuilder::forType($type, $rows) as $entry)
+        {{-- A one-sale Print Preview leaves out "Total Transactions" (always 1). --}}
+        @continue(in_array($entry['label'], $hiddenSummaryLabels ?? [], true))
         <div class="summary-row">
             <span>{{ $entry['label'] }}</span>
             <span>{{ \App\Services\ReportSummaryBuilder::formatValue($entry) }}</span>

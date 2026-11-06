@@ -128,10 +128,9 @@
             <div id="reportDetailsBody">
                 <p class="text-muted">Loading...</p>
             </div>
-            {{-- Only on paper: who printed it, and when (set by printReportDetails()). --}}
-            <p class="report-printed-by">Printed by {{ auth()->user()?->full_name }} on <span data-printed-at></span></p>
             <div class="modal-footer no-print">
-                <button type="button" class="btn btn-secondary" onclick="printReportDetails()"><i class="fas fa-print"></i> Print Report</button>
+                {{-- Opens this record's Print Preview in a new tab (href set by viewReportDetails()). --}}
+                <a href="#" id="reportDetailsPrintPreview" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Preview" data-confirm-text="Open the print preview of this report?" target="_blank" style="display:none; text-decoration:none;"><i class="fas fa-print"></i> Print Preview</a>
                 <button type="button" class="btn btn-primary" onclick="closeReportDetailsModal()">Close</button>
             </div>
         </div>
@@ -140,7 +139,6 @@
     <style>
         .modal-report-details { max-width: 820px; }
         .report-section-heading { margin: 0 0 12px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #f8fafc); text-transform: uppercase; letter-spacing: 0.04em; }
-        .report-printed-by { display: none; margin: 16px 0 0; font-size: 0.8rem; }
         .report-section-divider { border: none; border-top: 1px solid var(--border, rgba(148, 163, 184, 0.25)); margin: 18px 0; }
 
         {{-- A sale that was later refunded needs to stand out from the rest
@@ -186,43 +184,6 @@
             word-break: break-word;
         }
 
-        @media print {
-            body.printing-report-details * { visibility: hidden !important; }
-            body.printing-report-details #reportDetailsModal,
-            body.printing-report-details #reportDetailsModal * { visibility: visible !important; }
-            body.printing-report-details #reportDetailsModal {
-                position: absolute !important;
-                inset: auto !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 100% !important;
-                background: #fff !important;
-                display: block !important;
-                padding: 0 !important;
-            }
-            body.printing-report-details #reportDetailsModal .modal {
-                max-width: 100% !important;
-                width: 100% !important;
-                max-height: none !important;
-                overflow: visible !important;
-                box-shadow: none !important;
-                transform: none !important;
-                background: #fff !important;
-                color: #000 !important;
-                border: none !important;
-                padding: 0 !important;
-            }
-            body.printing-report-details .no-print { display: none !important; }
-            body.printing-report-details .report-printed-by { display: block !important; color: #475569 !important; }
-            body.printing-report-details .modal-title,
-            body.printing-report-details .report-section-heading { color: #0f172a !important; }
-            body.printing-report-details .report-detail-line label { color: #475569 !important; }
-            body.printing-report-details .report-detail-line span { color: #0f172a !important; }
-            body.printing-report-details .report-section-divider { border-top-color: #cbd5e1 !important; }
-            body.printing-report-details table.table th,
-            body.printing-report-details table.table td { color: #0f172a !important; border-color: #cbd5e1 !important; }
-            body.printing-report-details .report-detail-warning { color: #92400e !important; border-color: #f59e0b !important; background: #fffbeb !important; }
-        }
     </style>
 
     <script>
@@ -279,6 +240,10 @@
             const body = document.getElementById('reportDetailsBody');
             const title = document.getElementById('reportDetailsTitle');
 
+            const printPreview = document.getElementById('reportDetailsPrintPreview');
+            printPreview.style.display = 'none';
+            printPreview.href = `{{ route('admin.reports.details.print') }}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+
             body.innerHTML = '<p class="text-muted">Loading...</p>';
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
@@ -294,6 +259,7 @@
                     }
                     title.innerHTML = `<i class="fas fa-file-lines"></i> ${escapeReportDetailHtml(data.title)}`;
                     body.innerHTML = renderReportSections(data.sections);
+                    printPreview.style.display = '';
                 })
                 .catch(() => {
                     body.innerHTML = '<p class="text-muted">Failed to load report details.</p>';
@@ -305,22 +271,6 @@
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
         }
-
-        function printReportDetails() {
-            window.confirmAction({ title: 'Print Report', text: 'Print this report?' }).then(function (result) {
-                if (!result.isConfirmed) return;
-                const now = new Date();
-                document.querySelector('#reportDetailsModal [data-printed-at]').textContent =
-                    now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) + ' ' +
-                    now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                document.body.classList.add('printing-report-details');
-                window.print();
-            });
-        }
-
-        window.addEventListener('afterprint', function () {
-            document.body.classList.remove('printing-report-details');
-        });
 
         document.getElementById('reportDetailsModal').addEventListener('mousedown', function (e) {
             if (e.target === this) closeReportDetailsModal();

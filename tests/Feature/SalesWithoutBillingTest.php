@@ -55,7 +55,7 @@ class SalesWithoutBillingTest extends TestCase
 
         $this->assertEquals(3000, (float) $sale->Subtotal);
         $this->assertEquals(3000, (float) $sale->TotalAmount);
-        $this->assertEquals(360, (float) $sale->VatAmount);
+        $this->assertEquals(321.43, (float) $sale->VatAmount); // 3000 × 12/112
         $this->assertSame('12%', $sale->VatApplied);
         $this->assertSame($sale->SalesTransactionID, $sale->payment->SalesTransactionID);
         $this->assertEquals(3500, (float) $sale->payment->PaymentAmount);

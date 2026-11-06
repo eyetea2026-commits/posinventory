@@ -274,6 +274,48 @@ class ReportDetailsTest extends TestCase
         ]);
     }
 
+    public function test_view_details_print_preview_shows_the_record_on_a_printable_page(): void
+    {
+        $transaction = SalesTransaction::create([
+            'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
+        ]);
+        SalesItem::create([
+            'Quantity' => 2, 'UnitPrice' => 1000, 'DiscountAmount' => 200,
+            'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
+        ]);
+        $transaction->update(['VatApplied' => '12%', 'TotalAmount' => 1800]);
+        Payment::create(['PaymentAmount' => 1800, 'PaymentMethod' => 'cash', 'ReceiptNumber' => 'RCT-000001', 'SalesTransactionID' => $transaction->SalesTransactionID]);
+        $reportNumber = 'SALE-'.str_pad((string) $transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        $this->actingAs($this->admin)->get(route('admin.reports.details.print', ['type' => 'sales', 'id' => $transaction->SalesTransactionID]))
+            ->assertOk()
+            ->assertSee('<title>Sales Report — '.$reportNumber.'</title>', false)
+            ->assertSee('onclick="window.print()"', false)
+            ->assertSeeInOrder(['CCTV Express', 'Your Trusted Security Partner', 'Sales Report — '.$reportNumber,
+                'Report Information', 'Cashier Name', 'Jane Doe', 'Products Sold',
+                // The Sales Report table: receipt amounts on the last row, then its summary.
+                'Invoice No', 'Receipt Discount', 'Receipt VAT', 'Receipt Total', 'RCT-000001', 'DVR Camera', '₱1,800.00',
+                'Report Summary', 'Amount Collected (VAT included)', 'Net Sales (VAT excluded)', 'Prepared By'])
+            ->assertDontSee('Product Numbering')
+            ->assertDontSee('Total Transactions');
+
+        // The full Sales and Revenue Report still counts its transactions.
+        $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
+            ->assertSee('Total Transactions');
+
+        $this->actingAs($this->admin)->get(route('admin.reports.details.print', ['type' => 'sales', 'id' => 999999]))->assertNotFound();
+
+        $cashier = User::factory()->create(['role_id' => Role::where('role_name', 'cashier')->first()->id]);
+        $this->actingAs($cashier)->get(route('admin.reports.details.print', ['type' => 'sales', 'id' => $transaction->SalesTransactionID]))
+            ->assertRedirect()->assertDontSee('DVR Camera');
+
+        // The pop-up's button opens it, after the same Print Preview question.
+        $this->actingAs($this->admin)->get(route('admin.reports.index'))->assertOk()
+            ->assertSee('id="reportDetailsPrintPreview" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Preview" data-confirm-text="Open the print preview of this report?" target="_blank"', false)
+            ->assertSee(route('admin.reports.details.print'), false)
+            ->assertDontSee('Print Report');
+    }
+
     public function test_unknown_type_or_missing_id_returns_404(): void
     {
         $this->fetchDetails('sales', 999999)->assertNotFound();

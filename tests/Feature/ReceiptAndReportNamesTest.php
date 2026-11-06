@@ -71,9 +71,11 @@ class ReceiptAndReportNamesTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
             ->assertSee('<strong>Maria Santos Reyes</strong>&nbsp;<br><small>Administrator</small><br><small class="sig-caption">Prepared By</small>', false);
 
-        // The Sales Report details pop-up prints "Printed by" too.
-        $this->actingAs($this->admin)->get(route('admin.reports.index'))->assertOk()
-            ->assertSee('<p class="report-printed-by">Printed by Maria Santos Reyes on <span data-printed-at></span></p>', false);
+        // So is a View Details Print Preview.
+        $category = Category::create(['CategoryName' => 'IP CAMERA']);
+        $product = Product::create(['ProductName' => 'Dome Camera', 'Model' => 'DC-1', 'Price' => 1500, 'CategoryID' => $category->CategoryID]);
+        $this->actingAs($this->admin)->get(route('admin.reports.details.print', ['type' => 'inventory', 'id' => $product->ProductID]))->assertOk()
+            ->assertSee('<strong>Maria Santos Reyes</strong>&nbsp;<br><small>Administrator</small><br><small class="sig-caption">Prepared By</small>', false);
     }
 
     public function test_reports_have_no_checked_by_or_approved_by_signature(): void

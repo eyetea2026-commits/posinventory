@@ -38,6 +38,19 @@ class SalesTransaction extends Model
         'SalesTransactionDate' => 'datetime',
     ];
 
+    /** Philippine VAT rate. */
+    public const VAT_RATE = 0.12;
+
+    /**
+     * The VAT inside a VAT-inclusive amount (POS prices already include
+     * VAT): Total × 12/112, so the VAT-exclusive part (Total ÷ 1.12) plus
+     * 12% of it adds back up to the Total. ₱213.00 → ₱22.82.
+     */
+    public static function vatIncludedIn(float $total): float
+    {
+        return round($total * self::VAT_RATE / (1 + self::VAT_RATE), 2);
+    }
+
     public function staff()
     {
         return $this->belongsTo(Staff::class, 'StaffID', 'StaffID');

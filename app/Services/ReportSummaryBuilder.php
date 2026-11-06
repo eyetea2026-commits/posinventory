@@ -19,6 +19,17 @@ use Illuminate\Support\Collection;
  */
 class ReportSummaryBuilder
 {
+    /** Sales and Revenue summary lines (also the Excel export's formula rows). */
+    public const GROSS_SALES = 'Gross Sales (VAT included)';
+
+    public const DISCOUNT = 'Less: Discount';
+
+    public const AMOUNT_COLLECTED = 'Amount Collected (VAT included)';
+
+    public const VAT = 'VAT (12%)';
+
+    public const NET_SALES = 'Net Sales (VAT excluded)';
+
     public static function forType(string $type, Collection $rows): array
     {
         return match ($type) {
@@ -34,17 +45,25 @@ class ReportSummaryBuilder
 
     // Rows are item-level (ReportController::salesItemRows()) — Quantity is
     // summed across every row, but Discount/VatAmount/TotalAmount are
-    // only populated on each invoice's first item row (is_first), so
+    // only populated on each invoice's last item row (is_last), so
     // summing them still counts each invoice exactly once.
+    //
+    // Accounting order for VAT-inclusive POS prices: Gross Sales − Discount
+    // = what customers paid (VAT included); − the VAT inside it (12/112,
+    // owed to the BIR) = Net Sales, the store's revenue (VAT excluded).
     private static function sales(Collection $rows): array
     {
+        $collected = round($rows->sum('TotalAmount'), 2);
+        $vat = round($rows->sum('VatAmount'), 2);
+
         return [
-            ['label' => 'Total Transactions', 'value' => $rows->where('is_first', true)->count(), 'money' => false],
+            ['label' => 'Total Transactions', 'value' => $rows->where('is_last', true)->count(), 'money' => false],
             ['label' => 'Total Quantity Sold', 'value' => $rows->sum('Quantity'), 'money' => false, 'text' => self::byUnit($rows, 'Quantity')],
-            ['label' => 'Subtotal (Gross Sales)', 'value' => round($rows->sum('ItemTotal'), 2), 'money' => true],
-            ['label' => 'Discount', 'value' => round($rows->sum('Discount'), 2), 'money' => true],
-            ['label' => 'VAT', 'value' => round($rows->sum('VatAmount'), 2), 'money' => true],
-            ['label' => 'Net Sales', 'value' => round($rows->sum('TotalAmount'), 2), 'money' => true],
+            ['label' => self::GROSS_SALES, 'value' => round($rows->sum('ItemTotal'), 2), 'money' => true],
+            ['label' => self::DISCOUNT, 'value' => round($rows->sum('Discount'), 2), 'money' => true],
+            ['label' => self::AMOUNT_COLLECTED, 'value' => $collected, 'money' => true],
+            ['label' => self::VAT, 'value' => $vat, 'money' => true],
+            ['label' => self::NET_SALES, 'value' => round($collected - $vat, 2), 'money' => true],
         ];
     }
 

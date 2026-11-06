@@ -537,8 +537,8 @@ class UnitOfMeasureTest extends TestCase
         $this->sell([['id' => $this->wire->ProductID, 'qty' => 1.5], ['id' => $this->rj45->ProductID, 'qty' => 10]], 65)->assertOk();
 
         $summary = ReportSummaryBuilder::forType('sales', collect([
-            (object) ['is_first' => true, 'Quantity' => 1.5, 'Unit' => 'meter', 'ItemTotal' => 15, 'Discount' => 0, 'VatAmount' => 0, 'TotalAmount' => 65],
-            (object) ['is_first' => false, 'Quantity' => 10, 'Unit' => 'piece', 'ItemTotal' => 50, 'Discount' => null, 'VatAmount' => null, 'TotalAmount' => null],
+            (object) ['is_last' => true, 'Quantity' => 1.5, 'Unit' => 'meter', 'ItemTotal' => 15, 'Discount' => 0, 'VatAmount' => 0, 'TotalAmount' => 65],
+            (object) ['is_last' => false, 'Quantity' => 10, 'Unit' => 'piece', 'ItemTotal' => 50, 'Discount' => null, 'VatAmount' => null, 'TotalAmount' => null],
         ]));
         $this->assertSame('1.5 meters, 10 pieces', ReportSummaryBuilder::formatValue($summary[1]));
 

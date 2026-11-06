@@ -156,6 +156,11 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
         return response()->json(['product' => null, 'message' => "\"{$product->ProductName}\" is no longer available for sale."], 404);
     }
 
+    // No selling price yet (no Cost Price entered): it can't be sold for ₱0.00.
+    if ((float) $product->Price <= 0) {
+        return response()->json(['product' => null, 'message' => "\"{$product->ProductName}\" has no selling price yet. Ask the admin to set its price in Products."], 404);
+    }
+
     // The units it's sold in (price and stock taken per unit) and its stock
     // in words, so a measured product opens the POS quantity popup.
     return response()->json([
@@ -438,6 +443,8 @@ Route::prefix('admin')->group(function () {
         ->name('admin.reports.export')->middleware(['auth', 'role:admin']);
     Route::get('reports/details', [ReportController::class, 'details'])
         ->name('admin.reports.details')->middleware(['auth', 'role:admin']);
+    Route::get('reports/details/print', [ReportController::class, 'detailsPrint'])
+        ->name('admin.reports.details.print')->middleware(['auth', 'role:admin']);
     Route::get('reports/print', [ReportController::class, 'printPreview'])
         ->name('admin.reports.print')->middleware(['auth', 'role:admin']);
 });

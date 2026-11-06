@@ -56,7 +56,7 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
             'orders' => ['PO Number', 'Date', 'Supplier', 'Product', 'Qty', 'Unit Price', 'Subtotal', 'Status'],
             'returns' => ['Return Ref.', 'Date', 'Invoice', 'Customer', 'Product', 'Qty', 'Reason', 'Type', 'Status', 'Processed By'],
             'damage' => ['Reference', 'Date', 'Product', 'Supplier', 'Qty', 'Damage Type', 'Reason', 'Status'],
-            default => ['Invoice No', 'Date', 'Customer', 'Payment Method', 'Product', 'Qty', 'Unit Price', 'Discount', 'VAT', 'Total'],
+            default => ['Invoice No', 'Date', 'Customer', 'Payment Method', 'Product', 'Qty', 'Unit Price', 'Receipt Discount', 'Receipt VAT', 'Receipt Total'],
         };
     }
 
@@ -184,17 +184,18 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
     // be a live =SUM() formula over, instead of the static number
     // ReportSummaryBuilder already computed — kept in sync by hand since
     // both read from the same headings()/map() column order above. Sales'
-    // "Total" column holds each invoice's actual net total (TotalAmount,
-    // first row only), which is exactly "Net Sales" — "Subtotal (Gross
-    // Sales)" (ItemTotal) has no visible grid column of its own, so it
-    // keeps the static PHP-computed value instead of a mismatched SUM().
+    // "Receipt Total" column holds each invoice's total (TotalAmount, last
+    // row only), which is exactly "Amount Collected (VAT included)" — Gross
+    // Sales (ItemTotal) has no visible grid column of its own, so it keeps
+    // the static PHP-computed value instead of a mismatched SUM(). Net
+    // Sales is Amount Collected − VAT (see the summary loop below).
     private function summaryFormulaColumns(): array
     {
         return match ($this->type) {
             'inventory' => ['Total Inventory Value' => 9],
             'orders' => ['Total Amount' => 7],
             'stock_adjustment', 'receiving' => [],
-            default => ['Net Sales' => 10, 'Discount' => 8, 'VAT' => 9],
+            default => [ReportSummaryBuilder::AMOUNT_COLLECTED => 10, ReportSummaryBuilder::DISCOUNT => 8, ReportSummaryBuilder::VAT => 9],
         };
     }
 
@@ -276,13 +277,18 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $summaryRow++;
 
                 $formulaColumns = $this->summaryFormulaColumns();
+                $summaryRowOf = [];
 
                 foreach (ReportSummaryBuilder::forType($this->type, $this->rows) as $entry) {
                     $sheet->setCellValue("A{$summaryRow}", $entry['label']);
+                    $summaryRowOf[$entry['label']] = $summaryRow;
 
                     if ($dataRowCount > 0 && isset($formulaColumns[$entry['label']])) {
                         $letter = Coordinate::stringFromColumnIndex($formulaColumns[$entry['label']]);
                         $sheet->setCellValue("B{$summaryRow}", "=SUM({$letter}{$dataStartRow}:{$letter}{$dataEndRow})");
+                    } elseif ($dataRowCount > 0 && $entry['label'] === ReportSummaryBuilder::NET_SALES
+                        && isset($summaryRowOf[ReportSummaryBuilder::AMOUNT_COLLECTED], $summaryRowOf[ReportSummaryBuilder::VAT])) {
+                        $sheet->setCellValue("B{$summaryRow}", '=B'.$summaryRowOf[ReportSummaryBuilder::AMOUNT_COLLECTED].'-B'.$summaryRowOf[ReportSummaryBuilder::VAT]);
                     } else {
                         $sheet->setCellValue("B{$summaryRow}", $entry['value']);
                     }

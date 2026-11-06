@@ -274,6 +274,10 @@
                     $cardClick = $product->tracksSerialNumbers()
                         ? 'askToScanSerial(' . json_encode($product->ProductName) . ')'
                         : 'onProductCardClick(this)';
+                    // No selling price yet: it can't be sold for ₱0.00.
+                    if ((float) $product->Price <= 0) {
+                        $cardClick = 'warnNoPrice(' . json_encode($product->ProductName) . ')';
+                    }
                 @endphp
                 <div class="product-card {{ $stock <= 0 ? 'out-of-stock' : '' }}" data-product-id="{{ $product->ProductID }}" data-price="{{ $product->Price }}" data-stock="{{ $stock }}"
                      data-name="{{ $product->ProductName }}" data-stock-label="{{ $product->stockLabel($stock) }}" data-units="{{ json_encode(array_values($product->sellingUnits())) }}"
@@ -893,6 +897,10 @@
     }
 
     // Clicking a serial-numbered product: each piece is added by its sticker.
+    function warnNoPrice(name) {
+        toastWarning('"' + name + '" has no selling price yet. Ask the admin to set its price in Products.');
+    }
+
     function askToScanSerial(name) {
         toastWarning('Scan the serial number sticker on the "' + name + '" to add it.');
         document.getElementById('barcode-input').focus();
@@ -1498,8 +1506,9 @@
             return sum + ((item.price - discountedUnitPrice(item.price, promo)) * item.qty);
         }, 0));
 
-        // VAT is 12% of the post-discount Total (not added on top of it —
-        // Total itself is untouched below). Matches processSale()'s own
+        // VAT is the part of the post-discount Total that is VAT (Total ×
+        // 12/112, prices are VAT-inclusive; not added on top of it — Total
+        // itself is untouched below). Matches processSale()'s own
         // formula exactly so the live preview never disagrees with the
         // receipt.
         // The custom discount is a percent of what's left after promos,
@@ -1507,7 +1516,7 @@
         const afterPromos = roundMoney(subtotal - discountAmount);
         const customDiscountAmount = customDiscount ? roundMoney(afterPromos * customDiscount.percent / 100) : 0;
         currentTotal = roundMoney(afterPromos - customDiscountAmount);
-        const vatAmount = roundMoney(currentTotal * 0.12);
+        const vatAmount = roundMoney(currentTotal * 12 / 112);
 
         document.getElementById('custom-discount-summary-row').style.display = customDiscount ? 'flex' : 'none';
         document.getElementById('custom-discount-label').textContent = customDiscount ? 'Discount (' + customDiscount.percent + '%)' : 'Discount';

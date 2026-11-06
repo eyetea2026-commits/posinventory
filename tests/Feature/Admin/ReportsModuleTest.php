@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Exports\ReportExport;
 use App\Http\Controllers\Admin\ReportController;
 use App\Models\Category;
 use App\Models\DamagedProduct;
@@ -499,24 +500,33 @@ class ReportsModuleTest extends TestCase
     // ReportSummaryBuilder::sales() now expects the item-level row shape
     // ReportController::salesItemRows() produces (Quantity/ItemTotal on
     // every row; Discount/VatAmount/TotalAmount only on each invoice's
-    // first item row) — constructed directly here since that method is
+    // last item row) — constructed directly here since that method is
     // private; the real explosion is covered end-to-end by
     // test_sales_report_export_explodes_to_one_row_per_line_item below.
     public function test_report_summary_builder_computes_sales_aggregates(): void
     {
         $rows = collect([
-            (object) ['Quantity' => 2, 'ItemTotal' => 2000.0, 'Discount' => 0.0, 'VatAmount' => 120.0, 'TotalAmount' => 1120.0, 'is_first' => true],
-            (object) ['Quantity' => 1, 'ItemTotal' => 1000.0, 'Discount' => null, 'VatAmount' => null, 'TotalAmount' => null, 'is_first' => false],
+            (object) ['Quantity' => 2, 'ItemTotal' => 2000.0, 'Discount' => null, 'VatAmount' => null, 'TotalAmount' => null, 'is_last' => false],
+            (object) ['Quantity' => 1, 'ItemTotal' => 1000.0, 'Discount' => 200.0, 'VatAmount' => 300.0, 'TotalAmount' => 2800.0, 'is_last' => true],
         ]);
 
-        $summary = collect(ReportSummaryBuilder::forType('sales', $rows))->keyBy('label');
+        $summary = collect(ReportSummaryBuilder::forType('sales', $rows));
 
+        // Accounting order: Gross − Discount = Collected; − VAT = Net Sales.
+        $this->assertSame([
+            'Total Transactions', 'Total Quantity Sold', 'Gross Sales (VAT included)', 'Less: Discount',
+            'Amount Collected (VAT included)', 'VAT (12%)', 'Net Sales (VAT excluded)',
+        ], $summary->pluck('label')->all());
+
+        $summary = $summary->keyBy('label');
         $this->assertSame(1, $summary['Total Transactions']['value']);
         $this->assertSame(3, $summary['Total Quantity Sold']['value']);
-        $this->assertEqualsWithDelta(3000.0, $summary['Subtotal (Gross Sales)']['value'], 0.001);
-        $this->assertEqualsWithDelta(120.0, $summary['VAT']['value'], 0.001);
-        $this->assertEqualsWithDelta(1120.0, $summary['Net Sales']['value'], 0.001);
-        $this->assertTrue($summary['Net Sales']['money']);
+        $this->assertEqualsWithDelta(3000.0, $summary['Gross Sales (VAT included)']['value'], 0.001);
+        $this->assertEqualsWithDelta(200.0, $summary['Less: Discount']['value'], 0.001);
+        $this->assertEqualsWithDelta(2800.0, $summary['Amount Collected (VAT included)']['value'], 0.001);
+        $this->assertEqualsWithDelta(300.0, $summary['VAT (12%)']['value'], 0.001);
+        $this->assertEqualsWithDelta(2500.0, $summary['Net Sales (VAT excluded)']['value'], 0.001);
+        $this->assertTrue($summary['Net Sales (VAT excluded)']['money']);
         $this->assertFalse($summary['Total Transactions']['money']);
     }
 
@@ -564,6 +574,25 @@ class ReportsModuleTest extends TestCase
         // discount/VAT amount must only appear once (on the first item's
         // row), not duplicated across both — it's a whole-invoice fact.
         $response->assertSeeInOrder(['DVR Camera', 'IP Camera']);
+        // The receipt's amounts close it, on its last item row.
+        $response->assertSeeInOrder(['DVR Camera', '—', '—', '—', 'IP Camera', '₱0.00', '₱120.00', '₱1,120.00']);
+    }
+
+    public function test_sales_report_names_discount_vat_and_total_as_whole_receipt_amounts(): void
+    {
+        $billing = $this->makeSale(1120, '2026-06-15');
+        $billing->update(['Subtotal' => 1000, 'DiscountAmount' => 0, 'VatAmount' => 120]);
+        SalesItem::create(['Quantity' => 2, 'UnitPrice' => 500, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+
+        $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
+            ->assertSeeInOrder(['Unit Price', 'Receipt Discount', 'Receipt VAT', 'Receipt Total'])
+            ->assertSee("are for the whole receipt (all its items), so they are shown once, on the receipt's last item.", false)
+            ->assertDontSee('<th class="col-money">VAT</th>', false);
+
+        $this->assertSame(
+            ['Invoice No', 'Date', 'Customer', 'Payment Method', 'Product', 'Qty', 'Unit Price', 'Receipt Discount', 'Receipt VAT', 'Receipt Total'],
+            (new ReportExport('sales', collect()))->headings()
+        );
     }
 
     public function test_sales_report_item_rows_sum_back_to_the_original_billing_amount(): void
@@ -588,9 +617,11 @@ class ReportsModuleTest extends TestCase
         $gross = $rows->sum('ItemTotal');
         $this->assertEqualsWithDelta(1000.0, $gross, 0.001);
         $this->assertEqualsWithDelta(1120.0, $gross - $rows->sum('Discount') + $rows->sum('VatAmount'), 0.001);
-        $this->assertTrue($rows->first()->is_first);
-        $this->assertFalse($rows->last()->is_first);
-        $this->assertNull($rows->last()->Discount);
+        $this->assertFalse($rows->first()->is_last);
+        $this->assertTrue($rows->last()->is_last);
+        $this->assertNull($rows->first()->Discount);
+        $this->assertNull($rows->first()->TotalAmount);
+        $this->assertEqualsWithDelta(1120.0, $rows->last()->TotalAmount, 0.001);
     }
 
     // The printed/exported Sales report's "Total" column must show the
@@ -788,6 +819,44 @@ class ReportsModuleTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'pdf']))
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_excel_summary_follows_the_accounting_order_with_live_formulas(): void
+    {
+        $billing = $this->makeSale(213, '2026-06-15');
+        $billing->update(['Subtotal' => 213, 'DiscountAmount' => 0, 'VatAmount' => SalesTransaction::vatIncludedIn(213)]);
+        SalesItem::create(['Quantity' => 1, 'UnitPrice' => 213, 'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $billing->SalesTransactionID]);
+
+        $excel = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => 'sales', 'format' => 'excel']))->assertOk();
+        $sheet = IOFactory::load($excel->baseResponse->getFile()->getPathname())->getActiveSheet();
+
+        $summaryRow = [];
+        foreach ($sheet->getRowIterator() as $row) {
+            $label = $sheet->getCell('A'.$row->getRowIndex())->getValue();
+            if (is_string($label)) {
+                $summaryRow[$label] = $row->getRowIndex();
+            }
+        }
+        $value = fn (string $label) => $sheet->getCell('B'.$summaryRow[$label])->getCalculatedValue();
+
+        $this->assertEqualsWithDelta(213.0, $value('Amount Collected (VAT included)'), 0.001);
+        $this->assertEqualsWithDelta(22.82, $value('VAT (12%)'), 0.001);
+        $this->assertStringStartsWith('=B', $sheet->getCell('B'.$summaryRow['Net Sales (VAT excluded)'])->getValue());
+        $this->assertEqualsWithDelta(190.18, $value('Net Sales (VAT excluded)'), 0.001);
+    }
+
+    public function test_past_sales_vat_is_recomputed_as_the_vat_inside_the_total(): void
+    {
+        $old = $this->makeSale(213, '2026-06-15');
+        $old->update(['VatAmount' => 25.56]);
+        $migration = require database_path('migrations/2026_11_06_195149_recompute_sales_vat_as_vat_inclusive.php');
+
+        $migration->up();
+        $this->assertEquals(22.82, (float) $old->fresh()->VatAmount);
+        $this->assertEquals(213.0, (float) $old->fresh()->TotalAmount);
+
+        $migration->down();
+        $this->assertEquals(25.56, (float) $old->fresh()->VatAmount);
     }
 
     public function test_excel_download_without_dates_says_as_of_today(): void

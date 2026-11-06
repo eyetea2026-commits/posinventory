@@ -146,7 +146,7 @@ class Phase5PolishTest extends TestCase
             ->assertSee('id="exportCsvLink" class="js-confirm-link"', false)
             ->assertSee('id="exportExcelLink" class="js-confirm-link"', false)
             ->assertSee('id="printPreviewLink" class="js-confirm-link"', false)
-            ->assertSee("window.confirmAction({ title: 'Print Report', text: 'Print this report?' })", false)
+            ->assertSee('id="reportDetailsPrintPreview" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Preview" data-confirm-text="Open the print preview of this report?"', false)
             // Links are confirmed by one shared handler; a form's own validation runs first.
             ->assertSee("const link = e.target.closest('a.js-confirm-link');", false)
             ->assertSee("form.dataset.confirmed === 'true' || e.defaultPrevented) return;", false);

@@ -458,6 +458,13 @@ class CashierAuthController extends Controller
                     throw new \RuntimeException("\"{$inactive->ProductName}\" is no longer available for sale. Please remove it from the cart.");
                 }
 
+                // A product with no selling price (no Cost Price was ever
+                // entered) would be given away for ₱0.00.
+                $unpriced = $products->first(fn (Product $product) => (float) $product->Price <= 0);
+                if ($unpriced) {
+                    throw new \RuntimeException("\"{$unpriced->ProductName}\" has no selling price yet. Ask the admin to set its price in Products, then remove it from the cart.");
+                }
+
                 // One line per product, in one of the units it's sold in
                 // (Product::sellingUnits()), priced from the DB - never from
                 // the request. A product sent on two lines is merged, so the
@@ -595,10 +602,11 @@ class CashierAuthController extends Controller
                 // payment for exactly the (rounded) total shown on screen,
                 // due to residual binary-fraction error a step or two back
                 // in this same formula.
-                // VAT is 12% of the post-discount Total, for the receipt/
-                // report breakdown — it is NOT added on top of Total, which
-                // stays exactly Subtotal minus Discount regardless of this
-                // line. Total is computed first, before VAT, so rounding
+                // Prices are VAT-inclusive, so VAT is the part of the
+                // post-discount Total that is VAT (Total × 12/112), for the
+                // receipt/report breakdown — it is NOT added on top of Total,
+                // which stays exactly Subtotal minus Discount regardless of
+                // this line. Total is computed first, before VAT, so rounding
                 // can't drift the two apart.
 
                 // FORMULA COMPUTATIONS
@@ -610,7 +618,7 @@ class CashierAuthController extends Controller
                 $customDiscountAmount = $customDiscountPercent !== null ? round($afterPromos * $customDiscountPercent / 100, 2) : 0.0;
                 $discountAmount = round($discountAmount + $customDiscountAmount, 2);
                 $total = round($subtotal - $discountAmount, 2);
-                $vatAmount = round($total * 0.12, 2);
+                $vatAmount = SalesTransaction::vatIncludedIn($total);
 
                 // Sufficiency applies to every payment method, not just cash
                 // — GCash/bank/cheque are just as capable of being recorded
@@ -940,8 +948,8 @@ class CashierAuthController extends Controller
                 $discountRate = $sale->discount->DiscountRate ?? 0;
             }
             $discountAmount = $subtotal * ($discountRate / 100);
-            $vatAmount = ($subtotal - $discountAmount) * 0.12;
-            $total = $subtotal - $discountAmount + $vatAmount;
+            $total = round($subtotal - $discountAmount, 2);
+            $vatAmount = SalesTransaction::vatIncludedIn($total);
         }
 
         // Get payment info

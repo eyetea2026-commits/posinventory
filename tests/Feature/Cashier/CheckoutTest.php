@@ -47,9 +47,42 @@ class CheckoutTest extends TestCase
         return $product;
     }
 
-    // ---- VAT is 12% of the post-discount Total, computed for the receipt/
-    // report breakdown only — it is NOT added on top of Total, which always
-    // equals the (post-discount) price exactly as listed. ----
+    public function test_a_product_with_no_selling_price_cannot_be_sold_for_zero(): void
+    {
+        $priced = $this->makeProduct(272.73);
+        $unpriced = Product::create([
+            'ProductName' => '2 Way Splitter', 'Model' => 'SPL-2', 'Barcode' => 'SPLIT-2WAY',
+            'Price' => 0, 'CategoryID' => $priced->CategoryID,
+        ]);
+        Inventory::create(['ProductID' => $unpriced->ProductID, 'Quantity' => 50, 'Status' => 'Available']);
+
+        $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $unpriced->ProductID, 'qty' => 1], ['id' => $priced->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash', 'payment_amount' => 500,
+        ])->assertStatus(400)
+            ->assertJsonPath('message', '"2 Way Splitter" has no selling price yet. Ask the admin to set its price in Products, then remove it from the cart.');
+
+        $this->assertSame(0, SalesTransaction::count());
+        $this->assertSame(50, Inventory::where('ProductID', $unpriced->ProductID)->value('Quantity'));
+
+        // Scanning it is refused too, and its POS card warns instead of adding it.
+        $this->actingAs($this->cashier)->getJson('/api/products/barcode/SPLIT-2WAY')->assertNotFound()
+            ->assertJsonPath('message', '"2 Way Splitter" has no selling price yet. Ask the admin to set its price in Products.');
+        $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()
+            ->assertSee('onclick="warnNoPrice(&quot;2 Way Splitter&quot;)"', false);
+
+        // Once priced, it sells normally.
+        $unpriced->update(['Price' => 50]);
+        $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
+            'items' => [['id' => $unpriced->ProductID, 'qty' => 1]],
+            'payment_method' => 'cash', 'payment_amount' => 50,
+        ])->assertOk();
+    }
+
+    // ---- Prices are VAT-inclusive: VAT is the VAT inside the post-discount
+    // Total (Total × 12/112), computed for the receipt/report breakdown only
+    // — it is NOT added on top of Total, which always equals the
+    // (post-discount) price exactly as listed. ----
 
     #[DataProvider('vatOnTotalProvider')]
     public function test_checkout_computes_vat_as_a_percent_of_total_without_inflating_total(float $price, float $expectedVat): void
@@ -72,9 +105,11 @@ class CheckoutTest extends TestCase
     public static function vatOnTotalProvider(): array
     {
         return [
-            'P1500' => [1500.00, 180.00],
-            'P1000' => [1000.00, 120.00],
-            'P2500' => [2500.00, 300.00],
+            'P1500' => [1500.00, 160.71],
+            'P1000' => [1000.00, 107.14],
+            'P2500' => [2500.00, 267.86],
+            // The report example: 213.00 ÷ 1.12 = 190.18 VATable + 22.82 VAT.
+            'P213' => [213.00, 22.82],
         ];
     }
 
@@ -82,8 +117,8 @@ class CheckoutTest extends TestCase
     {
         $product = $this->makeProduct(1500);
 
-        // 3 x 1500 = 4500 — Total must stay 4500; VAT (540) is a breakdown
-        // of it for the receipt, never added on top to make Total 5040.
+        // 3 x 1500 = 4500 — Total must stay 4500; VAT (4500 × 12/112 =
+        // 482.14) is a breakdown of it, never added on top.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 3]],
             'payment_method' => 'cash',
@@ -93,7 +128,9 @@ class CheckoutTest extends TestCase
         $response->assertOk();
         $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertEquals(4500.0, (float) $billing->Subtotal);
-        $this->assertEquals(540.0, (float) $billing->VatAmount);
+        $this->assertEquals(482.14, (float) $billing->VatAmount);
+        // Total − VAT is the VATable Sales, Total ÷ 1.12.
+        $this->assertEquals(round(4500 / 1.12, 2), round(4500 - (float) $billing->VatAmount, 2));
         $this->assertEquals(4500.0, (float) $billing->TotalAmount);
     }
 
@@ -415,7 +452,7 @@ class CheckoutTest extends TestCase
         $billing = SalesTransaction::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1000.00, (float) $billing->Subtotal);
         $this->assertEquals(100.00, (float) $billing->DiscountAmount);
-        $this->assertEquals(108.00, (float) $billing->VatAmount); // 900 * 0.12
+        $this->assertEquals(96.43, (float) $billing->VatAmount); // 900 × 12/112
 
         // Now edit the discount's rate — a live-recompute receipt would
         // silently show a different amount than what was actually charged.
