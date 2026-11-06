@@ -11,8 +11,9 @@
     <title>{{ $title }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
-        @page { size: A4 {{ $receiptRows ? 'landscape' : 'portrait' }}; margin: 16mm; }
-        body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: {{ $receiptRows ? '1150px' : '900px' }}; margin: 0 auto; padding: 30px; }
+        /* A4 bond paper, landscape, like every report. */
+        @page { size: A4 landscape; margin: 10mm; }
+        body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: 1100px; margin: 0 auto; padding: 30px; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 12px; }
         .company-logo { width: 56px; height: 56px; object-fit: contain; margin: 0 auto 8px; display: block; }
         .company-header h1 { margin: 0; font-size: 22px; letter-spacing: 0.04em; }
@@ -29,6 +30,8 @@
         thead { display: table-header-group; }
         tr { page-break-inside: avoid; }
         th, td { border: 1px solid #ccc; padding: 7px 9px; text-align: left; vertical-align: top; }
+        td { overflow-wrap: anywhere; }
+        td.col-money, td.col-total, td.col-date, td.col-qty { white-space: nowrap; overflow-wrap: normal; }
         th { background: #f0f0f0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
         .no-records { color: #666; }
         .col-date, td.col-date { text-align: center; }
@@ -47,7 +50,12 @@
         .signature-line small.sig-caption { color: #777; margin-top: 2px; }
         .doc-footer-inline { text-align: center; margin-top: 16px; padding-top: 10px; border-top: 1px solid #eee; font-size: 10.5px; color: #888; }
         .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; }
-        @media print { .no-print { display: none; } body { padding: 0; } }
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; max-width: none; font-size: 11px; }
+            th, td { padding: 5px 6px; }
+            th { font-size: 9.5px; }
+        }
     </style>
 </head>
 <body>

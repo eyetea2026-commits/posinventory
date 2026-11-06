@@ -431,16 +431,7 @@ class ReportController extends Controller
             'rows' => $rows,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
-            'landscape' => $this->isLandscapeType($type),
         ]);
-    }
-
-    // Sales and Inventory carry the widest column sets (9-10 columns) —
-    // landscape keeps every column readable instead of shrinking text to
-    // fit portrait width. The other four types stay portrait.
-    private function isLandscapeType(string $type): bool
-    {
-        return in_array($type, ['sales', 'inventory'], true);
     }
 
     // Every other type is one plain word ucfirst() handles fine on its
@@ -490,8 +481,16 @@ class ReportController extends Controller
                 'rows' => $rows,
                 'dateFrom' => $dateFrom,
                 'dateTo' => $dateTo,
-                'landscape' => $this->isLandscapeType($type),
-            ])->setPaper('a4', $this->isLandscapeType($type) ? 'landscape' : 'portrait');
+            ])->setPaper('a4', 'landscape');
+
+            // "Page X of Y" centred at the foot of every page (dompdf's CSS
+            // counter(pages) prints 0, so it's drawn once the count is known).
+            $dompdf = $pdf->getDomPDF();
+            $dompdf->render();
+            $canvas = $dompdf->getCanvas();
+            $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
+            $sample = $dompdf->getFontMetrics()->getTextWidth('Page 00 of 00', $font, 7.5);
+            $canvas->page_text(($canvas->get_width() - $sample) / 2, $canvas->get_height() - 28, 'Page {PAGE_NUM} of {PAGE_COUNT}', $font, 7.5, [0.47, 0.47, 0.47]);
 
             return $pdf->download($filenameBase.'.pdf');
         }

@@ -5,8 +5,10 @@
     <title>{{ \App\Http\Controllers\Admin\ReportController::typeLabel($type) }} Report</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
-        @page { size: A4 {{ $landscape ?? false ? 'landscape' : 'portrait' }}; margin: 16mm; }
-        body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: {{ $landscape ?? false ? '1150px' : '900px' }}; margin: 0 auto; padding: 30px; }
+        /* Every report prints on A4 bond paper in landscape (277 x 190 mm
+           inside the margins); the table always fits the page width. */
+        @page { size: A4 landscape; margin: 10mm; }
+        body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: 1100px; margin: 0 auto; padding: 30px; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 12px; }
         .company-logo { width: 56px; height: 56px; object-fit: contain; margin: 0 auto 8px; display: block; }
         .company-header h1 { margin: 0; font-size: 22px; letter-spacing: 0.04em; }
@@ -18,6 +20,8 @@
         .report-filters-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; font-weight: bold; margin-bottom: 4px; }
         .report-filters p { margin: 2px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        td { overflow-wrap: anywhere; }
+        td.col-money, td.col-total, td.col-date, td.col-qty { white-space: nowrap; overflow-wrap: normal; }
         thead { display: table-header-group; }
         tr { page-break-inside: avoid; }
         th, td { border: 1px solid #ccc; padding: 7px 9px; text-align: left; }
@@ -25,7 +29,7 @@
         .no-records { text-align: center; padding: 40px 20px; color: #666; }
         .no-records strong { display: block; font-size: 14px; color: #333; margin-bottom: 4px; }
         p.grand-total { text-align: right; font-weight: bold; margin-top: 12px; }
-        .report-summary { margin-top: 16px; border-top: 1px solid #1a1a1a; padding-top: 8px; }
+        .report-summary { margin-top: 16px; border-top: 1px solid #1a1a1a; padding-top: 8px; page-break-inside: avoid; }
         .report-summary-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold; margin-bottom: 6px; }
         .report-summary .summary-row { display: flex; justify-content: space-between; padding: 3px 0; width: 320px; margin-left: auto; }
         .signature-area { display: flex; justify-content: center; margin-top: 60px; gap: 20px; }
@@ -43,7 +47,12 @@
         td.status-warning { color: #b45309; font-weight: bold; }
         td.status-success { color: #047857; font-weight: bold; }
         td.status-danger { color: #dc2626; font-weight: bold; }
-        @media print { .no-print { display: none; } body { padding: 0; } }
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; max-width: none; font-size: 11px; }
+            th, td { padding: 5px 6px; }
+            th { font-size: 9.5px; }
+        }
     </style>
 </head>
 <body>

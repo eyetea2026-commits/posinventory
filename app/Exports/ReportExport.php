@@ -20,6 +20,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
 class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, WithEvents, WithHeadings, WithMapping
 {
@@ -255,6 +256,18 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                     ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E2E8F0');
                 $sheet->setAutoFilter("A{$headerRow}:{$lastColumnLetter}{$headerRow}");
                 $sheet->freezePane('A'.$dataStartRow);
+
+                // Printed from Excel like the other report outputs: A4 bond
+                // paper, landscape, every column on one page width (as many
+                // pages tall as needed), the header row repeated per page.
+                $sheet->getPageSetup()
+                    ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
+                    ->setPaperSize(PageSetup::PAPERSIZE_A4)
+                    ->setFitToWidth(1)
+                    ->setFitToHeight(0)
+                    ->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
+                $sheet->getPageMargins()->setTop(0.4)->setBottom(0.4)->setLeft(0.4)->setRight(0.4);
+                $sheet->getPageSetup()->setHorizontalCentered(true);
 
                 if ($dataRowCount > 0) {
                     foreach ($this->moneyColumns() as $moneyCol) {
