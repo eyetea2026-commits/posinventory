@@ -113,6 +113,25 @@ class UnitOfMeasureTest extends TestCase
         $page->assertSee(e(json_encode(array_values($this->rj45->sellingUnits()))), false);
     }
 
+    public function test_the_product_form_has_no_allow_decimal_quantities_option(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.products.create'))->assertOk()
+            ->assertDontSee('Allow decimal quantities')
+            ->assertDontSee('name="AllowsFractionalQuantity"', false);
+        $this->actingAs($this->admin)->get(route('admin.products.edit', $this->wire))->assertOk()
+            ->assertDontSee('Allow decimal quantities');
+
+        // Saving without it keeps what the product has: the wire still sells 1.5 meters.
+        $form = collect($this->productForm(['ProductName' => 'UTP Cable CAT6', 'Model' => 'CAT6-305', 'Barcode' => 'CCTVEX-WIRE01', 'CostPrice' => 6, 'Price' => 10]))
+            ->except('AllowsFractionalQuantity')->all();
+        $this->actingAs($this->admin)->putJson(route('admin.products.update', $this->wire), $form)->assertRedirect();
+        $this->assertTrue($this->wire->fresh()->AllowsFractionalQuantity);
+
+        // A new product is counted in whole units.
+        $this->actingAs($this->admin)->postJson(route('admin.products.store'), collect($this->productForm())->except('AllowsFractionalQuantity')->all())->assertCreated();
+        $this->assertFalse(Product::where('Model', 'RG59-305')->firstOrFail()->AllowsFractionalQuantity);
+    }
+
     public function test_the_admin_sets_up_a_product_sold_by_the_meter(): void
     {
         $this->actingAs($this->admin)->postJson(route('admin.products.store'), $this->productForm())->assertCreated();

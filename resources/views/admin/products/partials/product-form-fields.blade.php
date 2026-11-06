@@ -34,11 +34,6 @@
     .uom-price-input input { flex: 1; min-width: 0; text-align: right; }
     .uom-price-input .uom-currency { color: #e2e8f0; font-size: 1.15rem; font-weight: 700; }
     .uom-price-input .uom-per-base { color: #cbd5e1; font-size: 0.88rem; white-space: nowrap; }
-    .uom-grid-options { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(148, 163, 184, 0.15); }
-    .uom-fraction-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 10px; cursor: pointer; }
-    .uom-fraction-toggle input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: #3b82f6; }
-    .uom-fraction-toggle strong { display: block; color: #e2e8f0; font-size: 0.9rem; }
-    .uom-fraction-toggle small { display: block; color: #94a3b8; font-size: 0.78rem; margin-top: 2px; }
     .product-suppliers-table { width: 100%; border-collapse: collapse; }
     .product-suppliers-table th { padding: 8px; text-align: left; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; }
     .product-suppliers-table tfoot td { padding: 12px 8px 4px; border-top: 1px solid rgba(148, 163, 184, 0.15); vertical-align: middle; }
@@ -249,21 +244,6 @@
                     <span class="uom-per-base">per {{ $baseUnit }}</span>
                 </div>
                 <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
-            </div>
-        </div>
-
-        <div class="uom-grid uom-grid-options">
-            <div class="form-group">
-                <input type="hidden" name="AllowsFractionalQuantity" value="0">
-                <label class="uom-fraction-toggle">
-                    <input type="checkbox" name="AllowsFractionalQuantity" id="AllowsFractionalQuantity" value="1"
-                           {{ old('AllowsFractionalQuantity', $product->AllowsFractionalQuantity ?? false) ? 'checked' : '' }}>
-                    <span>
-                        <strong>Allow decimal quantities</strong>
-                        <small>Sell part of a unit, e.g. 1.5 <span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>.</small>
-                    </span>
-                </label>
-                <span class="form-error" id="error-AllowsFractionalQuantity">@error('AllowsFractionalQuantity'){{ $message }}@enderror</span>
             </div>
         </div>
     </div>

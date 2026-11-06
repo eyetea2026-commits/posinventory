@@ -459,7 +459,12 @@ class ProductController extends Controller
             $baseUnit = 'meter';
             $purchaseUnit = 'roll';
         }
-        $allowsFractions = (bool) ($data['AllowsFractionalQuantity'] ?? false);
+        // The product form no longer offers "Allow decimal quantities": a
+        // product keeps what it has (the wires sold by the meter), and a new
+        // one is counted in whole units.
+        $allowsFractions = array_key_exists('AllowsFractionalQuantity', $data)
+            ? (bool) $data['AllowsFractionalQuantity']
+            : (bool) ($product?->AllowsFractionalQuantity ?? false);
         // The roll/box size comes from Stock Receiving: keep the last one
         // received while the purchase unit stays the same (1 = not known yet).
         $keptSize = $product && $product->PurchaseUnit === $purchaseUnit && $product->baseUnit() === $baseUnit ? (float) $product->QuantityPerPurchaseUnit : 1;
@@ -477,7 +482,7 @@ class ProductController extends Controller
             $errors['PurchaseUnit'] = "{$kind} use {$unitNames}.";
         }
         if ($purchaseUnit && ! $allowsFractions && floor($perPurchaseUnit) != $perPurchaseUnit) {
-            $errors['QuantityPerPurchaseUnit'] = "Use a whole number of {$baseUnit}s, or allow decimal quantities.";
+            $errors['QuantityPerPurchaseUnit'] = "Use a whole number of {$baseUnit}s.";
         }
         if ($category?->TracksSerialNumbers) {
             if ($baseUnit !== UnitOfMeasure::DEFAULT || $allowsFractions) {
