@@ -7,7 +7,10 @@
     <style>
         /* Every report prints on A4 bond paper in landscape, 20 mm margins left and right (257 x 180 mm
            inside the margins); the table always fits the page width. */
-        @page { size: A4 landscape; margin: 15mm 20mm; }
+        @page { size: A4 landscape; margin: 15mm 0; }
+        /* The 20 mm left/right margins are the body's own padding when
+           printing, so they stay even when the browser's Margins
+           setting is "None" (which overrides @page margins). */
         body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: 1100px; margin: 0 auto; padding: 30px; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 12px; }
         .company-logo { width: 56px; height: 56px; object-fit: contain; margin: 0 auto 8px; display: block; }
@@ -32,8 +35,8 @@
         .report-summary { margin-top: 16px; border-top: 1px solid #1a1a1a; padding-top: 8px; page-break-inside: avoid; }
         .report-summary-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold; margin-bottom: 6px; }
         .report-summary .summary-row { display: flex; justify-content: space-between; padding: 3px 0; width: 320px; margin-left: auto; }
-        .signature-area { display: flex; justify-content: center; margin-top: 60px; gap: 20px; }
-        .signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto; text-align: center; }
+        .signature-area { display: flex; justify-content: center; margin-top: 60px; gap: 20px; page-break-inside: avoid; break-inside: avoid; }
+        .signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto; text-align: center; page-break-inside: avoid; break-inside: avoid; }
         .signature-line { border-top: 1px solid #1a1a1a; padding-top: 6px; margin-top: 50px; }
         .signature-line small { display: block; color: #333; }
         .signature-line small.sig-caption { color: #777; margin-top: 2px; }
@@ -49,7 +52,7 @@
         td.status-danger { color: #dc2626; font-weight: bold; }
         @media print {
             .no-print { display: none; }
-            body { padding: 0; max-width: none; font-size: 11px; }
+            body { padding: 0 20mm; max-width: none; font-size: 11px; }
             th, td { padding: 5px 6px; }
             th { font-size: 9.5px; }
         }

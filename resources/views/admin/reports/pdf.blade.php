@@ -42,8 +42,8 @@
         .report-summary .summary-row { position: relative; width: 320px; height: 15px; margin-left: auto; }
         .report-summary .summary-row span:first-child { position: absolute; left: 0; top: 1px; }
         .report-summary .summary-row span:last-child { position: absolute; right: 0; top: 1px; }
-        .signature-area { display: flex; justify-content: center; margin-top: 50px; gap: 16px; }
-        .signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto; text-align: center; }
+        .signature-area { display: flex; justify-content: center; margin-top: 50px; gap: 16px; page-break-inside: avoid; break-inside: avoid; }
+        .signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto; text-align: center; page-break-inside: avoid; break-inside: avoid; }
         .signature-line { border-top: 1px solid #1a1a1a; padding-top: 5px; margin-top: 40px; }
         .signature-line small { display: block; color: #333; }
         .signature-line small.sig-caption { color: #777; margin-top: 2px; }

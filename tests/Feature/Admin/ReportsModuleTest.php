@@ -870,7 +870,8 @@ class ReportsModuleTest extends TestCase
         foreach (['sales', 'inventory', 'receiving', 'stock_adjustment', 'orders', 'returns', 'damage'] as $type) {
             // Print Preview
             $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => $type]))->assertOk()
-                ->assertSee('@page { size: A4 landscape; margin: 15mm 20mm; }', false);
+                ->assertSee('@page { size: A4 landscape; margin: 15mm 0; }', false)
+                ->assertSee('body { padding: 0 20mm; max-width: none; font-size: 11px; }', false);
 
             // PDF download: an A4 landscape page (842 x 595 points) with "Page 1 of 1".
             $pdf = $this->actingAs($this->admin)->get(route('admin.reports.export', ['type' => $type, 'format' => 'pdf']))->assertOk()->getContent();
