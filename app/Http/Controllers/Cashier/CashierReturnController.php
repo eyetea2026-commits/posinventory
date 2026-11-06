@@ -16,8 +16,10 @@ use App\Models\User;
 use App\Notifications\NewRefundRequest;
 use App\Services\ActionNotifier;
 use App\Services\SerialNumbers;
+use App\Services\ThermalReceiptPrinter;
 use App\Services\UnitOfMeasure;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -550,13 +552,66 @@ class CashierReturnController extends Controller
         ]);
     }
 
-    public function printRefundReceipt($salesReturnId)
+    public function printRefundReceipt($salesReturnId, ThermalReceiptPrinter $printer)
     {
-        // Owner-scoped, same as viewReceipt() on the Transaction History
-        // page -- a Cashier's own receipts should be reachable directly by
-        // URL, but another Cashier's must 404 the same way a nonexistent
-        // one would (see audit finding F1).
-        $salesReturn = SalesReturn::with(['items.product', 'salesTransaction', 'processedByUser'])
+        $refund = $this->buildRefundReceiptData($this->findOwnProcessedRefund($salesReturnId));
+
+        // Printed from the browser, it prints the same 32-column lines as
+        // the thermal printout, exactly like the sales receipt.
+        return view('cashier.refund-receipt', $refund + [
+            'printLines' => $printer->browserLines($printer->refundLines($refund)),
+            'printTail' => $printer->tailText(),
+        ]);
+    }
+
+    /**
+     * Prints the refund receipt straight to the local thermal printer, like
+     * a sale's receipt (CashierAuthController::printThermalReceipt()).
+     */
+    public function printThermalRefundReceipt($salesReturnId, ThermalReceiptPrinter $printer): JsonResponse
+    {
+        if (! ThermalReceiptPrinter::isEnabled()) {
+            return response()->json(['success' => false, 'message' => 'Direct thermal printing is turned off.'], 409);
+        }
+
+        $refund = $this->buildRefundReceiptData($this->findOwnProcessedRefund($salesReturnId));
+
+        try {
+            $printer->printRefundReceipt($refund);
+        } catch (Throwable $e) {
+            Log::warning('Thermal refund receipt printing failed', ['refund' => $refund['receiptNumber'], 'exception' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not reach the receipt printer. Check that it is on, has paper, and is connected.',
+            ], 503);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * The refund receipt's thermal-printer lines, for the print bridge on
+     * the cashier PC (see partials/print-bridge).
+     */
+    public function refundReceiptPrintLines($salesReturnId, ThermalReceiptPrinter $printer): JsonResponse
+    {
+        $refund = $this->buildRefundReceiptData($this->findOwnProcessedRefund($salesReturnId));
+
+        return response()->json([
+            'lines' => $printer->refundLines($refund),
+            'payment_method' => $refund['refundMethod'],
+        ]);
+    }
+
+    /**
+     * A processed refund of the logged-in cashier's own. Owner-scoped, same
+     * as viewReceipt() on the Transaction History page: another cashier's
+     * must 404 the same way a nonexistent one would (audit finding F1).
+     */
+    private function findOwnProcessedRefund($salesReturnId): SalesReturn
+    {
+        $salesReturn = SalesReturn::with(['items.product', 'salesTransaction.payment', 'processedByUser'])
             ->where('SalesReturnID', $salesReturnId)
             ->where('StaffID', $this->currentStaffId())
             ->first();
@@ -565,10 +620,37 @@ class CashierReturnController extends Controller
             abort(404, 'Refund receipt not found');
         }
 
-        return view('cashier.refund-receipt', [
-            'salesReturn' => $salesReturn,
-            'receiptNumber' => 'RFD-'.str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
-        ]);
+        return $salesReturn;
+    }
+
+    /**
+     * Everything the refund receipt shows, shared by its page, the thermal
+     * printout and the print bridge so they never differ.
+     *
+     * @return array{receiptNumber: string, date: string, cashierName: string, originalReceipt: string, customerName: string, items: list<array{name: string, qty_label: string, price: float, amount: float, reason: string}>, refundAmount: float, refundMethod: string, referenceNumber: ?string}
+     */
+    private function buildRefundReceiptData(SalesReturn $salesReturn): array
+    {
+        $customer = $salesReturn->CustomerName ?? $salesReturn->salesTransaction?->CustomerName;
+
+        return [
+            'receiptNumber' => 'RFD-'.str_pad((string) $salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
+            'date' => Carbon::parse($salesReturn->RefundDate ?? now())->format('m/d/Y'),
+            'cashierName' => $salesReturn->processedByUser?->name_with_middle_initial ?? 'N/A',
+            'originalReceipt' => $salesReturn->salesTransaction?->payment?->ReceiptNumber
+                ?? 'RCT-'.str_pad((string) $salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT),
+            'customerName' => in_array($customer, [null, '', 'Walk-in Customer'], true) ? 'N/A' : $customer,
+            'items' => $salesReturn->items->map(fn (SalesReturnItem $item) => [
+                'name' => $item->product?->ProductName ?? 'N/A',
+                'qty_label' => ($item->Unit ?: UnitOfMeasure::DEFAULT) === UnitOfMeasure::DEFAULT ? UnitOfMeasure::number($item->Quantity) : $item->quantityLabel(),
+                'price' => (float) $item->UnitPrice,
+                'amount' => round((float) $item->line_total, 2),
+                'reason' => (string) $item->Reason,
+            ])->values()->all(),
+            'refundAmount' => (float) $salesReturn->RefundAmount,
+            'refundMethod' => (string) ($salesReturn->RefundMethod ?: 'cash'),
+            'referenceNumber' => $salesReturn->RefundAccountNumber ?: null,
+        ];
     }
 
     /**

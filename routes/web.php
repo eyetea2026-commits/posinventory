@@ -487,6 +487,8 @@ Route::prefix('cashier')->group(function () {
     Route::post('refunds/{salesReturn}/process-refund', [CashierReturnController::class, 'processRefund'])->name('cashier.refunds.process')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/{salesReturn}/details', [CashierReturnController::class, 'getRefundDetails'])->name('cashier.refunds.details')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/{salesReturn}/receipt', [CashierReturnController::class, 'printRefundReceipt'])->name('cashier.refunds.receipt')->middleware(['auth', 'role:cashier']);
+    Route::post('refunds/{salesReturn}/receipt/thermal', [CashierReturnController::class, 'printThermalRefundReceipt'])->name('cashier.refunds.receipt.thermal')->middleware(['auth', 'role:cashier']);
+    Route::get('refunds/{salesReturn}/receipt/print-lines', [CashierReturnController::class, 'refundReceiptPrintLines'])->name('cashier.refunds.receipt.print-lines')->middleware(['auth', 'role:cashier']);
     Route::get('stats', [CashierReturnController::class, 'getCashierStats'])->name('cashier.stats')->middleware(['auth', 'role:cashier']);
 
     // Notification routes

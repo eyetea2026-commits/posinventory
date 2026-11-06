@@ -135,8 +135,20 @@ class ThermalReceiptPrinter
      */
     public function printLines(array $r): array
     {
+        return $this->browserLines($this->lines($r));
+    }
+
+    /**
+     * Any receipt's lines (lines(), refundLines()) as the browser-printed
+     * copy draws them: centred lines padded, multi-line entries split.
+     *
+     * @param  list<array{text: string, center: bool, bold: bool, tall: bool, qr?: string}>  $lines
+     * @return list<array{text: string, bold: bool, tall: bool, qr?: string}>
+     */
+    public function browserLines(array $lines): array
+    {
         $out = [];
-        foreach ($this->lines($r) as $line) {
+        foreach ($lines as $line) {
             // The browser copy draws the QR code itself (see receipt.blade.php).
             if (! empty($line['qr'])) {
                 $out[] = ['text' => '', 'bold' => false, 'tall' => false, 'qr' => $line['qr']];
@@ -292,6 +304,78 @@ class ThermalReceiptPrinter
         $lines[] = ['text' => "\n", 'center' => true, 'bold' => false, 'tall' => false, 'qr' => (string) $r['receiptNumber']];
 
         return $lines;
+    }
+
+    /**
+     * Every line of a refund receipt, laid out like the sales receipt
+     * (same header, rules, 32 columns and "P" for the peso sign).
+     *
+     * @param  array<string, mixed>  $r  Output of CashierReturnController::buildRefundReceiptData().
+     * @return list<array{text: string, center: bool, bold: bool, tall: bool}>
+     */
+    public function refundLines(array $r): array
+    {
+        $lines = [];
+        $add = function (string $text, bool $center = false, bool $bold = false, bool $tall = false) use (&$lines): void {
+            $lines[] = ['text' => str_ends_with($text, "\n") ? $text : $text."\n", 'center' => $center, 'bold' => $bold, 'tall' => $tall];
+        };
+        $rule = str_repeat('-', $this->width);
+
+        for ($i = 0; $i < self::HEAD_LINES; $i++) {
+            $add(' ');
+        }
+
+        $add('CCTV Express', center: true, bold: true, tall: true);
+        $add('Your Trusted Security Partner', center: true);
+        if (config('app.business_address')) {
+            $add($this->wrap($this->ascii((string) config('app.business_address'))), center: true);
+        }
+        $add($rule, center: true);
+        $add('REFUND RECEIPT', center: true, bold: true);
+
+        $add($this->row('Refund #:', (string) $r['receiptNumber']));
+        $add($this->row('Date:', (string) $r['date']));
+        $add($this->row('Cashier:', $this->ascii((string) $r['cashierName'])));
+        $add($this->row('Orig. Receipt:', (string) $r['originalReceipt']));
+        if (! empty($r['customerName'])) {
+            $add($this->row('Customer:', $this->ascii((string) $r['customerName'])));
+        }
+        $add($rule);
+
+        $add('RETURNED ITEM(S)', bold: true);
+        foreach ($r['items'] as $item) {
+            $add($this->wrap($this->ascii((string) $item['name'])));
+            $add($this->row('  '.$item['qty_label'].' x '.$this->money((float) $item['price']), $this->money((float) $item['amount'])));
+            $add($this->row('  Reason:', $this->ascii((string) $item['reason'])));
+        }
+        $add($rule);
+
+        $add($this->row('REFUND:', $this->money((float) $r['refundAmount'])), bold: true, tall: true);
+        $add($rule);
+
+        $method = (string) ($r['refundMethod'] ?? 'cash');
+        $add($this->row('Refund Method:', $this->methodLabel($method)));
+        if (! empty($r['referenceNumber'])) {
+            $add($this->row('Reference:', $this->ascii((string) $r['referenceNumber'])));
+        }
+        $add($rule);
+
+        $add('Refund processed.', center: true);
+        $add('Thank you!', center: true);
+
+        return $lines;
+    }
+
+    /**
+     * Prints a refund receipt (refundLines()) straight to the thermal printer.
+     *
+     * @param  array<string, mixed>  $refund
+     *
+     * @throws \Throwable when the printer can't be reached (off, unplugged, not shared).
+     */
+    public function printRefundReceipt(array $refund): void
+    {
+        $this->printLineSpecs($this->refundLines($refund));
     }
 
     private function center(string $text): string

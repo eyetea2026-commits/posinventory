@@ -728,16 +728,7 @@ document.getElementById('process-refund-form').addEventListener('submit', functi
         .then(data => {
             if (data.success) {
                 closeProcessRefundModal();
-
-                const receiptUrl = '/cashier/refunds/' + refundId + '/receipt';
-                const printWindow = window.open(receiptUrl, '_blank', 'width=400,height=600');
-                if (printWindow) {
-                    printWindow.focus();
-                    setTimeout(() => window.location.reload(), 300);
-                } else {
-                    toastWarning('Refund processed successfully! Receipt: ' + data.receipt_number + '. Please allow popups to print receipts.', 'Popup Blocked')
-                        .then(function () { window.location.reload(); });
-                }
+                printRefundReceipt(refundId, data.receipt_number);
             } else {
                 toastError(data.message, 'Error');
             }
@@ -746,5 +737,59 @@ document.getElementById('process-refund-form').addEventListener('submit', functi
     });
 });
 
+// The refund receipt prints like a sale's receipt: straight to the thermal
+// printer when it's on this PC, else through the cashier PC's print bridge,
+// else from a hidden frame (no pop-up window). The page reloads once done.
+const REFUND_THERMAL_PRINTING = @json(\App\Services\ThermalReceiptPrinter::isEnabled());
+
+function printRefundReceipt(refundId, receiptNumber) {
+    const base = '{{ url('cashier/refunds') }}/' + encodeURIComponent(refundId) + '/receipt';
+    const printed = function () {
+        toastSuccess('Refund processed. Receipt printed.').then(function () { window.location.reload(); });
+    };
+    const inBrowser = function (message) {
+        if (message) toastWarning(message);
+        printRefundReceiptInBackground(base);
+    };
+
+    if (REFUND_THERMAL_PRINTING) {
+        fetch(base + '/thermal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+        })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (result) {
+                if (result.success) printed();
+                else inBrowser(result.message || 'Receipt printer not reachable.');
+            }, function () { inBrowser('Receipt printer not reachable.'); });
+    } else {
+        window.printViaBridge(receiptNumber, false, base + '/print-lines').then(printed, inBrowser);
+    }
+}
+
+function printRefundReceiptInBackground(receiptUrl) {
+    const frame = document.getElementById('refundReceiptPrintFrame');
+    let finished = false;
+    const finish = function () {
+        if (finished) return;
+        finished = true;
+        toastSuccess('Refund processed. Receipt printed.').then(function () { window.location.reload(); });
+    };
+
+    frame.onload = function () {
+        frame.onload = null;
+        try {
+            frame.contentWindow.addEventListener('afterprint', finish);
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+        } catch (e) { /* reload below either way */ }
+        setTimeout(finish, 1500);
+    };
+    frame.src = receiptUrl;
+}
+
 </script>
+
+@include('partials.print-bridge')
+<iframe id="refundReceiptPrintFrame" title="Refund receipt" aria-hidden="true" tabindex="-1" style="position:fixed; width:0; height:0; border:0; visibility:hidden;"></iframe>
 @endsection

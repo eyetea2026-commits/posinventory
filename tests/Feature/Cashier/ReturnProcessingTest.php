@@ -15,9 +15,11 @@ use App\Models\SalesReturnItem;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
 use App\Models\User;
+use App\Services\ThermalReceiptPrinter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
+use Mike42\Escpos\PrintConnectors\PrintConnector;
 use Tests\TestCase;
 
 class ReturnProcessingTest extends TestCase
@@ -457,6 +459,94 @@ class ReturnProcessingTest extends TestCase
 
         $other = $this->actingAs($otherCashier)->get(route('cashier.refunds.receipt', $return->SalesReturnID));
         $other->assertNotFound();
+    }
+
+    private function processedRefund(): SalesReturn
+    {
+        $return = $this->makeReturn([
+            'Status' => 'processed', 'ReturnType' => 'refund', 'Reason' => 'Damaged Product',
+            'RefundAmount' => 1000, 'RefundMethod' => 'gcash', 'RefundAccountNumber' => '09171234567',
+            'RefundDate' => '2026-11-06', 'ProcessedBy' => $this->cashierUser->id,
+        ]);
+        SalesReturnItem::where('SalesReturnID', $return->SalesReturnID)->update(['Reason' => 'Damaged Product']);
+
+        return $return;
+    }
+
+    public function test_the_refund_receipt_prints_like_a_sales_receipt(): void
+    {
+        $return = $this->processedRefund();
+        $refundNumber = 'RFD-'.str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT);
+        $saleReceipt = 'RCT-'.str_pad((string) $this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+
+        // Its printer lines: the sales receipt's header and 32 columns.
+        $lines = $this->actingAs($this->cashierUser)->getJson(route('cashier.refunds.receipt.print-lines', $return->SalesReturnID))
+            ->assertOk()->json('lines');
+        $text = implode('', array_column($lines, 'text'));
+        $this->assertStringContainsString('REFUND RECEIPT', $text);
+        $this->assertStringContainsString(str_pad('Refund #:', 32 - strlen($refundNumber)).$refundNumber, $text);
+        $this->assertStringContainsString(str_pad('Orig. Receipt:', 32 - strlen($saleReceipt)).$saleReceipt, $text);
+        $this->assertStringContainsString('DVR Camera', $text);
+        $this->assertStringContainsString(str_pad('  Reason:', 32 - strlen('Damaged Product')).'Damaged Product', $text);
+        $this->assertStringContainsString(str_pad('REFUND:', 32 - strlen('P1,000.00')).'P1,000.00', $text);
+        $this->assertStringContainsString(str_pad('Refund Method:', 32 - strlen('GCash')).'GCash', $text);
+        $this->assertSame(['text' => "CCTV Express\n", 'center' => true, 'bold' => true, 'tall' => true], collect($lines)->firstWhere('text', "CCTV Express\n"));
+        foreach (explode("\n", rtrim($text)) as $line) {
+            $this->assertLessThanOrEqual(32, strlen($line), $line);
+        }
+
+        // The page prints those same lines (the thermal copy) and shows the slip.
+        $this->actingAs($this->cashierUser)->get(route('cashier.refunds.receipt', $return->SalesReturnID))->assertOk()
+            ->assertSee('<div class="print-text">', false)
+            ->assertSee('REFUND RECEIPT')
+            ->assertSee('Original Receipt:')
+            ->assertSee('₱1,000.00');
+
+        // The Refund Requests page prints it like a sale, with no pop-up window.
+        $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))->assertOk()
+            ->assertSee('printRefundReceipt(refundId, data.receipt_number);', false)
+            ->assertSee('id="refundReceiptPrintFrame"', false)
+            ->assertSee('window.printViaBridge = function (receiptNumber, isNewSale, linesUrl)', false)
+            ->assertDontSee("window.open(receiptUrl, '_blank', 'width=400,height=600')", false);
+    }
+
+    public function test_the_refund_receipt_goes_straight_to_the_thermal_printer(): void
+    {
+        $return = $this->processedRefund();
+
+        $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.receipt.thermal', $return->SalesReturnID))
+            ->assertStatus(409);
+
+        $capture = new class implements PrintConnector
+        {
+            public string $bytes = '';
+
+            public function __destruct() {}
+
+            public function finalize() {}
+
+            public function read($len)
+            {
+                return false;
+            }
+
+            public function write($data)
+            {
+                $this->bytes .= $data;
+            }
+        };
+        config(['services.receipt_printer.enabled' => true]);
+        $this->app->instance(ThermalReceiptPrinter::class, new ThermalReceiptPrinter(fn () => $capture));
+
+        $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.receipt.thermal', $return->SalesReturnID))
+            ->assertOk()->assertJson(['success' => true]);
+        $this->assertStringContainsString('REFUND RECEIPT', $capture->bytes);
+        $this->assertStringContainsString('P1,000.00', $capture->bytes);
+
+        // Another cashier's refund isn't printable.
+        $other = $this->makeOtherCashier()->user;
+        $this->actingAs($other)->postJson(route('cashier.refunds.receipt.thermal', $return->SalesReturnID))->assertNotFound();
+        $this->actingAs($other)->getJson(route('cashier.refunds.receipt.print-lines', $return->SalesReturnID))->assertNotFound();
     }
 
     public function test_get_refund_details_is_denied_for_a_different_cashiers_return(): void

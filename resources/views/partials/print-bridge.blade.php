@@ -4,11 +4,12 @@
      which prints them exactly like a local sale. Resolves once printed;
      rejects with a message when the printer reported a problem, or with
      null when no bridge is running (the caller then falls back to the
-     browser print). --}}
+     browser print). linesUrl prints another slip's lines, e.g. a refund
+     receipt's (cashier/refunds/{id}/receipt/print-lines). --}}
 <script>
     window.PRINT_BRIDGE_URL = @json(\App\Services\ThermalReceiptPrinter::isEnabled() ? '' : (string) config('services.receipt_printer.bridge_url'));
 
-    window.printViaBridge = function (receiptNumber, isNewSale) {
+    window.printViaBridge = function (receiptNumber, isNewSale, linesUrl) {
         if (!window.PRINT_BRIDGE_URL) {
             return Promise.reject(null);
         }
@@ -37,7 +38,7 @@
             }
         };
 
-        return fetch('{{ url('cashier/receipt') }}/' + encodeURIComponent(receiptNumber) + '/print-lines', {
+        return fetch(linesUrl || ('{{ url('cashier/receipt') }}/' + encodeURIComponent(receiptNumber) + '/print-lines'), {
             headers: { 'Accept': 'application/json' },
         })
             .then(function (r) {

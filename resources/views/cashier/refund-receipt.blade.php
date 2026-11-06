@@ -4,77 +4,91 @@
     <meta charset="UTF-8">
     <title>Refund Receipt - {{ $receiptNumber }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
-    <style>
-        @media print {
-            body { margin: 0; padding: 20px; }
-            .no-print { display: none; }
-        }
-        body {
-            font-family: 'Courier New', monospace;
-            max-width: 300px;
-            margin: 0 auto;
-            padding: 20px;
-            font-size: 12px;
-        }
-        .receipt { border: 1px solid #ccc; padding: 20px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { margin: 0; font-size: 18px; }
-        .header p { margin: 5px 0; color: #666; }
-        .row { display: flex; justify-content: space-between; margin-bottom: 6px; }
-        .section { border-bottom: 1px dashed #ccc; padding-bottom: 10px; margin-bottom: 10px; }
-        .grand-total { font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; }
-        .footer { text-align: center; margin-top: 20px; color: #666; }
-        .print-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-    </style>
+    @include('cashier.partials.receipt-styles')
 </head>
 <body>
-    <button class="print-btn no-print" onclick="window.print()">Print Receipt</button>
+    <button class="print-btn no-print" onclick="window.print()">
+        <i class="fas fa-print"></i> Print Receipt
+    </button>
+    <script>
+        // Printed from a hidden frame on the Refund Requests page, which
+        // has no use for a button inside the receipt.
+        if (window.self !== window.top) {
+            document.querySelector('.print-btn').remove();
+        }
+    </script>
+
+    {{-- Printed copy: the same 32-column lines as the thermal printout
+         (ThermalReceiptPrinter::refundLines()), like the sales receipt. --}}
+    <div class="print-text">
+        @foreach($printLines as $line)
+            <div class="pl{{ $line['bold'] ? ' pl-bold' : '' }}{{ $line['tall'] ? ' pl-tall' : '' }}">{{ $line['text'] }}</div>
+        @endforeach
+        <pre class="pl-tail">{{ $printTail }}</pre>
+    </div>
 
     <div class="receipt">
-        <div class="header">
-            <h1>CCTV Express</h1>
-            <p>Refund Receipt</p>
-            <p>Receipt #: {{ $receiptNumber }}</p>
-            <p>{{ \Carbon\Carbon::parse($salesReturn->RefundDate)->format('m/d/Y') }}</p>
-            <p>Cashier: {{ $salesReturn->processedByUser?->full_name ?? 'N/A' }}</p>
-        </div>
-
-        <div class="section">
-            <div class="row"><span>Original Transaction:</span><span>RCT-{{ str_pad($salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</span></div>
-            <div class="row"><span>Customer:</span><span>{{ $salesReturn->CustomerName ?? $salesReturn->salesTransaction?->CustomerName ?? 'N/A' }}</span></div>
-        </div>
-
-        <div class="section">
-            <p><strong>Returned Item(s)</strong></p>
-            @foreach($salesReturn->items as $item)
-                <div class="row"><span>{{ $item->product?->ProductName ?? 'N/A' }} {{ ($item->Unit ?: 'piece') === 'piece' ? 'x'.\App\Services\UnitOfMeasure::number($item->Quantity) : $item->quantityLabel() }}</span><span>₱{{ number_format($item->line_total, 2) }}</span></div>
-                <div class="row"><span>Reason:</span><span>{{ $item->Reason }}</span></div>
-            @endforeach
-        </div>
-
-        <div class="section">
-            <div class="row grand-total">
-                <span>Refund Amount:</span>
-                <span>₱{{ number_format($salesReturn->RefundAmount, 2) }}</span>
-            </div>
-            <div class="row"><span>Refund Method:</span><span>{{ ucfirst($salesReturn->RefundMethod) }}</span></div>
-            @if($salesReturn->RefundAccountNumber)
-                <div class="row"><span>Reference #:</span><span>{{ $salesReturn->RefundAccountNumber }}</span></div>
+        <div class="center">
+            <p class="store-name">CCTV Express</p>
+            <p class="store-line">Your Trusted Security Partner</p>
+            @if(config('app.business_address'))
+                <p class="store-line">{{ config('app.business_address') }}</p>
             @endif
         </div>
 
-        <div class="footer">
-            <p>Thank you for your purchase!</p>
+        <hr class="rule">
+
+        <p class="doc-title center">REFUND RECEIPT</p>
+
+        <div class="meta-row"><span>Refund #:</span><span>{{ $receiptNumber }}</span></div>
+        <div class="meta-row"><span>Date:</span><span>{{ $date }}</span></div>
+        <div class="meta-row"><span>Cashier:</span><span>{{ $cashierName }}</span></div>
+        <div class="meta-row"><span>Original Receipt:</span><span>{{ $originalReceipt }}</span></div>
+        <div class="meta-row"><span>Customer:</span><span>{{ $customerName }}</span></div>
+
+        <hr class="rule">
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th class="col-desc">Returned Item</th>
+                    <th class="col-qty">Quantity</th>
+                    <th class="col-amt">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($items as $item)
+                    <tr>
+                        <td class="col-desc">{{ $item['name'] }}<br><small>Reason: {{ $item['reason'] }}</small></td>
+                        <td class="col-qty">{{ $item['qty_label'] }}</td>
+                        <td class="col-amt">{{ number_format($item['amount'], 2) }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        <hr class="rule">
+
+        <div class="total-row grand-total">
+            <span>REFUND:</span>
+            <span>₱{{ number_format($refundAmount, 2) }}</span>
+        </div>
+
+        <hr class="rule">
+
+        <div class="total-row">
+            <span>Refund Method:</span>
+            <span>{{ match ($refundMethod) { 'gcash' => 'GCash', 'bank' => 'Bank Transfer', 'cheque' => 'Cheque', default => 'Cash' } }}</span>
+        </div>
+        @if($referenceNumber)
+            <div class="total-row"><span>Reference No.:</span><span>{{ $referenceNumber }}</span></div>
+        @endif
+
+        <hr class="rule">
+
+        <div class="footer center">
+            <p>Refund processed.</p>
+            <p>Thank you!</p>
         </div>
     </div>
 </body>
