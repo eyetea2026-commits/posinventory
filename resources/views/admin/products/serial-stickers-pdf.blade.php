@@ -1,20 +1,15 @@
 {{-- Serial number stickers: A4 sticker paper, 4 columns x 10 rows, each
      52.5 x 29.7 mm, no page margin. Price-tag layout: product name and SKU
      top left, the selling price large on the right of the SKU, and that piece's
-     barcode (Code 128 set B, scanned at the POS) with its serial below. --}}
-@php
-    $priceText = '₱'.number_format((float) $product->Price, 2);
-    $priceSize = match (true) {
-        mb_strlen($priceText) <= 7 => '14pt',
-        mb_strlen($priceText) <= 9 => '12pt',
-        default => '10.5pt',
-    };
-@endphp
+     barcode (Code 128 set B, scanned at the POS) with its serial below.
+     Expects $pages (serials per page) and either $product (one product's
+     stickers) or serials with their own product loaded (all products,
+     `php artisan serials:stickers`), plus an optional $title. --}}
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Serial Stickers - {{ $product->ProductName }}</title>
+    <title>{{ $title ?? 'Serial Stickers - '.$product->ProductName }}</title>
     <style>
         @page { size: A4 portrait; margin: 0; }
         body { margin: 0; font-family: 'DejaVu Sans', sans-serif; color: #000; }
@@ -33,10 +28,19 @@
 @foreach($pages as $pageIndex => $pageSerials)
     <div class="page {{ $loop->last ? 'last' : '' }}">
         @foreach($pageSerials->values() as $index => $serial)
+            @php
+                $stickerProduct = $product ?? $serial->product;
+                $priceText = '₱'.number_format((float) $stickerProduct->Price, 2);
+                $priceSize = match (true) {
+                    mb_strlen($priceText) <= 7 => '14pt',
+                    mb_strlen($priceText) <= 9 => '12pt',
+                    default => '10.5pt',
+                };
+            @endphp
             <div class="sticker" style="left: {{ ($index % 4) * 52.5 }}mm; top: {{ intdiv($index, 4) * 29.7 }}mm;">
                 <div class="label">
-                    <div class="name">{{ \Illuminate\Support\Str::limit($product->ProductName, 38) }}</div>
-                    <div class="sku">{{ $product->SKU }}</div>
+                    <div class="name">{{ \Illuminate\Support\Str::limit($stickerProduct->ProductName, 38) }}</div>
+                    <div class="sku">{{ $stickerProduct->SKU }}</div>
                     <div class="price" style="font-size: {{ $priceSize }};">{{ $priceText }}</div>
                     <img class="barcode" src="{{ \App\Services\Code128Barcode::dataUri($serial->SerialNumber) }}" alt="{{ $serial->SerialNumber }}">
                     <div class="serial">{{ $serial->SerialNumber }}</div>

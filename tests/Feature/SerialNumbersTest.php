@@ -290,6 +290,32 @@ class SerialNumbersTest extends TestCase
         $this->artisan('serials:generate')->expectsOutputToContain('Made 0 serial number(s) for 0 product(s)')->assertSuccessful();
     }
 
+    public function test_one_pdf_holds_the_stickers_of_every_product_each_on_its_own_pages(): void
+    {
+        $this->stock($this->camera, 41);
+        $nvr = Product::create(['ProductName' => 'NVR 8CH', 'Model' => 'NVR-8', 'Price' => 5000, 'CategoryID' => $this->camera->CategoryID]);
+        $this->stock($nvr, 2);
+        $this->stock($this->cable, 30);
+        ProductSerial::where('ProductID', $nvr->ProductID)->orderBy('ProductSerialID')->first()->update(['Status' => ProductSerial::STATUS_SOLD]);
+        $output = storage_path('framework/testing/All-Serial-Stickers.pdf');
+        @unlink($output);
+
+        // 41 cameras = 2 pages, 1 in-stock NVR = 1 page; sold pieces and wires print nothing.
+        $this->artisan('serials:stickers', ['--output' => $output])
+            ->expectsOutputToContain('Saved 42 sticker(s) for 2 product(s) on 3 page(s)')
+            ->assertSuccessful();
+        $this->assertStringStartsWith('%PDF', file_get_contents($output));
+
+        $html = view('admin.products.serial-stickers-pdf', [
+            'title' => 'Serial Stickers - All Products',
+            'pages' => collect([ProductSerial::with('product')->where('ProductID', $nvr->ProductID)->where('Status', ProductSerial::STATUS_IN_STOCK)->get()]),
+        ])->render();
+        $this->assertStringContainsString('<title>Serial Stickers - All Products</title>', $html);
+        $this->assertStringContainsString('<div class="name">NVR 8CH</div>', $html);
+        $this->assertStringContainsString('₱5,000.00', $html);
+        @unlink($output);
+    }
+
     public function test_a_category_chooses_whether_its_pieces_get_serial_numbers(): void
     {
         $this->actingAs($this->admin)->get(route('admin.categories.create'))->assertOk()
