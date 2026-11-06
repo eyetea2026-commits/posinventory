@@ -76,6 +76,14 @@
         color: #fca5a5;
     }
 
+    .role-locked-hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
     .password-input-wrapper { position: relative; }
     .password-input-wrapper .form-input { padding-right: 46px; }
     .password-toggle-btn {

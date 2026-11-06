@@ -164,4 +164,50 @@ class SuperAdminTest extends TestCase
         $this->actingAs($this->admin)->getJson(route('admin.users.show', $this->superAdmin))
             ->assertJson(['user' => ['can_edit' => false]]);
     }
+
+    public function test_the_super_admin_cannot_change_their_own_role(): void
+    {
+        // Edit User shows the Role locked, with the current role sent hidden.
+        $html = $this->actingAs($this->superAdmin)->getJson(route('admin.users.edit', $this->superAdmin))->assertOk()->json('html');
+        $this->assertStringContainsString('<select name="role_id" class="form-select" disabled required>', $html);
+        $this->assertStringContainsString('<input type="hidden" name="role_id" value="'.$this->adminRole->id.'">', $html);
+        $this->assertStringContainsString('The Super Admin&#039;s role always stays Administrator.', $html);
+
+        $own = [
+            'first_name' => 'Frederick', 'last_name' => 'Flores',
+            'contact_number' => '09999999999', 'name' => $this->superAdmin->name, 'email' => $this->superAdmin->email,
+            'current_password' => 'password',
+        ];
+        // Sent anyway (bypassing the form): refused, still an Administrator.
+        $this->actingAs($this->superAdmin)->put(route('admin.users.update', $this->superAdmin), $own + ['role_id' => $this->cashierRole->id])
+            ->assertSessionHasErrors(['role_id' => 'The Super Admin account must stay an Administrator.']);
+        $this->assertTrue($this->superAdmin->fresh()->isAdmin());
+
+        // The form as sent (role unchanged) still saves the other details.
+        $this->actingAs($this->superAdmin)->put(route('admin.users.update', $this->superAdmin), $own + ['role_id' => $this->adminRole->id])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('Frederick', $this->superAdmin->fresh()->first_name);
+        $this->assertTrue($this->superAdmin->fresh()->isSuperAdmin());
+    }
+
+    public function test_an_administrator_cannot_change_their_own_role(): void
+    {
+        $html = $this->actingAs($this->admin)->getJson(route('admin.users.edit', $this->admin))->assertOk()->json('html');
+        $this->assertStringContainsString('<select name="role_id" class="form-select" disabled required>', $html);
+        $this->assertStringContainsString('You can&#039;t change your own role.', $html);
+
+        $this->actingAs($this->admin)->put(route('admin.users.update', $this->admin), [
+            'first_name' => 'Ana', 'last_name' => 'Reyes',
+            'contact_number' => '09170000002', 'name' => $this->admin->name, 'email' => $this->admin->email,
+            'current_password' => 'password', 'role_id' => $this->cashierRole->id,
+        ])->assertSessionHasErrors(['role_id' => 'You can\'t change your own role.']);
+        $this->assertTrue($this->admin->fresh()->isAdmin());
+    }
+
+    public function test_the_super_admin_can_still_change_another_users_role(): void
+    {
+        $html = $this->actingAs($this->superAdmin)->getJson(route('admin.users.edit', $this->cashier))->assertOk()->json('html');
+        $this->assertStringContainsString('<select name="role_id" class="form-select"  required>', $html);
+        $this->assertStringNotContainsString('<input type="hidden" name="role_id"', $html);
+    }
 }

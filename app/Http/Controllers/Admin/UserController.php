@@ -280,6 +280,10 @@ class UserController extends Controller
                 throw ValidationException::withMessages(['role_id' => 'The Super Admin account must stay an Administrator.']);
             }
 
+            if ($user->is(auth()->user())) {
+                throw ValidationException::withMessages(['role_id' => 'You can\'t change your own role.']);
+            }
+
             if (($user->isAdmin() || (int) $data['role_id'] === $adminRoleId) && ! auth()->user()->isSuperAdmin()) {
                 throw ValidationException::withMessages(['role_id' => 'Only the Super Admin can give or remove the Administrator role.']);
             }

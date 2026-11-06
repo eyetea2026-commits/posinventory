@@ -11,7 +11,13 @@
     // editable. This lets an admin safely update their own profile, and lets
     // a second admin account (if one exists) be managed like any other user.
     $isProtected = isset($user) && $user->isProtected();
-    $roleDisabledAttr = $isProtected ? 'disabled' : '';
+    // The Super Admin's role always stays Administrator, and nobody changes
+    // their own role (UserController::update() refuses both); the box is
+    // shown locked, with the current role sent in a hidden field instead.
+    $isSuperAdminAccount = isset($user) && $user->isSuperAdmin();
+    $isOwnAccount = isset($user) && auth()->id() === $user->id;
+    $roleLocked = $isProtected || $isSuperAdminAccount || $isOwnAccount;
+    $roleDisabledAttr = $roleLocked ? 'disabled' : '';
 
     // Reset Password is only offered for non-Administrator accounts (Cashier
     // today, any future role like Manager tomorrow) — an admin's own
@@ -105,9 +111,16 @@
         <select name="role_id" class="form-select" {{ $roleDisabledAttr }} required>
             <option value="">Select Role</option>
             @foreach($roles as $role)
-                <option value="{{ $role->id }}" {{ old('role_id', $user->role_id ?? null) == $role->id ? 'selected' : '' }}>{{ strtolower($role->role_name) === 'admin' ? 'Administrator' : ucfirst($role->role_name) }}</option>
+                <option value="{{ $role->id }}" {{ ($roleLocked ? $user->role_id : old('role_id', $user->role_id ?? null)) == $role->id ? 'selected' : '' }}>{{ strtolower($role->role_name) === 'admin' ? 'Administrator' : ucfirst($role->role_name) }}</option>
             @endforeach
         </select>
+        @if($roleLocked)
+            {{-- A disabled box isn't sent with the form. --}}
+            <input type="hidden" name="role_id" value="{{ $user->role_id }}">
+            <span class="form-hint role-locked-hint"><i class="fas fa-lock"></i>
+                {{ $isSuperAdminAccount ? 'The Super Admin\'s role always stays Administrator.' : ($isOwnAccount ? 'You can\'t change your own role.' : 'The last active Administrator\'s role can\'t be changed.') }}
+            </span>
+        @endif
         <span class="form-error" id="error-role_id">@error('role_id'){{ $message }}@enderror</span>
     </div>
 
