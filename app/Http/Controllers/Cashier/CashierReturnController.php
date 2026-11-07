@@ -569,11 +569,12 @@ class CashierReturnController extends Controller
     }
 
     /**
-     * The serials of the pieces coming back on a return line. A
-     * serial-numbered product names each returned piece's sticker (picked
-     * from the ones sold on that receipt); when the count leaves no choice
-     * (bought 1, returning 1) they're picked automatically. Other products
-     * have none.
+     * The serials of the pieces coming back on a return line, taken from
+     * the receipt: a serial-numbered product names each returned piece's
+     * sticker (picked from the ones sold on that receipt), picked
+     * automatically when the count leaves no choice (bought 1, returning 1).
+     * A sale with no serials recorded (sold before they were tracked) has
+     * nothing to pick, and other products have none.
      *
      * @param  list<string>|null  $serialNumbers
      * @return list<int>
@@ -586,8 +587,13 @@ class CashierReturnController extends Controller
         }
 
         $returnable = ProductSerial::returnableFor($salesItem->SalesTransactionID, $salesItem->ProductID)->lockForUpdate()->get();
-        $needed = (int) round($quantity * $salesItem->quantityPerUnit());
+        // Pieces sold without a recorded serial can't be named.
+        $needed = min((int) round($quantity * $salesItem->quantityPerUnit()), $returnable->count());
         $picked = collect($serialNumbers ?? [])->map(fn ($number) => strtoupper(trim((string) $number)))->filter()->unique()->values();
+
+        if ($needed === 0) {
+            return [];
+        }
 
         if ($picked->isEmpty()) {
             if ($returnable->count() === $needed) {

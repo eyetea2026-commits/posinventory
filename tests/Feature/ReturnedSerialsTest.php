@@ -129,6 +129,17 @@ class ReturnedSerialsTest extends TestCase
         $this->assertSame(ProductSerial::STATUS_SOLD, $this->serialStatus('SN00003'));
     }
 
+    public function test_a_sale_without_recorded_serials_can_still_be_returned(): void
+    {
+        $sale = $this->sell(['SN00001']);
+        // Sold before serials were tracked: no piece is linked to the sale.
+        ProductSerial::where('SerialNumber', 'SN00001')->update(['SalesTransactionID' => null]);
+
+        $this->actingAs($this->cashier)->getJson(route('cashier.refunds.transaction', $sale->SalesTransactionID))
+            ->assertJsonPath('transaction.items.0.SerialNumbers', []);
+        $this->requestReturn($sale, 1)->assertOk()->assertJson(['success' => true]);
+    }
+
     public function test_refunds_made_before_the_serial_was_recorded_are_marked_damaged(): void
     {
         $sale = $this->sell(['SN00001', 'SN00002']);

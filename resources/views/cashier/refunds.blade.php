@@ -84,9 +84,10 @@
         .payment-methods { grid-template-columns: repeat(2, 1fr); }
     }
     .refund-serials { margin-top: 10px; }
-    .refund-serial-scan { margin: 4px 0 8px; }
+    .refund-serial-scan { margin: 8px 0 0; }
     .refund-serial-list { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 140px; overflow-y: auto; }
-    .refund-serial-option { display: inline-flex; align-items: center; gap: 6px; font-family: monospace; font-size: 0.85rem; cursor: pointer; }
+    .refund-serial-option { display: inline-flex; align-items: center; gap: 6px; font-family: monospace; font-size: 0.85rem; cursor: pointer; padding: 4px 10px; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px; }
+    .refund-serial-option:has(input:checked) { border-color: #34d399; background: rgba(16, 185, 129, 0.15); color: #a7f3d0; font-weight: 700; }
     .refund-serial-count { display: block; margin-top: 6px; font-size: 0.8rem; }
 </style>
 
@@ -507,15 +508,18 @@ function populateTransactionDetails(transaction) {
                 </div>
                 ${item.TracksSerials ? `
                 <div class="form-group refund-serials" id="refund-serials-${productId}">
-                    <label>Serial Number of Each Returned Piece <small>(scan the returned sticker or tick it)</small></label>
-                    <input type="text" class="form-input refund-serial-scan" placeholder="Scan serial sticker (SN00001)..." autocomplete="off"
-                        onkeydown="if (event.key === 'Enter') { event.preventDefault(); scanReturnSerial(${productId}, this); }">
-                    <div class="refund-serial-list">
-                        ${(item.SerialNumbers || []).length ? item.SerialNumbers.map(sn => `
-                            <label class="refund-serial-option"><input type="checkbox" value="${escapeHtml(sn)}" onchange="updateReturnSerials(${productId})"> ${escapeHtml(sn)}</label>
-                        `).join('') : '<small class="text-muted">No serial numbers recorded for this sale.</small>'}
-                    </div>
-                    <small class="refund-serial-count" id="refund-serial-count-${productId}"></small>
+                    <label>Serial Number (from receipt ${escapeHtml(transaction.ReceiptNumber)})</label>
+                    ${(item.SerialNumbers || []).length ? `
+                        <div class="refund-serial-list">
+                            ${item.SerialNumbers.map(sn => `
+                                <label class="refund-serial-option"><input type="checkbox" value="${escapeHtml(sn)}" onchange="updateReturnSerials(${productId})"> ${escapeHtml(sn)}</label>
+                            `).join('')}
+                        </div>
+                        ${item.SerialNumbers.length > 1 ? `
+                            <input type="text" class="form-input refund-serial-scan" placeholder="More than one sold: scan the returned sticker or tick it above" autocomplete="off"
+                                onkeydown="if (event.key === 'Enter') { event.preventDefault(); scanReturnSerial(${productId}, this); }">` : ''}
+                        <small class="refund-serial-count" id="refund-serial-count-${productId}"></small>
+                    ` : '<small class="text-muted">No serial number was recorded for this sale.</small>'}
                 </div>` : ''}
             </div>
         </div>
@@ -574,7 +578,7 @@ function autoPickReturnSerials(productId) {
     const entry = selectedItems[productId];
     if (!item || !item.TracksSerials || !entry) return;
     const boxes = returnSerialBoxes(productId);
-    if (boxes.length === Number(entry.quantity)) {
+    if (boxes.length <= Number(entry.quantity)) {
         boxes.forEach(box => { box.checked = true; });
     }
     updateReturnSerials(productId);
@@ -586,7 +590,7 @@ function updateReturnSerials(productId) {
     entry.serials = returnSerialBoxes(productId).filter(box => box.checked).map(box => box.value);
     const note = document.getElementById(`refund-serial-count-${productId}`);
     if (note) {
-        const needed = Number(entry.quantity);
+        const needed = Math.min(Number(entry.quantity), returnSerialBoxes(productId).length);
         note.textContent = entry.serials.length + ' of ' + needed + ' picked';
         note.style.color = entry.serials.length === needed ? '#34d399' : '#fbbf24';
     }
@@ -635,7 +639,7 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
         product_id: Number(productId),
         quantity: entry.quantity,
         reason_code: entry.reasonCode,
-        serials: (returnItemsById[productId] && returnItemsById[productId].TracksSerials) ? (entry.serials || []) : undefined,
+        serials: (returnItemsById[productId] && returnItemsById[productId].TracksSerials && (returnItemsById[productId].SerialNumbers || []).length) ? (entry.serials || []) : undefined,
     }));
 
     if (items.length === 0) {
@@ -648,9 +652,10 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
         return;
     }
 
-    const missingSerials = items.find(item => item.serials !== undefined && item.serials.length !== Number(item.quantity));
+    const serialsNeeded = item => Math.min(Number(item.quantity), (returnItemsById[item.product_id].SerialNumbers || []).length);
+    const missingSerials = items.find(item => item.serials !== undefined && item.serials.length !== serialsNeeded(item));
     if (missingSerials) {
-        toastWarning('Pick the serial number of each returned piece of "' + returnItemsById[missingSerials.product_id].ProductName + '" (' + Number(missingSerials.quantity) + ' needed).');
+        toastWarning('Pick the serial number of each returned piece of "' + returnItemsById[missingSerials.product_id].ProductName + '" (' + serialsNeeded(missingSerials) + ' needed).');
         return;
     }
 
