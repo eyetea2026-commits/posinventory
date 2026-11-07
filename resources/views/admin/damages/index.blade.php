@@ -389,8 +389,6 @@
                 let html = '';
                 html += section('Damage Record', [
                     kv('Damage Record Number', text(d.DamageNumber)),
-                    kv('Current Status', text(d.Status)),
-                    kv('Supplier Return Status', text(data.supplierReturnStatus)),
                     kv('Quantity Damaged', text(d.QuantityLabel || d.Quantity)),
                     kv('Damage Type', text(d.DamageType)),
                     kv('Source', text(d.SourceModule)),

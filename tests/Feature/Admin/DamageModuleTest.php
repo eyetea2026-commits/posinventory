@@ -258,6 +258,9 @@ class DamageModuleTest extends TestCase
         $response->assertDontSee('>PDF<', false);
         $response->assertDontSee('>Excel<', false);
         $response->assertDontSee('window.print()', false);
+        // View Details no longer repeats the status as two cards (the list shows it).
+        $response->assertDontSee("kv('Current Status'", false);
+        $response->assertDontSee("kv('Supplier Return Status'", false);
         // There is no manual "Add Damage Record" function — records are only
         // ever created automatically from an approved customer return.
         $response->assertDontSee('Record Damage');
