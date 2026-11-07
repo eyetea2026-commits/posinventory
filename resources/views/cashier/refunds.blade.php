@@ -83,6 +83,11 @@
         .form-row { grid-template-columns: 1fr; }
         .payment-methods { grid-template-columns: repeat(2, 1fr); }
     }
+    .refund-serials { margin-top: 10px; }
+    .refund-serial-scan { margin: 4px 0 8px; }
+    .refund-serial-list { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 140px; overflow-y: auto; }
+    .refund-serial-option { display: inline-flex; align-items: center; gap: 6px; font-family: monospace; font-size: 0.85rem; cursor: pointer; }
+    .refund-serial-count { display: block; margin-top: 6px; font-size: 0.8rem; }
 </style>
 
 <div class="stats-grid" id="stats-grid">
@@ -304,6 +309,8 @@
 
 <script>
 let selectedItems = {};
+// The receipt's items by ProductID (serials for the return).
+let returnItemsById = {};
 let selectedRefundPaymentMethod = 'cash';
 let currentRefundAmount = 0;
 let searchMode = 'receipt';
@@ -454,6 +461,8 @@ function populateTransactionDetails(transaction) {
     document.getElementById('create-refund-form').dataset.transactionId = transaction.SalesTransactionID;
 
     selectedItems = {};
+    returnItemsById = {};
+    transaction.items.forEach(function (item) { returnItemsById[Number(item.ProductID)] = item; });
 
     const productsContainer = document.getElementById('transaction-products');
     productsContainer.innerHTML = transaction.items.map(item => {
@@ -496,6 +505,18 @@ function populateTransactionDetails(transaction) {
                         </select>
                     </div>
                 </div>
+                ${item.TracksSerials ? `
+                <div class="form-group refund-serials" id="refund-serials-${productId}">
+                    <label>Serial Number of Each Returned Piece <small>(scan the returned sticker or tick it)</small></label>
+                    <input type="text" class="form-input refund-serial-scan" placeholder="Scan serial sticker (SN00001)..." autocomplete="off"
+                        onkeydown="if (event.key === 'Enter') { event.preventDefault(); scanReturnSerial(${productId}, this); }">
+                    <div class="refund-serial-list">
+                        ${(item.SerialNumbers || []).length ? item.SerialNumbers.map(sn => `
+                            <label class="refund-serial-option"><input type="checkbox" value="${escapeHtml(sn)}" onchange="updateReturnSerials(${productId})"> ${escapeHtml(sn)}</label>
+                        `).join('') : '<small class="text-muted">No serial numbers recorded for this sale.</small>'}
+                    </div>
+                    <small class="refund-serial-count" id="refund-serial-count-${productId}"></small>
+                </div>` : ''}
             </div>
         </div>
         `;
@@ -513,6 +534,7 @@ function toggleRefundItem(checkbox, productId, unitPrice, maxQty, allowsDecimals
         selectedItems[productId] = { unitPrice, maxQty, allowsDecimals: !!allowsDecimals, quantity: firstQty || 1, reasonCode: '' };
         controls.style.display = 'block';
         row.classList.add('selected');
+        autoPickReturnSerials(productId);
     } else {
         delete selectedItems[productId];
         controls.style.display = 'none';
@@ -535,7 +557,52 @@ function updateItemQuantity(productId, inputEl, stillTyping) {
     entry.quantity = qty;
     if (!stillTyping) inputEl.value = qty;
 
+    autoPickReturnSerials(productId);
     updateRefundAmount();
+}
+
+// ---- Serial numbers of the returned pieces --------------------------------
+// A serial-numbered product names each returned piece's sticker, so a
+// damaged one is never sold again. When the count leaves no choice (bought
+// 1, returning 1) they're ticked for the cashier.
+function returnSerialBoxes(productId) {
+    return Array.from(document.querySelectorAll(`#refund-serials-${productId} .refund-serial-list input[type=checkbox]`));
+}
+
+function autoPickReturnSerials(productId) {
+    const item = returnItemsById[productId];
+    const entry = selectedItems[productId];
+    if (!item || !item.TracksSerials || !entry) return;
+    const boxes = returnSerialBoxes(productId);
+    if (boxes.length === Number(entry.quantity)) {
+        boxes.forEach(box => { box.checked = true; });
+    }
+    updateReturnSerials(productId);
+}
+
+function updateReturnSerials(productId) {
+    const entry = selectedItems[productId];
+    if (!entry) return;
+    entry.serials = returnSerialBoxes(productId).filter(box => box.checked).map(box => box.value);
+    const note = document.getElementById(`refund-serial-count-${productId}`);
+    if (note) {
+        const needed = Number(entry.quantity);
+        note.textContent = entry.serials.length + ' of ' + needed + ' picked';
+        note.style.color = entry.serials.length === needed ? '#34d399' : '#fbbf24';
+    }
+}
+
+function scanReturnSerial(productId, input) {
+    const code = input.value.trim().toUpperCase();
+    input.value = '';
+    if (!code) return;
+    const box = returnSerialBoxes(productId).find(b => b.value.toUpperCase() === code);
+    if (!box) {
+        toastWarning('Serial number ' + code + ' was not sold as this product on this receipt.');
+        return;
+    }
+    box.checked = true;
+    updateReturnSerials(productId);
 }
 
 function updateItemReason(productId, reasonCode) {
@@ -568,6 +635,7 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
         product_id: Number(productId),
         quantity: entry.quantity,
         reason_code: entry.reasonCode,
+        serials: (returnItemsById[productId] && returnItemsById[productId].TracksSerials) ? (entry.serials || []) : undefined,
     }));
 
     if (items.length === 0) {
@@ -577,6 +645,12 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
 
     if (items.some(item => !item.reason_code)) {
         toastWarning('Please select a return reason for each product');
+        return;
+    }
+
+    const missingSerials = items.find(item => item.serials !== undefined && item.serials.length !== Number(item.quantity));
+    if (missingSerials) {
+        toastWarning('Pick the serial number of each returned piece of "' + returnItemsById[missingSerials.product_id].ProductName + '" (' + Number(missingSerials.quantity) + ' needed).');
         return;
     }
 

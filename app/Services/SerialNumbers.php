@@ -91,8 +91,25 @@ class SerialNumbers
      * serials sold on that sale return to stock (latest first) before the
      * stock is saved, so no new numbers are made for them.
      */
-    public static function returnToStock(int $salesTransactionId, int $productId, int $quantity): void
+    public static function returnToStock(int $salesTransactionId, int $productId, int $quantity, ?int $salesReturnId = null): void
     {
+        // The exact pieces picked on the return, when it has them.
+        if ($salesReturnId && ProductSerial::where('SalesReturnID', $salesReturnId)->where('ProductID', $productId)->exists()) {
+            ProductSerial::where('SalesReturnID', $salesReturnId)
+                ->where('ProductID', $productId)
+                ->where('Status', ProductSerial::STATUS_SOLD)
+                ->limit($quantity)
+                ->get()
+                ->each(fn (ProductSerial $serial) => $serial->update([
+                    'Status' => ProductSerial::STATUS_IN_STOCK,
+                    'SalesTransactionID' => null,
+                    'SalesReturnID' => null,
+                    'StatusDate' => now(),
+                ]));
+
+            return;
+        }
+
         ProductSerial::where('SalesTransactionID', $salesTransactionId)
             ->where('ProductID', $productId)
             ->where('Status', ProductSerial::STATUS_SOLD)

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -32,6 +33,8 @@ class ProductSerial extends Model
         'Status',
         'SalesTransactionID',
         'StockAdjustmentID',
+        // The return request it came back on (see returnableFor()).
+        'SalesReturnID',
         'StatusDate',
     ];
 
@@ -50,6 +53,26 @@ class ProductSerial extends Model
     public function salesTransaction()
     {
         return $this->belongsTo(SalesTransaction::class, 'SalesTransactionID', 'SalesTransactionID');
+    }
+
+    public function salesReturn()
+    {
+        return $this->belongsTo(SalesReturn::class, 'SalesReturnID', 'SalesReturnID');
+    }
+
+    /**
+     * The pieces of a product sold on a sale that can still be returned:
+     * sold, and not already on a (not declined) return request.
+     *
+     * @return Builder<ProductSerial>
+     */
+    public static function returnableFor(int $salesTransactionId, int $productId)
+    {
+        return self::where('SalesTransactionID', $salesTransactionId)
+            ->where('ProductID', $productId)
+            ->where('Status', self::STATUS_SOLD)
+            ->whereNull('SalesReturnID')
+            ->orderBy('ProductSerialID');
     }
 
     /**

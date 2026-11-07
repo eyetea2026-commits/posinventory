@@ -130,7 +130,12 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     // A serial number sticker (SN00001) is that one piece's barcode.
     $serial = ProductSerial::where('SerialNumber', strtoupper(trim($barcode)))->first();
     if ($serial && $serial->Status !== ProductSerial::STATUS_IN_STOCK) {
-        return response()->json(['product' => null, 'message' => "Serial number {$serial->SerialNumber} is not in stock ({$serial->Status})."], 404);
+        // A piece refunded as Damaged / Factory Defect is never sold again.
+        $message = $serial->Status === ProductSerial::STATUS_DAMAGED
+            ? "Serial number {$serial->SerialNumber} is a damaged / defective piece".($serial->SalesReturnID ? ' (refunded on Return #'.str_pad((string) $serial->SalesReturnID, 6, '0', STR_PAD_LEFT).')' : '').' and cannot be sold.'
+            : "Serial number {$serial->SerialNumber} is not in stock ({$serial->Status}).";
+
+        return response()->json(['product' => null, 'message' => $message], 404);
     }
 
     $product = $serial

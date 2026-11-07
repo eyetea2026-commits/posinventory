@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
@@ -240,6 +241,12 @@ class CashierReturnController extends Controller
                 'IsReturnable' => (bool) ($item->product?->IsReturnable ?? true),
                 'UnitPrice' => $item->UnitPrice,
                 'TotalPrice' => $item->Quantity * $item->UnitPrice,
+                // Serial-numbered: the sticker of each piece coming back is
+                // picked, so a damaged one is never sold again.
+                'TracksSerials' => (bool) $item->product?->tracksSerialNumbers(),
+                'SerialNumbers' => $item->product?->tracksSerialNumbers()
+                    ? ProductSerial::returnableFor($transaction->SalesTransactionID, $item->ProductID)->pluck('SerialNumber')->values()->all()
+                    : [],
             ];
         });
 
@@ -280,6 +287,9 @@ class CashierReturnController extends Controller
             // In the unit the product was sold in (meters, boxes...).
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
             'items.*.reason_code' => 'required|in:'.implode(',', array_keys(SalesReturn::REASON_CODES)),
+            // Serial-numbered products: the sticker of each piece returned.
+            'items.*.serials' => 'nullable|array',
+            'items.*.serials.*' => 'string|max:20',
             // Every return is settled by a refund (replacements were retired
             // on 2026-07-19 and their table removed on 2026-10-29).
             'return_type' => 'required|in:refund',
@@ -379,6 +389,7 @@ class CashierReturnController extends Controller
                         'productId' => $itemData['product_id'],
                         'quantity' => $quantity,
                         'reasonLabel' => SalesReturn::REASON_CODES[$itemData['reason_code']],
+                        'serialIds' => $this->returnedSerialIds($salesItem, $quantity, $itemData['serials'] ?? null),
                     ];
                 }
 
@@ -407,6 +418,11 @@ class CashierReturnController extends Controller
                         'UnitPrice' => $line['salesItem']->UnitPrice,
                         'Reason' => $line['reasonLabel'],
                     ]);
+
+                    // Those exact pieces are now on this return (released if it's declined).
+                    if ($line['serialIds']) {
+                        ProductSerial::whereIn('ProductSerialID', $line['serialIds'])->update(['SalesReturnID' => $salesReturn->SalesReturnID]);
+                    }
 
                     $refundAmount += round($line['salesItem']->refundable_unit_price * $line['quantity'], 2);
                     $productNames[] = "{$returnItem->quantityLabel()} x \"{$line['salesItem']->product?->ProductName}\"";
@@ -519,7 +535,7 @@ class CashierReturnController extends Controller
 
                     // The refunded pieces go back with their own serial stickers.
                     // Back in the product's base unit (a box's 100 pieces).
-                    SerialNumbers::returnToStock($salesReturn->SalesTransactionID, $item->ProductID, (int) $item->BaseQuantity);
+                    SerialNumbers::returnToStock($salesReturn->SalesTransactionID, $item->ProductID, (int) $item->BaseQuantity, $salesReturn->SalesReturnID);
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->BaseQuantity);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     $inventory->save();
@@ -550,6 +566,48 @@ class CashierReturnController extends Controller
             'message' => 'Refund processed successfully.',
             'receipt_number' => 'RFD-'.str_pad($salesReturn->SalesReturnID, 6, '0', STR_PAD_LEFT),
         ]);
+    }
+
+    /**
+     * The serials of the pieces coming back on a return line. A
+     * serial-numbered product names each returned piece's sticker (picked
+     * from the ones sold on that receipt); when the count leaves no choice
+     * (bought 1, returning 1) they're picked automatically. Other products
+     * have none.
+     *
+     * @param  list<string>|null  $serialNumbers
+     * @return list<int>
+     */
+    private function returnedSerialIds(SalesItem $salesItem, float $quantity, ?array $serialNumbers): array
+    {
+        $product = $salesItem->product;
+        if (! $product?->tracksSerialNumbers()) {
+            return [];
+        }
+
+        $returnable = ProductSerial::returnableFor($salesItem->SalesTransactionID, $salesItem->ProductID)->lockForUpdate()->get();
+        $needed = (int) round($quantity * $salesItem->quantityPerUnit());
+        $picked = collect($serialNumbers ?? [])->map(fn ($number) => strtoupper(trim((string) $number)))->filter()->unique()->values();
+
+        if ($picked->isEmpty()) {
+            if ($returnable->count() === $needed) {
+                return $returnable->pluck('ProductSerialID')->all();
+            }
+
+            throw new \RuntimeException("Pick the serial number of each \"{$product->ProductName}\" being returned ({$needed} needed).");
+        }
+
+        if ($picked->count() !== $needed) {
+            throw new \RuntimeException("Pick exactly {$needed} serial number(s) for \"{$product->ProductName}\" ({$picked->count()} picked).");
+        }
+
+        $byNumber = $returnable->keyBy('SerialNumber');
+        $unknown = $picked->reject(fn ($number) => $byNumber->has($number));
+        if ($unknown->isNotEmpty()) {
+            throw new \RuntimeException('Serial number '.$unknown->implode(', ')." wasn't sold as \"{$product->ProductName}\" on this receipt, or is already being returned.");
+        }
+
+        return $picked->map(fn ($number) => $byNumber[$number]->ProductSerialID)->all();
     }
 
     public function printRefundReceipt($salesReturnId, ThermalReceiptPrinter $printer)

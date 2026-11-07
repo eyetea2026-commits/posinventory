@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\DamagedProduct;
+use App\Models\ProductSerial;
 use App\Models\PurchaseOrderItem;
 use App\Models\SalesItem;
 use App\Models\SalesReturn;
@@ -212,6 +213,11 @@ class SalesReturnController extends Controller
                 // a single request can mix salable and unsalable products.
                 foreach ($salesReturn->items as $item) {
                     if ($item->is_unsalable) {
+                        // The exact pieces returned are Damaged: their
+                        // stickers can never be sold at the POS again.
+                        ProductSerial::where('SalesReturnID', $salesReturn->SalesReturnID)
+                            ->where('ProductID', $item->ProductID)
+                            ->update(['Status' => ProductSerial::STATUS_DAMAGED, 'StatusDate' => now()]);
                         $this->createDamageRecordForItem($salesReturn, $item);
                     }
                 }
@@ -246,6 +252,11 @@ class SalesReturnController extends Controller
             ->value('PurchaseOrder.SupplierID');
 
         $receiptNumber = 'RCT-'.str_pad($salesReturn->SalesTransactionID, 6, '0', STR_PAD_LEFT);
+        $serials = ProductSerial::where('SalesReturnID', $salesReturn->SalesReturnID)
+            ->where('ProductID', $item->ProductID)
+            ->orderBy('ProductSerialID')
+            ->pluck('SerialNumber');
+        $serialText = $serials->isNotEmpty() ? ', Serial '.$serials->implode(', ') : '';
 
         $damage = DamagedProduct::create([
             'ProductID' => $item->ProductID,
@@ -254,7 +265,7 @@ class SalesReturnController extends Controller
             'SupplierID' => $supplierId,
             // In the product's base unit: a returned box is its 100 pieces.
             'Quantity' => $item->BaseQuantity,
-            'Description' => "Customer return — {$item->Reason} (Return #{$salesReturn->SalesReturnID}, Receipt {$receiptNumber})",
+            'Description' => "Customer return — {$item->Reason} (Return #{$salesReturn->SalesReturnID}, Receipt {$receiptNumber}{$serialText})",
             'DateRecorded' => now(),
             'DamageType' => $item->Reason === 'Factory Defect' ? 'factory_defect' : 'damaged_product',
             'Remarks' => $salesReturn->Remarks,
@@ -283,6 +294,8 @@ class SalesReturnController extends Controller
                 'ApprovedBy' => auth()->id(),
                 'DeclineReason' => $data['DeclineReason'],
             ]);
+            // The customer keeps the pieces: they're no longer on a return.
+            ProductSerial::where('SalesReturnID', $salesReturn->SalesReturnID)->update(['SalesReturnID' => null]);
 
             ActivityLog::record('return.declined', "Declined return #{$salesReturn->SalesReturnID}: {$data['DeclineReason']}");
         } catch (Throwable $e) {
