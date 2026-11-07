@@ -332,7 +332,7 @@ class ReturnProcessingTest extends TestCase
         $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $oldTransaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'factory_defect'],
             ],
             'return_type' => 'refund',
         ]);
@@ -356,7 +356,7 @@ class ReturnProcessingTest extends TestCase
 
         $html = $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))->assertOk()->getContent();
         $this->assertStringNotContainsString('<option value="other"', $html);
-        $this->assertStringContainsString('<option value="" selected>Select Reason</option>', $html);
+        $this->assertStringNotContainsString('Select Reason', $html);
     }
 
     public function test_create_refund_allows_requests_within_the_return_window(): void
@@ -364,7 +364,7 @@ class ReturnProcessingTest extends TestCase
         $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'factory_defect'],
             ],
             'return_type' => 'refund',
         ]);
@@ -381,7 +381,7 @@ class ReturnProcessingTest extends TestCase
         $first = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 2, 'reason_code' => 'damaged_product'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 2, 'reason_code' => 'factory_defect'],
             ],
             'return_type' => 'refund',
         ]);
@@ -393,7 +393,7 @@ class ReturnProcessingTest extends TestCase
         $second = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'factory_defect'],
             ],
             'return_type' => 'refund',
         ]);
@@ -414,7 +414,7 @@ class ReturnProcessingTest extends TestCase
         $response = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'factory_defect'],
             ],
             'return_type' => 'refund',
         ]);
@@ -424,12 +424,35 @@ class ReturnProcessingTest extends TestCase
         $this->assertDatabaseMissing('SalesReturn', ['SalesTransactionID' => $this->transaction->SalesTransactionID]);
     }
 
+    public function test_every_return_is_a_factory_defect_set_automatically(): void
+    {
+        // "Damaged Product" is no longer a reason.
+        $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product']],
+            'return_type' => 'refund',
+        ])->assertStatus(422)->assertJsonValidationErrors('items.0.reason_code');
+
+        // No reason sent: it's a Factory Defect.
+        $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
+            'transaction_id' => $this->transaction->SalesTransactionID,
+            'items' => [['product_id' => $this->product->ProductID, 'quantity' => 1]],
+            'return_type' => 'refund',
+        ])->assertOk()->assertJson(['success' => true]);
+        $this->assertSame('Factory Defect', SalesReturnItem::latest('SalesReturnItemID')->value('Reason'));
+
+        // The form shows the reason, fixed, with no Damaged Product choice.
+        $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))->assertOk()
+            ->assertSee('value="Factory Defect" readonly', false)
+            ->assertDontSee('<option value="damaged_product">', false);
+    }
+
     public function test_return_request_lock_is_released_so_a_later_request_still_succeeds(): void
     {
         $first = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'factory_defect'],
             ],
             'return_type' => 'refund',
         ]);
@@ -438,7 +461,7 @@ class ReturnProcessingTest extends TestCase
         $second = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
-                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product'],
+                ['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'factory_defect'],
             ],
             'return_type' => 'refund',
         ]);

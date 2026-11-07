@@ -523,7 +523,7 @@ class UnitOfMeasureTest extends TestCase
         // Part of a box can't come back; the whole box can.
         $request = fn ($quantity) => $this->actingAs($this->cashier)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $transactionId, 'return_type' => 'refund',
-            'items' => [['product_id' => $this->rj45->ProductID, 'quantity' => $quantity, 'reason_code' => 'damaged_product']],
+            'items' => [['product_id' => $this->rj45->ProductID, 'quantity' => $quantity, 'reason_code' => 'factory_defect']],
         ]);
         $request(0.5)->assertStatus(400);
         $request(1)->assertOk()->assertJsonPath('refund_amount', 500);

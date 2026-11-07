@@ -49,15 +49,18 @@ class SalesReturn extends Model
 
     const TYPE_REFUND = 'refund';
 
-    // Reasons a cashier can choose for a return. "Other" was removed, so
-    // every returned unit is either a factory defect or damaged.
+    // The reason given to every return: since 2026-11-07 a return is always
+    // a Factory Defect (set automatically; "Damaged Product" and "Other"
+    // were removed).
     const REASON_CODES = [
         'factory_defect' => 'Factory Defect',
-        'damaged_product' => 'Damaged Product',
     ];
+
+    const DEFAULT_REASON_CODE = 'factory_defect';
 
     // Reasons that mean the physical unit is unsalable — it must never be
     // restored to Inventory and instead flows into the Damage module.
+    // "Damaged Product" stays for returns recorded before it was removed.
     const UNSALABLE_REASONS = ['Factory Defect', 'Damaged Product'];
 
     // Store policy: how many days after purchase a product remains eligible for return.

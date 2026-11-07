@@ -286,7 +286,8 @@ class CashierReturnController extends Controller
             'items.*.product_id' => 'required|integer|exists:Product,ProductID',
             // In the unit the product was sold in (meters, boxes...).
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
-            'items.*.reason_code' => 'required|in:'.implode(',', array_keys(SalesReturn::REASON_CODES)),
+            // Always Factory Defect: set automatically when it isn't sent.
+            'items.*.reason_code' => 'nullable|in:'.implode(',', array_keys(SalesReturn::REASON_CODES)),
             // Serial-numbered products: the sticker of each piece returned.
             'items.*.serials' => 'nullable|array',
             'items.*.serials.*' => 'string|max:20',
@@ -388,7 +389,7 @@ class CashierReturnController extends Controller
                         'salesItem' => $salesItem,
                         'productId' => $itemData['product_id'],
                         'quantity' => $quantity,
-                        'reasonLabel' => SalesReturn::REASON_CODES[$itemData['reason_code']],
+                        'reasonLabel' => SalesReturn::REASON_CODES[$itemData['reason_code'] ?? SalesReturn::DEFAULT_REASON_CODE],
                         'serialIds' => $this->returnedSerialIds($salesItem, $quantity, $itemData['serials'] ?? null),
                     ];
                 }

@@ -60,7 +60,7 @@ class ReturnedSerialsTest extends TestCase
         return $this->actingAs($this->cashier)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $sale->SalesTransactionID,
             'items' => [array_filter([
-                'product_id' => $this->camera->ProductID, 'quantity' => $quantity, 'reason_code' => 'damaged_product', 'serials' => $serials,
+                'product_id' => $this->camera->ProductID, 'quantity' => $quantity, 'reason_code' => 'factory_defect', 'serials' => $serials,
             ], fn ($value) => $value !== null)],
             'return_type' => 'refund',
         ]);

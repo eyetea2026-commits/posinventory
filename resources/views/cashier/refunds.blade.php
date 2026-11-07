@@ -499,11 +499,8 @@ function populateTransactionDetails(transaction) {
                     </div>
                     <div class="form-group">
                         <label>Return Reason</label>
-                        <select class="refund-item-reason" onchange="updateItemReason(${productId}, this.value)">
-                            <option value="" selected>Select Reason</option>
-                            <option value="factory_defect">Factory Defect</option>
-                            <option value="damaged_product">Damaged Product</option>
-                        </select>
+                        {{-- Every return is a Factory Defect (set automatically). --}}
+                        <input type="text" class="form-input refund-item-reason" value="Factory Defect" readonly tabindex="-1">
                     </div>
                 </div>
                 ${item.TracksSerials ? `
@@ -535,7 +532,7 @@ function toggleRefundItem(checkbox, productId, unitPrice, maxQty, allowsDecimals
     const controls = document.getElementById(`refund-item-controls-${productId}`);
 
     if (checkbox.checked) {
-        selectedItems[productId] = { unitPrice, maxQty, allowsDecimals: !!allowsDecimals, quantity: firstQty || 1, reasonCode: '' };
+        selectedItems[productId] = { unitPrice, maxQty, allowsDecimals: !!allowsDecimals, quantity: firstQty || 1, reasonCode: 'factory_defect' };
         controls.style.display = 'block';
         row.classList.add('selected');
         autoPickReturnSerials(productId);
