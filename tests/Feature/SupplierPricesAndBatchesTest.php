@@ -164,16 +164,17 @@ class SupplierPricesAndBatchesTest extends TestCase
     public function test_each_delivery_is_a_batch_with_its_cost_selling_price_and_margin(): void
     {
         $this->receive($this->acme, 580, ['good' => 10])->assertSessionMissing('error');
-        $this->camera->update(['Price' => 1100]);
+        $this->camera->update(['ProfitMargin' => 45]);
         $this->receive($this->bravo, 620, ['good' => 4, 'damaged' => 1], 5)->assertSessionMissing('error');
 
         [$first, $second] = StockReceivingDeliveryItem::orderBy('StockReceivingDeliveryItemID')->get()->all();
         $this->assertSame('580.00', (string) $first->UnitCost);
-        $this->assertSame('1000.00', (string) $first->SellingPrice);
-        $this->assertSame(42.0, $first->marginPercent());
+        // Selling Price = the batch's own cost / (1 - the product's margin).
+        $this->assertSame('966.67', (string) $first->SellingPrice);
+        $this->assertSame(40.0, $first->marginPercent());
         $this->assertSame('620.00', (string) $second->UnitCost);
-        $this->assertSame('1100.00', (string) $second->SellingPrice);
-        $this->assertSame(43.6, $second->marginPercent());
+        $this->assertSame('1127.27', (string) $second->SellingPrice);
+        $this->assertSame(45.0, $second->marginPercent());
 
         // The delivering supplier's price follows what it was ordered at.
         $this->assertSame(580.0, (float) ProductSupplier::where('SupplierID', $this->acme->SupplierID)->value('CostPrice'));
@@ -183,7 +184,7 @@ class SupplierPricesAndBatchesTest extends TestCase
         $html = $this->actingAs($this->admin)->getJson(route('admin.inventory.show', $this->camera))->assertOk()->json('html');
         $this->assertStringContainsString('Stock Batches', $html);
         // Received, Damaged, Sold, Remaining, Unit Cost, Selling Price, Margin.
-        $this->assertMatchesRegularExpression('/Bravo Trading<\/td>\s*<td>4 pieces<\/td>\s*<td>1 piece<\/td>\s*<td>0 pieces<\/td>\s*<td><strong>4 pieces<\/strong><\/td>\s*<td[^>]*>₱620\.00<\/td>\s*<td[^>]*>₱1,100\.00<\/td>\s*<td>43\.6%<\/td>/u', $html);
+        $this->assertMatchesRegularExpression('/Bravo Trading<\/td>\s*<td>4 pieces<\/td>\s*<td>1 piece<\/td>\s*<td>0 pieces<\/td>\s*<td><strong>4 pieces<\/strong><\/td>\s*<td[^>]*>₱620\.00<\/td>\s*<td[^>]*>₱1,127\.27<\/td>\s*<td>45\.0%<\/td>/u', $html);
         $this->assertStringContainsString('Margin = (Selling Price − Unit Cost) ÷ Selling Price.', $html);
     }
 

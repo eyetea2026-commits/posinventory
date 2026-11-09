@@ -139,8 +139,8 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     }
 
     $product = $serial
-        ? Product::with(['inventory', 'category'])->find($serial->ProductID)
-        : Product::with(['inventory', 'category'])
+        ? Product::with(['inventory', 'category', 'stockBatches' => fn ($query) => $query->where('QuantityRemaining', '>', 0)])->find($serial->ProductID)
+        : Product::with(['inventory', 'category', 'stockBatches' => fn ($query) => $query->where('QuantityRemaining', '>', 0)])
             ->where(function ($query) use ($barcode) {
                 $query->where('Barcode', $barcode)->orWhere('SKU', $barcode);
             })

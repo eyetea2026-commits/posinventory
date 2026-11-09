@@ -147,9 +147,10 @@ class DamagedProduct extends Model
 
         $salesTransactionId = $this->salesReturn?->SalesTransactionID;
         if ($salesTransactionId) {
-            $salesItem = SalesItem::where('SalesTransactionID', $salesTransactionId)->where('ProductID', $this->ProductID)->first();
-            if ($salesItem && $salesItem->CostAmount !== null && (float) $salesItem->BaseQuantity > 0) {
-                return round((float) $salesItem->CostAmount / (float) $salesItem->BaseQuantity, 2);
+            $lines = SalesItem::linesForProduct($salesTransactionId, $this->ProductID)->whereNotNull('CostAmount');
+            $baseQuantity = (float) $lines->sum(fn (SalesItem $line) => (float) $line->BaseQuantity);
+            if ($baseQuantity > 0) {
+                return round((float) $lines->sum(fn (SalesItem $line) => (float) $line->CostAmount) / $baseQuantity, 2);
             }
         }
 

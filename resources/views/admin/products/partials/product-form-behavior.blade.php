@@ -367,7 +367,6 @@ window.initProductAddForm = function (formId, options) {
     }
 
     costPriceInput.addEventListener('input', function () { formChanged = true; recalcFromCost(); });
-    sellingPriceInput.addEventListener('input', function () { formChanged = true; recalcFromSelling(); });
     profitMarginInput.addEventListener('input', function () { formChanged = true; recalcFromMargin(); });
 
     form.querySelectorAll('input, select, textarea').forEach(function (input) {
@@ -505,11 +504,9 @@ window.initProductAddForm = function (formId, options) {
     // clobber a product's real, possibly-customized margin every time the
     // edit form opens. Only seed Selling Price from Cost + the default
     // margin when there's nothing there yet (Add mode).
-    if (window.parseMoney(sellingPriceInput.value) > 0) {
-        recalcFromSelling();
-    } else {
-        recalcFromCost();
-    }
+    // The Selling Price is automatic: always worked out from the Cost
+    // Price and the product's saved Profit Margin.
+    recalcFromMargin();
 
     // Unit of Measurement: the unit names in the labels follow the chosen
     // base/purchase units. How many meters a roll holds is entered at Stock

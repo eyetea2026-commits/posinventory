@@ -28,6 +28,9 @@ use Throwable;
 
 class ProductController extends Controller
 {
+    /** Percent; Selling Price = Cost / (1 - Profit Margin). */
+    public const MAX_PROFIT_MARGIN = 95;
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -258,7 +261,7 @@ class ProductController extends Controller
             ...self::unitOfMeasureMessages(),
         ]);
         $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']));
-        $data['Price'] = self::sellingPriceFrom($data);
+        $data['ProfitMargin'] = self::profitMarginFrom($data);
 
         // Brand is managed via Brand Management (Category module) and is
         // always scoped to one Category — the Add Product form's Brand
@@ -358,6 +361,9 @@ class ProductController extends Controller
     {
         return [
             'CostPrice' => ['required', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
+            // The Selling Price is worked out from the Profit Margin; a
+            // Selling Price sent instead sets the margin it gives.
+            'ProfitMargin' => ['nullable', 'numeric', 'min:0', 'max:'.self::MAX_PROFIT_MARGIN],
             'Price' => ['nullable', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
         ];
     }
@@ -370,23 +376,29 @@ class ProductController extends Controller
         return [
             'CostPrice.max' => 'The Cost Price can only have up to 5 digits (₱99,999.99).',
             'Price.max' => 'The Selling Price can only have up to 5 digits (₱99,999.99).',
+            'ProfitMargin.max' => 'The Profit Margin can be at most '.self::MAX_PROFIT_MARGIN.'%.',
+            'ProfitMargin.min' => 'The Profit Margin cannot be negative.',
         ];
     }
 
     /**
-     * The Selling Price to save: the one entered, or else the Cost Price at
-     * the default margin, which also has to stay within the 5-digit limit.
+     * The Profit Margin to save (percent): the one entered, else the one a
+     * Selling Price sent instead gives, else the store default. The Selling
+     * Price it makes from the Cost Price has to stay within 5 digits.
      *
      * @param  array<string, mixed>  $data
      */
-    private static function sellingPriceFrom(array $data): float
+    private static function profitMarginFrom(array $data): float
     {
-        $price = isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']);
-        if ($price > Product::MAX_PRICE) {
-            throw ValidationException::withMessages(['Price' => 'The Selling Price can only have up to 5 digits (₱99,999.99). Enter a lower Selling Price.']);
+        $margin = isset($data['ProfitMargin'])
+            ? round((float) $data['ProfitMargin'], 4)
+            : Product::marginFor((float) ($data['Price'] ?? 0), (float) $data['CostPrice']);
+
+        if (Product::computeSellingPrice((float) $data['CostPrice'], $margin) > Product::MAX_PRICE) {
+            throw ValidationException::withMessages(['ProfitMargin' => 'At this Profit Margin the Selling Price would be over 5 digits (₱99,999.99). Enter a lower Profit Margin.']);
         }
 
-        return $price;
+        return $margin;
     }
 
     /**
@@ -516,7 +528,8 @@ class ProductController extends Controller
                 'ImagePath' => $imagePath,
                 'Barcode' => $data['Barcode'] ?? null,
                 'CostPrice' => $data['CostPrice'],
-                'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
+                'ProfitMargin' => $data['ProfitMargin'],
+                'Price' => Product::computeSellingPrice((float) $data['CostPrice'], $data['ProfitMargin']),
                 'BrandID' => $brandId,
                 'CategoryID' => $data['CategoryID'],
                 'IsReturnable' => empty($data['NonReturnable']),
@@ -615,7 +628,7 @@ class ProductController extends Controller
             ...self::unitOfMeasureMessages(),
         ]);
         $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']), $product);
-        $data['Price'] = self::sellingPriceFrom($data);
+        $data['ProfitMargin'] = self::profitMarginFrom($data);
 
         // See store() — re-verify the selected Brand actually belongs to the
         // selected Category rather than trusting the client.
@@ -681,7 +694,7 @@ class ProductController extends Controller
             'Description' => $data['Description'] ?? null,
             'Barcode' => $data['Barcode'] ?? null,
             'CostPrice' => $data['CostPrice'],
-            'Price' => isset($data['Price']) ? (float) $data['Price'] : Product::computeSellingPrice((float) $data['CostPrice']),
+            'ProfitMargin' => $data['ProfitMargin'],
             'BrandID' => $brandId,
             'CategoryID' => $data['CategoryID'],
             // Left as-is when a request doesn't carry the box at all.
@@ -694,6 +707,10 @@ class ProductController extends Controller
         }
 
         ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], ProductCostHistory::SOURCE_PRODUCT_UPDATE);
+
+        // The stock still on hand is priced again at the margin, each batch
+        // from its own cost; the Selling Price follows the batch that sells next.
+        $product->repriceStockBatches();
 
         // Stock quantity is managed through the Inventory module, not here:
         // only the Re-Order Point (computed, ReorderPoint) and the status it

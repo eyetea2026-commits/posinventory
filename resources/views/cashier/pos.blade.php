@@ -103,6 +103,7 @@
     .cart-item-price { text-align: right; min-width: 80px; }
     .cart-item-price .item-total { font-weight: bold; color: #60a5fa; font-size: 1rem; }
     .cart-item-price .item-price { font-size: 0.75rem; color: #94a3b8; }
+    .cart-price-tier { margin: 0; font-size: 0.8rem; }
     .remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; font-size: 1rem; margin-left: 8px; }
 
     .cart-item-promo-row { flex-basis: 100%; margin-top: 8px; }
@@ -948,8 +949,49 @@
             unitPlural: sellingUnit.plural,
             perUnit: parseFloat(sellingUnit.quantity_per_unit) || 1,
             price: parseFloat(sellingUnit.price) || 0,
+            // Base unit only: what each stock batch sells for, oldest first.
+            tiers: Array.isArray(sellingUnit.tiers) ? sellingUnit.tiers : null,
             fractional: !!sellingUnit.fractional,
         };
+    }
+
+    // Each piece sells at the price of the stock batch it comes out of
+    // (FIFO), exactly as processSale() charges it: [{ qty, price }], one
+    // per price. A line sold by the roll/box, or with no batch prices
+    // known, is one price.
+    function lineSlices(item) {
+        if (item.perUnit !== 1 || !item.tiers || !item.tiers.length) {
+            return [{ qty: item.qty, price: item.price }];
+        }
+        const slices = [];
+        let left = item.qty;
+        const push = function (qty, price) {
+            const last = slices[slices.length - 1];
+            if (last && last.price === price) {
+                last.qty = roundQty(last.qty + qty);
+            } else {
+                slices.push({ qty: qty, price: price });
+            }
+        };
+        item.tiers.forEach(function (tier) {
+            if (left <= 0) return;
+            const qty = roundQty(Math.min(parseFloat(tier.quantity) || 0, left));
+            if (qty > 0) {
+                push(qty, roundMoney(parseFloat(tier.price) || 0));
+                left = roundQty(left - qty);
+            }
+        });
+        if (left > 0) push(left, item.price);
+        return slices;
+    }
+
+    function lineSubtotal(item) {
+        return lineSlices(item).reduce((sum, slice) => sum + slice.price * slice.qty, 0);
+    }
+
+    function lineDiscount(item, promo) {
+        if (!promo) return 0;
+        return lineSlices(item).reduce((sum, slice) => sum + (slice.price - discountedUnitPrice(slice.price, promo)) * slice.qty, 0);
     }
 
     // Clicking a (non-serial) product card: a measured product asks how
@@ -1259,15 +1301,26 @@
             const perUnitHtml = `<span class="cart-price-unit">/${escapeHtml(item.unit)}</span>`;
             const unitName = unitNameFor({ unit: item.unit, plural: item.unitPlural }, item.qty);
             const maxQty = maxQtyFor(item);
-            if (promo) {
-                const discountedUnit = discountedUnitPrice(item.price, promo);
-                lineTotal = discountedUnit * item.qty;
+            const slices = lineSlices(item);
+            lineTotal = lineSubtotal(item) - lineDiscount(item, promo);
+            if (slices.length > 1) {
+                // Pieces from batches at different prices: one row per price.
+                priceLineHtml = slices.map(slice => promo
+                    ? `<p class="cart-price-tier">${formatQty(slice.qty)} × <span class="promo-original-price">${window.formatPeso(slice.price)}</span> <span class="promo-discounted-price">${window.formatPeso(discountedUnitPrice(slice.price, promo))}</span>${perUnitHtml}</p>`
+                    : `<p class="cart-price-tier">${formatQty(slice.qty)} × ${window.formatPeso(slice.price)}${perUnitHtml}</p>`
+                ).join('');
+            } else if (promo) {
+                const price = slices[0].price;
                 priceLineHtml = `
                     <p>
-                        <span class="promo-original-price">${window.formatPeso(item.price)}</span>
-                        <span class="promo-discounted-price">${window.formatPeso(discountedUnit)}</span>${perUnitHtml}
+                        <span class="promo-original-price">${window.formatPeso(price)}</span>
+                        <span class="promo-discounted-price">${window.formatPeso(discountedUnitPrice(price, promo))}</span>${perUnitHtml}
                     </p>
                 `;
+            } else {
+                priceLineHtml = `<p>${window.formatPeso(slices[0].price)}${perUnitHtml}</p>`;
+            }
+            if (promo) {
                 promoRowHtml = `
                     <div class="cart-item-promo-row">
                         <span class="promo-applied-chip">
@@ -1276,9 +1329,6 @@
                         ${promo.description ? `<span class="promo-applied-desc">${escapeHtml(promo.description)}</span>` : ''}
                     </div>
                 `;
-            } else {
-                lineTotal = item.price * item.qty;
-                priceLineHtml = `<p>${window.formatPeso(item.price)}${perUnitHtml}</p>`;
             }
             // Beside the quantity: the unit, which reopens the quantity popup
             // for a product sold by more than one unit or by decimals.
@@ -1394,6 +1444,17 @@
                 item.stock = stock;
                 cartChanged = true;
             }
+            // The batch prices move too once stock is sold or received.
+            const sellingUnit = cardSellingUnits(card).find(unit => unit.unit === item.unit);
+            if (sellingUnit) {
+                const tiers = Array.isArray(sellingUnit.tiers) ? sellingUnit.tiers : null;
+                const price = parseFloat(sellingUnit.price) || 0;
+                if (price !== item.price || JSON.stringify(tiers) !== JSON.stringify(item.tiers)) {
+                    item.price = price;
+                    item.tiers = tiers;
+                    cartChanged = true;
+                }
+            }
         });
         if (cartChanged) renderCart();
     });
@@ -1494,17 +1555,13 @@
         // Salable Sales = the sum of every line's normal (pre-discount)
         // price, exactly as "Subtotal" was computed before — only the label
         // changed, not the math, matching processSale()'s own $subtotal.
-        const subtotal = roundMoney(cart.reduce((sum, item) => sum + (item.price * item.qty), 0));
+        const subtotal = roundMoney(cart.reduce((sum, item) => sum + lineSubtotal(item), 0));
 
         // Each item's own discount is looked up independently from
         // PRODUCT_PROMO_MAP (never a single shared "applied promo") and
         // summed — matches processSale() computing every line's discount
         // the same way from the database at checkout time.
-        const discountAmount = roundMoney(cart.reduce((sum, item) => {
-            const promo = getPromoFor(item);
-            if (!promo) return sum;
-            return sum + ((item.price - discountedUnitPrice(item.price, promo)) * item.qty);
-        }, 0));
+        const discountAmount = roundMoney(cart.reduce((sum, item) => sum + lineDiscount(item, getPromoFor(item)), 0));
 
         // VAT is the part of the post-discount Total that is VAT (Total ×
         // 12/112, prices are VAT-inclusive; not added on top of it — Total

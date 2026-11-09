@@ -73,7 +73,7 @@ class CashierAuthController extends Controller
         // POS grid order: consumables (connectors, junction boxes...) first,
         // then the other items added with a click (no serial sticker to
         // scan), then serial-numbered items; newest first within each.
-        $products = Product::active()->with(['inventory', 'category'])->orderByDesc('ProductID')->get()
+        $products = Product::active()->with(['inventory', 'category', 'stockBatches' => fn ($query) => $query->where('QuantityRemaining', '>', 0)])->orderByDesc('ProductID')->get()
             ->filter(fn ($product) => $product->inventory && $product->inventory->Quantity > 0)
             ->sortBy(fn ($product) => match (true) {
                 strcasecmp((string) $product->category?->CategoryName, 'CONSUMABLES') === 0 => 0,
@@ -539,10 +539,27 @@ class CashierAuthController extends Controller
                     $serialsToSell[$productId] = $serials;
                 }
 
-                // Recompute totals from the DB product prices — never trust
+                // Each piece sells at the price of the stock batch it comes
+                // out of (FIFO): a line taking from batches at different
+                // prices becomes one sale line per price. A line sold by the
+                // roll/box keeps the roll's price.
+                $saleLines = [];
+                foreach ($lines as $productId => $line) {
+                    $line['product_id'] = $productId;
+                    if ((float) $line['quantity_per_unit'] != 1.0) {
+                        $saleLines[] = $line;
+
+                        continue;
+                    }
+                    foreach (StockBatches::priceSlices($products->get($productId), (float) $line['qty']) as $slice) {
+                        $saleLines[] = array_merge($line, ['price' => $slice['price'], 'qty' => $slice['quantity']]);
+                    }
+                }
+
+                // Recompute totals from the DB prices — never trust
                 // client-submitted prices, they're editable in the browser.
                 $subtotal = 0;
-                foreach ($lines as $line) {
+                foreach ($saleLines as $line) {
                     $subtotal += $line['price'] * $line['qty'];
                 }
 
@@ -562,7 +579,7 @@ class CashierAuthController extends Controller
                 // ends up on each SalesItem row below, so a return/refund
                 // can later prorate by exactly the quantity being returned
                 // rather than assuming a whole line is returned at once.
-                $discountPerUnitByProduct = [];
+                $discountPerUnitByLine = [];
                 Discount::currentlyActive()
                     ->whereHas('products', fn ($q) => $q->whereIn('Product.ProductID', array_keys($quantitiesByProduct)))
                     ->with(['products' => fn ($q) => $q->whereIn('Product.ProductID', array_keys($quantitiesByProduct))])
@@ -574,14 +591,14 @@ class CashierAuthController extends Controller
                     });
 
                 // Per unit sold: a box line gets the promo on the box price.
-                foreach ($lines as $productId => $line) {
-                    $promo = $activePromoByProduct[$productId] ?? null;
+                foreach ($saleLines as $index => $line) {
+                    $promo = $activePromoByProduct[$line['product_id']] ?? null;
                     if (! $promo) {
                         continue;
                     }
                     $perUnitDiscount = $line['price'] - $promo->discountedPrice($line['price']);
                     $discountAmount += $perUnitDiscount * $line['qty'];
-                    $discountPerUnitByProduct[$productId] = $perUnitDiscount;
+                    $discountPerUnitByLine[$index] = $perUnitDiscount;
                     $usedDiscountIds[$promo->DiscountID] = true;
                 }
                 $discountAmount = round($discountAmount, 2);
@@ -691,31 +708,31 @@ class CashierAuthController extends Controller
                 // back exactly what was paid for it.
                 $customShares = [];
                 $sharedSoFar = 0.0;
-                $lastProductId = array_key_last($lines);
-                foreach ($lines as $productId => $line) {
-                    $lineAfterPromo = $line['price'] * $line['qty'] - ($discountPerUnitByProduct[$productId] ?? 0) * $line['qty'];
-                    $share = $productId === $lastProductId
+                $lastIndex = array_key_last($saleLines);
+                foreach ($saleLines as $index => $line) {
+                    $lineAfterPromo = $line['price'] * $line['qty'] - ($discountPerUnitByLine[$index] ?? 0) * $line['qty'];
+                    $share = $index === $lastIndex
                         ? round($customDiscountAmount - $sharedSoFar, 2)
                         : ($afterPromos > 0 ? round($customDiscountAmount * $lineAfterPromo / $afterPromos, 2) : 0.0);
-                    $customShares[$productId] = $share;
+                    $customShares[$index] = $share;
                     $sharedSoFar = round($sharedSoFar + $share, 2);
                 }
 
                 // Create sales items, priced from the DB, not the request
                 $salesItems = [];
-                foreach ($lines as $productId => $line) {
-                    $perUnitDiscount = $discountPerUnitByProduct[$productId] ?? 0;
-                    $salesItems[$productId] = SalesItem::create([
+                foreach ($saleLines as $index => $line) {
+                    $perUnitDiscount = $discountPerUnitByLine[$index] ?? 0;
+                    $salesItems[$index] = SalesItem::create([
                         'Quantity' => $line['qty'],
                         'Unit' => $line['unit'],
-                        'BaseQuantity' => $quantitiesByProduct[$productId],
+                        'BaseQuantity' => Quantity::normalize($line['qty'] * $line['quantity_per_unit']),
                         'UnitPrice' => $line['price'],
                         // This line's own share of the sale's discount — lets
                         // a later return/refund pay out exactly what the
                         // customer paid for the returned quantity instead of
                         // the full undiscounted price.
-                        'DiscountAmount' => round($perUnitDiscount * $line['qty'] + $customShares[$productId], 2),
-                        'ProductID' => $productId,
+                        'DiscountAmount' => round($perUnitDiscount * $line['qty'] + $customShares[$index], 2),
+                        'ProductID' => $line['product_id'],
                         'SalesTransactionID' => $transaction->SalesTransactionID,
                     ]);
                 }
@@ -730,14 +747,14 @@ class CashierAuthController extends Controller
                     }
                 }
 
-                // Update inventory using the aggregated per-product quantity
-                foreach ($quantitiesByProduct as $productId => $qty) {
-                    $inventory = $inventories->get($productId);
-                    $inventory->Quantity = Quantity::normalize($inventory->Quantity - $qty);
+                // Stock goes down line by line, in the order the lines were
+                // priced: each takes from the oldest stock batches first
+                // (FIFO), the same batches it was priced from, and keeps
+                // what those pieces cost.
+                foreach ($salesItems as $salesItem) {
+                    $inventory = $inventories->get($salesItem->ProductID);
+                    $inventory->Quantity = Quantity::normalize($inventory->Quantity - $salesItem->BaseQuantity);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                    // Taken from the oldest stock batches first (FIFO); the
-                    // line keeps what those pieces cost.
-                    $salesItem = $salesItems[$productId];
                     StockBatches::takingFor(
                         ['Reason' => StockBatchAllocation::REASON_SALE, 'SalesItemID' => $salesItem->SalesItemID],
                         fn () => $inventory->save()

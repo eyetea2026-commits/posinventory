@@ -383,7 +383,7 @@ class StockReceivingController extends Controller
                         'BaseQuantity' => $item->toBaseQuantity($quantityReceived),
                         'DamagedQuantity' => $quantityDamaged,
                         'UnitCost' => $item->costPerBaseUnit(),
-                        'SellingPrice' => $product?->Price,
+                        'SellingPrice' => $product?->sellingPriceForCost($item->costPerBaseUnit()) ?? $product?->Price,
                     ]);
                     $receivedNow += $quantityReceived + $quantityDamaged;
 

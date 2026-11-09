@@ -36,8 +36,12 @@ class Product extends Model
         'AllowsFractionalQuantity',
         'SKU',
         'Barcode',
+        // The price of the stock batch that sells next (FIFO); each batch is
+        // priced from its own cost at ProfitMargin (StockBatches).
         'Price',
         'CostPrice',
+        // Percent: Selling Price = Cost / (1 - ProfitMargin / 100).
+        'ProfitMargin',
         'Description',
         'ImagePath',
         'BrandID',
@@ -54,7 +58,30 @@ class Product extends Model
         'QuantityPerPurchaseUnit' => Quantity::class,
         'SellsByPurchaseUnit' => 'boolean',
         'AllowsFractionalQuantity' => 'boolean',
+        'ProfitMargin' => 'float',
     ];
+
+    /**
+     * A product saved with a Selling Price but no Profit Margin keeps that
+     * price: the margin is taken from it.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Product $product) {
+            if ($product->ProfitMargin === null) {
+                $product->ProfitMargin = self::marginFor((float) $product->Price, (float) $product->CostPrice);
+            }
+        });
+    }
+
+    /**
+     * The margin (percent) a Selling Price gives over a Cost Price; the
+     * store default when either is missing.
+     */
+    public static function marginFor(float $price, float $cost): float
+    {
+        return $price > 0 && $cost > 0 ? round(($price - $cost) / $price * 100, 4) : self::PROFIT_MARGIN * 100;
+    }
 
     /**
      * Only products that can still be sold or ordered. Inactive products
@@ -76,9 +103,84 @@ class Product extends Model
     // Cost and Selling Price: up to 5 whole-peso digits.
     const MAX_PRICE = 99999.99;
 
-    public static function computeSellingPrice(float $costPrice): float
+    /**
+     * Selling Price = Cost / (1 - Profit Margin); the store default margin
+     * when none is given.
+     */
+    public static function computeSellingPrice(float $costPrice, ?float $marginPercent = null): float
     {
-        return round($costPrice / (1 - self::PROFIT_MARGIN), 2);
+        $margin = ($marginPercent ?? self::PROFIT_MARGIN * 100) / 100;
+
+        return $margin < 1 ? round($costPrice / (1 - $margin), 2) : 0.0;
+    }
+
+    /**
+     * What a piece bought at this cost sells for, at this product's margin;
+     * null when the cost isn't known.
+     */
+    public function sellingPriceForCost(?float $cost): ?float
+    {
+        return $cost !== null && $cost > 0 ? self::computeSellingPrice($cost, $this->ProfitMargin) : null;
+    }
+
+    public function stockBatches()
+    {
+        return $this->hasMany(StockBatch::class, 'ProductID', 'ProductID');
+    }
+
+    /**
+     * What the stock on hand sells for, oldest batch first (FIFO): each
+     * batch at its own price, batches at the same price merged.
+     *
+     * @return list<array{quantity: int|float, price: float}>
+     */
+    public function priceTiers(): array
+    {
+        $batches = $this->relationLoaded('stockBatches')
+            ? $this->stockBatches
+            : $this->stockBatches()->where('QuantityRemaining', '>', 0)->get();
+
+        $tiers = [];
+        foreach ($batches->filter(fn (StockBatch $batch) => (float) $batch->QuantityRemaining > 0)->sortBy([['ReceivedAt', 'asc'], ['StockBatchID', 'asc']]) as $batch) {
+            $price = round((float) ($batch->SellingPrice ?? $this->Price), 2);
+            $last = count($tiers) - 1;
+            if ($last >= 0 && $tiers[$last]['price'] === $price) {
+                $tiers[$last]['quantity'] = Quantity::normalize($tiers[$last]['quantity'] + (float) $batch->QuantityRemaining);
+            } else {
+                $tiers[] = ['quantity' => Quantity::normalize($batch->QuantityRemaining), 'price' => $price];
+            }
+        }
+
+        return $tiers;
+    }
+
+    /**
+     * The Selling Price follows the batch that sells next; with nothing in
+     * stock, the Cost Price at the margin. Kept as it is when neither is known.
+     */
+    public function refreshSellingPrice(): void
+    {
+        $next = $this->stockBatches()
+            ->where('QuantityRemaining', '>', 0)
+            ->whereNotNull('SellingPrice')
+            ->fifo()
+            ->value('SellingPrice');
+        $price = $next !== null ? (float) $next : $this->sellingPriceForCost((float) $this->CostPrice);
+
+        if ($price !== null && round((float) $this->Price, 2) !== round($price, 2)) {
+            self::whereKey($this->ProductID)->update(['Price' => $price]);
+            $this->Price = $price;
+        }
+    }
+
+    /**
+     * After the margin changed: the batches still in stock are priced again.
+     */
+    public function repriceStockBatches(): void
+    {
+        $this->stockBatches()->where('QuantityRemaining', '>', 0)->get()
+            ->each(fn (StockBatch $batch) => $batch->update(['SellingPrice' => $this->sellingPriceForCost((float) $batch->UnitCost)]));
+        $this->refreshSellingPrice();
     }
 
     // SKU is system-assigned, never typed in by staff — it's derived from
@@ -174,6 +276,9 @@ class Product extends Model
                 'plural' => UnitOfMeasure::plural($this->baseUnit()),
                 'quantity_per_unit' => 1,
                 'price' => (float) $this->Price,
+                // Each piece sells at its own batch's price (FIFO); listed
+                // where the batches were loaded (the POS), not on every page.
+                'tiers' => $this->relationLoaded('stockBatches') ? $this->priceTiers() : null,
                 // Serial-numbered pieces are always sold whole.
                 'fractional' => $this->AllowsFractionalQuantity && ! $tracksSerialNumbers,
             ],

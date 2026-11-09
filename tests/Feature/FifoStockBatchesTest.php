@@ -71,7 +71,7 @@ class FifoStockBatchesTest extends TestCase
     {
         $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $this->camera->ProductID, 'qty' => $quantity]],
-            'payment_method' => 'cash', 'payment_amount' => 100 * $quantity,
+            'payment_method' => 'cash', 'payment_amount' => 1000 * $quantity,
         ])->assertOk();
 
         return SalesItem::latest('SalesItemID')->firstOrFail();
@@ -107,16 +107,20 @@ class FifoStockBatchesTest extends TestCase
         $this->travel(1)->days();
         $this->receive(5, 70);
 
-        // 12 = all 10 of the ₱60 batch + 2 of the ₱70 batch.
-        $line = $this->sell(12);
+        // 12 = all 10 of the ₱60 batch + 2 of the ₱70 batch; at the 50%
+        // margin they sell for ₱120 and ₱140: one sale line per price.
+        $this->sell(12);
 
         $this->assertSame([0, 3], $this->remainingPerBatch());
-        $this->assertSame(740.0, (float) $line->fresh()->CostAmount);
-        $this->assertSame(1200.0 - 740.0, $line->fresh()->grossProfit());
+        [$older, $newer] = SalesItem::orderBy('SalesItemID')->get()->all();
+        $this->assertSame([10, 120.0, 600.0], [$older->Quantity, (float) $older->UnitPrice, (float) $older->CostAmount]);
+        $this->assertSame([2, 140.0, 140.0], [$newer->Quantity, (float) $newer->UnitPrice, (float) $newer->CostAmount]);
+        $this->assertSame(600.0, $older->grossProfit());
 
-        $allocations = StockBatchAllocation::where('SalesItemID', $line->SalesItemID)->orderBy('StockBatchAllocationID')->get();
+        $allocations = StockBatchAllocation::orderBy('StockBatchAllocationID')->get();
         $this->assertSame([10, 2], $allocations->pluck('Quantity')->all());
         $this->assertSame([60.0, 70.0], $allocations->map(fn ($allocation) => (float) $allocation->UnitCost)->all());
+        $this->assertSame([$older->SalesItemID, $newer->SalesItemID], $allocations->pluck('SalesItemID')->all());
         $this->assertSame(StockBatchAllocation::REASON_SALE, $allocations[0]->Reason);
     }
 
@@ -150,18 +154,19 @@ class FifoStockBatchesTest extends TestCase
         $this->receive(2, 60);
         $this->travel(1)->days();
         $this->receive(5, 70);
-        $line = $this->sell(3);
+        $this->sell(3);
         $this->assertSame([0, 4], $this->remainingPerBatch());
+        $lineIds = SalesItem::pluck('SalesItemID')->all();
 
         // One piece refunded back to the shelf: back onto the ₱70 batch
         // (the last one this sale took from), not a new batch.
-        StockBatches::returningFrom($line->SalesItemID, function () {
+        StockBatches::returningFrom($lineIds, function () {
             $inventory = Inventory::where('ProductID', $this->camera->ProductID)->first();
             $inventory->update(['Quantity' => $inventory->Quantity + 1]);
         });
 
         $this->assertSame([0, 5], $this->remainingPerBatch());
-        $this->assertSame(1, StockBatchAllocation::where('SalesItemID', $line->SalesItemID)->orderByDesc('StockBatchAllocationID')->first()->ReturnedQuantity);
+        $this->assertSame(1, StockBatchAllocation::orderByDesc('StockBatchAllocationID')->first()->ReturnedQuantity);
     }
 
     public function test_a_supplier_replacement_comes_in_at_the_damaged_pieces_cost(): void
@@ -208,8 +213,8 @@ class FifoStockBatchesTest extends TestCase
         $this->assertLessThan(strpos($html, $second), strpos($html, $first));
         // The ₱60 batch is used up; the ₱70 one sells next.
         $this->assertMatchesRegularExpression('/'.$second.'<\/code>\s*<br><small class="batch-next">Sells next<\/small>/', $html);
-        // Profit: 10 sold at ₱100 from the ₱60 batch.
-        $this->assertStringContainsString('₱400.00', $html);
+        // Profit: 10 sold at ₱120 from the ₱60 batch.
+        $this->assertStringContainsString('₱600.00', $html);
         // Stock value: 5 left at ₱70.
         $this->assertStringContainsString('₱350.00', $html);
     }
@@ -222,7 +227,7 @@ class FifoStockBatchesTest extends TestCase
         $this->sell(12);
 
         $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
-            ->assertSeeInOrder(['Cost of Goods Sold (FIFO)', '₱740.00', 'Gross Profit', '₱460.00']);
+            ->assertSeeInOrder(['Cost of Goods Sold (FIFO)', '₱740.00', 'Gross Profit', '₱740.00']);
     }
 
     public function test_the_migration_splits_the_stock_on_hand_over_the_latest_deliveries(): void

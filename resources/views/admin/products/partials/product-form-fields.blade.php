@@ -235,14 +235,17 @@
                 <span class="form-error" id="error-PurchaseUnit">@error('PurchaseUnit'){{ $message }}@enderror</span>
             </div>
 
-            {{-- Up to 5 whole-peso digits (99,999.99). --}}
+            {{-- Automatic: worked out from the Cost Price and the Profit
+                 Margin below (never typed). Each stock batch is priced the
+                 same way from its own purchase cost. --}}
             <div class="form-group">
                 <label class="form-label" for="SellingPrice">Selling Price</label>
                 <div class="uom-price-input">
                     <span class="uom-currency">₱</span>
-                    <input type="text" name="Price" id="SellingPrice" class="form-input @error('Price') is-invalid @enderror" value="{{ old('Price', $product->Price ?? '') }}">
+                    <input type="text" id="SellingPrice" class="form-input" value="{{ isset($product->Price) ? number_format((float) $product->Price, 2, '.', '') : '' }}" readonly tabindex="-1">
                     <span class="uom-per-base">per {{ $baseUnit }}</span>
                 </div>
+                <small style="color:#94a3b8;">Automatic: Cost Price ÷ (1 − Profit Margin). Each stock batch is priced from its own purchase cost.</small>
                 <span class="form-error" id="error-Price">@error('Price'){{ $message }}@enderror</span>
             </div>
         </div>
@@ -261,7 +264,9 @@
             </div>
             <div class="computed-field">
                 <label for="ProfitMargin">Profit Margin (%)</label>
-                <input type="text" id="ProfitMargin" class="value-input" value="45.0" inputmode="decimal">
+                @php($savedMargin = old('ProfitMargin', isset($product->ProfitMargin) ? rtrim(rtrim(number_format((float) $product->ProfitMargin, 4, '.', ''), '0'), '.') : '45'))
+                <input type="text" name="ProfitMargin" id="ProfitMargin" class="value-input @error('ProfitMargin') is-invalid @enderror" value="{{ $savedMargin }}" inputmode="decimal">
+                <span class="form-error" id="error-ProfitMargin">@error('ProfitMargin'){{ $message }}@enderror</span>
             </div>
         </div>
     </div>

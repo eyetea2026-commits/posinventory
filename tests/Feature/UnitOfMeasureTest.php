@@ -110,6 +110,8 @@ class UnitOfMeasureTest extends TestCase
         $page = $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk();
         $page->assertSee('Stock: 1 Roll (5,000 meters)');
         $page->assertSee('Stock: 1 Box (100 pieces)');
+        // With what each stock batch sells for (FIFO).
+        $this->rj45->load(['stockBatches' => fn ($query) => $query->where('QuantityRemaining', '>', 0)]);
         $page->assertSee(e(json_encode(array_values($this->rj45->sellingUnits()))), false);
     }
 
@@ -182,8 +184,9 @@ class UnitOfMeasureTest extends TestCase
         $this->assertStringNotContainsString('Selling Unit', $html);
         $this->assertStringNotContainsString('SellsByPurchaseUnit', $html);
         $this->assertStringNotContainsString('Price per', $html);
-        // The Selling Price lives only there now.
-        $this->assertSame(1, substr_count($html, 'name="Price"'));
+        // The Selling Price is worked out (never typed) from the Profit Margin.
+        $this->assertSame(0, substr_count($html, 'name="Price"'));
+        $this->assertSame(1, substr_count($html, 'name="ProfitMargin"'));
         // No hint lines under the two units.
         $this->assertStringNotContainsString('Stock is counted in this unit.', $html);
         $this->assertStringNotContainsString('How the supplier sells it', $html);
@@ -283,10 +286,11 @@ class UnitOfMeasureTest extends TestCase
         Inventory::where('ProductID', $this->wire->ProductID)->update(['Quantity' => 4998.5]);
 
         $this->actingAs($this->admin)->putJson(route('admin.products.update', $this->wire), $this->productForm([
-            'ProductName' => 'UTP Cable CAT6', 'Model' => 'CAT6-305', 'Barcode' => '4800000000031', 'Price' => 12, 'QuantityPerPurchaseUnit' => 5000,
+            'ProductName' => 'UTP Cable CAT6', 'Model' => 'CAT6-305', 'Barcode' => '4800000000031', 'CostPrice' => 6, 'Price' => null, 'ProfitMargin' => 50, 'QuantityPerPurchaseUnit' => 5000,
         ]))->assertRedirect();
 
         $this->assertSame(4998.5, $this->stock($this->wire));
+        // The stock on hand (bought at ₱6) is priced again at the new margin.
         $this->assertEquals(12, $this->wire->fresh()->Price);
     }
 

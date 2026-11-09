@@ -214,7 +214,12 @@ class CashierReturnController extends Controller
     {
         $receiptNumber = 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
-        $items = $transaction->items->map(function ($item) use ($transaction) {
+        // One row per product: a product sold from stock batches at
+        // different prices has one sale line per price.
+        $items = $transaction->items->groupBy('ProductID')->map(function ($lines) use ($transaction) {
+            $item = $lines->first();
+            $quantityPurchased = Quantity::normalize($lines->sum(fn ($line) => (float) $line->Quantity));
+            $totalPrice = round($lines->sum(fn ($line) => (float) $line->Quantity * (float) $line->UnitPrice), 2);
             // Same count createRefund() enforces: every not-declined return
             // request line for this product on this sale.
             $alreadyRequested = (float) SalesReturnItem::where('ProductID', $item->ProductID)
@@ -233,15 +238,16 @@ class CashierReturnController extends Controller
                 'Category' => $item->product?->category?->CategoryName,
                 'CategoryID' => $item->product?->CategoryID,
                 // In the unit it was sold in ("1.5 meters", "1 box").
-                'QuantityPurchased' => $item->Quantity,
-                'RemainingReturnableQty' => Quantity::normalize(max(0, $item->Quantity - $alreadyRequested)),
+                'QuantityPurchased' => $quantityPurchased,
+                'RemainingReturnableQty' => Quantity::normalize(max(0, $quantityPurchased - $alreadyRequested)),
                 'Unit' => $unit,
                 'UnitPlural' => UnitOfMeasure::plural($unit),
                 'AllowsDecimals' => $this->returnAllowsDecimals($item),
                 // Tagged "Not returnable / refundable" (consumables, wires, fiber connectors).
                 'IsReturnable' => (bool) ($item->product?->IsReturnable ?? true),
-                'UnitPrice' => $item->UnitPrice,
-                'TotalPrice' => $item->Quantity * $item->UnitPrice,
+                // The average when its pieces sold at different batch prices.
+                'UnitPrice' => (float) $quantityPurchased > 0 ? round($totalPrice / (float) $quantityPurchased, 2) : (float) $item->UnitPrice,
+                'TotalPrice' => $totalPrice,
                 // Serial-numbered: the sticker of each piece coming back is
                 // picked, so a damaged one is never sold again.
                 'TracksSerials' => (bool) $item->product?->tracksSerialNumbers(),
@@ -249,7 +255,7 @@ class CashierReturnController extends Controller
                     ? ProductSerial::returnableFor($transaction->SalesTransactionID, $item->ProductID)->pluck('SerialNumber')->values()->all()
                     : [],
             ];
-        });
+        })->values();
 
         return [
             'SalesTransactionID' => $transaction->SalesTransactionID,
@@ -358,10 +364,8 @@ class CashierReturnController extends Controller
                     // finding F6) — the second request blocks here until
                     // the first's insert below is committed, then re-reads
                     // a sum that already includes it.
-                    $salesItem = SalesItem::where('SalesTransactionID', $data['transaction_id'])
-                        ->where('ProductID', $itemData['product_id'])
-                        ->lockForUpdate()
-                        ->first();
+                    $saleLines = SalesItem::linesForProduct((int) $data['transaction_id'], (int) $itemData['product_id'], true);
+                    $salesItem = $saleLines->first();
 
                     if (! $salesItem) {
                         throw new \RuntimeException('Product not found in transaction.');
@@ -382,12 +386,14 @@ class CashierReturnController extends Controller
                         throw new \RuntimeException("\"{$salesItem->product?->ProductName}\" can only be returned in whole ".UnitOfMeasure::plural($salesItem->Unit ?: UnitOfMeasure::DEFAULT).'.');
                     }
 
-                    if (round($alreadyRequested + $quantity, 2) > (float) $salesItem->Quantity) {
+                    if (round($alreadyRequested + $quantity, 2) > (float) $saleLines->sum(fn ($line) => (float) $line->Quantity)) {
                         throw new \RuntimeException("Return quantity exceeds the quantity sold for \"{$salesItem->product?->ProductName}\".");
                     }
 
                     $lines[] = [
                         'salesItem' => $salesItem,
+                        // Each piece at its own sale line's price, after the pieces already requested.
+                        'amounts' => SalesItem::returnedAmounts((int) $data['transaction_id'], (int) $itemData['product_id'], $quantity, (float) $alreadyRequested),
                         'productId' => $itemData['product_id'],
                         'quantity' => $quantity,
                         'reasonLabel' => SalesReturn::REASON_CODES[$itemData['reason_code'] ?? SalesReturn::DEFAULT_REASON_CODE],
@@ -417,7 +423,7 @@ class CashierReturnController extends Controller
                         'Quantity' => $line['quantity'],
                         'Unit' => $line['salesItem']->Unit ?: UnitOfMeasure::DEFAULT,
                         'BaseQuantity' => Quantity::normalize($line['quantity'] * $line['salesItem']->quantityPerUnit()),
-                        'UnitPrice' => $line['salesItem']->UnitPrice,
+                        'UnitPrice' => $line['quantity'] > 0 ? round($line['amounts']['listed'] / $line['quantity'], 2) : $line['salesItem']->UnitPrice,
                         'Reason' => $line['reasonLabel'],
                     ]);
 
@@ -426,7 +432,7 @@ class CashierReturnController extends Controller
                         ProductSerial::whereIn('ProductSerialID', $line['serialIds'])->update(['SalesReturnID' => $salesReturn->SalesReturnID]);
                     }
 
-                    $refundAmount += round($line['salesItem']->refundable_unit_price * $line['quantity'], 2);
+                    $refundAmount += $line['amounts']['refundable'];
                     $productNames[] = "{$returnItem->quantityLabel()} x \"{$line['salesItem']->product?->ProductName}\"";
                 }
 
@@ -512,16 +518,14 @@ class CashierReturnController extends Controller
                 $refundAmount = 0;
 
                 foreach ($salesReturn->items as $item) {
-                    $salesItem = SalesItem::where('SalesTransactionID', $salesReturn->SalesTransactionID)
-                        ->where('ProductID', $item->ProductID)
-                        ->first();
+                    $saleLineIds = SalesItem::linesForProduct((int) $salesReturn->SalesTransactionID, (int) $item->ProductID)->pluck('SalesItemID')->all();
 
                     // The customer is refunded in cash either way — Factory Defect /
                     // Damaged Product units just skip going back into Inventory
                     // (they were already diverted into the Damage module when the
                     // admin approved this return; see SalesReturnController::approve()).
                     // Every other reason also restores the unit to stock.
-                    $refundAmount += $salesItem ? round($salesItem->refundable_unit_price * $item->Quantity, 2) : 0;
+                    $refundAmount += $saleLineIds ? $item->refundableTotal() : 0;
 
                     if ($item->is_unsalable) {
                         continue;
@@ -541,7 +545,7 @@ class CashierReturnController extends Controller
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->BaseQuantity);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
                     // Back onto the stock batches the sale took them from.
-                    StockBatches::returningFrom($salesItem?->SalesItemID, fn () => $inventory->save());
+                    StockBatches::returningFrom($saleLineIds, fn () => $inventory->save());
                 }
 
                 $salesReturn->update([
@@ -734,17 +738,12 @@ class CashierReturnController extends Controller
             return response()->json(['success' => false, 'message' => 'Refund not found.'], 404);
         }
 
-        $items = $refund->items->map(function (SalesReturnItem $item) use ($refund) {
+        $items = $refund->items->map(function (SalesReturnItem $item) {
             // The refundable amount for this line — what was actually paid,
             // not the full undiscounted UnitPrice*Quantity — comes from the
             // ORIGINAL sale's SalesItem (which carries the discount that
             // applied at sale time), not SalesReturnItem's own line_total.
-            $originalSalesItem = SalesItem::where('SalesTransactionID', $refund->SalesTransactionID)
-                ->where('ProductID', $item->ProductID)
-                ->first();
-            $refundableLineTotal = $originalSalesItem
-                ? round($originalSalesItem->refundable_unit_price * $item->Quantity, 2)
-                : $item->line_total;
+            $refundableLineTotal = $item->refundableTotal();
 
             return [
                 'product_name' => $item->product?->ProductName ?? 'Unknown',

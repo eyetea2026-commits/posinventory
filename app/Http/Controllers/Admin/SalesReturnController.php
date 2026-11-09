@@ -108,17 +108,12 @@ class SalesReturnController extends Controller
         $transaction = $salesReturn->transaction;
         $receiptNumber = $transaction ? 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) : null;
 
-        $items = $salesReturn->items->map(function (SalesReturnItem $item) use ($salesReturn) {
+        $items = $salesReturn->items->map(function (SalesReturnItem $item) {
             // What this line is actually refundable for — pulled from the
             // ORIGINAL sale's SalesItem (which carries the discount that
             // applied at sale time), not SalesReturnItem's own line_total
             // (always the full undiscounted UnitPrice*Quantity).
-            $originalSalesItem = SalesItem::where('SalesTransactionID', $salesReturn->SalesTransactionID)
-                ->where('ProductID', $item->ProductID)
-                ->first();
-            $refundableLineTotal = $originalSalesItem
-                ? round($originalSalesItem->refundable_unit_price * $item->Quantity, 2)
-                : $item->line_total;
+            $refundableLineTotal = $item->refundableTotal();
 
             return [
                 'ProductName' => $item->product?->ProductName,

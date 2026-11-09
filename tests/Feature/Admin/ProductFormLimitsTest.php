@@ -60,11 +60,11 @@ class ProductFormLimitsTest extends TestCase
         $this->assertSame(99999.99, (float) Product::firstOrFail()->Price);
     }
 
-    // With no Selling Price sent, the one worked out from the Cost Price
-    // (45% margin) must stay within the limit too.
+    // The Selling Price worked out from the Cost Price and the Profit
+    // Margin (45% by default) must stay within the limit too.
     public function test_a_selling_price_worked_out_from_the_cost_stays_within_five_digits(): void
     {
-        $this->store(['CostPrice' => 60000, 'Price' => null])->assertStatus(422)->assertJsonValidationErrors('Price');
+        $this->store(['CostPrice' => 60000, 'Price' => null])->assertStatus(422)->assertJsonValidationErrors('ProfitMargin');
         $this->assertSame(0, Product::count());
     }
 

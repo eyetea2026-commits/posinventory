@@ -70,6 +70,29 @@ class SalesReturnItem extends Model
         return $this->Quantity * $this->UnitPrice;
     }
 
+    /**
+     * What these pieces are refunded: what was paid for them on the sale,
+     * each at its own sale line's price (a product sold from batches at
+     * different prices has one line per price), after the pieces earlier
+     * requests on the same sale already return.
+     */
+    public function refundableTotal(): float
+    {
+        $salesTransactionId = (int) $this->salesReturn?->SalesTransactionID;
+        $earlier = (float) self::where('ProductID', $this->ProductID)
+            ->where('SalesReturnID', '<', $this->SalesReturnID)
+            ->whereHas('salesReturn', fn ($query) => $query
+                ->where('SalesTransactionID', $salesTransactionId)
+                ->where('Status', '!=', SalesReturn::STATUS_DECLINED))
+            ->sum('Quantity');
+
+        if (SalesItem::linesForProduct($salesTransactionId, $this->ProductID)->isEmpty()) {
+            return round($this->line_total, 2);
+        }
+
+        return SalesItem::returnedAmounts($salesTransactionId, $this->ProductID, (float) $this->Quantity, $earlier)['refundable'];
+    }
+
     public function getIsUnsalableAttribute(): bool
     {
         return in_array($this->Reason, SalesReturn::UNSALABLE_REASONS, true);

@@ -29,7 +29,8 @@ class StockBatches
     /** @var array<string, mixed>|null */
     private static ?array $outgoing = null;
 
-    private static ?int $returningSalesItemId = null;
+    /** @var list<int>|null */
+    private static ?array $returningSalesItemIds = null;
 
     /**
      * Stock this callback adds becomes a batch with these attributes
@@ -62,17 +63,18 @@ class StockBatches
     }
 
     /**
-     * Stock this callback adds back goes to the batches this sale line
+     * Stock this callback adds back goes to the batches these sale lines
      * took it from (latest first).
      *
      * @template T
      *
+     * @param  int|list<int>|null  $salesItemIds
      * @param  callable(): T  $callback
      * @return T
      */
-    public static function returningFrom(?int $salesItemId, callable $callback)
+    public static function returningFrom(int|array|null $salesItemIds, callable $callback)
     {
-        return self::with('returningSalesItemId', $salesItemId, $callback);
+        return self::with('returningSalesItemIds', $salesItemIds === null ? null : (array) $salesItemIds, $callback);
     }
 
     /**
@@ -104,6 +106,56 @@ class StockBatches
         } elseif ($difference < 0) {
             self::take((int) $inventory->ProductID, -$difference);
         }
+
+        // The Selling Price follows the batch that sells next.
+        if ($difference != 0) {
+            Product::find($inventory->ProductID)?->refreshSellingPrice();
+        }
+    }
+
+    /**
+     * What this much of the product sells for, piece by piece at the price
+     * of the batch it will come out of (oldest first), batches at the same
+     * price together. Read under lock, in the order a sale then takes them.
+     *
+     * @return list<array{quantity: int|float, price: float}>
+     */
+    public static function priceSlices(Product $product, float $quantity): array
+    {
+        $batches = StockBatch::where('ProductID', $product->ProductID)
+            ->where('QuantityRemaining', '>', 0)
+            ->fifo()
+            ->lockForUpdate()
+            ->get();
+
+        $slices = [];
+        foreach ($batches as $batch) {
+            if ($quantity <= 0) {
+                break;
+            }
+            $taken = min((float) $batch->QuantityRemaining, $quantity);
+            self::addSlice($slices, $taken, round((float) ($batch->SellingPrice ?? $product->Price), 2));
+            $quantity = round($quantity - $taken, 2);
+        }
+        if ($quantity > 0) {
+            self::addSlice($slices, $quantity, round((float) $product->Price, 2));
+        }
+
+        return $slices;
+    }
+
+    /**
+     * @param  list<array{quantity: int|float, price: float}>  $slices
+     */
+    private static function addSlice(array &$slices, float $quantity, float $price): void
+    {
+        $last = count($slices) - 1;
+        if ($last >= 0 && $slices[$last]['price'] === $price) {
+            $slices[$last]['quantity'] = Quantity::normalize($slices[$last]['quantity'] + $quantity);
+
+            return;
+        }
+        $slices[] = ['quantity' => Quantity::normalize($quantity), 'price' => $price];
     }
 
     /**
@@ -117,34 +169,39 @@ class StockBatches
 
     private static function add(int $productId, float $quantity): void
     {
-        if (self::$returningSalesItemId) {
-            $quantity = self::putBack(self::$returningSalesItemId, $quantity);
+        if (self::$returningSalesItemIds) {
+            $quantity = self::putBack(self::$returningSalesItemIds, $quantity);
             if ($quantity <= 0) {
                 return;
             }
         }
 
         $product = Product::find($productId);
-        $attributes = self::$incoming ?? [];
-
-        StockBatch::create(array_merge([
-            'Source' => self::$returningSalesItemId ? StockBatch::SOURCE_CUSTOMER_RETURN : StockBatch::SOURCE_STOCK_ADDED,
+        $attributes = array_merge([
+            'Source' => self::$returningSalesItemIds ? StockBatch::SOURCE_CUSTOMER_RETURN : StockBatch::SOURCE_STOCK_ADDED,
             'ReceivedAt' => now(),
             'UnitCost' => round((float) ($product?->CostPrice ?? 0), 2),
-            'SellingPrice' => $product?->Price,
-        ], array_filter($attributes, fn ($value) => $value !== null), [
+        ], array_filter(self::$incoming ?? [], fn ($value) => $value !== null));
+
+        // Priced automatically from its own cost at the product's margin
+        // (the product's own, unrounded Cost Price when none was given).
+        $costForPrice = isset(self::$incoming['UnitCost']) ? (float) self::$incoming['UnitCost'] : (float) ($product?->CostPrice ?? 0);
+        StockBatch::create(array_merge($attributes, [
             'ProductID' => $productId,
+            'SellingPrice' => $product?->sellingPriceForCost($costForPrice),
             'QuantityReceived' => Quantity::normalize($quantity),
             'QuantityRemaining' => Quantity::normalize($quantity),
         ]));
     }
 
     /**
-     * Back onto the sale line's own batches; returns what didn't fit.
+     * Back onto the sale lines' own batches; returns what didn't fit.
+     *
+     * @param  list<int>  $salesItemIds
      */
-    private static function putBack(int $salesItemId, float $quantity): float
+    private static function putBack(array $salesItemIds, float $quantity): float
     {
-        $allocations = StockBatchAllocation::where('SalesItemID', $salesItemId)
+        $allocations = StockBatchAllocation::whereIn('SalesItemID', $salesItemIds)
             ->orderByDesc('StockBatchAllocationID')
             ->lockForUpdate()
             ->get();
