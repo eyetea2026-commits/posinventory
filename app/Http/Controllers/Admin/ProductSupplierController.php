@@ -38,7 +38,9 @@ class ProductSupplierController extends Controller
         // already has.
         $data = $request->validate([
             'SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
-            'CostPrice' => ['nullable', 'numeric', 'min:0'],
+            'CostPrice' => ['nullable', 'numeric', 'min:0', 'max:'.Product::MAX_PRICE],
+        ], [
+            'CostPrice.max' => 'The Cost Price can only have up to 5 digits (₱99,999.99).',
         ]);
 
         $existing = ProductSupplier::where('ProductID', $product->ProductID)
@@ -57,7 +59,11 @@ class ProductSupplierController extends Controller
             ProductCostHistory::log($product, $productSupplier->supplier, $oldCost, (float) $newCost, ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE);
         }
 
-        ActionNotifier::toAdmins('Product Supplier Added', "\"{$productSupplier->supplier?->SupplierName}\" is now a supplier of \"{$product->ProductName}\".", route('admin.products.index'), 'truck', 'success');
+        if ($existing) {
+            ActionNotifier::toAdmins('Supplier Price Updated', "\"{$productSupplier->supplier?->SupplierName}\"'s price for \"{$product->ProductName}\" is now ₱".number_format((float) $productSupplier->CostPrice, 2).'.', route('admin.products.index'), 'truck');
+        } else {
+            ActionNotifier::toAdmins('Product Supplier Added', "\"{$productSupplier->supplier?->SupplierName}\" is now a supplier of \"{$product->ProductName}\".", route('admin.products.index'), 'truck', 'success');
+        }
 
         return response()->json(['success' => true, 'productSupplier' => $productSupplier->load('supplier')]);
     }

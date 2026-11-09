@@ -306,28 +306,42 @@ class Product extends Model
     }
 
     // The single decision-tree used everywhere a product needs "who do we
-    // buy this from": the supplier that delivered it last (the one
-    // currently supplying the business), else the preferred supplier if
-    // one is designated, else the sole known supplier if there's exactly
-    // one, else null (caller must ask the admin to pick). Consumed by the
-    // auto-reorder flow, Create Purchase Order and the Damage-record form.
+    // buy this from" (panel suggestion: by the item's current price): the
+    // active supplier with the lowest current price (its own Cost Price,
+    // else the product's). On a tie, the one that delivered it last, else
+    // the preferred one; still tied, null (caller must ask the admin to
+    // pick). Consumed by the auto-reorder flow, Create Purchase Order and
+    // the Damage-record form.
     public function resolveReorderSupplier(): ?ProductSupplier
     {
         $suppliers = $this->relationLoaded('suppliers') ? $this->suppliers : $this->suppliers()->with('supplier')->get();
 
+        // Inactive suppliers aren't ordered from (unless there's no other).
+        $active = $suppliers->filter(fn (ProductSupplier $link) => ($link->supplier?->Status ?? Supplier::STATUS_ACTIVE) === Supplier::STATUS_ACTIVE);
+        $candidates = $active->isNotEmpty() ? $active : $suppliers;
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        $lowestPrice = $candidates->min(fn (ProductSupplier $link) => $this->supplierPrice($link));
+        $cheapest = $candidates->filter(fn (ProductSupplier $link) => $this->supplierPrice($link) === $lowestPrice)->values();
+        if ($cheapest->count() === 1) {
+            return $cheapest->first();
+        }
+
         $lastDeliveredId = $this->lastDeliveredSupplierId();
-        $current = $lastDeliveredId === null ? null : $suppliers->firstWhere('SupplierID', $lastDeliveredId);
-        // A supplier set to inactive since that delivery isn't ordered from.
-        if ($current && ($current->supplier?->Status ?? Supplier::STATUS_ACTIVE) === Supplier::STATUS_ACTIVE) {
-            return $current;
-        }
+        $current = $lastDeliveredId === null ? null : $cheapest->firstWhere('SupplierID', $lastDeliveredId);
 
-        $preferred = $suppliers->firstWhere('IsPreferred', 1);
-        if ($preferred) {
-            return $preferred;
-        }
+        return $current ?? $cheapest->firstWhere('IsPreferred', 1);
+    }
 
-        return $suppliers->count() === 1 ? $suppliers->first() : null;
+    /**
+     * A supplier's current price for this product, per base unit: its own
+     * Cost Price, else the product's.
+     */
+    public function supplierPrice(ProductSupplier $link): float
+    {
+        return round((float) ($link->CostPrice ?? $this->CostPrice ?? 0), 2);
     }
 
     /** @var array{0: int|null}|null The last-delivered SupplierID, once looked up. */

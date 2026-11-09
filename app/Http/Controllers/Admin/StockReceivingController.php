@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Casts\Quantity;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\ProductCostHistory;
+use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockReceiving;
@@ -252,6 +255,8 @@ class StockReceivingController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:PurchaseOrderItem,PurchaseOrderItemID'],
             'items.*.quantity_received' => ['required', 'integer', 'min:0'],
+            // Arrived damaged: not added to stock, sent back to the supplier.
+            'items.*.quantity_damaged' => ['nullable', 'integer', 'min:0'],
             // For a line ordered by the roll/box: how many meters/pieces
             // each one holds in this delivery (1 roll = 1,000 meters).
             'items.*.quantity_per_unit' => ['nullable', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
@@ -328,13 +333,20 @@ class StockReceivingController extends Controller
 
                     // What arrived in THIS delivery; added to what earlier
                     // deliveries brought, never more than is still owed.
+                    // Damaged ones count as delivered (the supplier replaces
+                    // them through the Damage module) but never go to stock.
                     $quantityReceived = (int) $row['quantity_received'];
+                    $quantityDamaged = (int) ($row['quantity_damaged'] ?? 0);
+
+                    if ($quantityReceived + $quantityDamaged > $item->remaining_quantity && $quantityDamaged > 0) {
+                        throw new \RuntimeException("Good and damaged \"{$item->product?->ProductName}\" together can be at most {$item->remaining_quantity} (still owed on this order).");
+                    }
 
                     if ($quantityReceived > $item->remaining_quantity) {
                         throw new \RuntimeException("Only {$item->remaining_quantity} more \"{$item->product?->ProductName}\" can be received on this order (ordered {$item->Quantity}, received {$item->ReceivedQuantity} so far".((int) $item->CancelledQuantity > 0 ? ", cancelled {$item->CancelledQuantity}" : '').').');
                     }
 
-                    if ($quantityReceived <= 0) {
+                    if ($quantityReceived <= 0 && $quantityDamaged <= 0) {
                         continue;
                     }
 
@@ -359,15 +371,43 @@ class StockReceivingController extends Controller
                         $product->update(['QuantityPerPurchaseUnit' => $size]);
                     }
 
-                    $item->ReceivedQuantity += $quantityReceived;
+                    $item->ReceivedQuantity += $quantityReceived + $quantityDamaged;
                     $item->save();
+                    // One stock batch: its cost and selling price as of today.
                     $delivery->items()->create([
                         'PurchaseOrderItemID' => $item->PurchaseOrderItemID,
                         'ProductID' => $item->ProductID,
                         'Quantity' => $quantityReceived,
                         'BaseQuantity' => $item->toBaseQuantity($quantityReceived),
+                        'DamagedQuantity' => $quantityDamaged,
+                        'UnitCost' => $item->costPerBaseUnit(),
+                        'SellingPrice' => $product?->Price,
                     ]);
-                    $receivedNow += $quantityReceived;
+                    $receivedNow += $quantityReceived + $quantityDamaged;
+
+                    if ($product) {
+                        self::recordSupplierPrice($product, $purchaseOrder, $item);
+                    }
+
+                    if ($quantityDamaged > 0) {
+                        $damage = DamagedProduct::create([
+                            'ProductID' => $item->ProductID,
+                            'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
+                            'SupplierID' => $purchaseOrder->SupplierID,
+                            'SourceModule' => DamagedProduct::SOURCE_STOCK_RECEIVING,
+                            // In the product's base unit: a damaged roll is its meters.
+                            'Quantity' => $item->toBaseQuantity($quantityDamaged),
+                            'Description' => "Damaged on arrival — PO {$purchaseOrder->PONumber}, Receipt ".($receiptNumber ?? 'N/A'),
+                            'DateRecorded' => now(),
+                            'DamageType' => 'damaged_product',
+                            'Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN,
+                        ]);
+                        ActivityLog::record('damage.created_from_receiving', "Created damage record #{$damage->DamageID} for {$item->quantityLabel($quantityDamaged)} x \"{$product?->ProductName}\" damaged on arrival (PO #{$purchaseOrder->PONumber})");
+                    }
+
+                    if ($quantityReceived <= 0) {
+                        continue;
+                    }
 
                     // Locked, computed, and saved entirely inside the
                     // transaction — the same TOCTOU-safe pattern already
@@ -701,5 +741,30 @@ class StockReceivingController extends Controller
         }
 
         return redirect()->route('admin.stock-receivings.index')->with('success', 'Stock receiving recorded successfully.');
+    }
+
+    /**
+     * The delivering supplier's current price for the product becomes what
+     * it was ordered at (per base unit); a supplier not yet on the product
+     * is added to it. The change is kept in the cost history.
+     */
+    private static function recordSupplierPrice(Product $product, PurchaseOrder $purchaseOrder, PurchaseOrderItem $item): void
+    {
+        $unitCost = $item->costPerBaseUnit();
+        if ($unitCost === null || ! $purchaseOrder->SupplierID) {
+            return;
+        }
+
+        $link = ProductSupplier::firstOrCreate(
+            ['ProductID' => $product->ProductID, 'SupplierID' => $purchaseOrder->SupplierID],
+            ['CostPrice' => null]
+        );
+        $oldCost = $link->CostPrice !== null ? (float) $link->CostPrice : null;
+        if ($oldCost === $unitCost) {
+            return;
+        }
+
+        $link->update(['CostPrice' => $unitCost]);
+        ProductCostHistory::log($product, $purchaseOrder->supplier ?? Supplier::find($purchaseOrder->SupplierID), $oldCost, $unitCost, ProductCostHistory::SOURCE_PO_RECEIVING);
     }
 }

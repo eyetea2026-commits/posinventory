@@ -177,4 +177,6 @@
 
     @include('admin.inventory.partials.reorder-point-breakdown', ['product' => $product])
 
+    @include('admin.inventory.partials.stock-batches', ['product' => $product])
+
 </div>

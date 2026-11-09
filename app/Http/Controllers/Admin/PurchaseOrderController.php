@@ -236,14 +236,15 @@ class PurchaseOrderController extends Controller
                     // at the last roll received. Only for wire ordered by the roll.
                     'ordersRollMeters' => self::ordersRollMeters($product),
                     'metersPerRoll' => $product->purchaseUnitSize(),
-                    // Picked by default: the supplier that delivered it last, else the preferred or only one.
+                    // Picked by default: the supplier with the lowest current price.
                     'supplier' => $link?->supplier,
                     // The Supplier dropdown: this product's own suppliers
                     // first (preferred marked), then every other active one.
                     'ownSuppliers' => $product->suppliers
                         ->filter(fn ($ps) => $ps->supplier)
                         ->sortBy(fn ($ps) => [$ps->IsPreferred ? 0 : 1, $ps->supplier->SupplierName])
-                        ->map(fn ($ps) => ['supplier' => $ps->supplier, 'preferred' => (bool) $ps->IsPreferred])
+                        // Each with its current price (per purchase unit), shown in the dropdown.
+                        ->map(fn ($ps) => ['supplier' => $ps->supplier, 'preferred' => (bool) $ps->IsPreferred, 'price' => self::costPerPurchaseUnit($product, $product->supplierPrice($ps))])
                         ->values(),
                     'otherSuppliers' => $activeSuppliers->whereNotIn('SupplierID', $product->suppliers->pluck('SupplierID'))->values(),
                 ];

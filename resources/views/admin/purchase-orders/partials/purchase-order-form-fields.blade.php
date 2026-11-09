@@ -109,13 +109,13 @@
                             <td class="po-meters-none">—</td>
                         @endif
                         <td>
-                            {{-- The supplier that delivered it last (else the preferred or only one) is picked already; it can be changed for this order. --}}
-                            <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">
+                            {{-- The supplier with the lowest current price is picked already; it can be changed for this order (its price fills Current Price). --}}
+                            <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; poSupplierPicked(this); syncOrderItems()">
                                 <option value="" {{ $row['supplier'] ? '' : 'selected' }}>Choose supplier</option>
                                 @if($row['ownSuppliers']->isNotEmpty())
                                     <optgroup label="This product's suppliers" data-group-color="#34d399">
                                         @foreach($row['ownSuppliers'] as $own)
-                                            <option value="{{ $own['supplier']->SupplierID }}" {{ $row['supplier']?->SupplierID === $own['supplier']->SupplierID ? 'selected' : '' }}>{{ $own['supplier']->SupplierName }}{{ $own['preferred'] ? ' ★' : '' }}</option>
+                                            <option value="{{ $own['supplier']->SupplierID }}" data-price="{{ number_format($own['price'], 2, '.', '') }}" {{ $row['supplier']?->SupplierID === $own['supplier']->SupplierID ? 'selected' : '' }}>{{ $own['supplier']->SupplierName }}{{ $own['preferred'] ? ' ★' : '' }} — ₱{{ number_format($own['price'], 2) }}</option>
                                         @endforeach
                                     </optgroup>
                                 @endif
@@ -144,6 +144,17 @@
 </div>
 
 <script>
+    // Picking another of the product's suppliers fills in its current price.
+    window.poSupplierPicked = function (select) {
+        var option = select.options[select.selectedIndex];
+        var price = option ? option.dataset.price : null;
+        var priceInput = select.closest('tr').querySelector('input[name$="[cost_price]"]');
+        if (price && priceInput) {
+            priceInput.value = Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    };
+
     // The Meter column: total = rolls x meters per roll, under the box.
     function syncOrderMeters(row) {
         const perRoll = row.querySelector('input[name$="[meters_per_roll]"]');

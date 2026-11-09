@@ -56,22 +56,25 @@ class SupplierProductRelationshipTest extends TestCase
         $this->assertSame($ps->ProductSupplierID, $resolved->ProductSupplierID);
     }
 
-    public function test_a_product_with_multiple_suppliers_and_no_preferred_resolves_to_null(): void
+    public function test_a_product_with_multiple_suppliers_at_the_same_price_and_no_preferred_resolves_to_null(): void
     {
-        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 500]);
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 550]);
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierB->SupplierID, 'CostPrice' => 550]);
 
         $this->assertNull($this->product->resolveReorderSupplier());
     }
 
-    public function test_the_preferred_supplier_is_resolved_even_with_multiple_suppliers(): void
+    // Panel suggestion: the supplier is picked by its current price, even
+    // over the preferred one; the preferred one only settles a tie.
+    public function test_the_cheapest_supplier_is_resolved_and_the_preferred_settles_a_tie(): void
     {
-        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 500]);
+        $cheapest = ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 500]);
         $preferred = ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierB->SupplierID, 'CostPrice' => 550, 'IsPreferred' => 1]);
 
-        $resolved = $this->product->resolveReorderSupplier();
+        $this->assertSame($cheapest->ProductSupplierID, $this->product->resolveReorderSupplier()->ProductSupplierID);
 
-        $this->assertSame($preferred->ProductSupplierID, $resolved->ProductSupplierID);
+        $cheapest->update(['CostPrice' => 550]);
+        $this->assertSame($preferred->ProductSupplierID, $this->product->fresh()->resolveReorderSupplier()->ProductSupplierID);
     }
 
     public function test_only_one_supplier_can_be_preferred_per_product(): void
@@ -192,15 +195,17 @@ class SupplierProductRelationshipTest extends TestCase
         $this->assertDatabaseMissing('ProductCostHistory', ['ProductID' => $this->product->ProductID, 'Source' => ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE]);
     }
 
-    public function test_supplier_panel_has_no_cost_price_field(): void
+    // Panel suggestion: each supplier is entered with its own price.
+    public function test_supplier_panel_takes_a_cost_price_for_each_supplier(): void
     {
         $html = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()->getContent();
         preg_match('#Suppliers for this Product(.*?)Add Supplier#s', $html, $panel);
 
         $this->assertNotEmpty($panel);
-        $this->assertStringNotContainsString('Cost Price', $panel[1]);
-        $this->assertStringNotContainsString('newSupplierCost', $html);
-        $this->assertStringNotContainsString('Suppliers[][CostPrice]', $html);
+        $this->assertStringContainsString('Cost Price', $panel[1]);
+        $this->assertStringContainsString('id="newSupplierCost"', $panel[1]);
+        $this->assertStringContainsString("supplierIdInput.name = 'Suppliers[' + index + '][SupplierID]';", $html);
+        $this->assertStringContainsString("costInput.name = 'Suppliers[' + index + '][CostPrice]';", $html);
         $this->assertStringContainsString('id="newSupplierId"', $panel[1]);
     }
 

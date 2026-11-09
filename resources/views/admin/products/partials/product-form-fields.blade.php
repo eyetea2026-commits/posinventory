@@ -281,8 +281,9 @@
      "Suppliers[][SupplierID]" hidden inputs and are only actually linked
      once the whole Add Product form is submitted (see
      ProductController::store()) — same pattern as the Add Category form's
-     pending "Brands[]" list. Only the supplier is chosen -- no cost price
-     is asked for here; the product's own Cost Price is used. --}}
+     pending "Brands[]" list. Each supplier has its own Cost Price (per
+     base unit; left blank, the product's Cost Price is used): Create
+     Purchase Order picks the supplier with the lowest one. --}}
 <div class="card glass-card" style="margin-top: 24px;">
     <div class="content-header" style="margin-bottom: 16px;">
         <h1 style="font-size: 1.25rem;">Suppliers for this Product</h1>
@@ -292,6 +293,7 @@
         <thead>
             <tr>
                 <th>Supplier</th>
+                <th>Cost Price <span class="uom-unit-note">(<span class="uom-per-base">per {{ $baseUnit }}</span>)</span></th>
                 @if(isset($product))
                     <th>Preferred</th>
                 @endif
@@ -300,16 +302,16 @@
         </thead>
         @if(isset($product))
             <tbody id="productSuppliersBody">
-                <tr><td colspan="3" style="padding:12px; color:#94a3b8;">Loading...</td></tr>
+                <tr><td colspan="4" style="padding:12px; color:#94a3b8;">Loading...</td></tr>
             </tbody>
         @else
             <tbody id="pendingProductSuppliersBody">
-                <tr class="pending-suppliers-empty-row"><td colspan="2" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>
+                <tr class="pending-suppliers-empty-row"><td colspan="3" style="padding:12px; color:#94a3b8;">No suppliers added yet.</td></tr>
             </tbody>
         @endif
         <tfoot>
             <tr>
-                <td colspan="{{ isset($product) ? 2 : 1 }}">
+                <td>
                     <select id="newSupplierId" class="form-select" aria-label="Supplier">
                         <option value="">Select Supplier</option>
                         @foreach(\App\Models\Supplier::orderBy('SupplierName')->get() as $s)
@@ -317,6 +319,12 @@
                         @endforeach
                     </select>
                 </td>
+                <td>
+                    <input type="text" id="newSupplierCost" class="form-input" data-money-digits="5" inputmode="decimal" placeholder="Product's Cost Price" aria-label="Supplier's Cost Price">
+                </td>
+                @if(isset($product))
+                    <td></td>
+                @endif
                 <td style="width: 1%;">
                     <button type="button" class="btn btn-secondary" id="addProductSupplierBtn">
                         <i class="fas fa-plus"></i> Add Supplier

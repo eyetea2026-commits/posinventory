@@ -17,9 +17,10 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Panel suggestion: a new purchase order goes to the supplier that is
-// currently delivering the product (its latest delivery), and the product
-// details show who that is.
+// Panel suggestions: a new purchase order goes to the supplier with the
+// lowest current price; at the same price, to the one currently delivering
+// the product (its latest delivery). The product details show who that is.
+// Both suppliers start at the same price here.
 class CurrentSupplierTest extends TestCase
 {
     use RefreshDatabase;
@@ -44,7 +45,7 @@ class CurrentSupplierTest extends TestCase
         $this->camera = Product::create(['ProductName' => 'Dome Camera', 'Model' => 'DC-1', 'Price' => 1000, 'CostPrice' => 600, 'CategoryID' => $category->CategoryID, 'Barcode' => 'CCTVEX-000001']);
         Inventory::create(['ProductID' => $this->camera->ProductID, 'Quantity' => 0, 'Status' => 'Out of Stock']);
         ProductSupplier::create(['ProductID' => $this->camera->ProductID, 'SupplierID' => $this->preferred->SupplierID, 'CostPrice' => 600, 'IsPreferred' => true]);
-        ProductSupplier::create(['ProductID' => $this->camera->ProductID, 'SupplierID' => $this->other->SupplierID, 'CostPrice' => 580]);
+        ProductSupplier::create(['ProductID' => $this->camera->ProductID, 'SupplierID' => $this->other->SupplierID, 'CostPrice' => 600]);
     }
 
     private function receiveFrom(Supplier $supplier): void
@@ -80,7 +81,7 @@ class CurrentSupplierTest extends TestCase
 
         $html = $this->productDetails();
         $this->assertStringContainsString('<div><span>Current Supplier</span><span>No delivery yet</span></div>', $html);
-        $this->assertMatchesRegularExpression('/<span>Suppliers<\/span><span>Acme Supplies <small>\(Preferred\)<\/small>\s*<br>\s*Bravo Trading/', $html);
+        $this->assertMatchesRegularExpression('/<span>Suppliers<\/span><span>Acme Supplies <small>\(Preferred\)<\/small> — ₱600\.00\s*<br>\s*Bravo Trading — ₱600\.00/u', $html);
     }
 
     public function test_the_supplier_that_delivered_last_is_picked_for_the_next_order(): void

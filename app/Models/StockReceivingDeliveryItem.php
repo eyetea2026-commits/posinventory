@@ -24,11 +24,37 @@ class StockReceivingDeliveryItem extends Model
         // to stock (2,000 meters - roll lengths are entered on receiving).
         'Quantity',
         'BaseQuantity',
+        // Arrived damaged (order line's unit): counted as delivered, never
+        // added to stock; it went to the Damage module.
+        'DamagedQuantity',
+        // Per base unit, as they were when this batch arrived.
+        'UnitCost',
+        'SellingPrice',
     ];
 
     protected $casts = [
         'BaseQuantity' => Quantity::class,
+        'DamagedQuantity' => 'integer',
+        'UnitCost' => 'decimal:2',
+        'SellingPrice' => 'decimal:2',
     ];
+
+    public function delivery()
+    {
+        return $this->belongsTo(StockReceivingDelivery::class, 'StockReceivingDeliveryID', 'StockReceivingDeliveryID');
+    }
+
+    /**
+     * This batch's margin: (Selling Price - Unit Cost) / Selling Price.
+     */
+    public function marginPercent(): ?float
+    {
+        if ($this->UnitCost === null || (float) $this->SellingPrice <= 0) {
+            return null;
+        }
+
+        return round(((float) $this->SellingPrice - (float) $this->UnitCost) / (float) $this->SellingPrice * 100, 1);
+    }
 
     public function product()
     {

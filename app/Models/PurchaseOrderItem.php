@@ -75,6 +75,19 @@ class PurchaseOrderItem extends Model
     }
 
     /**
+     * The ordered price per base unit (a 5,000-meter roll at ₱10,000 is
+     * ₱2 a meter), or null when no price was given.
+     */
+    public function costPerBaseUnit(): ?float
+    {
+        if ($this->CostPriceAtOrder === null) {
+            return null;
+        }
+
+        return round((float) $this->CostPriceAtOrder / ((float) $this->QuantityPerUnit ?: 1), 2);
+    }
+
+    /**
      * How many base units this many ordered units add to stock.
      */
     public function toBaseQuantity(int|float $quantity): int|float

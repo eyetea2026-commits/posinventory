@@ -73,6 +73,7 @@
                     @if($isPending)
                         <th>Remaining</th>
                         <th>Received Quantity</th>
+                        <th>Damaged <small style="font-weight:400;">(return to supplier)</small></th>
                     @endif
                 </tr>
             </thead>
@@ -118,6 +119,12 @@
                                     @if($orderedSize)<small class="receiving-size-note">as ordered</small>@endif
                                     <small class="receiving-size-total" data-base-plural="{{ $basePlural }}">{{ $size && $item->remaining_quantity > 0 ? '= '.\App\Services\UnitOfMeasure::number($item->remaining_quantity * $size).' '.$basePlural.' to stock' : '' }}</small>
                                 @endif
+                            </td>
+                            {{-- Arrived damaged: counted as delivered, not added to stock; a
+                                 Damage record (Pending Supplier Return) is made for it. --}}
+                            <td>
+                                <input type="number" class="form-input receiving-damaged-input" style="max-width:90px;" name="items[{{ $loop->index }}][quantity_damaged]" min="0" max="{{ $item->remaining_quantity }}" value="0" @if($item->remaining_quantity <= 0) readonly @endif
+                                       oninput="window.receivingDamagedChanged && window.receivingDamagedChanged(this)" aria-label="Damaged quantity">
                             </td>
                         @endif
                     </tr>
@@ -201,7 +208,9 @@
                                 $quantity .= ' ('.\App\Services\UnitOfMeasure::format($line->BaseQuantity, $baseUnit).')';
                             }
 
-                            return $quantity.' x '.($line->product?->ProductName ?? 'Unknown');
+                            $damaged = (int) $line->DamagedQuantity > 0 && $orderLine ? ' (+'.\App\Services\UnitOfMeasure::cell($line->DamagedQuantity, $orderLine->Unit).' damaged)' : '';
+
+                            return $quantity.' x '.($line->product?->ProductName ?? 'Unknown').$damaged;
                         })->implode(', ') }}</td>
                     </tr>
                 @endforeach

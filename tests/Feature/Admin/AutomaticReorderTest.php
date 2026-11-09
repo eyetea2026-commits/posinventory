@@ -100,11 +100,12 @@ class AutomaticReorderTest extends TestCase
         $response->assertDontSee('href="'.route('admin.purchase-orders.create-from-reorder', $this->product).'"', false);
     }
 
+    // Same price, none preferred, never delivered: nothing to pick by.
     public function test_create_reorder_page_flags_ambiguity_with_multiple_unpreferred_suppliers(): void
     {
         $supplier2 = Supplier::create(['SupplierName' => 'Other Supplier', 'ContactNumber' => '111', 'Email' => 'x@example.com', 'Address' => 'N/A']);
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
-        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $supplier2->SupplierID, 'CostPrice' => 500]);
+        ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $supplier2->SupplierID, 'CostPrice' => 550]);
 
         $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.create-from-reorder', $this->product));
 

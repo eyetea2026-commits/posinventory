@@ -385,6 +385,21 @@
                 : '';
         };
 
+        // Damaged ones come out of what's still owed: Received Quantity
+        // (good) is lowered so good + damaged never pass Remaining.
+        window.receivingDamagedChanged = function (input) {
+            const row = input.closest('tr');
+            const good = row && row.querySelector('.receiving-now-input');
+            if (!good) return;
+            const remaining = parseInt(input.max, 10) || 0;
+            const damaged = Math.min(Math.max(parseInt(input.value, 10) || 0, 0), remaining);
+            if ((parseInt(input.value, 10) || 0) !== damaged) input.value = damaged;
+            if ((parseInt(good.value, 10) || 0) + damaged > remaining) {
+                good.value = remaining - damaged;
+            }
+            window.updateReceivingTotal(good);
+        };
+
         // ---- Purchase Order Delivery — View Details modal ----
         let batchDetailsLastFocused = null;
 

@@ -249,7 +249,7 @@ class ProductController extends Controller
             // Cost Price.
             'Suppliers' => ['nullable', 'array'],
             'Suppliers.*.SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
-            'Suppliers.*.CostPrice' => ['nullable', 'numeric', 'min:0'],
+            'Suppliers.*.CostPrice' => ['nullable', 'numeric', 'min:0', 'max:'.Product::MAX_PRICE],
             ...self::unitOfMeasureRules(),
         ], [
             'Barcode.required' => 'Barcode is required. Please scan or type a barcode.',

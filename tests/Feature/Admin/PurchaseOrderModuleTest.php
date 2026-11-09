@@ -677,7 +677,8 @@ class PurchaseOrderModuleTest extends TestCase
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'IsPreferred' => true]);
 
         $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
-        $this->assertMatchesRegularExpression('#<option value="'.$this->supplier->SupplierID.'" selected>'.preg_quote($this->supplier->SupplierName, '#').' ★</option>#', $html);
+        // Each of the product's suppliers shows its current price (the product's Cost Price when it has none).
+        $this->assertMatchesRegularExpression('#<option value="'.$this->supplier->SupplierID.'" data-price="[0-9.]+" selected>'.preg_quote($this->supplier->SupplierName, '#').' ★ — ₱[0-9,.]+</option>#u', $html);
         // Headings: this product's suppliers in green, others in the Low Stock amber.
         $this->assertStringContainsString("<optgroup label=\"This product's suppliers\" data-group-color=\"#34d399\">", $html);
         $this->assertStringContainsString('<optgroup label="Other suppliers" data-group-color="#fbbf24">', $html);

@@ -74,9 +74,13 @@ class DamagedProduct extends Model
 
     const SOURCE_MANUAL = 'manual';
 
+    // Arrived damaged with a supplier's delivery (Stock Receiving).
+    const SOURCE_STOCK_RECEIVING = 'stock_receiving';
+
     const SOURCE_LABELS = [
         self::SOURCE_CUSTOMER_RETURN => 'Customer Return',
         self::SOURCE_STOCK_ADJUSTMENT => 'Stock Adjustment',
+        self::SOURCE_STOCK_RECEIVING => 'Stock Receiving (Damaged on Arrival)',
         self::SOURCE_MANUAL => 'Manual Entry',
     ];
 
