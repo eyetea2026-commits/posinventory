@@ -186,6 +186,16 @@ class SupplierPricesAndBatchesTest extends TestCase
         $this->assertStringContainsString('Margin = (Selling Price − Unit Cost) ÷ Selling Price.', $html);
     }
 
+    public function test_an_order_line_priced_at_zero_does_not_change_the_suppliers_price(): void
+    {
+        ProductSupplier::create(['ProductID' => $this->camera->ProductID, 'SupplierID' => $this->acme->SupplierID, 'CostPrice' => 600]);
+
+        $this->receive($this->acme, 0, ['good' => 10])->assertSessionMissing('error');
+
+        $this->assertSame(600.0, (float) ProductSupplier::where('SupplierID', $this->acme->SupplierID)->value('CostPrice'));
+        $this->assertSame(0, ProductCostHistory::where('Source', ProductCostHistory::SOURCE_PO_RECEIVING)->count());
+    }
+
     public function test_the_receiving_form_has_a_damaged_column(): void
     {
         $order = PurchaseOrder::create([

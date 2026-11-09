@@ -751,7 +751,8 @@ class StockReceivingController extends Controller
     private static function recordSupplierPrice(Product $product, PurchaseOrder $purchaseOrder, PurchaseOrderItem $item): void
     {
         $unitCost = $item->costPerBaseUnit();
-        if ($unitCost === null || ! $purchaseOrder->SupplierID) {
+        // An order line without a real price (₱0) says nothing about it.
+        if ($unitCost === null || $unitCost <= 0 || ! $purchaseOrder->SupplierID) {
             return;
         }
 
