@@ -11,8 +11,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
-// Products and Categories: All / Active / Deactivated filter, deactivated
-// records listed last, and categories deactivated instead of deleted.
+// Products and Categories: no Active / Deactivated status anymore (stock
+// decides whether the POS lists a product), newest first.
 class ActiveStatusFilterTest extends TestCase
 {
     use RefreshDatabase;
@@ -42,43 +42,31 @@ class ActiveStatusFilterTest extends TestCase
 
     // ---- Products ----
 
-    public function test_products_list_has_the_status_filter(): void
+    public function test_products_list_has_no_status_filter(): void
     {
         $this->actingAs($this->admin)->get(route('admin.products.index'))
             ->assertOk()
-            ->assertSee('id="statusFilter"', false)
-            ->assertSeeInOrder(['All Statuses', 'Active', 'Deactivated']);
+            ->assertDontSee('id="statusFilter"', false)
+            ->assertDontSee('All Statuses');
     }
 
-    public function test_products_filter_shows_only_active_or_only_deactivated(): void
+    public function test_an_old_status_in_the_address_is_ignored(): void
     {
         $this->makeProduct('Active Camera');
         $this->makeProduct('Retired Camera', false);
 
         $this->actingAs($this->admin)->get(route('admin.products.index', ['status' => 'active']))
-            ->assertSee('Active Camera')->assertDontSee('Retired Camera');
+            ->assertSee('Active Camera')->assertSee('Retired Camera');
         $this->actingAs($this->admin)->get(route('admin.products.index', ['status' => 'inactive']))
-            ->assertSee('Retired Camera')->assertDontSee('Active Camera');
-        $this->actingAs($this->admin)->get(route('admin.products.index'))
             ->assertSee('Active Camera')->assertSee('Retired Camera');
     }
 
-    public function test_a_deactivated_product_moves_to_the_end_of_the_list(): void
+    public function test_products_are_listed_newest_first(): void
     {
-        $older = $this->makeProduct('Alpha Camera');
-        $this->makeProduct('Zulu Camera');
+        $this->makeProduct('Alpha Camera');
+        $this->makeProduct('Zulu Camera', false);
 
-        // Newest first while both are active...
         $this->actingAs($this->admin)->get(route('admin.products.index'))->assertSeeInOrder(['Zulu Camera', 'Alpha Camera']);
-
-        // ...but once deactivated, the newest drops below the active one.
-        $zulu = Product::where('ProductName', 'Zulu Camera')->first();
-        $this->actingAs($this->admin)->from(route('admin.products.index', ['status' => 'active']))
-            ->patch(route('admin.products.toggle-status', $zulu))
-            ->assertRedirect(route('admin.products.index', ['status' => 'active']));
-
-        $this->actingAs($this->admin)->get(route('admin.products.index'))->assertSeeInOrder(['Alpha Camera', 'Zulu Camera']);
-        $this->assertTrue($older->fresh()->IsActive);
     }
 
     // ---- Categories ----

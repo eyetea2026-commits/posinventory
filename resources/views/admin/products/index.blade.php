@@ -385,10 +385,6 @@
         transform: scale(1.05);
     }
 
-    /* Inactive products stay listed (history is kept) but read as retired. */
-    tr.is-inactive .product-info,
-    tr.is-inactive .col-category,
-    tr.is-inactive .col-pricing { opacity: 0.55; }
     .product-status-badge {
         display: inline-block;
         margin-left: 6px;
@@ -832,7 +828,6 @@
                 placeholder="Search by name, model, SKU, or barcode..."
             />
             <input type="hidden" name="category_id" id="categoryIdInput" value="{{ $categoryId }}" />
-            <input type="hidden" name="status" id="statusInput" value="{{ $status }}" />
         </form>
 
         <div class="filter-group">
@@ -846,11 +841,6 @@
                         {{ $category->CategoryName }}
                     </option>
                 @endforeach
-            </select>
-            <select id="statusFilter" class="filter-select" aria-label="Filter by status">
-                <option value="" {{ empty($status) ? 'selected' : '' }}>All Statuses</option>
-                <option value="active" {{ $status === 'active' ? 'selected' : '' }}>Active</option>
-                <option value="inactive" {{ $status === 'inactive' ? 'selected' : '' }}>Deactivated</option>
             </select>
             <a href="{{ route('admin.products.create') }}" class="btn btn-primary" onclick="openAddProductModal(event)">
                 <i class="fas fa-plus"></i> Add Product
@@ -920,8 +910,6 @@
 
             if (search) params.set('search', search);
             if (categoryId) params.set('category_id', categoryId);
-            const status = document.getElementById('statusInput').value;
-            if (status) params.set('status', status);
             if (page > 1) params.set('page', page);
 
             return params.toString();
@@ -1021,11 +1009,6 @@
             applyFilters(1);
         });
 
-        // Status filter (All / Active / Deactivated) — instant update.
-        document.getElementById('statusFilter').addEventListener('change', function () {
-            document.getElementById('statusInput').value = this.value;
-            applyFilters(1);
-        });
 
         // Initial bindings
         rebindPagination();
@@ -1038,27 +1021,6 @@
             applyFilters(1);
         };
 
-        // Products are never deleted (that would erase sales/stock/PO
-        // history) -- they're deactivated instead, which hides them from the
-        // POS and from new Purchase Orders, and can be reversed anytime.
-        window.confirmToggleProductStatus = function (productId, isActive) {
-            Swal.fire({
-                title: isActive ? 'Deactivate Product' : 'Activate Product',
-                text: isActive
-                    ? 'This product will be hidden from the POS and from new Purchase Orders. Its sales and stock history is kept, and you can reactivate it anytime.'
-                    : 'This product will be available again on the POS and for new Purchase Orders.',
-                icon: isActive ? 'warning' : 'question',
-                showCancelButton: true,
-                confirmButtonText: isActive ? 'Deactivate' : 'Activate',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: isActive ? '#ef4444' : '#10b981',
-                cancelButtonColor: '#64748b'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById('statusForm' + productId).submit();
-                }
-            });
-        };
 
         // Auto-show session messages
         @if(session('status'))

@@ -5,16 +5,13 @@
         $profit = $price - $cost;
         $margin = $price > 0 ? ($profit / $price) * 100 : 0;
     @endphp
-    <tr class="{{ $product->IsActive ? '' : 'is-inactive' }}">
+    <tr>
         <td class="col-product">
             <div class="product-cell">
             @include('partials.product-thumb', ['product' => $product])
             <div class="product-info">
                 <span class="product-name">
                     {{ $product->ProductName }}
-                    @unless($product->IsActive)
-                        <span class="product-status-badge">Inactive</span>
-                    @endunless
                     @unless($product->IsReturnable)
                         <span class="product-status-badge non-returnable-badge" title="Can't be returned or refunded once sold">Not returnable</span>
                     @endunless
@@ -64,26 +61,6 @@
                 >
                     <i class="fas fa-eye"></i>
                 </a>
-                <form
-                    action="{{ route('admin.products.toggle-status', $product) }}"
-                    method="POST"
-                    style="display:inline;"
-                    id="statusForm{{ $product->ProductID }}"
-                >
-                    @csrf
-                    @method('PATCH')
-                    <button
-                        type="button"
-                        class="action-btn {{ $product->IsActive ? 'deactivate' : 'activate' }}"
-                        data-bs-toggle="tooltip"
-                        data-bs-placement="top"
-                        title="{{ $product->IsActive ? 'Deactivate' : 'Activate' }}"
-                        aria-label="{{ $product->IsActive ? 'Deactivate' : 'Activate' }}"
-                        onclick="confirmToggleProductStatus({{ $product->ProductID }}, {{ $product->IsActive ? 'true' : 'false' }})"
-                    >
-                        <i class="fas {{ $product->IsActive ? 'fa-toggle-on' : 'fa-toggle-off' }}"></i>
-                    </button>
-                </form>
             </div>
         </td>
     </tr>

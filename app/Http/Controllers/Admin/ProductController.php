@@ -14,7 +14,6 @@ use App\Models\ProductSerial;
 use App\Models\ProductSupplier;
 use App\Models\User;
 use App\Notifications\ProductUpdated;
-use App\Services\ActionNotifier;
 use App\Services\ProductImage;
 use App\Services\ReorderPoint;
 use App\Services\UnitOfMeasure;
@@ -45,7 +44,6 @@ class ProductController extends Controller
     {
         $search = $request->query('search');
         $categoryId = $request->query('category_id');
-        $status = in_array($request->query('status'), ['active', 'inactive'], true) ? $request->query('status') : null;
 
         $products = Product::with(['brand', 'category', 'inventory'])
             ->when($search, function ($query, $search) {
@@ -62,9 +60,6 @@ class ProductController extends Controller
             ->when($categoryId, function ($query, $categoryId) {
                 $query->where('CategoryID', $categoryId);
             })
-            ->when($status, fn ($query, $status) => $query->where('IsActive', $status === 'active'))
-            // Active products first (newest first); deactivated ones go last.
-            ->orderByDesc('IsActive')
             ->orderByDesc('ProductID')
             ->paginate(15)
             ->withQueryString();
@@ -81,7 +76,6 @@ class ProductController extends Controller
             'products' => $products,
             'search' => $search,
             'categoryId' => $categoryId,
-            'status' => $status,
             'categories' => Category::orderBy('CategoryName')->get(),
             'brands' => Brand::orderBy('BrandName')->get(),
         ]);
@@ -113,7 +107,7 @@ class ProductController extends Controller
 
     public function show(Request $request, Product $product)
     {
-        $product->load(['brand', 'category', 'inventory', 'serials' => fn ($query) => $query->with('salesTransaction')->orderByDesc('ProductSerialID')]);
+        $product->load(['brand', 'category', 'inventory', 'suppliers.supplier', 'serials' => fn ($query) => $query->with('salesTransaction')->orderByDesc('ProductSerialID')]);
 
         $quantity = $product->inventory?->Quantity ?? 0;
         $threshold = $product->inventory?->ReorderThreshold ?? 50;
@@ -726,31 +720,5 @@ class ProductController extends Controller
         }
 
         return redirect()->route('admin.products.index')->with('status', 'Product updated successfully.');
-    }
-
-    /**
-     * Products are retired instead of deleted: deleting would cascade away
-     * their sales, stock and PO history. An inactive product is hidden from
-     * the POS and from new Purchase Orders, and can be reactivated anytime.
-     */
-    public function toggleStatus(Product $product)
-    {
-        $product->update(['IsActive' => ! $product->IsActive]);
-
-        if ($product->IsActive) {
-            ActivityLog::record('product.activated', "Activated product \"{$product->ProductName}\"");
-            ActionNotifier::toAdmins('Product Activated', "The product \"{$product->ProductName}\" is active again.", route('admin.products.index'), 'package', 'success');
-            $message = "\"{$product->ProductName}\" is active again.";
-        } else {
-            ActivityLog::record('product.deactivated', "Deactivated product \"{$product->ProductName}\"");
-            ActionNotifier::toAdmins('Product Deactivated', "The product \"{$product->ProductName}\" has been deactivated.", route('admin.products.index'), 'package', 'danger');
-            $message = "\"{$product->ProductName}\" has been deactivated.";
-        }
-
-        // Back to the same list (search, filters and page kept).
-        $previous = url()->previous();
-        $list = route('admin.products.index');
-
-        return redirect()->to(str_starts_with($previous, $list) ? $previous : $list)->with('status', $message);
     }
 }

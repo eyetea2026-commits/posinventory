@@ -7,6 +7,8 @@ use App\Services\ProductImage;
 use App\Services\UnitOfMeasure;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class Product extends Model
 {
@@ -304,13 +306,21 @@ class Product extends Model
     }
 
     // The single decision-tree used everywhere a product needs "who do we
-    // buy this from": the preferred supplier if one is designated, else the
-    // sole known supplier if there's exactly one, else null (caller must
-    // ask the admin to pick). Consumed by the auto-reorder flow and the
-    // intelligent Damage-record form.
+    // buy this from": the supplier that delivered it last (the one
+    // currently supplying the business), else the preferred supplier if
+    // one is designated, else the sole known supplier if there's exactly
+    // one, else null (caller must ask the admin to pick). Consumed by the
+    // auto-reorder flow, Create Purchase Order and the Damage-record form.
     public function resolveReorderSupplier(): ?ProductSupplier
     {
-        $suppliers = $this->relationLoaded('suppliers') ? $this->suppliers : $this->suppliers()->get();
+        $suppliers = $this->relationLoaded('suppliers') ? $this->suppliers : $this->suppliers()->with('supplier')->get();
+
+        $lastDeliveredId = $this->lastDeliveredSupplierId();
+        $current = $lastDeliveredId === null ? null : $suppliers->firstWhere('SupplierID', $lastDeliveredId);
+        // A supplier set to inactive since that delivery isn't ordered from.
+        if ($current && ($current->supplier?->Status ?? Supplier::STATUS_ACTIVE) === Supplier::STATUS_ACTIVE) {
+            return $current;
+        }
 
         $preferred = $suppliers->firstWhere('IsPreferred', 1);
         if ($preferred) {
@@ -318,5 +328,65 @@ class Product extends Model
         }
 
         return $suppliers->count() === 1 ? $suppliers->first() : null;
+    }
+
+    /** @var array{0: int|null}|null The last-delivered SupplierID, once looked up. */
+    private ?array $lastDeliveredSupplier = null;
+
+    /**
+     * The SupplierID of this product's latest delivery (Stock Receiving),
+     * or null when it was never received from a supplier.
+     */
+    public function lastDeliveredSupplierId(): ?int
+    {
+        if ($this->lastDeliveredSupplier === null) {
+            self::preloadLastDeliveredSuppliers([$this]);
+        }
+
+        return $this->lastDeliveredSupplier[0];
+    }
+
+    /**
+     * Looks up the last-delivered supplier of many products in two queries
+     * (lists that resolve a supplier for every product).
+     *
+     * @param  iterable<Product>  $products
+     */
+    public static function preloadLastDeliveredSuppliers(iterable $products): void
+    {
+        $products = collect($products);
+        $productIds = $products->map(fn (Product $product) => (int) $product->ProductID)->unique()->values()->all();
+        if ($productIds === []) {
+            return;
+        }
+
+        $deliveries = DB::table('StockReceivingDeliveryItem')
+            ->join('StockReceivingDelivery', 'StockReceivingDelivery.StockReceivingDeliveryID', '=', 'StockReceivingDeliveryItem.StockReceivingDeliveryID')
+            ->join('PurchaseOrder', 'PurchaseOrder.PurchaseOrderID', '=', 'StockReceivingDelivery.PurchaseOrderID')
+            ->whereIn('StockReceivingDeliveryItem.ProductID', $productIds)
+            ->select('StockReceivingDeliveryItem.ProductID', 'PurchaseOrder.SupplierID', 'StockReceivingDelivery.ReceivedAt as received_at')
+            ->get();
+
+        // Received one line at a time (the older Stock Receiving form).
+        $singleReceipts = DB::table('StockReceiving')
+            ->whereIn('ProductID', $productIds)
+            ->whereNotNull('SupplierID')
+            ->select('ProductID', 'SupplierID', 'DateReceived as received_at')
+            ->get();
+
+        $latest = array_fill_keys($productIds, null);
+        $latestAt = [];
+        foreach ($deliveries->concat($singleReceipts) as $row) {
+            $at = Carbon::parse($row->received_at);
+            $productId = (int) $row->ProductID;
+            if (! isset($latestAt[$productId]) || $at->greaterThanOrEqualTo($latestAt[$productId])) {
+                $latestAt[$productId] = $at;
+                $latest[$productId] = (int) $row->SupplierID;
+            }
+        }
+
+        foreach ($products as $product) {
+            $product->lastDeliveredSupplier = [$latest[(int) $product->ProductID] ?? null];
+        }
     }
 }

@@ -109,7 +109,7 @@
                             <td class="po-meters-none">—</td>
                         @endif
                         <td>
-                            {{-- The preferred (or only) supplier is picked already; it can be changed for this order. --}}
+                            {{-- The supplier that delivered it last (else the preferred or only one) is picked already; it can be changed for this order. --}}
                             <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; syncOrderItems()">
                                 <option value="" {{ $row['supplier'] ? '' : 'selected' }}>Choose supplier</option>
                                 @if($row['ownSuppliers']->isNotEmpty())

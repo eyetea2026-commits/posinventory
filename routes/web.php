@@ -263,8 +263,6 @@ Route::prefix('admin')->group(function () {
         ->name('admin.products.edit')->middleware(['auth', 'role:admin']);
     Route::put('products/{product}', [ProductController::class, 'update'])
         ->name('admin.products.update')->middleware(['auth', 'role:admin']);
-    Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
-        ->name('admin.products.toggle-status')->middleware(['auth', 'role:admin']);
 
     // Inventory (view-only)
     Route::get('inventory', [InventoryController::class, 'index'])

@@ -64,22 +64,17 @@ class ActionNotificationsTest extends TestCase
 
     public function test_the_card_is_saved_for_the_bell_and_never_emailed(): void
     {
-        $this->actingAs($this->admin)->patch(route('admin.products.toggle-status', $this->product));
+        $this->actingAs($this->admin)->postJson(route('admin.categories.brands.store', $this->product->category), ['BrandName' => 'Hikvision'])->assertOk();
 
         $notification = $this->otherAdmin->notifications()->firstOrFail();
-        $this->assertSame('Product Deactivated', $notification->data['title']);
-        $this->assertSame('The product "Dome Camera" has been deactivated.', $notification->data['description']);
-        $this->assertSame(route('admin.products.index'), $notification->data['url']);
+        $this->assertSame('Brand Added', $notification->data['title']);
+        $this->assertSame('The brand "Hikvision" has been added to "CCTV".', $notification->data['description']);
+        $this->assertSame(route('admin.categories.index'), $notification->data['url']);
     }
 
     public function test_admin_actions_notify_every_administrator(): void
     {
         Notification::fake();
-
-        $this->actingAs($this->admin)->patch(route('admin.products.toggle-status', $this->product));
-        $this->assertAdminsGot('Product Deactivated');
-        $this->actingAs($this->admin)->patch(route('admin.products.toggle-status', $this->product));
-        $this->assertAdminsGot('Product Activated');
 
         $inactive = User::factory()->create(['role_id' => $this->cashier->role_id, 'is_active' => false]);
         $this->actingAs($this->admin)->post(route('admin.users.activate', $inactive));

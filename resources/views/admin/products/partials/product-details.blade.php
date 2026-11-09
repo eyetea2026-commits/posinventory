@@ -13,6 +13,10 @@
     <div><span>Barcode</span><code>{{ $product->Barcode ?? '-' }}</code></div>
     <div><span>Category</span><span>{{ $product->category?->CategoryName ?? 'Uncategorized' }}</span></div>
     <div><span>Brand</span><span>{{ $product->brand?->BrandName ?? 'N/A' }}</span></div>
+    {{-- Current Supplier: the one that delivered it last (it's picked for new purchase orders). --}}
+    @php($currentSupplierId = $product->lastDeliveredSupplierId())
+    <div><span>Current Supplier</span><span>{{ $currentSupplierId ? (\App\Models\Supplier::find($currentSupplierId)?->SupplierName ?? 'N/A') : 'No delivery yet' }}</span></div>
+    <div><span>Suppliers</span><span>@forelse($product->suppliers as $link){{ $link->supplier?->SupplierName ?? 'N/A' }}@if($link->IsPreferred) <small>(Preferred)</small>@endif @if(! $loop->last)<br>@endif @empty None @endforelse</span></div>
     <div><span>Cost Price</span><span>₱{{ number_format($product->CostPrice ?? 0, 2) }}/{{ $product->baseUnit() }}</span></div>
     <div><span>Selling Price</span><span>{{ $product->priceLabel() }}@if($product->sellsByPurchaseUnit())<br>{{ $product->priceLabel($product->PurchaseUnit) }}@endif</span></div>
     <div><span>Profit</span><span>₱{{ number_format($profit, 2) }} ({{ number_format($margin, 1) }}%)</span></div>

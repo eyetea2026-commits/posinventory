@@ -84,7 +84,9 @@ class ProductDeletionGuardTest extends TestCase
         $this->assertDatabaseHas('Product', ['ProductID' => $product->ProductID]);
     }
 
-    public function test_deactivating_keeps_the_product_and_all_its_history(): void
+    // Panel suggestion: products are no longer deactivated; stock alone
+    // decides whether the POS lists one. The product and its history stay.
+    public function test_a_product_can_no_longer_be_deactivated(): void
     {
         $product = $this->makeProduct();
         ProductSupplier::create(['ProductID' => $product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 500]);
@@ -96,48 +98,52 @@ class ProductDeletionGuardTest extends TestCase
         $transaction = SalesTransaction::create(['CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $staff->StaffID]);
         SalesItem::create(['Quantity' => 1, 'UnitPrice' => 1000, 'ProductID' => $product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID]);
 
-        $response = $this->actingAs($this->admin)->patch(route('admin.products.toggle-status', $product));
+        $this->assertFalse(Route::has('admin.products.toggle-status'));
+        $this->actingAs($this->admin)->patch('/admin/products/'.$product->ProductID.'/toggle-status');
 
-        $response->assertRedirect(route('admin.products.index'));
-        $this->assertFalse($product->fresh()->IsActive);
+        $this->assertTrue($product->fresh()->IsActive);
         $this->assertDatabaseHas('Product', ['ProductID' => $product->ProductID]);
         $this->assertDatabaseHas('ProductSupplier', ['ProductID' => $product->ProductID]);
         $this->assertDatabaseHas('SalesItem', ['ProductID' => $product->ProductID]);
         $this->assertDatabaseHas('Inventory', ['ProductID' => $product->ProductID]);
     }
 
-    public function test_toggling_twice_reactivates_and_both_are_logged(): void
+    // Deactivated before the button was removed: turned back on, so none
+    // is left hidden with no way to bring it back.
+    public function test_products_deactivated_before_are_turned_back_on(): void
+    {
+        $retired = $this->makeProduct('Retired Camera', false);
+
+        $migration = require database_path('migrations/2026_11_09_090330_reactivate_all_products.php');
+        $migration->up();
+
+        $this->assertTrue($retired->fresh()->IsActive);
+        $this->assertSame(0, Product::where('IsActive', false)->count());
+        $this->assertFalse(ActivityLog::where('Action', 'product.deactivated')->exists());
+    }
+
+    public function test_cashier_cannot_change_a_products_status_either(): void
     {
         $product = $this->makeProduct();
 
-        $this->actingAs($this->admin)->patch(route('admin.products.toggle-status', $product));
-        $this->actingAs($this->admin)->patch(route('admin.products.toggle-status', $product));
-
-        $this->assertTrue($product->fresh()->IsActive);
-        $this->assertTrue(ActivityLog::where('Action', 'product.deactivated')->exists());
-        $this->assertTrue(ActivityLog::where('Action', 'product.activated')->exists());
-    }
-
-    public function test_cashier_cannot_toggle_a_products_status(): void
-    {
-        $product = $this->makeProduct();
-
-        $this->actingAs($this->cashier)->patch(route('admin.products.toggle-status', $product));
+        $this->actingAs($this->cashier)->patch('/admin/products/'.$product->ProductID.'/toggle-status');
 
         $this->assertTrue($product->fresh()->IsActive);
     }
 
-    public function test_product_list_shows_inactive_badge_and_toggle_instead_of_delete(): void
+    public function test_product_list_has_neither_a_status_toggle_nor_delete(): void
     {
-        $this->makeProduct('Retired Camera', false);
+        $this->makeProduct('Dome Camera');
 
-        $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk();
+        $page = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('confirmToggleProductStatus', $page);
 
         $rows = $this->actingAs($this->admin)->getJson(route('admin.products.index'))->json('rows');
 
-        $this->assertStringContainsString('Retired Camera', $rows);
-        $this->assertStringContainsString('product-status-badge', $rows);
-        $this->assertStringContainsString('confirmToggleProductStatus', $rows);
+        $this->assertStringContainsString('Dome Camera', $rows);
+        $this->assertStringNotContainsString('Inactive', $rows);
+        $this->assertStringNotContainsString('Deactivate', $rows);
+        $this->assertStringNotContainsString('toggle-status', $rows);
         $this->assertStringNotContainsString('confirmDelete', $rows);
         $this->assertStringNotContainsString('value="DELETE"', $rows);
         $this->assertStringNotContainsString('fa-trash', $rows);
