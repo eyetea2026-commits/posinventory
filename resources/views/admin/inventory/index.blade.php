@@ -571,7 +571,7 @@
                     <th class="col-product">Product Info</th>
                     <th class="col-category">Category</th>
                     <th class="col-stock">Current Stock</th>
-                    <th class="col-threshold">Reorder Threshold</th>
+                    <th class="col-threshold">Re-Order Point</th>
                     <th class="col-velocity">30-Day Sales</th>
                     <th class="col-actions">Actions</th>
                 </tr>

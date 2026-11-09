@@ -64,7 +64,7 @@
             <span>{{ $product->stockLabel($quantity) }}</span>
         </div>
         <div class="reorder-detail-item">
-            <label>Reorder Level</label>
+            <label>Re-Order Point</label>
             <span>{{ $product->formatQuantity($threshold) }}</span>
         </div>
         <div class="reorder-detail-item">

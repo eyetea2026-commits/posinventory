@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Notifications\SaleCompleted;
 use App\Services\ActionNotifier;
 use App\Services\PaymentProof;
+use App\Services\ReorderPoint;
 use App\Services\ThermalReceiptPrinter;
 use App\Services\UnitOfMeasure;
 use Illuminate\Http\JsonResponse;
@@ -738,6 +739,7 @@ class CashierAuthController extends Controller
                     'receipt_number' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
                     'total' => $total,
                     'transaction_id' => $transaction->SalesTransactionID,
+                    'product_ids' => array_keys($quantitiesByProduct),
                 ];
             });
             $saleCompleted = true;
@@ -751,6 +753,14 @@ class CashierAuthController extends Controller
             if (! $saleCompleted) {
                 PaymentProof::delete($proofPath);
             }
+        }
+
+        // The sold products' Re-Order Points move with their sales. A
+        // failure here never undoes the sale.
+        try {
+            ReorderPoint::refresh($result['product_ids']);
+        } catch (Throwable $e) {
+            Log::error('Re-Order Point refresh after a sale failed: '.$e->getMessage());
         }
 
         // One approval, one sale.

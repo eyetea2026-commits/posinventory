@@ -18,6 +18,7 @@ use App\Notifications\DeliveryDue;
 use App\Notifications\DeliveryReceived;
 use App\Notifications\ProductReceived;
 use App\Services\ActionNotifier;
+use App\Services\ReorderPoint;
 use App\Services\UnitOfMeasure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -441,6 +442,13 @@ class StockReceivingController extends Controller
             return back()->with('error', 'Failed to add received stock to Inventory. Please try again.');
         }
 
+        // The delivery is part of each product's lead time now.
+        try {
+            ReorderPoint::refresh(PurchaseOrderItem::where('PurchaseOrderID', $stockReceivingBatch->PurchaseOrderID)->pluck('ProductID'));
+        } catch (Throwable $e) {
+            Log::error('Re-Order Point refresh after a delivery failed: '.$e->getMessage());
+        }
+
         // Dispatched only after the transaction has committed — a
         // notification failure must never roll back a completed delivery.
         try {
@@ -669,6 +677,13 @@ class StockReceivingController extends Controller
         $productName = $product?->ProductName ?? 'Unknown product';
         $supplierName = $supplier?->SupplierName ?? 'Unknown supplier';
         $poSuffix = ! empty($data['purchase_order_id']) ? " (PO {$data['purchase_order_id']})" : '';
+        if ($product) {
+            try {
+                ReorderPoint::refresh([$product->ProductID]);
+            } catch (Throwable $e) {
+                Log::error('Re-Order Point refresh after a delivery failed: '.$e->getMessage());
+            }
+        }
         ActivityLog::record('stock.received', "Received {$data['Quantity']} x \"{$productName}\" from \"{$supplierName}\"{$poSuffix}");
 
         // The receiving record itself already committed above — a

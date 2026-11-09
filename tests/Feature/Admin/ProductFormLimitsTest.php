@@ -10,11 +10,11 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Cost and Selling Price take up to 5 whole-peso digits (99,999.99), the
-// Reorder Threshold up to 3 digits (999); number fields take no letters;
-// and the Add/Edit Product form reads Photo | Name, Category, Cost Price /
-// Model, Brand, Reorder Threshold, then the units (with the Selling
-// Price), pricing and suppliers.
+// Cost and Selling Price take up to 5 whole-peso digits (99,999.99); the
+// Re-Order Point is computed, never typed in; number fields take no
+// letters; and the Add/Edit Product form reads Photo | Name, Category,
+// Cost Price / Model, Brand, Re-Order Point, then the units (with the
+// Selling Price), pricing and suppliers.
 class ProductFormLimitsTest extends TestCase
 {
     use RefreshDatabase;
@@ -39,7 +39,7 @@ class ProductFormLimitsTest extends TestCase
     {
         return array_merge([
             'ProductName' => 'Dome Camera', 'Model' => 'DC-1', 'Barcode' => 'CCTVEX-000001',
-            'CostPrice' => 1000, 'Price' => 1800, 'ReorderThreshold' => 10, 'CategoryID' => $this->category->CategoryID,
+            'CostPrice' => 1000, 'Price' => 1800, 'CategoryID' => $this->category->CategoryID,
         ], $overrides);
     }
 
@@ -68,13 +68,16 @@ class ProductFormLimitsTest extends TestCase
         $this->assertSame(0, Product::count());
     }
 
-    public function test_the_reorder_threshold_takes_up_to_three_digits(): void
+    // A Re-Order Point sent with the form is ignored: a new product starts
+    // at the minimum (no sales yet) and editing keeps the computed one.
+    public function test_the_reorder_point_is_computed_not_typed_in(): void
     {
-        $this->store(['ReorderThreshold' => 1000])->assertStatus(422)
-            ->assertJsonValidationErrors(['ReorderThreshold' => 'The Reorder Threshold can only have up to 3 digits (999).']);
-
         $this->store(['ReorderThreshold' => 999])->assertCreated();
-        $this->assertSame(999, Inventory::firstOrFail()->ReorderThreshold);
+        $this->assertSame(10, Inventory::firstOrFail()->ReorderThreshold);
+
+        $this->actingAs($this->admin)->putJson(route('admin.products.update', Product::firstOrFail()), $this->productFields(['ReorderThreshold' => 500]))
+            ->assertSessionHasNoErrors();
+        $this->assertSame(10, Inventory::firstOrFail()->ReorderThreshold);
     }
 
     public function test_editing_applies_the_same_limits(): void
@@ -83,7 +86,7 @@ class ProductFormLimitsTest extends TestCase
         $product = Product::firstOrFail();
 
         $this->actingAs($this->admin)->putJson(route('admin.products.update', $product), $this->productFields(['CostPrice' => 123456, 'ReorderThreshold' => 5000]))
-            ->assertStatus(422)->assertJsonValidationErrors(['CostPrice', 'ReorderThreshold']);
+            ->assertStatus(422)->assertJsonValidationErrors(['CostPrice'])->assertJsonMissingValidationErrors(['ReorderThreshold']);
         $this->assertSame(1000.0, (float) $product->fresh()->CostPrice);
     }
 
@@ -92,7 +95,8 @@ class ProductFormLimitsTest extends TestCase
         $html = $this->actingAs($this->admin)->get(route('admin.products.create'))->assertOk()->getContent();
 
         $this->assertMatchesRegularExpression('/product-photo-field.*?id="ProductName".*?id="CategoryID".*?id="CostPrice".*?id="Model".*?id="BrandID".*?id="ReorderThreshold".*?name="Description".*?id="Barcode".*?id="UnitOfMeasure".*?id="PurchaseUnit".*?id="SellingPrice".*?Pricing Calculations.*?Suppliers for this Product/s', $html);
-        $this->assertMatchesRegularExpression('/id="ReorderThreshold"[^>]*\s+value="10" min="0" max="999" step="1" data-max-digits="3"/', $html);
+        $this->assertMatchesRegularExpression('/<input type="text" id="ReorderThreshold" class="form-input" value="10" readonly tabindex="-1">/', $html);
+        $this->assertStringContainsString('Automatic: (Avg. Daily Sales × Lead Time) + Safety Stock, minimum 10.', $html);
         $this->assertStringContainsString('window.attachMoneyInput(costPriceInput, { maxIntegerDigits: 5 });', $html);
         $this->assertStringContainsString('window.attachMoneyInput(sellingPriceInput, { maxIntegerDigits: 5 });', $html);
         // The supplier is picked in the table's last row: the dropdown, then Add Supplier.

@@ -146,7 +146,7 @@
             <span class="detail-value">{{ $product->stockLabel($product->inventory?->Quantity ?? 0) }}</span>
         </div>
         <div class="detail-row">
-            <span class="detail-label">Reorder Threshold</span>
+            <span class="detail-label">Re-Order Point</span>
             <span class="detail-value">{{ $product->formatQuantity($product->inventory?->ReorderThreshold ?? 0) }}</span>
         </div>
         <div class="detail-row">
@@ -174,5 +174,7 @@
             </span>
         </div>
     </div>
+
+    @include('admin.inventory.partials.reorder-point-breakdown', ['product' => $product])
 
 </div>

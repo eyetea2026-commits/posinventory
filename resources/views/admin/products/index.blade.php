@@ -1161,7 +1161,7 @@
 <script>
     window.initBarcodeScanner('addProductForm');
 
-    const ADD_PRODUCT_FIELD_IDS = ['ProductName', 'Model', 'Description', 'CategoryID', 'CostPrice', 'ReorderThreshold', 'Barcode'];
+    const ADD_PRODUCT_FIELD_IDS = ['ProductName', 'Model', 'Description', 'CategoryID', 'CostPrice', 'Barcode'];
     let addProductLastFocused = null;
 
     function addProductIsSubmitting() {

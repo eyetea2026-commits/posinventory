@@ -8,8 +8,11 @@ use App\Models\Product;
 use App\Models\SalesItem;
 use App\Models\SalesTransaction;
 use App\Models\Supplier;
+use App\Services\ReorderPoint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class DashboardController extends Controller
 {
@@ -27,6 +30,14 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
+        // First visit of the day: every Re-Order Point is recomputed (the
+        // 30-day sales window moved) before Low Stock is counted.
+        try {
+            ReorderPoint::refreshAllOncePerDay();
+        } catch (Throwable $e) {
+            Log::error('Re-Order Point refresh failed: '.$e->getMessage());
+        }
+
         $today = today();
         $yesterday = $today->copy()->subDay();
 

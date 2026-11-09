@@ -6,7 +6,7 @@
      so modal JS can inject a 422 validation message into the same slot the
      @error directive fills on a real (non-AJAX) page submission. --}}
 {{-- The Product Photo down the left; beside it, three per row: Name /
-     Category / Cost Price, Model / Brand / Reorder Threshold, then the
+     Category / Cost Price, Model / Brand / Re-Order Point, then the
      Specifications, the Barcode (and SKU when editing) and the returns
      option across. Below: Unit of Measurement (with the Selling Price),
      Pricing Calculations, and the product's Suppliers. Two per row on
@@ -157,12 +157,12 @@
         <span class="form-error" id="error-BrandID">@error('BrandID'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Up to 3 digits (999), counted in the base unit. --}}
+    {{-- Computed by the system from sales and lead time (ReorderPoint),
+         counted in the base unit: shown, never typed in. --}}
     <div class="form-group">
-        <label class="form-label" for="ReorderThreshold">Reorder Threshold <span class="uom-unit-note">(<span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>)</span></label>
-        <input type="number" name="ReorderThreshold" id="ReorderThreshold" class="form-input @error('ReorderThreshold') is-invalid @enderror"
-               value="{{ old('ReorderThreshold', $product->inventory?->ReorderThreshold ?? 10) }}" min="0" max="999" step="1" data-max-digits="3" placeholder="e.g., 10">
-        <span class="form-error" id="error-ReorderThreshold">@error('ReorderThreshold'){{ $message }}@enderror</span>
+        <label class="form-label" for="ReorderThreshold">Re-Order Point <span class="uom-unit-note">(<span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>)</span></label>
+        <input type="text" id="ReorderThreshold" class="form-input" value="{{ isset($product) && $product->inventory ? (int) $product->inventory->ReorderThreshold : \App\Services\ReorderPoint::MINIMUM }}" readonly tabindex="-1">
+        <small style="color:#94a3b8;">Automatic: (Avg. Daily Sales × Lead Time) + Safety Stock, minimum {{ \App\Services\ReorderPoint::MINIMUM }}.</small>
     </div>
 
     <div class="form-group product-span-3">

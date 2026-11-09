@@ -9,7 +9,7 @@
         <thead>
             <tr>
                 <th>Product</th><th>SKU / Barcode</th><th>Category</th><th>Supplier</th>
-                <th class="col-qty">Current Stock</th><th class="col-qty">Reorder Level</th>
+                <th class="col-qty">Current Stock</th><th class="col-qty">Re-Order Point</th>
                 <th class="col-money">Cost Price</th><th class="col-money">Selling Price</th>
                 <th class="col-money">Stock Value</th><th>Status</th>
             </tr>

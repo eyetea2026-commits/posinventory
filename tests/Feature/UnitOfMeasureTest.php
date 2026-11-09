@@ -173,8 +173,8 @@ class UnitOfMeasureTest extends TestCase
 
         // [Meter & Roll] | [Roll] | ₱ 10 per meter, in that order, in one row.
         $this->assertMatchesRegularExpression('/id="UnitOfMeasure".*?<option value="meter_roll"[^>]*selected>.*?id="PurchaseUnit".*?<option value="roll" selected>.*?id="SellingPrice"[^>]*value="10(.00)?".*?<span class="uom-per-base">per meter<\/span>/s', $html);
-        // The Reorder Threshold (in meters) sits above, beside Model and Brand.
-        $this->assertMatchesRegularExpression('/id="BrandID".*?Reorder Threshold <span class="uom-unit-note">\(<span class="uom-base-plural">meters<\/span>\)<\/span>.*?id="ReorderThreshold".*?id="UnitOfMeasure"/s', $html);
+        // The Re-Order Point (in meters) sits above, beside Model and Brand.
+        $this->assertMatchesRegularExpression('/id="BrandID".*?Re-Order Point <span class="uom-unit-note">\(<span class="uom-base-plural">meters<\/span>\)<\/span>.*?id="ReorderThreshold".*?id="UnitOfMeasure"/s', $html);
         // The roll size isn't asked here (it's entered at Stock Receiving).
         $this->assertStringNotContainsString('QuantityPerPurchaseUnit', $html);
         $this->assertStringNotContainsString('uom-one', $html);

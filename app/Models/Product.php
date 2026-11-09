@@ -74,9 +74,6 @@ class Product extends Model
     // Cost and Selling Price: up to 5 whole-peso digits.
     const MAX_PRICE = 99999.99;
 
-    // Reorder Threshold: up to 3 digits.
-    const MAX_REORDER_THRESHOLD = 999;
-
     public static function computeSellingPrice(float $costPrice): float
     {
         return round($costPrice / (1 - self::PROFIT_MARGIN), 2);

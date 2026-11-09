@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Notifications\ProductUpdated;
 use App\Services\ActionNotifier;
 use App\Services\ProductImage;
+use App\Services\ReorderPoint;
 use App\Services\UnitOfMeasure;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -316,10 +317,8 @@ class ProductController extends Controller
 
         // New products always start with zero stock — quantity is only ever
         // added afterward through Stock Receiving.
-        $status = self::resolveStockStatus(
-            0,
-            (int) ($data['ReorderThreshold'] ?? 50)
-        )['label'];
+        // No sales yet: it starts at the minimum Re-Order Point.
+        $status = self::resolveStockStatus(0, ReorderPoint::MINIMUM)['label'];
 
         $imagePath = $request->hasFile('Image') ? ProductImage::store($request->file('Image')) : null;
 
@@ -357,7 +356,7 @@ class ProductController extends Controller
 
     /**
      * Prices of the Add/Edit Product form: up to 5 whole-peso digits
-     * (99,999.99), and a Reorder Threshold of up to 3 digits (999).
+     * (99,999.99). (The Re-Order Point is computed: ReorderPoint.)
      *
      * @return array<string, array<int, mixed>>
      */
@@ -366,7 +365,6 @@ class ProductController extends Controller
         return [
             'CostPrice' => ['required', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
             'Price' => ['nullable', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
-            'ReorderThreshold' => ['nullable', 'integer', 'min:0', 'max:'.Product::MAX_REORDER_THRESHOLD],
         ];
     }
 
@@ -378,7 +376,6 @@ class ProductController extends Controller
         return [
             'CostPrice.max' => 'The Cost Price can only have up to 5 digits (₱99,999.99).',
             'Price.max' => 'The Selling Price can only have up to 5 digits (₱99,999.99).',
-            'ReorderThreshold.max' => 'The Reorder Threshold can only have up to 3 digits (999).',
         ];
     }
 
@@ -544,7 +541,7 @@ class ProductController extends Controller
             Inventory::create([
                 'ProductID' => $product->ProductID,
                 'Quantity' => 0,
-                'ReorderThreshold' => $data['ReorderThreshold'] ?? 50,
+                'ReorderThreshold' => ReorderPoint::MINIMUM,
                 'Status' => $status,
             ]);
 
@@ -705,13 +702,14 @@ class ProductController extends Controller
         ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], ProductCostHistory::SOURCE_PRODUCT_UPDATE);
 
         // Stock quantity is managed through the Inventory module, not here:
-        // only the threshold (and the status it decides) is saved, against
+        // only the Re-Order Point (computed, ReorderPoint) and the status it
+        // decides are saved, against
         // the row locked as it is now, so a sale made while this form was
         // open is never written over with the quantity it was opened with.
-        DB::transaction(function () use ($product, $data) {
+        DB::transaction(function () use ($product) {
             $inventory = Inventory::where('ProductID', $product->ProductID)->lockForUpdate()->first()
                 ?? Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 0, 'Status' => 'Out of Stock']);
-            $inventory->ReorderThreshold = $data['ReorderThreshold'] ?? 50;
+            $inventory->ReorderThreshold = ReorderPoint::forProduct($product->ProductID)['reorder_point'];
             $inventory->Status = self::resolveStockStatus($inventory->Quantity, $inventory->ReorderThreshold)['label'];
             $inventory->save();
         });

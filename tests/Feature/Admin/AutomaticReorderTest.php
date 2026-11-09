@@ -247,9 +247,12 @@ class AutomaticReorderTest extends TestCase
             'SupplierID' => $this->supplier->SupplierID,
             'Status' => PurchaseOrder::STATUS_DRAFT,
         ]);
-        // (20 - 5) + 20 = 35, same formula the manual reorder form suggests.
+        // The visit recomputes the Re-Order Point first: nothing sold yet,
+        // so the minimum of 10. (10 - 5) + 10 = 15, same formula the manual
+        // reorder form suggests.
+        $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->value('ReorderThreshold'));
         $this->assertDatabaseHas('PurchaseOrderItem', [
-            'ProductID' => $this->product->ProductID, 'Quantity' => 35, 'CostPriceAtOrder' => 550,
+            'ProductID' => $this->product->ProductID, 'Quantity' => 15, 'CostPriceAtOrder' => 550,
         ]);
         $this->assertTrue(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
     }

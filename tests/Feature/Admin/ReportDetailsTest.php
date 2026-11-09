@@ -195,7 +195,7 @@ class ReportDetailsTest extends TestCase
         $response->assertJsonFragment(['label' => 'Product Name', 'value' => 'DVR Camera']);
         $response->assertJsonFragment([
             'table' => [
-                'columns' => ['Current Stock', 'Remaining Stock', 'Reorder Threshold'],
+                'columns' => ['Current Stock', 'Remaining Stock', 'Re-Order Point'],
                 'rows' => [['8', '8', '5']],
             ],
         ]);

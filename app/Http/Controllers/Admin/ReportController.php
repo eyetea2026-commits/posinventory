@@ -246,7 +246,7 @@ class ReportController extends Controller
         }
 
         $stockTable = [
-            'columns' => ['Current Stock', 'Remaining Stock', 'Reorder Threshold'],
+            'columns' => ['Current Stock', 'Remaining Stock', 'Re-Order Point'],
             'rows' => [[
                 UnitOfMeasure::cell($product->inventory?->Quantity ?? 0, $product->baseUnit()),
                 $product->hasPurchaseUnit() ? $product->stockLabel($product->inventory?->Quantity ?? 0) : UnitOfMeasure::cell($product->inventory?->Quantity ?? 0, $product->baseUnit()),
