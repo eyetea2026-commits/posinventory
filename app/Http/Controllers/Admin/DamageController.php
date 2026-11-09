@@ -9,8 +9,10 @@ use App\Models\DamagedProduct;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\StockBatch;
 use App\Models\Supplier;
 use App\Services\ActionNotifier;
+use App\Services\StockBatches;
 use App\Services\UnitOfMeasure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -520,7 +522,14 @@ class DamageController extends Controller
 
                 $inventory->Quantity += $qty;
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                $inventory->save();
+                // A stock batch of its own, at what the replaced piece cost.
+                StockBatches::receivingAs([
+                    'Source' => StockBatch::SOURCE_SUPPLIER_REPLACEMENT,
+                    'SupplierID' => $locked->SupplierID,
+                    'PurchaseOrderID' => $locked->PurchaseOrderID,
+                    'DamageID' => $locked->DamageID,
+                    'UnitCost' => $locked->unitCost(),
+                ], fn () => $inventory->save());
 
                 $locked->update([
                     'Status' => DamagedProduct::STATUS_REPLACEMENT_RECEIVED,
@@ -575,7 +584,13 @@ class DamageController extends Controller
 
                 $inventory->Quantity += $damage->Quantity;
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                $inventory->save();
+                StockBatches::receivingAs([
+                    'Source' => StockBatch::SOURCE_RESTORED,
+                    'SupplierID' => $locked->SupplierID,
+                    'PurchaseOrderID' => $locked->PurchaseOrderID,
+                    'DamageID' => $locked->DamageID,
+                    'UnitCost' => $locked->unitCost(),
+                ], fn () => $inventory->save());
 
                 $locked->update([
                     'Status' => DamagedProduct::STATUS_CANCELLED,

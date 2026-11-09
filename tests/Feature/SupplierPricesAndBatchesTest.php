@@ -182,7 +182,8 @@ class SupplierPricesAndBatchesTest extends TestCase
 
         $html = $this->actingAs($this->admin)->getJson(route('admin.inventory.show', $this->camera))->assertOk()->json('html');
         $this->assertStringContainsString('Stock Batches', $html);
-        $this->assertMatchesRegularExpression('/Bravo Trading<\/td>\s*<td>4 pieces<\/td>\s*<td>1 piece<\/td>\s*<td[^>]*>₱620\.00<\/td>\s*<td[^>]*>₱1,100\.00<\/td>\s*<td>43\.6%<\/td>/u', $html);
+        // Received, Damaged, Sold, Remaining, Unit Cost, Selling Price, Margin.
+        $this->assertMatchesRegularExpression('/Bravo Trading<\/td>\s*<td>4 pieces<\/td>\s*<td>1 piece<\/td>\s*<td>0 pieces<\/td>\s*<td><strong>4 pieces<\/strong><\/td>\s*<td[^>]*>₱620\.00<\/td>\s*<td[^>]*>₱1,100\.00<\/td>\s*<td>43\.6%<\/td>/u', $html);
         $this->assertStringContainsString('Margin = (Selling Price − Unit Cost) ÷ Selling Price.', $html);
     }
 

@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Notifications\NewRefundRequest;
 use App\Services\ActionNotifier;
 use App\Services\SerialNumbers;
+use App\Services\StockBatches;
 use App\Services\ThermalReceiptPrinter;
 use App\Services\UnitOfMeasure;
 use Carbon\Carbon;
@@ -539,7 +540,8 @@ class CashierReturnController extends Controller
                     SerialNumbers::returnToStock($salesReturn->SalesTransactionID, $item->ProductID, (int) $item->BaseQuantity, $salesReturn->SalesReturnID);
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->BaseQuantity);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                    $inventory->save();
+                    // Back onto the stock batches the sale took them from.
+                    StockBatches::returningFrom($salesItem?->SalesItemID, fn () => $inventory->save());
                 }
 
                 $salesReturn->update([

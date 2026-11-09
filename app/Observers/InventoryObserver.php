@@ -6,6 +6,7 @@ use App\Models\Inventory;
 use App\Models\User;
 use App\Notifications\LowStockAlert;
 use App\Services\SerialNumbers;
+use App\Services\StockBatches;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Throwable;
@@ -20,6 +21,8 @@ class InventoryObserver
     {
         // Same choke point keeps one serial number per piece in stock.
         SerialNumbers::syncWithStock($inventory);
+        // ...and the FIFO stock batches adding up to the stock on hand.
+        StockBatches::syncWithStock($inventory);
 
         if (! $inventory->wasChanged('Status')) {
             return;

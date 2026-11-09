@@ -705,6 +705,8 @@ class ReportController extends Controller
             'Unit' => $item?->Unit,
             'UnitPrice' => $item?->UnitPrice ?? 0,
             'ItemTotal' => round(($item?->Quantity ?? 0) * ($item?->UnitPrice ?? 0), 2),
+            // FIFO cost of the pieces sold (summary only).
+            'CostAmount' => (float) ($item?->CostAmount ?? 0),
             'Discount' => $isLast ? (float) ($sale->DiscountAmount ?? 0) : null,
             'VatAmount' => $isLast ? (float) ($sale->VatAmount ?? 0) : null,
             'TotalAmount' => $isLast ? (float) $sale->TotalAmount : null,

@@ -129,6 +129,33 @@ class DamagedProduct extends Model
         return $this->belongsTo(SalesReturn::class, 'SalesReturnID', 'SalesReturnID');
     }
 
+    /**
+     * What one base unit of the damaged pieces cost: its order line's cost,
+     * else what its sale line paid for it (FIFO), else the product's Cost
+     * Price. A replacement or restored piece goes back into stock at it.
+     */
+    public function unitCost(): float
+    {
+        if ($this->PurchaseOrderID) {
+            $cost = PurchaseOrderItem::where('PurchaseOrderID', $this->PurchaseOrderID)
+                ->where('ProductID', $this->ProductID)
+                ->first()?->costPerBaseUnit();
+            if ($cost !== null && $cost > 0) {
+                return $cost;
+            }
+        }
+
+        $salesTransactionId = $this->salesReturn?->SalesTransactionID;
+        if ($salesTransactionId) {
+            $salesItem = SalesItem::where('SalesTransactionID', $salesTransactionId)->where('ProductID', $this->ProductID)->first();
+            if ($salesItem && $salesItem->CostAmount !== null && (float) $salesItem->BaseQuantity > 0) {
+                return round((float) $salesItem->CostAmount / (float) $salesItem->BaseQuantity, 2);
+            }
+        }
+
+        return round((float) ($this->product?->CostPrice ?? 0), 2);
+    }
+
     public function stockAdjustment()
     {
         return $this->belongsTo(StockAdjustment::class, 'StockAdjustmentID', 'AdjustmentID');

@@ -26,6 +26,8 @@ class SalesItem extends Model
         'BaseQuantity',
         'UnitPrice',
         'DiscountAmount',
+        // What the pieces cost, from the stock batches they came out of (FIFO).
+        'CostAmount',
         'ProductID',
         'SalesTransactionID',
     ];
@@ -33,6 +35,7 @@ class SalesItem extends Model
     protected $casts = [
         'Quantity' => Quantity::class,
         'BaseQuantity' => Quantity::class,
+        'CostAmount' => 'decimal:2',
     ];
 
     /**
@@ -64,6 +67,24 @@ class SalesItem extends Model
     public function quantityLabel(): string
     {
         return UnitOfMeasure::format($this->Quantity, $this->Unit ?: UnitOfMeasure::DEFAULT);
+    }
+
+    /**
+     * What was paid for the line (after its discount) minus what its
+     * pieces cost (FIFO); null when the cost isn't known.
+     */
+    public function grossProfit(): ?float
+    {
+        if ($this->CostAmount === null) {
+            return null;
+        }
+
+        return round((float) $this->Quantity * (float) $this->UnitPrice - (float) ($this->DiscountAmount ?? 0) - (float) $this->CostAmount, 2);
+    }
+
+    public function stockBatchAllocations()
+    {
+        return $this->hasMany(StockBatchAllocation::class, 'SalesItemID', 'SalesItemID');
     }
 
     public function product()

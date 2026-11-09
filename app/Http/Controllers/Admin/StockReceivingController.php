@@ -12,6 +12,7 @@ use App\Models\ProductCostHistory;
 use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\StockBatch;
 use App\Models\StockReceiving;
 use App\Models\StockReceivingBatch;
 use App\Models\StockReceivingDelivery;
@@ -22,6 +23,7 @@ use App\Notifications\DeliveryReceived;
 use App\Notifications\ProductReceived;
 use App\Services\ActionNotifier;
 use App\Services\ReorderPoint;
+use App\Services\StockBatches;
 use App\Services\UnitOfMeasure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -374,7 +376,7 @@ class StockReceivingController extends Controller
                     $item->ReceivedQuantity += $quantityReceived + $quantityDamaged;
                     $item->save();
                     // One stock batch: its cost and selling price as of today.
-                    $delivery->items()->create([
+                    $deliveryItem = $delivery->items()->create([
                         'PurchaseOrderItemID' => $item->PurchaseOrderItemID,
                         'ProductID' => $item->ProductID,
                         'Quantity' => $quantityReceived,
@@ -424,7 +426,16 @@ class StockReceivingController extends Controller
                     // converted to the base unit (2 rolls = 10,000 meters).
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->toBaseQuantity($quantityReceived));
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                    $inventory->save();
+                    // A stock batch of its own, at this order's cost (FIFO).
+                    StockBatches::receivingAs([
+                        'Source' => StockBatch::SOURCE_PURCHASE_ORDER,
+                        'SupplierID' => $purchaseOrder->SupplierID,
+                        'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
+                        'StockReceivingDeliveryItemID' => $deliveryItem->StockReceivingDeliveryItemID,
+                        'ReceiptNumber' => $receiptNumber,
+                        'UnitCost' => $deliveryItem->UnitCost,
+                        'SellingPrice' => $deliveryItem->SellingPrice,
+                    ], fn () => $inventory->save());
                 }
 
                 if ($receivedNow === 0) {
@@ -662,7 +673,7 @@ class StockReceivingController extends Controller
                     $supplierId = $purchaseOrder->SupplierID;
                 }
 
-                StockReceiving::create([
+                $stockReceiving = StockReceiving::create([
                     'ProductID' => $productId,
                     'SupplierID' => $supplierId,
                     'Quantity' => $data['Quantity'],
@@ -695,7 +706,14 @@ class StockReceivingController extends Controller
                     : Quantity::normalize($data['Quantity'] * (float) $receivedProduct->quantityPerOrderUnit());
                 $inventory->Quantity = Quantity::normalize($inventory->Quantity + $baseQuantity);
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                $inventory->save();
+                StockBatches::receivingAs([
+                    'Source' => StockBatch::SOURCE_STOCK_RECEIVING,
+                    'SupplierID' => $supplierId,
+                    'PurchaseOrderID' => $data['purchase_order_id'] ?? null,
+                    'ReceivingID' => $stockReceiving->ReceivingID,
+                    'ReceiptNumber' => $data['ReceiptNumber'],
+                    'UnitCost' => $purchaseOrderItem?->costPerBaseUnit(),
+                ], fn () => $inventory->save());
 
                 if ($purchaseOrderItem) {
                     $purchaseOrderItem->increment('ReceivedQuantity', $data['Quantity']);

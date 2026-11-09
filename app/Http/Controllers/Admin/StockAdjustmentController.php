@@ -11,9 +11,11 @@ use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockAdjustment;
+use App\Models\StockBatchAllocation;
 use App\Models\User;
 use App\Notifications\StockAdjustmentRecorded;
 use App\Services\SerialNumbers;
+use App\Services\StockBatches;
 use App\Services\UnitOfMeasure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -185,7 +187,11 @@ class StockAdjustmentController extends Controller
 
                 $inventory->Quantity = $newQty;
                 $inventory->Status = Inventory::resolveStatus($newQty, $inventory->ReorderThreshold);
-                SerialNumbers::removingAs($serialStatus, fn () => $inventory->save());
+                // Out of the oldest stock batches first (FIFO), at their cost.
+                StockBatches::takingFor(
+                    ['Reason' => StockBatchAllocation::REASON_STOCK_ADJUSTMENT, 'StockAdjustmentID' => $adjustment->AdjustmentID],
+                    fn () => SerialNumbers::removingAs($serialStatus, fn () => $inventory->save())
+                );
 
                 // Damaged stock is a loss the Damage module needs to track
                 // (supplier return / disposal) — no separate manual damage

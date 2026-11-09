@@ -13,11 +13,13 @@ use App\Models\ProductSerial;
 use App\Models\SalesItem;
 use App\Models\SalesTransaction;
 use App\Models\Staff;
+use App\Models\StockBatchAllocation;
 use App\Models\User;
 use App\Notifications\SaleCompleted;
 use App\Services\ActionNotifier;
 use App\Services\PaymentProof;
 use App\Services\ReorderPoint;
+use App\Services\StockBatches;
 use App\Services\ThermalReceiptPrinter;
 use App\Services\UnitOfMeasure;
 use Illuminate\Http\JsonResponse;
@@ -700,9 +702,10 @@ class CashierAuthController extends Controller
                 }
 
                 // Create sales items, priced from the DB, not the request
+                $salesItems = [];
                 foreach ($lines as $productId => $line) {
                     $perUnitDiscount = $discountPerUnitByProduct[$productId] ?? 0;
-                    SalesItem::create([
+                    $salesItems[$productId] = SalesItem::create([
                         'Quantity' => $line['qty'],
                         'Unit' => $line['unit'],
                         'BaseQuantity' => $quantitiesByProduct[$productId],
@@ -732,7 +735,14 @@ class CashierAuthController extends Controller
                     $inventory = $inventories->get($productId);
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity - $qty);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                    $inventory->save();
+                    // Taken from the oldest stock batches first (FIFO); the
+                    // line keeps what those pieces cost.
+                    $salesItem = $salesItems[$productId];
+                    StockBatches::takingFor(
+                        ['Reason' => StockBatchAllocation::REASON_SALE, 'SalesItemID' => $salesItem->SalesItemID],
+                        fn () => $inventory->save()
+                    );
+                    $salesItem->update(['CostAmount' => StockBatches::costOfSalesItem($salesItem->SalesItemID)]);
                 }
 
                 return [

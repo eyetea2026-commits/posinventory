@@ -302,6 +302,9 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                     } elseif ($dataRowCount > 0 && $entry['label'] === ReportSummaryBuilder::NET_SALES
                         && isset($summaryRowOf[ReportSummaryBuilder::AMOUNT_COLLECTED], $summaryRowOf[ReportSummaryBuilder::VAT])) {
                         $sheet->setCellValue("B{$summaryRow}", '=B'.$summaryRowOf[ReportSummaryBuilder::AMOUNT_COLLECTED].'-B'.$summaryRowOf[ReportSummaryBuilder::VAT]);
+                    } elseif ($entry['label'] === ReportSummaryBuilder::GROSS_PROFIT
+                        && isset($summaryRowOf[ReportSummaryBuilder::AMOUNT_COLLECTED], $summaryRowOf[ReportSummaryBuilder::COST_OF_GOODS_SOLD])) {
+                        $sheet->setCellValue("B{$summaryRow}", '=B'.$summaryRowOf[ReportSummaryBuilder::AMOUNT_COLLECTED].'-B'.$summaryRowOf[ReportSummaryBuilder::COST_OF_GOODS_SOLD]);
                     } else {
                         $sheet->setCellValue("B{$summaryRow}", $entry['value']);
                     }

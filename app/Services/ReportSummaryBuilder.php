@@ -28,6 +28,12 @@ class ReportSummaryBuilder
 
     public const VAT = 'VAT (12%)';
 
+    /** What the sold pieces cost, from the stock batches they came out of. */
+    public const COST_OF_GOODS_SOLD = 'Cost of Goods Sold (FIFO)';
+
+    /** Amount Collected - Cost of Goods Sold. */
+    public const GROSS_PROFIT = 'Gross Profit';
+
     public const NET_SALES = 'Net Sales (VAT excluded)';
 
     public static function forType(string $type, Collection $rows): array
@@ -55,6 +61,7 @@ class ReportSummaryBuilder
     {
         $collected = round($rows->sum('TotalAmount'), 2);
         $vat = round($rows->sum('VatAmount'), 2);
+        $costOfGoodsSold = round($rows->sum('CostAmount'), 2);
 
         return [
             ['label' => 'Total Transactions', 'value' => $rows->where('is_last', true)->count(), 'money' => false],
@@ -64,6 +71,8 @@ class ReportSummaryBuilder
             ['label' => self::AMOUNT_COLLECTED, 'value' => $collected, 'money' => true],
             ['label' => self::VAT, 'value' => $vat, 'money' => true],
             ['label' => self::NET_SALES, 'value' => round($collected - $vat, 2), 'money' => true],
+            ['label' => self::COST_OF_GOODS_SOLD, 'value' => $costOfGoodsSold, 'money' => true],
+            ['label' => self::GROSS_PROFIT, 'value' => round($collected - $costOfGoodsSold, 2), 'money' => true],
         ];
     }
 

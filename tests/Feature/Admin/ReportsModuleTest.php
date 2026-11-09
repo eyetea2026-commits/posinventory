@@ -509,8 +509,8 @@ class ReportsModuleTest extends TestCase
     public function test_report_summary_builder_computes_sales_aggregates(): void
     {
         $rows = collect([
-            (object) ['Quantity' => 2, 'ItemTotal' => 2000.0, 'Discount' => null, 'VatAmount' => null, 'TotalAmount' => null, 'is_last' => false],
-            (object) ['Quantity' => 1, 'ItemTotal' => 1000.0, 'Discount' => 200.0, 'VatAmount' => 300.0, 'TotalAmount' => 2800.0, 'is_last' => true],
+            (object) ['Quantity' => 2, 'ItemTotal' => 2000.0, 'CostAmount' => 1200.0, 'Discount' => null, 'VatAmount' => null, 'TotalAmount' => null, 'is_last' => false],
+            (object) ['Quantity' => 1, 'ItemTotal' => 1000.0, 'CostAmount' => 600.0, 'Discount' => 200.0, 'VatAmount' => 300.0, 'TotalAmount' => 2800.0, 'is_last' => true],
         ]);
 
         $summary = collect(ReportSummaryBuilder::forType('sales', $rows));
@@ -519,6 +519,7 @@ class ReportsModuleTest extends TestCase
         $this->assertSame([
             'Total Transactions', 'Total Quantity Sold', 'Gross Sales (VAT included)', 'Less: Discount',
             'Amount Collected (VAT included)', 'VAT (12%)', 'Net Sales (VAT excluded)',
+            'Cost of Goods Sold (FIFO)', 'Gross Profit',
         ], $summary->pluck('label')->all());
 
         $summary = $summary->keyBy('label');
@@ -529,6 +530,9 @@ class ReportsModuleTest extends TestCase
         $this->assertEqualsWithDelta(2800.0, $summary['Amount Collected (VAT included)']['value'], 0.001);
         $this->assertEqualsWithDelta(300.0, $summary['VAT (12%)']['value'], 0.001);
         $this->assertEqualsWithDelta(2500.0, $summary['Net Sales (VAT excluded)']['value'], 0.001);
+        // Gross Profit = Amount Collected − the FIFO cost of what was sold.
+        $this->assertEqualsWithDelta(1800.0, $summary['Cost of Goods Sold (FIFO)']['value'], 0.001);
+        $this->assertEqualsWithDelta(1000.0, $summary['Gross Profit']['value'], 0.001);
         $this->assertTrue($summary['Net Sales (VAT excluded)']['money']);
         $this->assertFalse($summary['Total Transactions']['money']);
     }
