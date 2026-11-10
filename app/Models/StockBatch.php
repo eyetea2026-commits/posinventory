@@ -131,13 +131,17 @@ class StockBatch extends Model
     }
 
     /**
-     * Pieces of this batch sold and not refunded back onto it.
+     * Pieces of this batch sold and not refunded back onto it: whatever
+     * left the batch other than through a stock adjustment / removal, so
+     * pieces sold before batches were tracked count too.
      */
     public function soldQuantity(): int|float
     {
-        return Quantity::normalize($this->allocations
-            ->where('Reason', StockBatchAllocation::REASON_SALE)
-            ->sum(fn (StockBatchAllocation $allocation) => (float) $allocation->netQuantity()));
+        $removed = $this->allocations
+            ->where('Reason', '!=', StockBatchAllocation::REASON_SALE)
+            ->sum(fn (StockBatchAllocation $allocation) => (float) $allocation->netQuantity());
+
+        return Quantity::normalize(max(0, (float) $this->QuantityReceived - (float) $this->QuantityRemaining - $removed));
     }
 
     public function allocations(): HasMany

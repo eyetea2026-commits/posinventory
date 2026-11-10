@@ -76,6 +76,9 @@
         .stock-batch-summary div { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
         .stock-batch-summary span { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.03em; }
         .stock-batch-summary strong { color: #e2e8f0; }
+        .stock-batches-table { font-size: 0.82rem; min-width: 980px; }
+        .stock-batches-table th, .stock-batches-table td { white-space: nowrap; padding: 8px 10px; vertical-align: top; }
+        .stock-batches-table small { color: #94a3b8; }
         .stock-batches-table .batch-used-up td { opacity: 0.55; }
         .stock-batches-table .batch-next { color: #34d399; font-weight: 600; }
     </style>
