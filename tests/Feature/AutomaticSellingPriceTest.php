@@ -211,4 +211,25 @@ class AutomaticSellingPriceTest extends TestCase
         $this->assertSame([120.0, 140.0], StockBatch::fifo()->get()->map(fn ($batch) => (float) $batch->SellingPrice)->all());
         $this->assertSame(120.0, (float) DB::table('Product')->value('Price'));
     }
+
+    public function test_the_migration_never_sets_a_negative_margin_and_can_run_again(): void
+    {
+        // A mistyped ₱423,423 receipt for a ₱280 adapter, no Cost Price.
+        $this->receive(5, 423423);
+        Product::whereKey($this->camera->ProductID)->update(['Price' => 280, 'CostPrice' => null]);
+
+        // An earlier run stopped part-way: the column is already there.
+        (require database_path('migrations/2026_11_09_233507_add_profit_margin_to_product_table.php'))->up();
+
+        $this->assertSame(0.0, (float) DB::table('Product')->value('ProfitMargin'));
+        $this->assertSame(423423.0, (float) StockBatch::value('SellingPrice'));
+        $this->assertSame(423423.0, (float) DB::table('Product')->value('Price'));
+    }
+
+    public function test_a_new_product_costing_more_than_its_price_gets_a_zero_margin(): void
+    {
+        $product = Product::create(['ProductName' => 'Battery', 'Model' => 'BT-1', 'Price' => 200, 'CostPrice' => 34234, 'CategoryID' => $this->category->CategoryID, 'Barcode' => 'CCTVEX-000004']);
+
+        $this->assertSame(0.0, (float) $product->fresh()->ProfitMargin);
+    }
 }

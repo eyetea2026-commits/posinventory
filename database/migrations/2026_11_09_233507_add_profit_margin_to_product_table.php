@@ -20,10 +20,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('Product', function (Blueprint $table) {
-            // Percent, e.g. 45.0000. Four decimals keep an existing price exact.
-            $table->decimal('ProfitMargin', 8, 4)->default(45)->after('CostPrice');
-        });
+        // Already there when an earlier run stopped part-way.
+        if (! Schema::hasColumn('Product', 'ProfitMargin')) {
+            Schema::table('Product', function (Blueprint $table) {
+                // Percent, e.g. 45.0000. Four decimals keep an existing price exact.
+                $table->decimal('ProfitMargin', 8, 4)->default(45)->after('CostPrice');
+            });
+        }
 
         foreach (DB::table('Product')->get(['ProductID', 'Price', 'CostPrice']) as $product) {
             $batches = DB::table('StockBatch')
@@ -36,7 +39,9 @@ return new class extends Migration
             // Without a Cost Price, the cost of the batch that sells next.
             $price = (float) $product->Price;
             $cost = (float) $product->CostPrice ?: (float) ($batches->first()->UnitCost ?? 0);
-            $margin = $price > 0 && $cost > 0 ? round(($price - $cost) / $price * 100, 4) : 45.0;
+            // A cost above the price (e.g. a mistyped receipt) is never a
+            // negative margin, which the product form doesn't allow either.
+            $margin = $price > 0 && $cost > 0 ? max(0.0, round(($price - $cost) / $price * 100, 4)) : 45.0;
 
             DB::table('Product')->where('ProductID', $product->ProductID)->update(['ProfitMargin' => $margin]);
 

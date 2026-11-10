@@ -80,7 +80,8 @@ class Product extends Model
      */
     public static function marginFor(float $price, float $cost): float
     {
-        return $price > 0 && $cost > 0 ? round(($price - $cost) / $price * 100, 4) : self::PROFIT_MARGIN * 100;
+        // A cost above the price is a 0% margin, never a negative one.
+        return $price > 0 && $cost > 0 ? max(0.0, round(($price - $cost) / $price * 100, 4)) : self::PROFIT_MARGIN * 100;
     }
 
     /**
