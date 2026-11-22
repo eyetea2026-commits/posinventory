@@ -254,10 +254,10 @@ class UnitOfMeasureTest extends TestCase
         $store = fn (array $overrides) => $this->actingAs($this->admin)->postJson(route('admin.products.store'), $this->productForm($overrides));
 
         // "Meter & Roll": counted and sold by the meter, bought by the roll.
-        $store(['UnitOfMeasure' => UnitOfMeasure::METER_AND_ROLL, 'PurchaseUnit' => null, 'Price' => 15])->assertCreated();
+        $store(['UnitOfMeasure' => UnitOfMeasure::METER_AND_ROLL, 'PurchaseUnit' => null, 'Price' => 30])->assertCreated();
         $product = Product::where('Model', 'RG59-305')->firstOrFail();
         $this->assertSame(['meter', 'roll'], [$product->UnitOfMeasure, $product->PurchaseUnit]);
-        $this->assertSame('₱15.00/meter', $product->priceLabel());
+        $this->assertSame('₱30.00/meter', $product->priceLabel());
         // No roll received yet: stock shows in meters only, one roll is suggested.
         $this->assertNull($product->purchaseUnitSize());
         $this->assertSame('1,000 meters', $product->stockLabel(1000));

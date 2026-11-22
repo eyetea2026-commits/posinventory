@@ -587,8 +587,7 @@ class StockReceivingController extends Controller
 
     /**
      * Whether a Receipt Number is already on record anywhere: another
-     * delivery, the manual Record Receipt flow, or a product line from
-     * before Receipt Numbers moved to the delivery as a whole.
+     * delivery, or the manual Record Receipt flow.
      */
     private static function receiptNumberIsUsed(string $receiptNumber, ?int $excludeBatchId = null): bool
     {
@@ -596,8 +595,7 @@ class StockReceivingController extends Controller
             ->when($excludeBatchId, fn ($query) => $query->where('StockReceivingBatchID', '!=', $excludeBatchId))
             ->exists()
             || StockReceivingDelivery::where('ReceiptNumber', $receiptNumber)->exists()
-            || StockReceiving::where('ReceiptNumber', $receiptNumber)->exists()
-            || PurchaseOrderItem::where('ReceiptNumber', $receiptNumber)->exists();
+            || StockReceiving::where('ReceiptNumber', $receiptNumber)->exists();
     }
 
     public function create(Request $request)

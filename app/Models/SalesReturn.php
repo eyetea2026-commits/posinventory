@@ -21,9 +21,6 @@ class SalesReturn extends Model
 
     protected $fillable = [
         'SalesTransactionID',
-        'ProductID',
-        'Quantity',
-        'Reason',
         'Remarks',
         'ReturnType',
         'Status',
@@ -88,11 +85,6 @@ class SalesReturn extends Model
     public function salesTransaction()
     {
         return $this->belongsTo(SalesTransaction::class, 'SalesTransactionID', 'SalesTransactionID');
-    }
-
-    public function product()
-    {
-        return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
     }
 
     public function items()

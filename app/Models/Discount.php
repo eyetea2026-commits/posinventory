@@ -16,7 +16,6 @@ class Discount extends Model
     protected $primaryKey = 'DiscountID';
 
     protected $fillable = [
-        'ProductID',
         'DiscountRate',
         'DiscountType',
         'Name',
@@ -65,15 +64,6 @@ class Discount extends Model
         return $this->hasMany(SalesTransaction::class, 'DiscountID', 'DiscountID');
     }
 
-    // Legacy singular relation — still resolves correctly for pre-pivot
-    // rows (ProductID still populated) but is null for every promo created
-    // after the multi-product redesign. Kept for old code paths/history
-    // display of legacy rows; new code should use products() instead.
-    public function product()
-    {
-        return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
-    }
-
     // The set of products this promo is actually assigned to — decided in
     // a separate "Apply" step after creation, not at creation time. A promo
     // can be assigned to zero (not yet applied to anything), one, or many
@@ -117,18 +107,6 @@ class Discount extends Model
     public function getEffectiveStatusLabelAttribute(): string
     {
         return self::STATUS_LABELS[$this->effective_status] ?? ucfirst($this->effective_status);
-    }
-
-    // Back-compat for legacy single-product rows/views (ProductID still
-    // populated). Always null for a post-redesign multi-product promo —
-    // use discountedPriceFor() against one of products() instead.
-    public function getDiscountedPriceAttribute(): ?float
-    {
-        if (! $this->product) {
-            return null;
-        }
-
-        return $this->discountedPriceFor($this->product);
     }
 
     // Both 'percentage' and 'fixed' math are wired up here.

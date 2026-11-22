@@ -37,7 +37,6 @@ class PurchaseOrderItem extends Model
         'QuantityPerUnit',
         'ReceivedQuantity',
         'CancelledQuantity',
-        'ReceiptNumber',
         'CostPriceAtOrder',
         'PurchaseOrderID',
         'ProductID',

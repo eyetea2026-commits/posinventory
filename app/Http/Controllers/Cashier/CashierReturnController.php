@@ -66,7 +66,7 @@ class CashierReturnController extends Controller
         $status = $request->get('status');
         $returnType = $request->get('return_type');
 
-        $refunds = SalesReturn::with(['staff', 'salesTransaction', 'product', 'items.product'])
+        $refunds = SalesReturn::with(['staff', 'salesTransaction', 'items.product'])
             ->where('StaffID', $staff->StaffID ?? 0)
             ->when($search, function ($query) use ($search) {
                 // Grouped in its own closure -- an ungrouped orWhere() here

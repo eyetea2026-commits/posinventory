@@ -13,6 +13,7 @@ use App\Models\StockReceivingDelivery;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 // Covers the new Create -> Draft -> Print -> Pending -> Add to Inventory ->
@@ -502,8 +503,10 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
 
         $migration = require database_path('migrations/2026_10_17_071332_add_receipt_number_to_stock_receiving_batch_table.php');
+        // Before the upgrade, Receipt Numbers were saved per product line
+        // (a column dropped since by the legacy-columns cleanup).
+        Schema::table('PurchaseOrderItem', fn ($table) => $table->string('ReceiptNumber', 50)->nullable());
         $migration->down();
-        // Before the upgrade, Receipt Numbers were saved per product line.
         PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->update(['ReceiptNumber' => 'OLD-RCT-1']);
         $migration->up();
 
