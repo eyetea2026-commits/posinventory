@@ -1,8 +1,3 @@
-{{-- Sends JavaScript errors to the server, which writes them to
-     laravel.log as "Browser error" (ClientErrorController). Included at the
-     top of <head> so errors in every script after it are caught. At most 5
-     per page and each message once; errors from browser extensions and the
-     detail-less "Script error." of other sites' scripts are skipped. --}}
 <script>
     (function () {
         if (window.__errorReporter) return;
@@ -34,12 +29,11 @@
                         column: column || null,
                         stack: stack ? String(stack).slice(0, 4000) : null,
                     }),
-                }).catch(function () { /* nothing more to do if this fails too */ });
-            } catch (e) { /* never let reporting break the page */ }
+                }).catch(function () { });
+            } catch (e) { }
         }
 
         window.addEventListener('error', function (e) {
-            // A failed image or stylesheet fires here too, without a message.
             if (!e.message) return;
             report(e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack);
         });

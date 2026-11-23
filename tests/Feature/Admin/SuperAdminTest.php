@@ -7,9 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// The Super Admin adds Administrators and is the only one who can activate
-// or deactivate them; Administrators manage Cashier accounts only; nobody
-// can deactivate or delete the Super Admin.
 class SuperAdminTest extends TestCase
 {
     use RefreshDatabase;
@@ -35,9 +32,6 @@ class SuperAdminTest extends TestCase
         $this->cashier = User::factory()->create(['role_id' => $this->cashierRole->id]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     private function newAccount(int $roleId): array
     {
         return [
@@ -143,7 +137,6 @@ class SuperAdminTest extends TestCase
 
     public function test_administrator_roles_and_accounts_are_the_super_admins_to_change(): void
     {
-        // An Administrator can't edit the Super Admin or promote a Cashier.
         $this->actingAs($this->admin)->getJson(route('admin.users.edit', $this->superAdmin))->assertForbidden();
 
         $promote = [
@@ -167,7 +160,6 @@ class SuperAdminTest extends TestCase
 
     public function test_the_super_admin_cannot_change_their_own_role(): void
     {
-        // Edit User shows the Role locked, with the current role sent hidden.
         $html = $this->actingAs($this->superAdmin)->getJson(route('admin.users.edit', $this->superAdmin))->assertOk()->json('html');
         $this->assertStringContainsString('<select name="role_id" class="form-select" disabled required>', $html);
         $this->assertStringContainsString('<input type="hidden" name="role_id" value="'.$this->adminRole->id.'">', $html);
@@ -178,12 +170,10 @@ class SuperAdminTest extends TestCase
             'contact_number' => '09999999999', 'name' => $this->superAdmin->name, 'email' => $this->superAdmin->email,
             'current_password' => 'password',
         ];
-        // Sent anyway (bypassing the form): refused, still an Administrator.
         $this->actingAs($this->superAdmin)->put(route('admin.users.update', $this->superAdmin), $own + ['role_id' => $this->cashierRole->id])
             ->assertSessionHasErrors(['role_id' => 'The Super Admin account must stay an Administrator.']);
         $this->assertTrue($this->superAdmin->fresh()->isAdmin());
 
-        // The form as sent (role unchanged) still saves the other details.
         $this->actingAs($this->superAdmin)->put(route('admin.users.update', $this->superAdmin), $own + ['role_id' => $this->adminRole->id])
             ->assertSessionHasNoErrors();
         $this->assertSame('Frederick', $this->superAdmin->fresh()->first_name);

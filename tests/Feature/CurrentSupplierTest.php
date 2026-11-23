@@ -17,10 +17,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Panel suggestions: a new purchase order goes to the supplier with the
-// lowest current price; at the same price, to the one currently delivering
-// the product (its latest delivery). The product details show who that is.
-// Both suppliers start at the same price here.
 class CurrentSupplierTest extends TestCase
 {
     use RefreshDatabase;
@@ -92,7 +88,6 @@ class CurrentSupplierTest extends TestCase
         $this->assertSame($this->other->SupplierID, $this->createPurchaseOrderSupplier());
         $this->assertStringContainsString('<div><span>Current Supplier</span><span>Bravo Trading</span></div>', $this->productDetails());
 
-        // The next delivery comes from the preferred one again.
         $this->travel(1)->days();
         $this->receiveFrom($this->preferred);
         $this->assertSame($this->preferred->SupplierID, $this->camera->fresh()->resolveReorderSupplier()->SupplierID);

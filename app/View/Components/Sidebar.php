@@ -8,22 +8,8 @@ use Illuminate\View\Component;
 
 class Sidebar extends Component
 {
-    /**
-     * Create a new component instance.
-     */
-    public function __construct()
-    {
-        //
-    }
+    public function __construct() {}
 
-    /**
-     * The sidebar's navigation, grouped into sections in display order.
-     *
-     * Each item carries the route name to link to, a routeIs() pattern
-     * used to detect the active state (wildcarded so a module's
-     * create/edit/show routes keep the parent nav item highlighted),
-     * and an icon key resolved by <x-icon>.
-     */
     public function sections(): array
     {
         return [
@@ -60,8 +46,6 @@ class Sidebar extends Component
             [
                 'label' => 'Operations',
                 'items' => [
-                    // One module: Return Approval and Damage are tabs inside
-                    // it (admin/partials/return-damage-tabs), like Discounts & Promos.
                     ['label' => 'Return & Damage', 'route' => 'admin.sales-returns.index', 'pattern' => ['admin.sales-returns.*', 'admin.damages.*'], 'icon' => 'rotate-ccw'],
                     ['label' => 'Reports', 'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*', 'icon' => 'bar-chart-3'],
                 ],
@@ -69,9 +53,6 @@ class Sidebar extends Component
         ];
     }
 
-    /**
-     * Get the view / contents that represent the component.
-     */
     public function render(): View|Closure|string
     {
         return view('components.sidebar');

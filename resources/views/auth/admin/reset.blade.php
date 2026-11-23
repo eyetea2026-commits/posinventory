@@ -64,14 +64,12 @@
             const field = document.getElementById(fieldId);
             const icon = document.getElementById(fieldId + '-icon');
 
-            // Show password with smooth transition
             field.type = 'text';
             icon.style.transition = 'opacity 0.2s ease';
             icon.style.opacity = '0.5';
             icon.classList.remove('fa-eye');
             icon.classList.add('fa-eye-slash');
 
-            // Auto-hide after 2 seconds with smooth transition
             setTimeout(() => {
                 field.type = 'password';
                 icon.classList.remove('fa-eye-slash');

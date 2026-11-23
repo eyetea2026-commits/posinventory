@@ -22,10 +22,6 @@ class SupplierModuleUiTest extends TestCase
         $this->admin = User::factory()->create(['role_id' => $adminRole->id]);
     }
 
-    // "Add Supplier" now opens a popup instead of navigating to the
-    // standalone create page — the link's onclick calls
-    // window.openAddSupplierModal(), which fetches the same shared
-    // supplier-form-fields partial edit() already uses.
     public function test_add_supplier_link_opens_a_modal_instead_of_navigating(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.suppliers.index'));
@@ -35,8 +31,6 @@ class SupplierModuleUiTest extends TestCase
         $response->assertSee('id="addSupplierModal"', false);
     }
 
-    // The Status badge stays on one line ("Active", never "Activ / e"):
-    // Status and Actions size to their content and don't wrap.
     public function test_the_status_column_never_wraps(): void
     {
         Supplier::create(['SupplierName' => 'Rover Systems – SM City Davao', 'ContactNumber' => '(082) 295-7595', 'Address' => 'EA 270, SM City Davao Annex, Quimpo Blvd., Matina, Davao City']);
@@ -73,16 +67,8 @@ class SupplierModuleUiTest extends TestCase
         $response->assertSee('name="SupplierName"', false);
     }
 
-    // The Add Supplier modal must still create a real Supplier row through
-    // the existing store() validation/save — only the presentation changed.
     public function test_add_supplier_via_ajax_actually_saves_the_supplier(): void
     {
-        // store() itself redirects with a flash message (unchanged) —
-        // window.submitAjaxForm() follows that redirect and scrapes the
-        // resulting page's Swal success/error markup, same as every other
-        // "Add X" modal in this app; the fetch()-vs-redirect mechanics
-        // aren't Supplier-specific, so the real thing to verify here is
-        // that this endpoint still actually saves the record.
         $response = $this->actingAs($this->admin)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
             ->post(route('admin.suppliers.store'), [
@@ -97,9 +83,6 @@ class SupplierModuleUiTest extends TestCase
         $this->assertDatabaseHas('Supplier', ['SupplierName' => 'Acme Cameras', 'Email' => 'acme@example.com']);
     }
 
-    // City/Province were briefly added as additive structured fields
-    // alongside Address, then removed as redundant with it — the Add/Edit
-    // Supplier form no longer offers them.
     public function test_create_ajax_form_no_longer_offers_city_or_province_fields(): void
     {
         $response = $this->actingAs($this->admin)

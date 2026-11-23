@@ -58,10 +58,6 @@ class UserManagementTest extends TestCase
         $response->assertJsonPath('user.id', $targetUser->id);
     }
 
-    // Regression: the Add New User form has no Email field at all (it's
-    // optional and collected nowhere in the UI), so $data['email'] was
-    // undefined rather than null and store() threw on every real-world
-    // submission — "Something Went Wrong" with no useful detail on screen.
     public function test_admin_can_create_a_cashier_without_providing_an_email(): void
     {
         $adminRole = Role::create(['role_name' => 'admin']);
@@ -88,11 +84,6 @@ class UserManagementTest extends TestCase
         ]);
     }
 
-    // The Email field's validation/uniqueness check and JS error-handling
-    // wiring all already existed, but the <input> itself was missing from
-    // the shared form partial — so an email could never actually be
-    // entered anywhere in the UI. Covers both that it now renders and that
-    // a submitted value actually persists.
     public function test_add_user_form_renders_an_email_field(): void
     {
         $adminRole = Role::create(['role_name' => 'admin']);
@@ -104,9 +95,6 @@ class UserManagementTest extends TestCase
         $response->assertSee('name="email"', false);
     }
 
-    // Three fields per row: First / Middle / Last Name; Birthdate / Contact
-    // Number / Email; Address on its own row (a box that can be dragged
-    // taller); Gender / Role; Username / Password / Confirm Password.
     public function test_add_user_form_lays_the_fields_out_three_per_row(): void
     {
         $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
@@ -117,11 +105,9 @@ class UserManagementTest extends TestCase
         $this->assertStringContainsString('<textarea name="address" class="form-input user-address-input" rows="2" maxlength="255">', $html);
         $this->assertStringContainsString('resize: vertical;', $html);
         $this->assertStringContainsString('<div class="form-group user-row-start">', $html);
-        // Password rules: two per column, right under both password boxes.
         $this->assertStringContainsString('<div class="form-group password-requirements-row">', $html);
         $this->assertStringContainsString('grid-template-columns: max-content minmax(0, 1fr);', $html);
         $this->assertStringContainsString('grid-auto-flow: column;', $html);
-        // The pop-up is 860px at most, not the full screen width.
         $this->assertMatchesRegularExpression('/\.modal-content\.form-modal-content \{\s+max-width: 860px;/', $html);
 
         $form = substr($html, strpos($html, 'id="addUserForm"'));
@@ -132,7 +118,6 @@ class UserManagementTest extends TestCase
         $sorted = $order;
         sort($sorted);
         $this->assertSame($sorted, $order);
-        // ...and the rules list comes after Confirm Password.
         $this->assertLessThan(strpos($form, 'id="password-requirements"'), strpos($form, 'name="password_confirmation"'));
     }
 
@@ -234,7 +219,6 @@ class UserManagementTest extends TestCase
         $this->assertSame(25, $user->age);
         $this->assertSame(25, $user->current_age);
 
-        // The Add User form asks for a birthdate, not an age.
         $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()
             ->assertSee('<input type="date" name="birthdate"', false)
             ->assertSee('max="'.today()->subYears(18)->toDateString().'"', false)
@@ -247,7 +231,6 @@ class UserManagementTest extends TestCase
         $cashierRole = Role::create(['role_name' => 'cashier']);
         $admin = User::factory()->create(['role_id' => $adminRole->id]);
 
-        // Turns 25 three days from now.
         $this->actingAs($admin)->post(route('admin.users.store'), $this->baseCashierPayload([
             'role_id' => $cashierRole->id, 'birthdate' => today()->subYears(25)->addDays(3)->toDateString(),
         ]))->assertRedirect(route('admin.users.index'));
@@ -261,7 +244,6 @@ class UserManagementTest extends TestCase
         $this->travel(1)->years();
         $this->assertSame(26, $user->fresh()->age);
 
-        // Users without a birthdate keep the age saved for them.
         $older = User::factory()->create(['role_id' => $cashierRole->id, 'age' => 40]);
         $this->assertSame(40, $older->fresh()->age);
     }

@@ -13,8 +13,6 @@ use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Tests\TestCase;
 
-// Notification emails go out after the response, so a Save never waits on
-// the mail server; the in-app notification (the bell) is saved right away.
 class NotificationMailAfterResponseTest extends TestCase
 {
     use RefreshDatabase;
@@ -36,7 +34,6 @@ class NotificationMailAfterResponseTest extends TestCase
         $this->assertSame(1, $admin->notifications()->count());
         $this->assertSame(0, $sentEmails());
 
-        // What runs once the response has been sent.
         app(DeferredCallbackCollection::class)->invoke();
 
         $this->assertSame(1, $sentEmails());

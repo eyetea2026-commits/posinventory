@@ -15,7 +15,6 @@
     @include('admin.partials.modal-styles')
 
     <style>
-        /* Roll/box size on a "Received Quantity" line (batch-details). */
         .receiving-size { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; color: #cbd5e1; font-size: 0.78rem; font-weight: 600; }
         .receiving-size .receiving-size-input { max-width: 130px; }
         .receiving-size .receiving-size-input[readonly] { opacity: 0.8; cursor: not-allowed; }
@@ -24,10 +23,6 @@
         .receiving-size-total { display: block; margin-top: 4px; color: #6ee7b7; font-size: 0.78rem; font-weight: 600; }
         .receiving-size-total:empty { display: none; }
 
-        /* View Details Modal — mirrors the read-only detail-row/items-table
-           styling used by the Purchase Order module's own View Details
-           modal (admin/purchase-orders/index.blade.php), duplicated here per
-           the same established convention. */
         .detail-row {
             display: flex;
             justify-content: space-between;
@@ -78,8 +73,6 @@
         .batch-receipt-number .form-input { max-width: 320px; }
         .batch-receipt-hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: #64748b; }
 
-        /* Pending/Completed tabs — same design as the Discount module's
-           tabs (admin/discounts/index.blade.php). */
         .tabs-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
         .chart-toggle-group { display: inline-flex; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 4px; gap: 4px; }
         .chart-toggle-btn {
@@ -106,12 +99,6 @@
         </div>
     @endif
 
-    {{-- Purchase Orders sent to receiving via Print (see
-         PurchaseOrderController::printPreview()) land here, split by their
-         StockReceivingBatch's own Status — both tabs are rendered up front
-         and just toggled client-side. The tabs share one row with the
-         search/supplier filter, which filters the already-rendered rows
-         client-side — see applyReceivingFilters(). --}}
     <div class="tabs-header">
         <div class="chart-toggle-group">
             <button type="button" class="chart-toggle-btn active" data-tab="pending" onclick="switchReceivingTab('pending')">
@@ -253,7 +240,6 @@
         </div>
     </div>
 
-    <!-- Purchase Order Delivery — View Details Modal -->
     <div id="batchDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="batchDetailsModalTitle" aria-hidden="true">
         <div class="modal-content modal-content-wide" style="max-width: 900px;">
             <div class="modal-header">
@@ -294,7 +280,6 @@
     @include('admin.partials.ajax-modal-form')
 
     <script>
-        // Auto-show session messages
         @if(session('success'))
             Swal.fire({
                 title: 'Success',
@@ -314,7 +299,6 @@
             });
         @endif
 
-        // ---- Pending / Completed tabs ----
         window.switchReceivingTab = function (tab) {
             document.querySelectorAll('.chart-toggle-btn[data-tab]').forEach(function (btn) {
                 btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -323,12 +307,6 @@
             document.getElementById('tab-completed').classList.toggle('active', tab === 'completed');
         };
 
-        // ---- Search (PO number / supplier name) + Supplier filter ----
-        // Both tables render every batch up front with no pagination, so
-        // this filters rows already in the DOM instead of a server round
-        // trip. Applied to both tabs' rows every time regardless of which
-        // is currently visible, so switching tabs doesn't need to re-apply
-        // anything.
         (function () {
             var searchInput = document.getElementById('receivingSearchInput');
             var supplierFilter = document.getElementById('receivingSupplierFilter');
@@ -366,13 +344,9 @@
 
             searchInput.addEventListener('input', applyReceivingFilters);
             supplierFilter.addEventListener('change', applyReceivingFilters);
-            // Rows refreshed in real time (partials/live-updates): keep the
-            // current search/supplier filter applied to them.
             document.addEventListener('live-updates:applied', applyReceivingFilters);
         })();
 
-        // A line received by the roll/box: "= 2,000 meters to stock" follows
-        // what's typed in Received Quantity and Meters per roll.
         window.updateReceivingTotal = function (input) {
             const row = input.closest('tr');
             const size = row && row.querySelector('.receiving-size-input');
@@ -385,8 +359,6 @@
                 : '';
         };
 
-        // Damaged ones come out of what's still owed: Received Quantity
-        // (good) is lowered so good + damaged never pass Remaining.
         window.receivingDamagedChanged = function (input) {
             const row = input.closest('tr');
             const good = row && row.querySelector('.receiving-now-input');
@@ -400,7 +372,6 @@
             window.updateReceivingTotal(good);
         };
 
-        // ---- Purchase Order Delivery — View Details modal ----
         let batchDetailsLastFocused = null;
 
         function showBatchDetailsGeneralError(message) {
@@ -415,14 +386,8 @@
             banner.textContent = '';
         }
 
-        // Live "already used" check for the delivery's Receipt Number (one
-        // for every product on the Purchase Order), against every other
-        // delivery on record.
         let receiptNumberCheckInFlight = 0;
 
-        // Add to Inventory stays disabled until the delivery has a Receipt
-        // Number that isn't already used (StockReceivingController::
-        // addToInventory() requires one too).
         function syncAddToInventoryButton() {
             const input = document.getElementById('batchReceiptNumberInput');
             const button = document.getElementById('addToInventoryBtn');
@@ -468,7 +433,6 @@
                             }
                         })
                         .catch(function () {
-                            // Non-fatal — the server-side check on submit still catches it.
                         });
                 }, 350);
             });
@@ -483,7 +447,7 @@
         window.openBatchDetailsModal = function (event, batchId) {
             if (event) event.preventDefault();
             const modal = document.getElementById('batchDetailsModal');
-            if (modal.classList.contains('active')) return; // prevent duplicate modals
+            if (modal.classList.contains('active')) return;
 
             const body = document.getElementById('batchDetailsBody');
 
@@ -510,12 +474,6 @@
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     body.innerHTML = data.html;
-                    // Add to Inventory lives in the modal's static footer
-                    // (beside Close, same row) rather than inside the
-                    // fetched partial, so it only needs to be shown/hidden
-                    // here based on whether this batch is still Pending —
-                    // a Completed batch's read-only view has no action to
-                    // take.
                     addToInventoryBtn.style.display = data.isPending ? '' : 'none';
                     reorderBtn.style.display = data.canReorder ? '' : 'none';
                     if (data.isPending) initBatchReceiptNumberChecks();
@@ -543,8 +501,6 @@
         document.getElementById('addToInventoryBtn').addEventListener('click', submitAddToInventory);
         document.getElementById('reorderElsewhereBtn').addEventListener('click', reorderFromAnotherSupplier);
 
-        // The supplier has no stock: the first click opens the reorder panel
-        // (inside the fetched delivery details), the second confirms it.
         function reorderFromAnotherSupplier() {
             const form = document.getElementById('reorderElsewhereForm');
             const button = document.getElementById('reorderElsewhereBtn');
@@ -586,15 +542,6 @@
             });
         }
 
-        // Add to Inventory — a real (non-AJAX) form submission: the backend
-        // redirects back to this same page with a flash message either way
-        // (see StockReceivingController::addToInventory()), which the
-        // "Auto-show session messages" block above already turns into a
-        // Swal, and the reloaded page's Pending/Completed tabs reflect the
-        // outcome directly — no extra client-side state to keep in sync.
-        // The form itself (and its action URL, already pointed at the
-        // right batch) lives inside the fetched partial in #batchDetailsBody
-        // — this button just lives in the static footer alongside Close.
         function submitAddToInventory() {
             const form = document.getElementById('batchReceivingForm');
             if (!form || !form.checkValidity()) {
@@ -602,7 +549,6 @@
                 return;
             }
 
-            // At least one product must have arrived in this delivery.
             const receivingNow = Array.from(form.querySelectorAll('.receiving-now-input')).reduce(function (sum, input) { return sum + (parseInt(input.value, 10) || 0); }, 0);
             if (receivingNow <= 0) {
                 Swal.fire({

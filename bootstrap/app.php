@@ -20,35 +20,18 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureUserHasRole::class,
         ]);
 
-        // One login page for the whole system (see AuthController) — every
-        // unauthenticated guest lands there regardless of which area they
-        // were trying to reach.
         $middleware->redirectGuestsTo(fn () => route('welcome'));
 
-        // No page is ever kept in the browser's cache, so Back after logout
-        // can't redisplay a signed-in page (see PreventBackHistory).
-        // A page or save slower than logging.slow_request_seconds is noted
-        // in laravel.log as "Slow request" (see LogSlowRequests).
         $middleware->web(append: [
             LogSlowRequests::class,
             PreventBackHistory::class,
         ]);
 
-        // The "Was this you?" security email's Yes/No buttons must work for
-        // a signed-out visitor (no CSRF token available at all), so these
-        // two POST actions are protected by a Laravel signed URL instead —
-        // the signature itself is the anti-forgery guarantee, the same
-        // pattern used industry-wide for unsubscribe/one-click action links.
-        // The in-app prompt (an authenticated admin) still sends a real
-        // CSRF token on every request; it just isn't required here.
         $middleware->validateCsrfTokens(except: [
             'admin/security/login-events/*/confirm',
             'admin/security/login-events/*/deny',
         ]);
 
-        // The print bridge's receipt lines are pre-padded 32-column text:
-        // leading spaces (centring) and line breaks must reach the printer
-        // untouched.
         $middleware->trimStrings(except: [
             fn (Request $request) => $request->is('print-bridge'),
         ]);
@@ -57,19 +40,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        // A stale form (a tab left open past SESSION_LIFETIME, or the
-        // session cookie otherwise no longer matching) used to hit
-        // Laravel's bare "419 | Page Expired" page with no way back except
-        // typing the URL again. Redirect to the login page with a plain
-        // explanation instead — the session is gone either way, so sending
-        // them back to sign in again is the correct next step regardless of
-        // which page they were on.
-        //
-        // Note: Handler::prepareException() maps TokenMismatchException into
-        // a generic Symfony HttpException(419, ...) before any custom
-        // render() callback is checked, so a callback typed for
-        // TokenMismatchException itself would never match — it has to catch
-        // the mapped HttpException and check the status code instead.
         $exceptions->render(function (HttpException $e, $request) {
             if ($e->getStatusCode() === 419) {
                 return redirect()->route('welcome')

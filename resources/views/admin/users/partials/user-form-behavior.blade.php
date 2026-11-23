@@ -1,11 +1,3 @@
-{{-- Shared "Add User" form behavior: HTML5 validity check, live duplicate-name
-     check (reuses the existing admin.users.check-name AJAX endpoint), the
-     password-match check, and the "confirm before saving" dialog.
-
-     This does NOT decide how the form is actually submitted — that's the
-     caller's job via options.onConfirmedSubmit, so the exact same validation
-     rules can back both the standalone create page (real form submit) and the
-     Add User modal (AJAX submit) without duplicating this logic twice. --}}
 <script>
 window.initUserAddForm = function (formId, options) {
     options = options || {};
@@ -38,10 +30,6 @@ window.initUserAddForm = function (formId, options) {
         if (errorEl) {
             errorEl.textContent = message || '';
         }
-        // Toggle the wrapping row itself, not just the span inside it —
-        // otherwise the empty row still reserves a full grid row (and its
-        // gap) between Last Name/Age and Address/Contact Number even when
-        // there's nothing to show.
         var errorRow = form.querySelector('[data-role="name-duplicate-error-row"]');
         if (errorRow) {
             errorRow.style.display = message ? 'block' : 'none';
@@ -86,8 +74,6 @@ window.initUserAddForm = function (formId, options) {
                 setNameError(nameDuplicate ? 'A user with this name already exists. Duplicate names are not allowed.' : '');
             })
             .catch(function () {
-                // Network errors are non-fatal — the server-side check catches
-                // duplicates when the form is finally submitted.
             });
     }
 
@@ -98,16 +84,11 @@ window.initUserAddForm = function (formId, options) {
     }
 
     function confirmSave() {
-        // The submit button is type="button", so HTML5 validation does not run
-        // automatically — check it explicitly here.
         if (!form.checkValidity()) {
             form.reportValidity();
             return;
         }
 
-        // The Edit User form no longer carries password fields at all —
-        // password changes go through the separate Reset Password popup —
-        // so these only exist on the Add User form.
         var passwordInput = form.querySelector('input[name="password"]');
         var passwordConfirmInput = form.querySelector('input[name="password_confirmation"]');
         var password = passwordInput ? passwordInput.value : null;
@@ -183,12 +164,6 @@ window.initUserAddForm = function (formId, options) {
     };
 };
 
-// Password show/hide toggle + live strength checklist. Wired generically
-// (every .password-toggle-btn on the page, not just one form) so this one
-// block covers both the Add User form's Password/Confirm fields AND the
-// separate Reset Password modal's New/Confirm fields — deferred to
-// DOMContentLoaded since this partial can be included before those modals'
-// own markup later in the page.
 document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.password-toggle-btn').forEach(function (btn) {
         var input = btn.previousElementSibling;

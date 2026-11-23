@@ -4,22 +4,8 @@ namespace App\Services;
 
 use Illuminate\Support\Collection;
 
-/**
- * Computes the "Report Summary" aggregate fields shown at the bottom of
- * every report format (Print, PDF, Excel) from the same $rows collection
- * ReportController already built for the table body — no extra queries.
- * Single source of truth so the three output formats can't drift from
- * each other the way the old per-format ad hoc totals used to.
- *
- * Returns raw numeric values (not pre-formatted strings) tagged with
- * `money` so each consumer can render them appropriately: Blade views
- * prefix ₱ + number_format for display, while the Excel export applies a
- * native currency cell format instead of embedding a symbol in a string
- * (which would break SUM() formulas and sorting in the spreadsheet).
- */
 class ReportSummaryBuilder
 {
-    /** Sales and Revenue summary lines (also the Excel export's formula rows). */
     public const GROSS_SALES = 'Gross Sales (VAT included)';
 
     public const DISCOUNT = 'Less: Discount';
@@ -28,10 +14,8 @@ class ReportSummaryBuilder
 
     public const VAT = 'VAT (12%)';
 
-    /** What the sold pieces cost, from the stock batches they came out of. */
     public const COST_OF_GOODS_SOLD = 'Cost of Goods Sold (FIFO)';
 
-    /** Amount Collected - Cost of Goods Sold. */
     public const GROSS_PROFIT = 'Gross Profit';
 
     public const NET_SALES = 'Net Sales (VAT excluded)';
@@ -49,14 +33,6 @@ class ReportSummaryBuilder
         };
     }
 
-    // Rows are item-level (ReportController::salesItemRows()) — Quantity is
-    // summed across every row, but Discount/VatAmount/TotalAmount are
-    // only populated on each invoice's last item row (is_last), so
-    // summing them still counts each invoice exactly once.
-    //
-    // Accounting order for VAT-inclusive POS prices: Gross Sales − Discount
-    // = what customers paid (VAT included); − the VAT inside it (12/112,
-    // owed to the BIR) = Net Sales, the store's revenue (VAT excluded).
     private static function sales(Collection $rows): array
     {
         $collected = round($rows->sum('TotalAmount'), 2);
@@ -99,9 +75,6 @@ class ReportSummaryBuilder
         ];
     }
 
-    // Rows are delivery product lines (ReportController::receivingRows()) —
-    // Total Deliveries counts distinct deliveries, not rows; what each
-    // added to stock is in the product's base unit.
     private static function receiving(Collection $rows): array
     {
         return [
@@ -111,8 +84,6 @@ class ReportSummaryBuilder
         ];
     }
 
-    // Rows are line-item level (ReportController::orderItemRows()) — Total
-    // Purchase Orders counts distinct PO numbers, not rows.
     private static function orders(Collection $rows): array
     {
         return [
@@ -138,8 +109,6 @@ class ReportSummaryBuilder
         ];
     }
 
-    // Quantities in different units (pieces and meters) are added up per
-    // unit ("12 pieces, 5,000 meters"); null when they're all pieces.
     private static function byUnit(Collection $rows, string $field, bool $absolute = false): ?string
     {
         return UnitOfMeasure::totals($rows->map(fn ($r) => [

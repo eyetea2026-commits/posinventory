@@ -1,7 +1,3 @@
-{{-- Shared look for the styled error pages (404, 500). Self-contained on
-     purpose — no app layout, database or signed-in user — so it can show
-     even when those are what broke. Each page sets: title, code, heading,
-     message, and optional extra buttons in "actions". --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,8 +78,6 @@
         <p>@yield('message')</p>
         <div class="error-actions">
             @yield('actions')
-            {{-- The home address sends a signed-in user to their own
-                 Dashboard (Admin) or POS (Cashier), anyone else to Login. --}}
             <a href="{{ url('/') }}" class="error-btn @hasSection('actions') error-btn-secondary @else error-btn-primary @endif">Go to Home</a>
         </div>
     </main>

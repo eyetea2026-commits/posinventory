@@ -11,15 +11,11 @@
         <i class="fas fa-print"></i> Print Receipt
     </button>
     <script>
-        // Printed from a hidden frame on the Refund Requests page, which
-        // has no use for a button inside the receipt.
         if (window.self !== window.top) {
             document.querySelector('.print-btn').remove();
         }
     </script>
 
-    {{-- Printed copy: the same 32-column lines as the thermal printout
-         (ThermalReceiptPrinter::refundLines()), like the sales receipt. --}}
     <div class="print-text">
         @foreach($printLines as $line)
             <div class="pl{{ $line['bold'] ? ' pl-bold' : '' }}{{ $line['tall'] ? ' pl-tall' : '' }}">{{ $line['text'] }}</div>

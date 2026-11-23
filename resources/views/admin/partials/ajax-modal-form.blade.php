@@ -1,29 +1,4 @@
-{{-- Generic AJAX submit + response classification, shared by every "Add X"
-     modal (Category, Discount, Product, ...). The backend controllers are
-     unchanged: they still validate with $request->validate() (422 JSON,
-     handled automatically by Laravel when the request expects JSON) and
-     still redirect on success (`with('status'|'success', ...)`) or on a
-     custom business-rule rejection (`with('error', ...)` / `withErrors()`).
-
-     Since fetch() follows that redirect, we get back the re-rendered index
-     page's HTML. Both the success and error flash messages are rendered
-     there as a literal `Swal.fire({title:'Success'|'Error', text:'...'})`
-     call (every admin index page ends with this same "auto-show session
-     messages" block) — we read whichever one actually fired instead of
-     guessing from the HTTP status alone.
-
-     A handful of statuses never reach that HTML-scrape stage at all — a
-     stale CSRF token (419, e.g. a modal left open across a session
-     timeout), a logged-out session (401/403), or an actual server error
-     (5xx) all redirect to a page with no such Swal call, which used to
-     fall through to one indistinguishable "Something went wrong" message
-     no matter which of these actually happened. Handled explicitly here
-     instead, so the message actually says what went wrong — without
-     leaking exception detail into the production UI. --}}
 <script>
-// The message of a matched Swal.fire({... text: ...}): written as a JSON
-// string ("..." with JSON escapes) or, on older pages, '...' with HTML
-// escapes (&quot;); either way the plain text comes back.
 function flashText(match) {
     if (!match) return null;
     const literal = match[1];

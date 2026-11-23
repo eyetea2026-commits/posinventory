@@ -45,8 +45,6 @@ class PurchaseOrderModuleTest extends TestCase
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 5, 'Status' => 'Available']);
     }
 
-    // The old UnitPrice column stays gone — CostPriceAtOrder is a distinct,
-    // populated field, not a resurrection of the dead one.
     public function test_purchase_order_item_has_no_unit_price_column_but_has_cost_price_at_order(): void
     {
         $this->assertFalse(Schema::hasColumn('PurchaseOrderItem', 'UnitPrice'));
@@ -56,10 +54,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertTrue(Schema::hasColumn('PurchaseOrder', 'PONumber'));
     }
 
-    // Line Total is the financial value of what was ORDERED on this line,
-    // not what has arrived so far — Received/Remaining already have their
-    // own columns for tracking fulfillment. Using ReceivedQuantity here
-    // made every line read ₱0.00 until receiving started.
     public function test_purchase_order_item_line_total_is_ordered_quantity_times_cost_not_received(): void
     {
         $po = PurchaseOrder::create([
@@ -73,15 +67,10 @@ class PurchaseOrderModuleTest extends TestCase
 
         $this->assertEquals(16300.0, $item->line_total);
 
-        // Receiving some of it doesn't change the line's own ordered value.
         $item->update(['ReceivedQuantity' => 5]);
         $this->assertEquals(16300.0, $item->fresh()->line_total);
     }
 
-    // PurchaseDate is a plain date the admin can edit freely, and the table
-    // never tracked creation timestamps before — two POs placed the same
-    // day (or deliberately backdated) couldn't be told apart, so "newest
-    // first" wasn't reliable. Sorted by the real creation timestamp now.
     public function test_index_sorts_by_actual_creation_time_not_just_purchase_date(): void
     {
         $older = $this->makeOrder(['PONumber' => 'PO-OLDER', 'PurchaseDate' => now()->format('Y-m-d')]);
@@ -97,9 +86,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertLessThan(strpos($body, 'PO-OLDER'), strpos($body, 'PO-NEWER'));
     }
 
-    // The list filters by Supplier (no longer by Category), and next to
-    // Status it shows how many different products each order is for (not
-    // their quantities).
     public function test_purchase_order_details_popup_is_wide(): void
     {
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))
@@ -151,10 +137,6 @@ class PurchaseOrderModuleTest extends TestCase
 
     public function test_store_creates_purchase_order_with_generated_po_number_and_cost_snapshot(): void
     {
-        // Current Price (650) is deliberately different from the product's
-        // own stored CostPrice (600, from setUp) — the saved
-        // CostPriceAtOrder must exactly match what was entered here, never
-        // silently fall back to the product's own cost.
         $response = $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), [
             'SupplierID' => $this->supplier->SupplierID,
             'PurchaseDate' => now()->format('Y-m-d'),
@@ -175,8 +157,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'purchase_order.created')->exists());
     }
 
-    // Current Price: required, numeric, > ₱0.00 — covers every rejection
-    // case called out explicitly (missing, zero, negative, non-numeric).
     public function test_store_rejects_missing_zero_negative_and_non_numeric_current_price(): void
     {
         $basePayload = [
@@ -225,11 +205,6 @@ class PurchaseOrderModuleTest extends TestCase
         ]);
     }
 
-    // The reorder quick-create flow: Previous Price is read-only display
-    // only (never a submittable field, so there's nothing to "make
-    // read-only" server-side — it simply isn't part of the request), and
-    // Current Price is what actually gets saved as CostPriceAtOrder,
-    // independent of the product's own stored CostPrice.
     public function test_store_from_reorder_saves_the_entered_current_price_not_the_products_stored_cost(): void
     {
         $response = $this->actingAs($this->admin)->post(
@@ -241,7 +216,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertDatabaseHas('PurchaseOrderItem', [
             'ProductID' => $this->product->ProductID, 'Quantity' => 20, 'CostPriceAtOrder' => 850,
         ]);
-        // The product's own stored cost (600, from setUp) is untouched.
         $this->assertEquals(600, $this->product->fresh()->CostPrice);
     }
 
@@ -279,7 +253,6 @@ class PurchaseOrderModuleTest extends TestCase
             ->assertSessionHasErrors(['items.0.quantity' => 'Quantity can be at most 3 digits (999).']);
         $this->assertSame(0, PurchaseOrder::count());
 
-        // The box shows commas (99,999.99); they're dropped before saving.
         $this->actingAs($this->admin)->post(route('admin.purchase-orders.store'), $line(['quantity' => 999, 'cost_price' => '99,999.99']))
             ->assertSessionHasNoErrors();
         $this->assertDatabaseHas('PurchaseOrderItem', ['ProductID' => $this->product->ProductID, 'Quantity' => 999, 'CostPriceAtOrder' => 99999.99]);
@@ -303,7 +276,6 @@ class PurchaseOrderModuleTest extends TestCase
 
     public function test_suggested_order_quantity_never_exceeds_3_digits(): void
     {
-        // (999 - 0) + 999 = 1,998 pieces short, capped at what the box takes.
         $this->assertSame(999, PurchaseOrderController::suggestedOrderQuantity($this->product, 0, 999));
     }
 
@@ -353,8 +325,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->makeOrder(['PONumber' => 'PO-TEST-000002']);
         $searched = $this->makeOrder(['PONumber' => 'PO-TEST-000003']);
 
-        // Searching leaves one row; it must still show the order's own ID
-        // rather than restarting the numbering at 1.
         $response = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index', ['search' => 'PO-TEST-000003']));
 
         $response->assertOk();
@@ -395,15 +365,11 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertSee('CCTV Express');
         $response->assertSee('Prepared By');
         $response->assertSee($this->admin->full_name);
-        // 10 ordered x 600 cost = 6,000.00 grand total — ordered-based,
-        // same as the Line Total column everywhere else in the PO module.
         $response->assertSee('6,000.00');
         $response->assertSee('Purchase Order Information');
         $response->assertSee('Supplier Information');
         $response->assertSee('Order Summary');
         $response->assertSee('Remarks');
-        // Prepared By is the only signature line: "Checked By" and
-        // "Approved By" were removed from the print layout.
         $response->assertDontSee('Checked By');
         $response->assertDontSee('Approved By');
     }
@@ -423,7 +389,6 @@ class PurchaseOrderModuleTest extends TestCase
     public function test_show_ajax_branch_returns_read_only_details_without_status_or_action_buttons(): void
     {
         $po = $this->makeOrder(['CreatedBy' => $this->admin->id]);
-        // Add Product assigns every product a SKU (SKU-000001 style).
         $product = $po->items()->first()->product()->first();
         $product->update(['SKU' => Product::generateSku($product->ProductID)]);
 
@@ -436,7 +401,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertStringContainsString('Order Information', $html);
         $this->assertStringContainsString('Order Items', $html);
         $this->assertStringContainsString('DVR Camera', $html);
-        // Each item shows its Model and SKU next to the product name.
         $this->assertMatchesRegularExpression('#<th>Product</th>\s*<th>Model</th>\s*<th>SKU</th>#', $html);
         $this->assertStringContainsString('<td>'.e($product->Model).'</td>', $html);
         $this->assertStringContainsString('>'.$product->SKU.'</td>', $html);
@@ -457,10 +421,6 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertSee('Export PDF');
     }
 
-    // Print and Edit no longer have their own row actions in the list —
-    // Print now lives inside View Details (and is what moves a Draft PO to
-    // Pending, see the printing-triggers-receiving tests below), and Edit
-    // has no entry point here at all anymore.
     public function test_index_actions_column_only_shows_view_details(): void
     {
         $po = $this->makeOrder();
@@ -615,12 +575,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertSame(8, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
     }
 
-    // Product selection for ad-hoc receiving is one searchable field
-    // (native datalist on a text input), not a plain <select> with a
-    // separate search box beside it. The manual "Record Receipt" entry
-    // form now only lives on its own standalone create page — the index
-    // page's inline modal for it was removed, but this underlying feature
-    // is otherwise untouched.
     public function test_stock_receiving_product_selection_is_a_single_searchable_field(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.stock-receivings.create'));
@@ -633,9 +587,6 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertDontSee('<select id="ProductID"', false);
     }
 
-    // The remove (trash) button is a small icon on the same line, beside
-    // Current Price -- not a wide bar on its own line below the item.
-    // Ticked products are grouped by their supplier: one Draft PO each.
     public function test_store_creates_one_purchase_order_per_supplier(): void
     {
         $otherSupplier = Supplier::create(['SupplierName' => 'KCC point', 'ContactNumber' => '0912-345-6789', 'Email' => 'kcc@mail.com', 'Address' => 'N/A']);
@@ -652,9 +603,7 @@ class PurchaseOrderModuleTest extends TestCase
             'items' => [
                 ['product_id' => $this->product->ProductID, 'quantity' => 5, 'cost_price' => 600],
                 ['product_id' => $cable->ProductID, 'quantity' => 10, 'cost_price' => 50],
-                // Sent without a supplier: its own (only) supplier is used.
                 ['product_id' => $dvr->ProductID, 'quantity' => 2, 'cost_price' => 2000],
-                // No supplier assigned: the one chosen in its row is used.
                 ['product_id' => $noSupplier->ProductID, 'quantity' => 3, 'cost_price' => 120, 'supplier_id' => $otherSupplier->SupplierID],
             ],
         ])->assertOk();
@@ -670,16 +619,13 @@ class PurchaseOrderModuleTest extends TestCase
         $response->assertJsonPath('message', '2 purchase orders created, one per supplier: '.$first->PONumber.', '.$second->PONumber.'.');
     }
 
-    // The preferred supplier is picked by default but can be changed.
     public function test_a_preferred_supplier_can_be_changed_for_the_order(): void
     {
         $otherSupplier = Supplier::create(['SupplierName' => 'KCCC', 'ContactNumber' => '0912-345-6780', 'Email' => 'kccc@mail.com', 'Address' => 'N/A']);
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'IsPreferred' => true]);
 
         $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
-        // Each of the product's suppliers shows its current price (the product's Cost Price when it has none).
         $this->assertMatchesRegularExpression('#<option value="'.$this->supplier->SupplierID.'" data-price="[0-9.]+" selected>'.preg_quote($this->supplier->SupplierName, '#').' ★ — ₱[0-9,.]+</option>#u', $html);
-        // Headings: this product's suppliers in green, others in the Low Stock amber.
         $this->assertStringContainsString("<optgroup label=\"This product's suppliers\" data-group-color=\"#34d399\">", $html);
         $this->assertStringContainsString('<optgroup label="Other suppliers" data-group-color="#fbbf24">', $html);
         $this->assertStringContainsString('if (group.dataset.groupColor) header.style.color = group.dataset.groupColor;', $html);
@@ -707,8 +653,6 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertSame(0, PurchaseOrder::count());
     }
 
-    // The Create Purchase Order form: no Supplier dropdown or Expected
-    // Delivery, an Order Items table (low stock first and ticked), Notes last.
     public function test_create_form_is_an_order_items_table_with_low_stock_first(): void
     {
         $plenty = Product::create(['ProductName' => 'AAA Plenty Cam', 'Model' => 'PL-1', 'Price' => 900, 'CostPrice' => 500, 'CategoryID' => $this->product->CategoryID]);
@@ -720,20 +664,15 @@ class PurchaseOrderModuleTest extends TestCase
         $this->assertStringNotContainsString('<select id="SupplierID" name="SupplierID"', $html);
         $this->assertStringNotContainsString('name="ExpectedDeliveryDate"', $html);
         $this->assertMatchesRegularExpression('#<th><label class="po-select-all"><input type="checkbox" id="po-select-all"[^>]*> Select All</label></th>\s*<th>Product</th>\s*<th>Threshold</th>\s*<th>Previous Price</th>\s*<th>Current Price</th>\s*<th>Quantity</th>\s*<th>Meter</th>\s*<th>Supplier</th>#', $html);
-        // Low stock first (even though "AAA" sorts earlier) and ticked.
         $this->assertLessThan(strpos($html, 'AAA Plenty Cam'), strpos($html, $this->product->ProductName.'<span class="po-low">Low Stock</span>'));
         $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order '.preg_quote($this->product->ProductName, '#').'" checked#', $html);
         $this->assertMatchesRegularExpression('#class="po-item-check" aria-label="Order AAA Plenty Cam"  onchange#', $html);
-        // Suggested reorder quantity: (10 - 2) + 10 = 18.
         $this->assertStringContainsString('name="items['.$this->product->ProductID.'][quantity]" min="1" max="999" step="1" data-max-digits="3" value="18"', $html);
-        // Current Price: a comma-formatted box, up to 5 whole digits (99,999.99); Quantity: up to 3.
         $this->assertStringContainsString('<input type="text" name="items['.$this->product->ProductID.'][cost_price]" data-money-digits="5" data-max="99999.99"', $html);
-        // Dropdown beside the Order Items label: Low Stock (default) / All Products.
         $this->assertMatchesRegularExpression('#<h3>Order Items</h3>\s*<select id="po-items-view"#', $html);
         $this->assertStringContainsString('<option value="low" selected>Low Stock</option>', $html);
         $this->assertStringContainsString('<option value="all">All Products</option>', $html);
         $this->assertStringContainsString('data-low-stock="0" data-product-name="aaa plenty cam pl-1"', $html);
-        // Notes come after the table.
         $this->assertGreaterThan(strpos($html, 'id="order-items"'), strpos($html, 'id="Notes" name="Notes"'));
     }
 }

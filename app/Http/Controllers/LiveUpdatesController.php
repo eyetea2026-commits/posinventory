@@ -10,18 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-/**
- * "Anything new?" check that every signed-in page sends every few seconds
- * (partials/live-updates), so notifications, return/refund requests and the
- * system's lists show up without a refresh. It only returns short
- * fingerprints: the user's own notifications and return requests, plus one
- * per kind of data (see LiveDataVersions). When one a page shows changes,
- * the page re-fetches and swaps in just its live parts.
- *
- * Runs WITHOUT the session middleware (like /session/alive), so the polling
- * never counts as activity and an unattended screen still times out. The
- * user is found from the session cookie instead.
- */
 class LiveUpdatesController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
@@ -35,9 +23,6 @@ class LiveUpdatesController extends Controller
         return response()->json(self::stateFor($user));
     }
 
-    /**
-     * @return array{signatures: array<string, string>, unread: int, latest_title: string|null, latest_description: string|null}
-     */
     public static function stateFor(User $user): array
     {
         $notifications = DB::table('notifications')
@@ -64,8 +49,6 @@ class LiveUpdatesController extends Controller
         }
 
         return [
-            // One fingerprint per kind of data; a page only reacts to the
-            // ones it shows (see partials/live-updates).
             'signatures' => [
                 'notifications' => md5(implode('|', [
                     $unread,
@@ -82,10 +65,6 @@ class LiveUpdatesController extends Controller
         ];
     }
 
-    /**
-     * The signed-in user for this browser's session cookie, if that session
-     * is still the user's current one and hasn't timed out.
-     */
     private function userFromSessionCookie(Request $request): ?User
     {
         $sessionId = $request->cookie(config('session.cookie'));

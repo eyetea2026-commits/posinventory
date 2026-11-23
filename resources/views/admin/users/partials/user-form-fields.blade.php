@@ -1,27 +1,10 @@
-{{-- Shared User field markup. Included by the standalone create/edit pages
-     and the Add/Edit User modals. Expects a $roles collection in scope; pass
-     an optional $user to pre-fill for editing (its absence means "Add" mode).
-     Each error <span> carries a predictable id="error-{field}" so the modal's
-     JS can inject a 422 validation message into the same slot the @error
-     directive would otherwise fill on a real (non-AJAX) page submission. --}}
 @php
-    // "Protected" now means "the last active Administrator account" — its
-    // Role can't be changed (that would leave zero admins), but every other
-    // field, including this account's own name/contact/password, stays
-    // editable. This lets an admin safely update their own profile, and lets
-    // a second admin account (if one exists) be managed like any other user.
     $isProtected = isset($user) && $user->isProtected();
-    // The Super Admin's role always stays Administrator, and nobody changes
-    // their own role (UserController::update() refuses both); the box is
-    // shown locked, with the current role sent in a hidden field instead.
     $isSuperAdminAccount = isset($user) && $user->isSuperAdmin();
     $isOwnAccount = isset($user) && auth()->id() === $user->id;
     $roleLocked = $isProtected || $isSuperAdminAccount || $isOwnAccount;
     $roleDisabledAttr = $roleLocked ? 'disabled' : '';
 
-    // Reset Password is only offered for non-Administrator accounts (Cashier
-    // today, any future role like Manager tomorrow) — an admin's own
-    // password is never resettable through this UI.
     $canResetPassword = isset($user) && ! $user->isAdmin();
 @endphp
 <div class="form-grid user-form-grid">
@@ -52,17 +35,10 @@
         <span class="form-error" id="error-last_name">@error('last_name'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Scoped via data-role rather than an id since the Add and Edit forms
-         both render this same partial and exist in the DOM at the same
-         time. Hidden by default so this row doesn't reserve a full grid
-         row (and its gap) when there's no duplicate-name error to show —
-         the JS below toggles this wrapper's display, not just the span's. --}}
     <div class="form-group full-width" data-role="name-duplicate-error-row" style="display: none;">
         <span data-role="name-duplicate-error" class="form-error"></span>
     </div>
 
-    {{-- Birthdate instead of age: the age is worked out from it and shown
-         beside the label, and the latest allowed date keeps users 18+. --}}
     @php
         $birthdateValue = old('birthdate', isset($user) && $user->birthdate ? $user->birthdate->toDateString() : null);
         $latestBirthdate = today()->subYears(18)->toDateString();
@@ -88,7 +64,6 @@
         <span class="form-error" id="error-email">@error('email'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Address on its own row; the box can be dragged taller for long addresses. --}}
     <div class="form-group full-width">
         <label class="form-label">Address</label>
         <textarea name="address" class="form-input user-address-input" rows="2" maxlength="255">{{ old('address', $user->address ?? null) }}</textarea>
@@ -115,7 +90,6 @@
             @endforeach
         </select>
         @if($roleLocked)
-            {{-- A disabled box isn't sent with the form. --}}
             <input type="hidden" name="role_id" value="{{ $user->role_id }}">
             <span class="form-hint role-locked-hint"><i class="fas fa-lock"></i>
                 {{ $isSuperAdminAccount ? 'The Super Admin\'s role always stays Administrator.' : ($isOwnAccount ? 'You can\'t change your own role.' : 'The last active Administrator\'s role can\'t be changed.') }}
@@ -131,12 +105,6 @@
     </div>
 
     @if($canResetPassword)
-        {{-- The actual password is never retrieved or shown — this is a
-             masked placeholder, not the real value. "Reset Password" opens
-             a separate small popup (reset-password-modal.blade.php) with
-             its own New/Confirm Password fields and Save action; this form
-             itself no longer carries any password field, so a normal
-             Update User save can never touch the password at all. --}}
         <div class="form-group full-width">
             <label class="form-label">Current Password</label>
             <div style="display:flex; gap:10px; align-items:center;">
@@ -145,14 +113,6 @@
             </div>
         </div>
     @elseif(isset($user) && $user->isAdmin())
-        {{-- No inline password field — clicking Update/Save Changes for an
-             Administrator account instead opens a "Enter Your Credentials"
-             popup (see reset-password-modal.blade.php's generic
-             window.openAdminCredentialsGate) before the save request is
-             sent. This hidden marker is how the page's submit handler
-             recognizes an admin target and knows to gate the save;
-             UserController::update() still independently requires a valid
-             current_password server-side either way. --}}
         <input type="hidden" name="_requires_admin_credentials" value="1">
     @elseif(!isset($user))
         <div class="form-group">
@@ -176,10 +136,6 @@
             </div>
         </div>
 
-        {{-- Under both password boxes, two rules per column. Live-updated by
-             user-form-behavior.blade.php as the admin types; server-side
-             enforcement is the single Password::defaults() policy in
-             AppServiceProvider — this list just mirrors it. --}}
         <div class="form-group password-requirements-row">
             <ul class="password-requirements" id="password-requirements">
                 <li data-rule="length">At least 8 characters</li>

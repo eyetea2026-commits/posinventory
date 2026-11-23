@@ -8,9 +8,6 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Carbon;
 
-// Sent once per pending delivery when its Expected Delivery Date is today
-// or has already passed. Not ShouldQueue: no reliable queue worker on this
-// hosting, so dispatch inline.
 class DeliveryDue extends Notification
 {
     use FormatsMailBadge;

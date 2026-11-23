@@ -1,5 +1,3 @@
-{{-- Expired promos — past their EndDate, never deleted, purely a
-     read-only audit list. --}}
 <div style="overflow-x:auto;">
     <table class="table">
         <thead>

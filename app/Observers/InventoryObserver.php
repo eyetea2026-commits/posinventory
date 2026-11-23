@@ -13,15 +13,9 @@ use Throwable;
 
 class InventoryObserver
 {
-    // Single choke point for the low-stock alert: every code path that
-    // changes stock (sale, refund, replacement, receiving, adjustment,
-    // damage) ends in Inventory::save(), so notifying here instead of at
-    // each call site avoids duplicating the trigger condition everywhere.
     public function saved(Inventory $inventory): void
     {
-        // Same choke point keeps one serial number per piece in stock.
         SerialNumbers::syncWithStock($inventory);
-        // ...and the FIFO stock batches adding up to the stock on hand.
         StockBatches::syncWithStock($inventory);
 
         if (! $inventory->wasChanged('Status')) {
@@ -44,12 +38,6 @@ class InventoryObserver
             return;
         }
 
-        // This observer runs synchronously inside every Inventory::save() —
-        // including ones nested in a DB::transaction() (sale, refund,
-        // replacement, adjustment, receiving). A notification-dispatch
-        // failure (broken mail transport, queue connection down) must never
-        // roll back an otherwise-valid stock write, so it's caught and
-        // logged here rather than allowed to propagate.
         try {
             Notification::send($admins, new LowStockAlert($product, $inventory->Quantity, $inventory->Status));
         } catch (Throwable $e) {

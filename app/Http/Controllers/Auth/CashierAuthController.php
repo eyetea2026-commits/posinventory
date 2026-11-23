@@ -35,14 +35,8 @@ use Throwable;
 
 class CashierAuthController extends Controller
 {
-    // Login itself is handled by the unified AuthController now — this
-    // controller owns everything else in the cashier area (POS, logout).
-
     public function logout(Request $request)
     {
-        // Re-fetched fresh rather than trusting the guard's already-resolved
-        // instance, which may have been hydrated earlier in the request
-        // lifecycle (or session) before current_session_id's latest value.
         $user = Auth::user()?->fresh();
         $sessionId = $request->session()->getId();
 
@@ -50,9 +44,6 @@ class CashierAuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // Releases this account's one-active-session slot so another
-        // device can log in immediately, without waiting for the old
-        // session row to age out.
         if ($user && $user->current_session_id === $sessionId) {
             $user->current_session_id = null;
             $user->save();
@@ -61,18 +52,8 @@ class CashierAuthController extends Controller
         return redirect('/');
     }
 
-    // Password reset for Cashier accounts is intentionally not available —
-    // only an Administrator can reset a cashier's password (routes/web.php).
-    // The forgot/OTP/reset methods and views that used to sit here were
-    // dead code with no route ever pointing at them, and had weaker OTP
-    // handling than the live Administrator flow — removed rather than kept
-    // around unreachable and unmaintained.
-
     public function pos()
     {
-        // POS grid order: consumables (connectors, junction boxes...) first,
-        // then the other items added with a click (no serial sticker to
-        // scan), then serial-numbered items; newest first within each.
         $products = Product::active()->with(['inventory', 'category', 'stockBatches' => fn ($query) => $query->where('QuantityRemaining', '>', 0)])->orderByDesc('ProductID')->get()
             ->filter(fn ($product) => $product->inventory && $product->inventory->Quantity > 0)
             ->sortBy(fn ($product) => match (true) {
@@ -88,18 +69,6 @@ class CashierAuthController extends Controller
         ]);
     }
 
-    // Which products currently have an "Apply Promo" option, and what it
-    // actually is — the Discount Module's own Discount/DiscountProduct
-    // tables are the only source for this (no separate cashier-side promo
-    // data anywhere), read fresh on every call so a promo created, edited,
-    // assigned, or expired in the admin's Discount Module is reflected here
-    // immediately with no cashier-side duplication to keep in sync. Only
-    // one promo can ever be active for a given product at once
-    // (DiscountController blocks assigning a second one with an
-    // overlapping date range to the same product), so this is a straight
-    // ProductID => promo map, never a list. Shared by pos() (initial page
-    // load) and promoMap() (the periodic poll that keeps an already-open
-    // POS tab in sync without requiring a reload).
     private function buildProductPromoMap(): array
     {
         $productPromoMap = [];
@@ -119,18 +88,11 @@ class CashierAuthController extends Controller
         return $productPromoMap;
     }
 
-    // Polled periodically from an already-open POS tab so a promo created,
-    // edited, reassigned, or expired in the admin's Discount Module shows
-    // up (or disappears) for the cashier without a page reload.
     public function promoMap()
     {
         return response()->json(['products' => $this->buildProductPromoMap()]);
     }
 
-    // "Apply Promo" — validates a promo code against one specific product
-    // already in the cart. Never trusts a client-sent rate/amount: only the
-    // resolved DiscountID is handed back, and processSale() re-validates and
-    // recomputes everything itself from that ID at checkout time.
     public function applyPromo(Request $request)
     {
         $data = $request->validate([
@@ -140,12 +102,6 @@ class CashierAuthController extends Controller
 
         $code = strtoupper(trim($data['promo_code']));
 
-        // Checked before the code lookup so the cashier gets the most useful
-        // message when this product has never had a promo at all — deliberately
-        // NOT scoped to currentlyActive() here, since a product with an expired
-        // or not-yet-started promo should still fall through to the code lookup
-        // below and get the more specific "has expired" / "not currently active"
-        // message rather than this generic one.
         if (! Discount::whereHas('products', fn ($q) => $q->where('Product.ProductID', $data['product_id']))->exists()) {
             return response()->json(['success' => false, 'message' => 'Walang promo sa product na ito.'], 422);
         }
@@ -172,21 +128,10 @@ class CashierAuthController extends Controller
             'discount_rate' => (float) $discount->DiscountRate,
             'promo_name' => $discount->Name,
             'promo_code' => $discount->PromoCode,
-            // Every product this promo is assigned to — not just the one the
-            // cashier clicked — so the POS screen can discount every matching
-            // cart line, never just the first one.
             'applicable_product_ids' => $discount->products()->pluck('Product.ProductID')->values(),
         ]);
     }
 
-    // Daily shift view: a Cashier sees EVERY cashier's sales from TODAY, but
-    // view-only for anyone else's -- the Print/reprint action only renders on
-    // their own rows, and viewReceipt() independently refuses another
-    // cashier's receipt, so hiding the button isn't the only safeguard. The
-    // today-only boundary is computed here, server-side, from the app's own
-    // clock (config('app.timezone') = Asia/Manila), never taken from the
-    // request, so no request parameter can widen it. Admin's full-history
-    // Sales Report (ReportController) is separate and untouched by this.
     public function transactions(Request $request)
     {
         $user = Auth::user();
@@ -203,7 +148,6 @@ class CashierAuthController extends Controller
             ->where('SalesTransactionDate', '>=', $todayStart)
             ->where('SalesTransactionDate', '<', $tomorrowStart)
             ->when($search, function ($query) use ($search, $receiptMatchIds) {
-                // Grouped so the OR can't escape the today-only date scope.
                 return $query->where(function ($inner) use ($search, $receiptMatchIds) {
                     $inner->where('CustomerName', 'like', "%{$search}%");
 
@@ -216,9 +160,6 @@ class CashierAuthController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Live search on this page fetches this same route over AJAX and
-        // swaps in just the rows + pagination — same pattern as the Admin
-        // Inventory list's live search/poll.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'rows' => view('cashier.partials.transactions-rows', ['transactions' => $transactions, 'currentStaffId' => $currentStaffId])->render(),
@@ -229,21 +170,10 @@ class CashierAuthController extends Controller
         return view('cashier.transactions', compact('transactions', 'search', 'currentStaffId'));
     }
 
-    /**
-     * Receipt # search that works while the cashier is still typing (the
-     * list searches live on every keystroke): "R", "RCT", "RCT-" match every
-     * receipt, "RCT-0000" narrows down, and "RCT-000014", "rct-14",
-     * "000014" or "14" find RCT-000014. Matched against today's receipt
-     * numbers exactly as the list displays them (RCT- plus 6 digits), so it
-     * behaves the same on any database.
-     *
-     * @return list<int>
-     */
     private function todaysReceiptIdsMatching(string $search, $todayStart, $tomorrowStart): array
     {
         $term = strtoupper(preg_replace('/\s+/', '', $search));
 
-        // Optional leading part of "RCT-", then optional digits.
         if (! preg_match('/^(R|RC|RCT|RCT-)?(\d*)$/', $term, $matches) || $term === '') {
             return [];
         }
@@ -258,7 +188,6 @@ class CashierAuthController extends Controller
                 }
                 $padded = str_pad((string) $id, 6, '0', STR_PAD_LEFT);
 
-                // Typed with leading zeros ("000014") or as a plain number ("14").
                 return str_contains($padded, $digits) || (string) $id === ltrim($digits, '0');
             })
             ->map(fn ($id) => (int) $id)
@@ -266,23 +195,11 @@ class CashierAuthController extends Controller
             ->all();
     }
 
-    /**
-     * How long an Administrator's approval of a custom discount stays valid
-     * for the sale it was given for.
-     */
     private const CUSTOM_DISCOUNT_APPROVAL_MINUTES = 15;
 
-    /**
-     * A custom percentage discount at the POS needs an Administrator's
-     * approval: the cashier's screen asks for an Administrator's password,
-     * checked here. On a match the approval (percent + who approved) is kept
-     * in this cashier's session for the next sale only; processSale() refuses
-     * a custom discount without it.
-     */
     public function approveCustomDiscount(Request $request): JsonResponse
     {
         $data = $request->validate([
-            // Two digits: a whole number from 1 to 99.
             'percent' => ['required', 'integer', 'min:1', 'max:99'],
             'admin_password' => ['required', 'string'],
         ], [
@@ -319,19 +236,12 @@ class CashierAuthController extends Controller
 
     public function processSale(Request $request)
     {
-        // Cheque/Bank Transfer genuinely need these fields captured — Cash
-        // never does, and GCash's reference number stays optional (matching
-        // its existing behavior; only the fact that it was being silently
-        // discarded is the bug being fixed, not its validation strictness).
         $needsPaymentDetails = ['cheque', 'bank'];
         $data = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.id' => 'required|integer|exists:Product,ProductID',
-            // In the unit the line is sold in (items.*.unit, the product's
-            // base unit when left out): 1.5 meters, 2 boxes.
             'items.*.qty' => ['required', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             'items.*.unit' => ['nullable', 'string', 'max:20'],
-            // Serial-numbered products: the scanned sticker of each piece.
             'items.*.serials' => 'nullable|array',
             'items.*.serials.*' => 'string|max:20',
             'payment_method' => 'required|in:cash,gcash,bank,cheque',
@@ -341,12 +251,8 @@ class CashierAuthController extends Controller
             'payment_date' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), $needsPaymentDetails, true)), 'nullable', 'date'],
             'payment_time' => [Rule::requiredIf(fn () => $request->input('payment_method') === 'bank'), 'nullable', 'date_format:H:i'],
             'remarks' => 'nullable|string|max:500',
-            // 7 whole-peso digits max, matching the POS input's own cap.
             'payment_amount' => 'nullable|numeric|min:0|max:9999999.99',
-            // Required photo for GCash / Bank Transfer / Cheque: the GCash
-            // screenshot, bank transfer slip or the cheque itself.
             'payment_proof' => [Rule::requiredIf(fn () => in_array($request->input('payment_method'), PaymentProof::METHODS, true)), 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            // Needs an Administrator's approval first (approveCustomDiscount()).
             'custom_discount_percent' => 'nullable|integer|min:1|max:99',
         ], [
             'items.*.qty.gt' => 'Every quantity must be greater than 0.',
@@ -364,12 +270,6 @@ class CashierAuthController extends Controller
         ]);
 
         $items = $data['items'];
-        // Customer Name is optional in the UI, so an empty string (converted to null
-        // by the ConvertEmptyStringsToNull middleware) is common — input()'s default
-        // only applies when the key is entirely absent, not when it's null/blank, so
-        // that case has to be handled explicitly or SalesTransaction's NOT NULL
-        // CustomerName column rejects the insert. A customer
-        // who gave no name is saved as "N/A".
         $customerName = trim((string) $request->input('customer_name')) ?: 'N/A';
         $paymentMethod = $data['payment_method'];
         $paymentAmount = round(floatval($request->input('payment_amount', 0)), 2);
@@ -380,8 +280,6 @@ class CashierAuthController extends Controller
         $paymentTime = $data['payment_time'] ?? null;
         $remarks = $data['remarks'] ?? null;
 
-        // A custom discount must match the percent an Administrator approved
-        // for this cashier, and the approval must not have expired.
         $customDiscountPercent = isset($data['custom_discount_percent']) ? round((float) $data['custom_discount_percent'], 2) : null;
         $customDiscountApprovedBy = null;
         if ($customDiscountPercent !== null) {
@@ -402,10 +300,6 @@ class CashierAuthController extends Controller
 
         $user = Auth::user();
 
-        // Guards against duplicate submissions the disabled-checkout-button
-        // client-side guard can't catch on its own (a second browser tab, a
-        // fast double-tap before the button disables, a replayed request) —
-        // only one checkout per cashier can be in flight at a time.
         $lock = Cache::lock("checkout:user:{$user->id}", 10);
         if (! $lock->get()) {
             return response()->json([
@@ -414,8 +308,6 @@ class CashierAuthController extends Controller
             ], 409);
         }
 
-        // Proof of payment (GCash / Bank Transfer / Cheque only), stored
-        // before the sale and removed again if the sale doesn't go through.
         $proofPath = null;
         $saleCompleted = false;
         if ($request->hasFile('payment_proof') && in_array($paymentMethod, PaymentProof::METHODS, true)) {
@@ -434,16 +326,10 @@ class CashierAuthController extends Controller
                 $referenceNumber, $bankName, $accountName, $paymentDate, $paymentTime, $remarks, $user, $proofPath,
                 $customDiscountPercent, $customDiscountApprovedBy
             ) {
-                // Prevent recording the same cheque/reference twice for the
-                // same payment method — a plain exists() check here (backed
-                // by the migration's unique index as the concurrency-safe
-                // fallback for two requests racing past this check at once).
                 if ($referenceNumber && Payment::where('PaymentMethod', $paymentMethod)->where('ReferenceNumber', $referenceNumber)->exists()) {
                     throw new \RuntimeException("This {$paymentMethod} reference number has already been recorded for another sale.");
                 }
 
-                // Lock the inventory rows involved so a concurrent sale can't
-                // deduct the same stock before this transaction commits.
                 $inventories = Inventory::whereIn('ProductID', $productIds)
                     ->lockForUpdate()
                     ->get()
@@ -453,25 +339,16 @@ class CashierAuthController extends Controller
                     ->get()
                     ->keyBy('ProductID');
 
-                // The POS screen only lists active products, but a tab left
-                // open since before a product was deactivated could still
-                // submit one — enforce it here too.
                 $inactive = $products->first(fn (Product $product) => ! $product->IsActive);
                 if ($inactive) {
                     throw new \RuntimeException("\"{$inactive->ProductName}\" is no longer available for sale. Please remove it from the cart.");
                 }
 
-                // A product with no selling price (no Cost Price was ever
-                // entered) would be given away for ₱0.00.
                 $unpriced = $products->first(fn (Product $product) => (float) $product->Price <= 0);
                 if ($unpriced) {
                     throw new \RuntimeException("\"{$unpriced->ProductName}\" has no selling price yet. Ask the admin to set its price in Products, then remove it from the cart.");
                 }
 
-                // One line per product, in one of the units it's sold in
-                // (Product::sellingUnits()), priced from the DB - never from
-                // the request. A product sent on two lines is merged, so the
-                // combined quantity is what's checked against stock.
                 $lines = [];
                 foreach ($items as $item) {
                     $product = $products->get($item['id']);
@@ -493,7 +370,6 @@ class CashierAuthController extends Controller
                     $lines[$product->ProductID] = $line;
                 }
 
-                // What each product takes from stock, in its base unit.
                 $quantitiesByProduct = [];
                 foreach ($lines as $productId => $line) {
                     $quantitiesByProduct[$productId] = Quantity::normalize($line['qty'] * $line['quantity_per_unit']);
@@ -507,8 +383,6 @@ class CashierAuthController extends Controller
                     }
                 }
 
-                // Serial-numbered products sell by their scanned stickers:
-                // one in-stock serial of that product per piece sold.
                 $scannedSerials = [];
                 foreach ($lines as $productId => $line) {
                     foreach ($line['serials'] as $serialNumber) {
@@ -539,10 +413,6 @@ class CashierAuthController extends Controller
                     $serialsToSell[$productId] = $serials;
                 }
 
-                // Each piece sells at the price of the stock batch it comes
-                // out of (FIFO): a line taking from batches at different
-                // prices becomes one sale line per price. A line sold by the
-                // roll/box keeps the roll's price.
                 $saleLines = [];
                 foreach ($lines as $productId => $line) {
                     $line['product_id'] = $productId;
@@ -556,29 +426,14 @@ class CashierAuthController extends Controller
                     }
                 }
 
-                // Recompute totals from the DB prices — never trust
-                // client-submitted prices, they're editable in the browser.
                 $subtotal = 0;
                 foreach ($saleLines as $line) {
                     $subtotal += $line['price'] * $line['qty'];
                 }
 
-                // Apply Promo is fully automatic now — there's no client
-                // selection to trust at all, not even an id. For every
-                // product actually in this cart, independently look up
-                // whatever promo is currently active for it (same
-                // Discount/DiscountProduct data and currentlyActive() scope
-                // the admin's Discount Module and the POS page's live promo
-                // map both use) and discount that line by exactly that
-                // promo's own type/rate, reusing discountedPriceFor() so the
-                // math can never drift from what's shown anywhere else.
                 $discountAmount = 0.0;
                 $usedDiscountIds = [];
                 $activePromoByProduct = [];
-                // Per unit, not per line — multiplied by whatever quantity
-                // ends up on each SalesItem row below, so a return/refund
-                // can later prorate by exactly the quantity being returned
-                // rather than assuming a whole line is returned at once.
                 $discountPerUnitByLine = [];
                 Discount::currentlyActive()
                     ->whereHas('products', fn ($q) => $q->whereIn('Product.ProductID', array_keys($quantitiesByProduct)))
@@ -590,7 +445,6 @@ class CashierAuthController extends Controller
                         }
                     });
 
-                // Per unit sold: a box line gets the promo on the box price.
                 foreach ($saleLines as $index => $line) {
                     $promo = $activePromoByProduct[$line['product_id']] ?? null;
                     if (! $promo) {
@@ -603,52 +457,20 @@ class CashierAuthController extends Controller
                 }
                 $discountAmount = round($discountAmount, 2);
 
-                // The sale only has room for one DiscountID/PromoCode (it
-                // predates per-product promo assignment) — when every
-                // discounted line in this sale came from the same promo,
-                // which is the normal case, it's recorded exactly as
-                // before. The rare case of two DIFFERENT promos each
-                // discounting a different product in the same cart still
-                // charges the correct total (DiscountAmount above already
-                // sums every line correctly regardless), it just can't
-                // attribute the receipt's promo-code line to a single promo,
-                // so that display is skipped rather than shown wrong.
                 $distinctDiscountIds = array_keys($usedDiscountIds);
                 $discount = count($distinctDiscountIds) === 1 ? Discount::find($distinctDiscountIds[0]) : null;
 
-                // Round every money value to the cent immediately after
-                // computing it — carrying raw floating-point results into
-                // the payment-sufficiency comparison below could reject a
-                // payment for exactly the (rounded) total shown on screen,
-                // due to residual binary-fraction error a step or two back
-                // in this same formula.
-                // Prices are VAT-inclusive, so VAT is the part of the
-                // post-discount Total that is VAT (Total × 12/112), for the
-                // receipt/report breakdown — it is NOT added on top of Total,
-                // which stays exactly Subtotal minus Discount regardless of
-                // this line. Total is computed first, before VAT, so rounding
-                // can't drift the two apart.
-
-                // FORMULA COMPUTATIONS
                 $subtotal = round($subtotal, 2);
-                // The custom discount is a percent of what's left after the
-                // product promos; $discountAmount becomes the sale's whole
-                // discount (promos + custom), as the sale has always stored it.
                 $afterPromos = round($subtotal - $discountAmount, 2);
                 $customDiscountAmount = $customDiscountPercent !== null ? round($afterPromos * $customDiscountPercent / 100, 2) : 0.0;
                 $discountAmount = round($discountAmount + $customDiscountAmount, 2);
                 $total = round($subtotal - $discountAmount, 2);
                 $vatAmount = SalesTransaction::vatIncludedIn($total);
 
-                // Sufficiency applies to every payment method, not just cash
-                // — GCash/bank/cheque are just as capable of being recorded
-                // under-amount as cash, and the Payment Amount field is
-                // always collected regardless of method.
                 if ($paymentAmount < $total) {
                     throw new \RuntimeException('Payment amount must be greater than or equal to total.');
                 }
 
-                // Get or create staff record
                 $staff = Staff::where('UserID', $user->id)->first();
                 if (! $staff) {
                     $staff = Staff::create([
@@ -663,11 +485,6 @@ class CashierAuthController extends Controller
                     ]);
                 }
 
-                // Create the sale with what it came to — Subtotal /
-                // DiscountAmount / VatAmount are stored (not just the
-                // total) so the receipt can later show exactly what was
-                // charged at sale time, immune to the Discount's rate being
-                // edited afterward.
                 $transaction = SalesTransaction::create([
                     'CustomerName' => $customerName,
                     'SalesTransactionDate' => now(),
@@ -684,11 +501,7 @@ class CashierAuthController extends Controller
                     'DiscountID' => $discount?->DiscountID,
                 ]);
 
-                // Create payment
                 Payment::create([
-                    // The sufficiency check above already guarantees
-                    // $paymentAmount >= $total for every payment method by
-                    // this point, so it's always the right value to record.
                     'PaymentAmount' => $paymentAmount,
                     'PaymentMethod' => $paymentMethod,
                     'ReceiptNumber' => 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT),
@@ -702,10 +515,6 @@ class CashierAuthController extends Controller
                     'ProofImagePath' => $proofPath,
                 ]);
 
-                // The custom discount is split across the lines in proportion
-                // to what each still costs after promos (the last line takes
-                // the rounding remainder), so a later refund of any line pays
-                // back exactly what was paid for it.
                 $customShares = [];
                 $sharedSoFar = 0.0;
                 $lastIndex = array_key_last($saleLines);
@@ -718,7 +527,6 @@ class CashierAuthController extends Controller
                     $sharedSoFar = round($sharedSoFar + $share, 2);
                 }
 
-                // Create sales items, priced from the DB, not the request
                 $salesItems = [];
                 foreach ($saleLines as $index => $line) {
                     $perUnitDiscount = $discountPerUnitByLine[$index] ?? 0;
@@ -727,10 +535,6 @@ class CashierAuthController extends Controller
                         'Unit' => $line['unit'],
                         'BaseQuantity' => Quantity::normalize($line['qty'] * $line['quantity_per_unit']),
                         'UnitPrice' => $line['price'],
-                        // This line's own share of the sale's discount — lets
-                        // a later return/refund pay out exactly what the
-                        // customer paid for the returned quantity instead of
-                        // the full undiscounted price.
                         'DiscountAmount' => round($perUnitDiscount * $line['qty'] + $customShares[$index], 2),
                         'ProductID' => $line['product_id'],
                         'SalesTransactionID' => $transaction->SalesTransactionID,
@@ -747,10 +551,6 @@ class CashierAuthController extends Controller
                     }
                 }
 
-                // Stock goes down line by line, in the order the lines were
-                // priced: each takes from the oldest stock batches first
-                // (FIFO), the same batches it was priced from, and keeps
-                // what those pieces cost.
                 foreach ($salesItems as $salesItem) {
                     $inventory = $inventories->get($salesItem->ProductID);
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity - $salesItem->BaseQuantity);
@@ -782,15 +582,12 @@ class CashierAuthController extends Controller
             }
         }
 
-        // The sold products' Re-Order Points move with their sales. A
-        // failure here never undoes the sale.
         try {
             ReorderPoint::refresh($result['product_ids']);
         } catch (Throwable $e) {
             Log::error('Re-Order Point refresh after a sale failed: '.$e->getMessage());
         }
 
-        // One approval, one sale.
         if ($customDiscountPercent !== null) {
             $request->session()->forget('custom_discount_approval');
             $approverName = User::find($customDiscountApprovedBy)?->full_name ?? 'an Administrator';
@@ -798,8 +595,6 @@ class CashierAuthController extends Controller
             ActionNotifier::toAdmins('Custom Discount Given', "A {$customDiscountPercent}% discount was given on {$result['receipt_number']} (approved by {$approverName}).", route('admin.reports.index'), 'percent', 'warning');
         }
 
-        // Dispatched after the transaction has committed — a notification
-        // failure must never roll back an otherwise-successful sale.
         try {
             $completedTransaction = SalesTransaction::with(['items'])->find($result['transaction_id']);
             if ($completedTransaction) {
@@ -821,29 +616,16 @@ class CashierAuthController extends Controller
         ]);
     }
 
-    /**
-     * View and print receipt (REQ102)
-     */
     public function viewReceipt($receiptNumber, ThermalReceiptPrinter $printer)
     {
         $receipt = $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber);
 
-        // Printed from the browser, the receipt prints the same 32-column
-        // lines as the direct thermal printout (bold / double-height where
-        // that printout uses them), so with the thermal printer's own driver
-        // the slip looks the same either way.
         return view('cashier.receipt', $receipt + [
             'printLines' => $printer->printLines($receipt),
             'printTail' => $printer->tailText(),
         ]);
     }
 
-    /**
-     * The receipt's thermal-printer lines, for the print bridge: the POS
-     * sends them to the local copy of this app on the cashier PC, which
-     * prints them exactly like a local sale. Same ownership rule as
-     * viewReceipt().
-     */
     public function receiptPrintLines($receiptNumber, ThermalReceiptPrinter $printer): JsonResponse
     {
         $receipt = $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber);
@@ -854,11 +636,6 @@ class CashierAuthController extends Controller
         ]);
     }
 
-    /**
-     * Prints the receipt straight to the local thermal printer (no browser
-     * dialog). Same ownership rule as viewReceipt(). Responds with JSON so
-     * the POS can fall back to the on-screen receipt if printing fails.
-     */
     public function printThermalReceipt(Request $request, $receiptNumber, ThermalReceiptPrinter $printer)
     {
         if (! ThermalReceiptPrinter::isEnabled()) {
@@ -867,8 +644,6 @@ class CashierAuthController extends Controller
 
         $receipt = $this->buildReceiptData($this->findOwnTransaction($receiptNumber), $receiptNumber);
 
-        // The cash drawer only opens for a fresh cash sale (opt-in via
-        // POS_PRINTER_OPEN_DRAWER), never on a reprint.
         $openDrawer = config('services.receipt_printer.open_drawer')
             && $request->boolean('new_sale')
             && $receipt['paymentMethod'] === 'cash';
@@ -887,17 +662,8 @@ class CashierAuthController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /**
-     * Scoped to the logged-in cashier's own sales -- reached from the
-     * Transaction History "Print" button, so it must be denied the same way
-     * a transaction outside that list would be. A 404 (not 403) is used
-     * deliberately: it reads identically whether the receipt number doesn't
-     * exist or simply isn't this cashier's, so guessing another cashier's ID
-     * can't be used to confirm it exists.
-     */
     private function findOwnTransaction(string $receiptNumber): SalesTransaction
     {
-        // Extract transaction ID from receipt number (RCT-000001 -> 1)
         $transactionId = (int) str_replace('RCT-', '', $receiptNumber);
 
         $staff = Staff::where('UserID', Auth::id())->first();
@@ -914,15 +680,8 @@ class CashierAuthController extends Controller
         return $transaction;
     }
 
-    /**
-     * Everything a receipt shows, shared by the on-screen receipt and the
-     * thermal printer so the two can never disagree.
-     *
-     * @return array<string, mixed>
-     */
     private function buildReceiptData(SalesTransaction $transaction, string $receiptNumber): array
     {
-        // The sale holds what it came to (subtotal, discounts, VAT, total).
         $sale = $transaction;
         $items = $transaction->items->map(function ($item) {
             return [
@@ -930,7 +689,6 @@ class CashierAuthController extends Controller
                 'name' => $item->product?->ProductName ?? 'Unknown Product',
                 'price' => $item->UnitPrice,
                 'qty' => $item->Quantity,
-                // "1.5 meters", "2 boxes"; pieces stay a plain count ("2").
                 'qty_label' => ($item->Unit ?: UnitOfMeasure::DEFAULT) === UnitOfMeasure::DEFAULT
                     ? UnitOfMeasure::number($item->Quantity)
                     : $item->quantityLabel(),
@@ -942,16 +700,7 @@ class CashierAuthController extends Controller
         $promoProductName = null;
 
         if ($sale->Subtotal !== null) {
-            // Historically-accurate path: read back exactly what was charged
-            // at sale time, immune to the Discount's rate/code being edited
-            // since then (PromoCode is frozen onto the sale itself for that
-            // reason). The rate shown is derived from the promo'd product's
-            // OWN line subtotal, not the whole cart — a promo only ever
-            // discounts the one product it's tied to — so the percentage and
-            // amount on screen always agree with each other.
             $subtotal = (float) $sale->Subtotal;
-            // DiscountAmount holds promos + custom discount; the receipt
-            // shows the two on separate lines.
             $customDiscountAmount = (float) ($sale->CustomDiscountAmount ?? 0);
             $discountAmount = round((float) $sale->DiscountAmount - $customDiscountAmount, 2);
             $vatAmount = (float) $sale->VatAmount;
@@ -960,9 +709,6 @@ class CashierAuthController extends Controller
             $discountRate = 0;
             if ($hasDiscount) {
                 $promoCode = $sale->PromoCode ?? $sale->discount?->PromoCode;
-                // A promo can be assigned to several products — every line on
-                // THIS receipt that's one of them contributed to the frozen
-                // DiscountAmount above, so all of them are named here.
                 $promoProductIds = $sale->discount
                     ? $sale->discount->products()->pluck('Product.ProductID')->all()
                     : [];
@@ -972,10 +718,6 @@ class CashierAuthController extends Controller
                 $discountRate = $promoProductSubtotal > 0 ? round(($discountAmount / $promoProductSubtotal) * 100, 2) : 0;
             }
         } else {
-            // Legacy fallback for rows predating the Subtotal/DiscountAmount/
-            // VatAmount columns — recomputed live from SalesItem + the
-            // Discount's CURRENT rate, same as before this fix (unavoidably
-            // imprecise if that rate has since changed).
             $subtotal = array_sum(array_map(function ($item) {
                 return $item['price'] * $item['qty'];
             }, $items));
@@ -989,13 +731,11 @@ class CashierAuthController extends Controller
             $vatAmount = SalesTransaction::vatIncludedIn($total);
         }
 
-        // Get payment info
         $payment = $transaction->payment;
         $paymentAmount = $payment ? ($payment->PaymentAmount ?? $total) : $total;
         $change = max(0, $paymentAmount - $total);
         $paymentMethod = $payment?->PaymentMethod ?? 'cash';
 
-        // Middle name as an initial on the receipt ("Gina J. Cole").
         $cashierName = Auth::user()->name_with_middle_initial;
 
         return [

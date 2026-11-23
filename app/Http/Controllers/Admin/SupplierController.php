@@ -37,7 +37,6 @@ class SupplierController extends Controller
                 ->orWhere('Email', 'like', "%{$search}%")
                 ->orWhere('ContactNumber', 'like', "%{$search}%");
         })
-            // Newest supplier first.
             ->orderByDesc('SupplierID')
             ->paginate(15)
             ->withQueryString();
@@ -50,11 +49,6 @@ class SupplierController extends Controller
 
     public function create(Request $request)
     {
-        // Add Supplier modal: return just the rendered form fields (the
-        // same shared partial edit() already uses, with no $supplier)
-        // instead of a full page, so the modal can inject it without
-        // navigating. Direct navigation to this URL still gets the full
-        // standalone page.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.suppliers.partials.supplier-form-fields')->render(),
@@ -64,10 +58,6 @@ class SupplierController extends Controller
         return view('admin.suppliers.create');
     }
 
-    // Live duplicate-name/email check (mirrors ProductController::checkName)
-    // — SupplierName and Email are both unique constraints on store/update,
-    // so both get checked here rather than only surfacing the conflict
-    // after a full submit.
     public function checkName(Request $request)
     {
         $name = trim((string) $request->input('SupplierName', ''));
@@ -106,11 +96,6 @@ class SupplierController extends Controller
         ]);
     }
 
-    /**
-     * Contact Number: up to three numbers separated by " / ", each a mobile
-     * (0912-345-6789) or a landline ((02) 8123-4567, (082) 295-7595).
-     * Letters and other characters are dropped first (normalizeContactNumber()).
-     */
     private const CONTACT_NUMBER_RULES = [
         'required', 'string', 'max:50',
         'regex:/^(09\d{2}-\d{3}-\d{4}|\(02\) \d{4}-\d{4}|\(0[1-8]\d\) \d{3}-\d{4})( \/ (09\d{2}-\d{3}-\d{4}|\(02\) \d{4}-\d{4}|\(0[1-8]\d\) \d{3}-\d{4})){0,2}$/',
@@ -122,11 +107,6 @@ class SupplierController extends Controller
         'ContactNumber.regex' => 'Enter a mobile number as 0912-345-6789 or a landline as (02) 8123-4567. Separate two numbers with "/".',
     ];
 
-    /**
-     * Each number (split on "/") keeps only its digits, then is written as
-     * 0912-345-6789 (mobile; +63 becomes the leading 0), (02) 8123-4567
-     * (Metro Manila landline) or (082) 295-7595 (provincial landline).
-     */
     private static function normalizeContactNumber(?string $value): string
     {
         $numbers = [];
@@ -179,10 +159,6 @@ class SupplierController extends Controller
         return redirect()->route('admin.suppliers.index')->with('status', 'Supplier added successfully.');
     }
 
-    // "View History" — displays ONLY this supplier's Purchase Order
-    // transaction history (searchable, paginated). Deliberately does not
-    // show supplier profile info (name/contact/address/status) — that's
-    // already visible in the Supplier List this action is reached from.
     public function show(Request $request, Supplier $supplier)
     {
         $search = $request->query('search');
@@ -222,10 +198,6 @@ class SupplierController extends Controller
         ]);
     }
 
-    // Full breakdown of one Purchase Order for the History page's "View
-    // Details" modal — Purchase Order info, every ordered product
-    // (Category/ordered/received/remaining/cost/subtotal), an order
-    // summary, and a best-effort audit trail from ActivityLog.
     public function purchaseOrderDetails(Supplier $supplier, PurchaseOrder $purchaseOrder)
     {
         abort_unless((int) $purchaseOrder->SupplierID === (int) $supplier->SupplierID, 404);
@@ -239,7 +211,6 @@ class SupplierController extends Controller
                 'OrderedQuantity' => $item->Quantity,
                 'ReceivedQuantity' => $item->ReceivedQuantity,
                 'RemainingQuantity' => $item->remaining_quantity,
-                // The same in the unit it was ordered in ("2 rolls (10,000 meters)").
                 'OrderedLabel' => $item->tableQuantity(),
                 'ReceivedLabel' => $item->tableQuantity($item->ReceivedQuantity),
                 'RemainingLabel' => $item->tableQuantity($item->remaining_quantity),
@@ -253,7 +224,6 @@ class SupplierController extends Controller
         $auditHistory = ActivityLog::where('Description', 'like', "%{$purchaseOrder->PONumber}%")
             ->orderByDesc('DateRecorded')
             ->get(['Action', 'Description', 'DateRecorded'])
-            // Shown as-is in the details modal, so send a readable MM/DD/YYYY time.
             ->map(fn (ActivityLog $log) => [
                 'Action' => $log->Action,
                 'Description' => $log->Description,
@@ -315,8 +285,6 @@ class SupplierController extends Controller
 
     public function edit(Request $request, Supplier $supplier)
     {
-        // Edit Supplier modal: return just the rendered form fields instead
-        // of a full page, so the modal can inject it without navigating.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.suppliers.partials.supplier-form-fields', [

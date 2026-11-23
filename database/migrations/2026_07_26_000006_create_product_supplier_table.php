@@ -13,11 +13,6 @@ return new class extends Migration
             $table->unsignedInteger('ProductID');
             $table->unsignedInteger('SupplierID');
             $table->decimal('CostPrice', 10, 2);
-            // Only ever 1 or NULL — never 0. MySQL treats multiple NULLs in a
-            // unique index as distinct, so (ProductID, IsPreferred) permits
-            // any number of non-preferred rows per product while rejecting a
-            // second IsPreferred=1 row for the same product — DB-level
-            // "at most one preferred supplier" with no partial-index needed.
             $table->unsignedTinyInteger('IsPreferred')->nullable();
 
             $table->foreign('ProductID')->references('ProductID')->on('Product')->onDelete('cascade');

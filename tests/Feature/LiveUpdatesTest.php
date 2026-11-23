@@ -30,9 +30,6 @@ class LiveUpdatesTest extends TestCase
         $this->cashier = User::factory()->create(['role_id' => Role::create(['role_name' => 'cashier'])->id]);
     }
 
-    /**
-     * Gives the user a live session row and returns its id, as a real login would.
-     */
     private function sessionFor(User $user, ?int $lastActivity = null): string
     {
         $sessionId = Str::random(40);
@@ -110,7 +107,6 @@ class LiveUpdatesTest extends TestCase
         $this->assertSame($before['unread'] + 1, $after['unread']);
         $this->assertSame('New Return Request', $after['latest_title']);
         $this->assertSame('x', $after['latest_description']);
-        // Unchanged state: same signature, so pages don't re-fetch.
         $this->assertSame($after['signatures'], $this->poll($session)->json('signatures'));
     }
 
@@ -136,13 +132,11 @@ class LiveUpdatesTest extends TestCase
         $adminBefore = $this->poll($adminSession)->json('signatures.returns');
         $cashierBefore = $this->poll($cashierSession)->json('signatures.returns');
 
-        // Another cashier's request: the admin sees it, this cashier doesn't.
         $this->makeReturnFor($otherCashier);
         $adminAfterOther = $this->poll($adminSession)->json('signatures.returns');
         $this->assertNotSame($adminBefore, $adminAfterOther);
         $this->assertSame($cashierBefore, $this->poll($cashierSession)->json('signatures.returns'));
 
-        // The admin approves this cashier's request: the cashier sees it.
         $return = $this->makeReturnFor($this->cashier);
         $cashierPending = $this->poll($cashierSession)->json('signatures.returns');
         $this->assertNotSame($cashierBefore, $cashierPending);
@@ -166,12 +160,10 @@ class LiveUpdatesTest extends TestCase
         $this->getJson(route('live.signature'))->assertUnauthorized();
         $this->withCredentials()->withCookie(config('session.cookie'), Str::random(40))->getJson(route('live.signature'))->assertUnauthorized();
 
-        // (Tests use the array session driver; the live site stores sessions in the database.)
         config(['session.driver' => 'database']);
         $expired = $this->sessionFor($this->admin, now()->subMinutes(config('session.lifetime') + 5)->timestamp);
         $this->poll($expired)->assertUnauthorized();
 
-        // Signed in again somewhere else: the old browser's cookie no longer counts.
         $old = $this->sessionFor($this->cashier);
         $this->sessionFor($this->cashier);
         $this->poll($old)->assertUnauthorized();
@@ -242,7 +234,6 @@ class LiveUpdatesTest extends TestCase
         $session = $this->sessionFor($this->cashier);
         $before = $this->poll($session)->json('signatures.inventory');
 
-        // e.g. a sale's stock deduction, done straight on the query builder.
         DB::table('Inventory')->where('ProductID', $product->ProductID)->decrement('Quantity', 2);
 
         $this->assertNotSame($before, $this->poll($session)->json('signatures.inventory'));
@@ -281,8 +272,6 @@ class LiveUpdatesTest extends TestCase
             }
         }
 
-        // The dashboard can't render under the SQLite test database (MySQL-only
-        // date functions in its charts), so its wiring is checked in the view.
         $dashboard = file_get_contents(resource_path('views/admin/dashboard.blade.php'));
         $this->assertStringContainsString("window.liveUpdates.watch(['sales', 'inventory', 'products'", $dashboard);
         $this->assertStringContainsString("window.liveUpdates.watch(['activity']", $dashboard);
@@ -295,8 +284,6 @@ class LiveUpdatesTest extends TestCase
             ->assertSee("window.liveUpdates.watch(['discounts'], refreshPromoMap);", false);
     }
 
-    // The "new notification" card is our own markup, not a SweetAlert toast
-    // (the site-wide SweetAlert sizing squashed that into a broken box).
     public function test_new_notifications_show_in_the_sites_own_card_not_a_sweetalert_toast(): void
     {
         foreach ([[$this->admin, 'admin.suppliers.index'], [$this->cashier, 'cashier.transactions']] as [$user, $route]) {

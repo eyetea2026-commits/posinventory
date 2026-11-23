@@ -10,15 +10,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// The Edit Product button opens an AJAX modal (see openEditProductModal() in
-// admin/products/index.blade.php), which only ever fetches the
-// product-form-fields partial — the "Suppliers for this Product" panel used
-// to live only on the separate standalone edit page nothing links to
-// anymore, making it permanently unreachable. The panel now lives inside
-// product-form-fields.blade.php itself, rendering an AJAX (Edit mode) or
-// pending/client-side-only (Add mode) variant depending on whether a
-// product exists yet, so both the modal's AJAX response and the standalone
-// page render it from the same place.
 class ProductSupplierPanelReachabilityTest extends TestCase
 {
     use RefreshDatabase;
@@ -60,10 +51,6 @@ class ProductSupplierPanelReachabilityTest extends TestCase
         $this->assertStringContainsString('Acme Supplies', $html);
     }
 
-    // The Add Product popup's supplier box and button share their ids with
-    // the Edit popup's, so the Edit panel must look inside its own form;
-    // looking page-wide read the Add popup's empty box and said "Select a
-    // supplier." even with one chosen.
     public function test_the_edit_suppliers_panel_reads_its_own_supplier_box(): void
     {
         $html = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()->getContent();
@@ -73,7 +60,6 @@ class ProductSupplierPanelReachabilityTest extends TestCase
         $this->assertStringNotContainsString("document.getElementById('newSupplierId')", $html);
         $this->assertStringNotContainsString('Add / Update Supplier', $html);
 
-        // Suppliers already linked (Edit) or already added (Add) aren't offered again.
         $this->assertStringContainsString('window.hideLinkedSupplierOptions = function (select, supplierIds) {', $html);
         $this->assertStringContainsString('window.hideLinkedSupplierOptions(supplierSelect, suppliers.map(function (ps) { return ps.SupplierID; }));', $html);
         $this->assertStringContainsString('window.hideLinkedSupplierOptions(newSupplierIdSelect, pendingSuppliers.map(function (entry) { return entry.supplierId; }));', $html);
@@ -91,12 +77,6 @@ class ProductSupplierPanelReachabilityTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'id="productSuppliersBody"'));
     }
 
-    // The Add Product form now renders its own pending (client-side-only)
-    // variant of this panel, since a supplier can be chosen before the
-    // product exists — see the "Suppliers[][SupplierID]" handling in
-    // ProductController::store() and the matching JS in
-    // product-form-behavior.blade.php. It must never render the AJAX
-    // (Edit-mode) panel markup, since no ProductID exists yet to poll.
     public function test_add_product_form_renders_the_pending_suppliers_panel_not_the_ajax_one(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.products.create'));

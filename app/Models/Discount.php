@@ -43,32 +43,17 @@ class Discount extends Model
 
     const STATUS_EXPIRED = 'expired';
 
-    // "Scheduled" rather than "Inactive" for STATUS_INACTIVE — a promo whose
-    // StartDate hasn't arrived yet reads more clearly as scheduled than
-    // inactive. Every display of a Discount's status must go through this
-    // one map (via effective_status_label) so the wording can't drift
-    // between the Promo Discounts list, the View Details popup, and the
-    // Apply tab — they used to disagree (list said "Inactive", the popup
-    // and Apply tab already said "Scheduled") until this was unified.
     const STATUS_LABELS = [
         self::STATUS_ACTIVE => 'Active',
         self::STATUS_INACTIVE => 'Scheduled',
         self::STATUS_EXPIRED => 'Expired',
     ];
 
-    /**
-     * The sales this promo was applied to.
-     */
     public function salesTransactions()
     {
         return $this->hasMany(SalesTransaction::class, 'DiscountID', 'DiscountID');
     }
 
-    // The set of products this promo is actually assigned to — decided in
-    // a separate "Apply" step after creation, not at creation time. A promo
-    // can be assigned to zero (not yet applied to anything), one, or many
-    // products; scopeCurrentlyActive() below only considers it "applicable"
-    // once it has at least one.
     public function products()
     {
         return $this->belongsToMany(Product::class, 'DiscountProduct', 'DiscountID', 'ProductID')
@@ -80,15 +65,6 @@ class Discount extends Model
         return $this->belongsTo(User::class, 'CreatedBy', 'id');
     }
 
-    // Status is never manually toggled — it's derived entirely from
-    // StartDate/EndDate against today, computed at read time so it can't
-    // silently drift out of sync with the calendar the way a stored value
-    // would without a scheduler (this host doesn't reliably run one). A
-    // promo whose EndDate has passed reads as Expired; one whose StartDate
-    // hasn't arrived yet reads as Inactive; otherwise it's Active. The
-    // stored Status column is effectively vestigial (always 'active' from
-    // creation) and kept only so existing rows/migrations don't need a
-    // schema change.
     public function getEffectiveStatusAttribute(): string
     {
         $today = now()->startOfDay();
@@ -109,16 +85,11 @@ class Discount extends Model
         return self::STATUS_LABELS[$this->effective_status] ?? ucfirst($this->effective_status);
     }
 
-    // Both 'percentage' and 'fixed' math are wired up here.
     public function discountedPriceFor(Product $product): float
     {
         return $this->discountedPrice((float) $product->Price);
     }
 
-    /**
-     * The promo applied to one unit's price - the product's per-piece/meter
-     * Price, or its own price per box/roll when it's sold by that.
-     */
     public function discountedPrice(float $price): float
     {
         if ($this->DiscountType === self::TYPE_FIXED) {
@@ -128,8 +99,6 @@ class Discount extends Model
         return round($price * (1 - ((float) $this->DiscountRate / 100)), 2);
     }
 
-    // Null once expired/no end date — a "days remaining" that ever goes
-    // negative isn't meaningful to show.
     public function getRemainingDaysAttribute(): ?int
     {
         if (! $this->EndDate) {
@@ -141,14 +110,6 @@ class Discount extends Model
         return $days >= 0 ? (int) $days : null;
     }
 
-    // "Currently applicable" — the set a promo code lookup at POS checkout
-    // (and the admin list's default view) should consider: assigned to at
-    // least one real product (via the pivot — covers both legacy
-    // single-ProductID rows, backfilled into the pivot by the migration,
-    // and new multi-product assignments) and within its date window (a
-    // window that simply wasn't set is treated as always-open). Purely
-    // date-driven, matching getEffectiveStatusAttribute() — there's no
-    // separate admin-set status to gate on anymore.
     public function scopeCurrentlyActive($query)
     {
         $today = now()->toDateString();
@@ -162,12 +123,6 @@ class Discount extends Model
             });
     }
 
-    // Just the "hasn't expired yet" half of scopeCurrentlyActive() — without
-    // the "has at least one product assigned" requirement, so it also keeps
-    // a brand-new promo (created but not yet applied to anything) visible.
-    // Used to hide expired promos from the admin's active Promo Discount
-    // list and "Choose Promo Discount" picker, which scopeCurrentlyActive()
-    // can't be reused for since it would also hide unassigned ones.
     public function scopeNotExpired($query)
     {
         $today = now()->toDateString();

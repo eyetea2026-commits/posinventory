@@ -5,16 +5,6 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Each delivery line becomes a stock batch (panel suggestion):
- * - DamagedQuantity: arrived damaged (in the order line's unit). Counted as
- *   delivered on the order, never added to stock; it goes to the Damage
- *   module for return to the supplier.
- * - UnitCost / SellingPrice: per base unit, as they were when it arrived,
- *   so each batch's cost, selling price and margin can be followed.
- * Lines received before this get the order line's cost and the product's
- * current selling price.
- */
 return new class extends Migration
 {
     public function up(): void

@@ -52,7 +52,6 @@
                         <button type="submit" class="lv2-submit">Log in</button>
 
                         <div class="lv2-footer">
-                            {{-- Only after a failed login for an Admin account. --}}
                             @if(session('show_forgot_password'))
                                 <a id="forgot-link" class="lv2-forgot-link" href="{{ route('admin.forgot') }}">Forgot Password?</a>
                             @endif
@@ -83,14 +82,6 @@
     </div>
 
     <script>
-        // Guard against a double-click/double-submit on Log in -- without
-        // this, a slow response (or an impatient second click) can fire two
-        // POST /login requests; the first succeeds and locks the account to
-        // that session, then the second arrives a moment later and is
-        // rejected by the one-session-per-account rule as "already logged
-        // in on another device", even though it's the same person on the
-        // same browser. Disabling the button (and swapping its label) on
-        // the first submit makes that race impossible client-side.
         (function () {
             const loginForm = document.querySelector('form[action="{{ route('login.post') }}"]');
             if (!loginForm) return;
@@ -125,15 +116,6 @@
             }, 2000);
         }
 
-        // Animated login character. Two independent things happen on page
-        // load: (1) the character "speaks" the greeting, with its mouth
-        // synced to the text revealing in the fixed top bar, and (2) the
-        // character operates the POS terminal — pressing keys and ringing
-        // up products on the little screen — on its own separate timeline
-        // that has nothing to do with how long the greeting text takes.
-        // Only runs when the illustration panel is actually on screen (it's
-        // hidden below the 960px breakpoint), and is skipped entirely for
-        // anyone who prefers reduced motion.
         (function () {
             const character = document.getElementById('lv2Character');
             if (!character || !window.matchMedia('(min-width: 960px)').matches) return;
@@ -179,8 +161,6 @@
                 (function scheduleNext() {
                     const delay = 2400 + Math.random() * 3200;
                     blinkTimer = setTimeout(() => {
-                        // Occasionally glance aside instead of blinking, so
-                        // the face doesn't feel like it's on a robotic timer.
                         if (Math.random() < 0.3) {
                             lookAroundOnce();
                         } else {
@@ -191,9 +171,6 @@
                 })();
             }
 
-            // The ONLY animation tied to the text: the mouth opens/closes
-            // for exactly as long as typeText() below is revealing the
-            // greeting, then stops the instant it finishes.
             function startMouthTalking() {
                 mouth.classList.add('lv2-mouth--talking');
                 let open = false;
@@ -209,8 +186,6 @@
                 mouth.classList.remove('lv2-mouth--talking', 'lv2-mouth--open');
             }
 
-            // Reveals the greeting character-by-character in the speech box
-            // above the terminal / left of the character's head.
             function typeText(fullText, onDone) {
                 topBar.classList.add('lv2-visible');
                 topBarText.textContent = '';
@@ -232,11 +207,6 @@
                 speakAloud();
             }
 
-            // The greeting is read aloud by the browser's own voice. Chrome,
-            // Edge and phone browsers block sound on a page nobody has
-            // clicked yet, so if this first try doesn't start, the greeting
-            // is spoken on the first click, tap or key press on the page
-            // instead (once). The visual sequence never waits on the voice.
             let greetingSpoken = false;
 
             function speakAloud() {
@@ -253,7 +223,6 @@
                     };
                     window.speechSynthesis.speak(utterance);
                 } catch (e) {
-                    // No voice on this browser: the greeting still types out.
                 }
             }
 
@@ -274,10 +243,6 @@
                 });
             }
 
-            // Runs the POS ring-up on its own clock — a fixed number of key
-            // presses, unrelated to the greeting text's length or speed, so
-            // "typing" never lines up letter-for-letter with what's being
-            // said. Ends with the sale total left showing on the screen.
             function operatePOS() {
                 const RING_UP_STEPS = [
                     { at: 700, text: 'Scanning…' },
@@ -406,12 +371,6 @@
         .lv2-field input::placeholder {
             color: #94a3b8;
         }
-        /* Chrome/Edge paint autofilled fields with their own pale
-           background (visible as the light box around a saved
-           username/password), ignoring the input's own dark background --
-           this is the standard override: an inset box-shadow the size of
-           the field, plus -webkit-text-fill-color since autofill also
-           ignores a plain color declaration on the text itself. */
         .lv2-field input:-webkit-autofill,
         .lv2-field input:-webkit-autofill:hover,
         .lv2-field input:-webkit-autofill:focus {
@@ -564,13 +523,6 @@
             50% { transform: translateY(-3px); }
         }
 
-        /* A second copy of the same flat PNG, stacked exactly on top of the
-           base layer and clipped down to just the pointing hand/forearm, so
-           that region alone can rotate slightly — the base layer underneath
-           keeps the rest of the character (and the hand's resting position)
-           perfectly still. Coordinates are pixel-measured from the source
-           image, expressed as % of the character box (which shares the
-           image's exact aspect ratio). */
         .lv2-hand-layer {
             position: absolute;
             top: 0;
@@ -583,15 +535,6 @@
             transform: rotate(-4deg) translate(-2px, 1px);
         }
 
-        /* Eyes/eyebrows/mouth overlaid on the illustration — the source PNG
-           is a flat, featureless face, so these are drawn fresh rather than
-           animating anything already in the artwork. Positioned as % of
-           the character box, which shares the image's exact aspect ratio,
-           so they stay aligned with the face at any size. Styled as a
-           friendlier, more expressive face (visible eyebrows, white-and-
-           pupil eyes, a warm smile) per the reference look. In the image
-           the face runs from the hairline (18.6%) to the chin (32%): eyes
-           just under halfway down it, the mouth about three quarters. */
         .lv2-eyebrow {
             position: absolute;
             left: 67.6%;
@@ -624,9 +567,6 @@
         .lv2-eye.lv2-look-left { transform: translate(-65%, -50%); }
         .lv2-eye.lv2-look-right { transform: translate(-35%, -50%); }
 
-        /* Resting mouth: a solid, curved-bottom smile silhouette (a hollow
-           outline doesn't read clearly at this element's small rendered
-           size) — while talking, it grows into a rounder open-mouth shape. */
         .lv2-mouth {
             position: absolute;
             left: 70.7%;
@@ -643,11 +583,6 @@
             border-radius: 40%;
         }
 
-        /* The small POS monitor screen in the illustration — coordinates
-           pixel-measured from the source image, expressed as % of the
-           character box so the overlay text stays glued to the screen at
-           any size. Sale progress is driven entirely by operatePOS()'s own
-           timers, independent of the greeting text/speech. */
         .lv2-pos-screen {
             position: absolute;
             left: 23%;
@@ -667,10 +602,6 @@
         }
         .lv2-pos-screen.lv2-visible { display: flex; }
 
-        /* Sits in the empty space above the POS terminal and left of the
-           character's head — positioned as % of the character box (same
-           system as the eyes/mouth/hand layer/POS screen) so it stays put
-           there at any size. */
         .lv2-speech-box {
             position: absolute;
             left: 3%;
@@ -712,8 +643,6 @@
         }
         @media (max-width: 960px) {
             .lv2-frame {
-                /* minmax(0, 1fr): the column shrinks to the screen instead
-                   of growing to fit the fields, which cut them off on phones. */
                 grid-template-columns: minmax(0, 1fr);
                 padding: 16px;
             }

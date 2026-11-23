@@ -4,10 +4,6 @@ namespace Tests\Feature;
 
 use Tests\TestCase;
 
-// The login character's eyes, eyebrows and mouth are drawn over a faceless
-// picture (Images/Emoji.png), placed as % of it. The face runs from the
-// hairline (about 18.6% down) to the chin (32%): eyebrows, then eyes just
-// under halfway, then the mouth about three quarters down, above the chin.
 class LoginCharacterFaceTest extends TestCase
 {
     public function test_the_eyes_and_mouth_sit_inside_the_face(): void
@@ -27,11 +23,9 @@ class LoginCharacterFaceTest extends TestCase
 
         $this->assertSame([21.5, 23.7, 29.3], [$eyebrow, $eye, $mouth]);
 
-        // Across the face: eyes at 67.4% and 72%, mouth just right of their middle.
         $this->assertStringContainsString('.lv2-eye--right { left: 72%; }', $html);
         $this->assertMatchesRegularExpression('/\.lv2-eye \{\s*position: absolute;\s*left: 67\.4%;/', $html);
         $this->assertMatchesRegularExpression('/\.lv2-mouth \{\s*position: absolute;\s*left: 70\.7%;/', $html);
-        // In order down the face, all between the hairline and the chin.
         $this->assertTrue($eyebrow > 18.6 && $eyebrow < $eye && $eye < $mouth && $mouth < 32.0);
     }
 }

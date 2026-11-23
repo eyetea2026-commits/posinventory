@@ -20,8 +20,6 @@ class SalesReturnItem extends Model
     protected $fillable = [
         'SalesReturnID',
         'ProductID',
-        // In the unit it was sold in (Unit) and at that unit's UnitPrice;
-        // BaseQuantity is what goes back to stock (or to Damage).
         'Quantity',
         'Unit',
         'BaseQuantity',
@@ -34,9 +32,6 @@ class SalesReturnItem extends Model
         'BaseQuantity' => Quantity::class,
     ];
 
-    /**
-     * A line saved without its unit is a piece-for-piece line.
-     */
     protected static function booted(): void
     {
         static::creating(function (SalesReturnItem $item) {
@@ -47,9 +42,6 @@ class SalesReturnItem extends Model
         });
     }
 
-    /**
-     * "1.5 meters", "1 box".
-     */
     public function quantityLabel(): string
     {
         return UnitOfMeasure::format($this->Quantity, $this->Unit ?: UnitOfMeasure::DEFAULT);
@@ -70,12 +62,6 @@ class SalesReturnItem extends Model
         return $this->Quantity * $this->UnitPrice;
     }
 
-    /**
-     * What these pieces are refunded: what was paid for them on the sale,
-     * each at its own sale line's price (a product sold from batches at
-     * different prices has one line per price), after the pieces earlier
-     * requests on the same sale already return.
-     */
     public function refundableTotal(): float
     {
         $salesTransactionId = (int) $this->salesReturn?->SalesTransactionID;

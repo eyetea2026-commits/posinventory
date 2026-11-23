@@ -13,9 +13,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Every list shows the most recently added record on top. Each test adds an
-// "Alpha" record first and a "Zulu" record second, so alphabetical order and
-// newest-first order disagree: Zulu must come before Alpha.
 class NewestFirstListsTest extends TestCase
 {
     use RefreshDatabase;
@@ -95,7 +92,6 @@ class NewestFirstListsTest extends TestCase
     public function test_administrator_accounts_stay_on_top_of_the_users_list(): void
     {
         $this->admin->update(['name' => 'Administrator']);
-        // Cashiers added after the admin would otherwise be listed above it.
         User::factory()->create(['name' => 'alpha_user', 'role_id' => $this->cashier->role_id]);
         User::factory()->create(['name' => 'zulu_user', 'role_id' => $this->cashier->role_id]);
 
@@ -107,7 +103,6 @@ class NewestFirstListsTest extends TestCase
     {
         $alpha = $this->makeProduct('Alpha Camera');
         $zulu = $this->makeProduct('Zulu Camera');
-        // The newer record carries an older adjustment date; it still goes on top.
         StockAdjustment::create(['ProductID' => $alpha->ProductID, 'QuantityAdjust' => -1, 'Reason' => StockAdjustment::REASON_LOST, 'Date' => '2026-10-10']);
         StockAdjustment::create(['ProductID' => $zulu->ProductID, 'QuantityAdjust' => -1, 'Reason' => StockAdjustment::REASON_LOST, 'Date' => '2026-10-01']);
 

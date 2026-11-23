@@ -8,9 +8,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
-// Besides server errors, laravel.log records JavaScript errors from the
-// browser ("Browser error") and pages or saves that take too long to answer
-// ("Slow request"), the two kinds of bug that left no trace before.
 class RecordedErrorsTest extends TestCase
 {
     use RefreshDatabase;
@@ -65,7 +62,6 @@ class RecordedErrorsTest extends TestCase
         ] as $html) {
             $reporter = strpos($html, 'if (window.__errorReporter) return;');
             $this->assertNotFalse($reporter);
-            // No other script runs before it.
             $this->assertSame(1, substr_count(substr($html, 0, $reporter), '<script'));
         }
     }
@@ -78,7 +74,6 @@ class RecordedErrorsTest extends TestCase
         $this->get(route('welcome'))->assertOk();
         Log::shouldNotHaveReceived('warning');
 
-        // Every request counts as slow when the limit is 0 seconds.
         config(['logging.slow_request_seconds' => 0]);
         $this->get(route('welcome'))->assertOk();
         Log::shouldHaveReceived('warning')->once()->withArgs(function (string $message, array $context) {

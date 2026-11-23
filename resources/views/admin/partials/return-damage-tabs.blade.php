@@ -1,7 +1,3 @@
-{{-- Return & Damage is one module (one sidebar item): Return Approval and
-     Damage are its two tabs, in the same toggle style as Discounts & Promos.
-     A damage record mostly starts as an approved return (Factory Defect /
-     Damaged Product), so the admin follows it from one tab to the next. --}}
 <style>
     .rd-tabs { display: inline-flex; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
     .rd-tab { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 9px; color: #94a3b8; font-weight: 600; font-size: 0.88rem; text-decoration: none; transition: all 0.2s ease; white-space: nowrap; }

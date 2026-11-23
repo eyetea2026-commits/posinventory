@@ -6,11 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Receives JavaScript errors from the browser (partials/error-reporter) and
- * writes them to laravel.log as "Browser error", so a page that breaks in
- * the browser leaves a trace like a server error does.
- */
 class ClientErrorController extends Controller
 {
     public function store(Request $request): Response

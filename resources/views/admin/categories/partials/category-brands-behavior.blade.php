@@ -1,17 +1,3 @@
-{{-- Shared "Brands in this Category" panel behavior — used by the Add
-     Category modal, the Edit Category modal (index.blade.php), and the
-     standalone create/edit pages, since all of them render the same
-     category-form-fields partial. Scoped via the closest .form-group
-     rather than fixed element ids, because the Add and Edit forms can both
-     be present in the DOM at the same time.
-
-     Edit mode (a real CategoryID exists): add/remove is an immediate AJAX
-     call against that category's brands.
-     Add mode (no CategoryID yet — data-category-id=""): a brand can't be
-     attached to a category that doesn't exist, so chips are held
-     client-side only as "Brands[]" hidden inputs and are only actually
-     created once the whole Create Category form is submitted (see
-     CategoryController::store()). --}}
 <script>
     function brandPanelParts(triggerEl) {
         const formGroup = triggerEl.closest('.form-group');
@@ -91,8 +77,6 @@
         const categoryId = list.dataset.categoryId;
 
         if (!categoryId) {
-            // Add mode: purely client-side, de-duplicated case-insensitively
-            // against whatever's already been added to this pending list.
             const normalized = brandName.toLowerCase();
             const alreadyPending = Array.from(list.querySelectorAll('.brand-chip[data-pending="1"]'))
                 .some(function (chip) { return (chip.dataset.name || '').toLowerCase() === normalized; });
@@ -148,7 +132,6 @@
         }
     });
 
-    // Add mode only: no server call, just drop the chip and its hidden input.
     window.removePendingBrandChip = function (buttonEl) {
         const chip = buttonEl.closest('.brand-chip');
         const list = chip ? chip.closest('.brand-chip-list') : null;
@@ -156,7 +139,6 @@
         if (list) showEmptyHintIfNeeded(list);
     };
 
-    // Edit mode only: the brand already exists in the database.
     window.removeCategoryBrandChip = function (buttonEl) {
         const chip = buttonEl.closest('.brand-chip');
         const brandId = chip ? chip.dataset.brandId : null;

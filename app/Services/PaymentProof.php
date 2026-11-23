@@ -5,12 +5,6 @@ namespace App\Services;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
-/**
- * Proof of payment photos (GCash screenshot, bank transfer slip, cheque).
- * Kept readable (up to 1600 px) and on the PRIVATE disk: they show account
- * names and numbers, so they're only served to signed-in staff through
- * PaymentProofController, never by a public link.
- */
 class PaymentProof
 {
     public const DISK = 'local';
@@ -21,11 +15,6 @@ class PaymentProof
 
     private const QUALITY = 80;
 
-    /**
-     * Payment methods a proof can be attached to.
-     *
-     * @var list<string>
-     */
     public const METHODS = ['gcash', 'bank', 'cheque'];
 
     public static function store(UploadedFile $file): string

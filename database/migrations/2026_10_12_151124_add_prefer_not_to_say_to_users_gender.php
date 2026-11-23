@@ -6,10 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Allow "Prefer not to say" as a gender option. Every existing value is
-     * kept, and the column stays nullable as before.
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {

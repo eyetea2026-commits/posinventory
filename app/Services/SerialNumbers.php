@@ -7,26 +7,10 @@ use App\Models\Product;
 use App\Models\ProductSerial;
 use Illuminate\Support\Collection;
 
-/**
- * Keeps one "In Stock" serial number per piece for products whose category
- * tracks serial numbers. Runs after every stock save (InventoryObserver):
- * stock that went up gets new serials; stock that went down retires the
- * oldest ones, unless the caller already marked the exact pieces (a POS
- * sale marks the scanned serials Sold before saving the stock).
- */
 class SerialNumbers
 {
     private static string $removalStatus = ProductSerial::STATUS_REMOVED;
 
-    /**
-     * Pieces this callback takes out of stock are recorded with $status
-     * (e.g. "Adjusted Out") instead of the generic "Removed from Stock".
-     *
-     * @template T
-     *
-     * @param  callable(): T  $callback
-     * @return T
-     */
     public static function removingAs(string $status, callable $callback)
     {
         $previous = self::$removalStatus;
@@ -66,9 +50,6 @@ class SerialNumbers
         }
     }
 
-    /**
-     * @return Collection<int, ProductSerial>
-     */
     public static function create(int $productId, int $count): Collection
     {
         $serials = collect();
@@ -86,14 +67,8 @@ class SerialNumbers
         return $serials;
     }
 
-    /**
-     * A refunded piece goes back on the shelf with its own sticker: the
-     * serials sold on that sale return to stock (latest first) before the
-     * stock is saved, so no new numbers are made for them.
-     */
     public static function returnToStock(int $salesTransactionId, int $productId, int $quantity, ?int $salesReturnId = null): void
     {
-        // The exact pieces picked on the return, when it has them.
         if ($salesReturnId && ProductSerial::where('SalesReturnID', $salesReturnId)->where('ProductID', $productId)->exists()) {
             ProductSerial::where('SalesReturnID', $salesReturnId)
                 ->where('ProductID', $productId)

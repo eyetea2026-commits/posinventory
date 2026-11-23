@@ -40,15 +40,11 @@ class NotificationController extends Controller
             return response()->json(['success' => true]);
         }
 
-        // Clicking a notification both acknowledges it and takes the admin to
-        // the relevant page (its "View Details" destination).
         return redirect($notification->data['url'] ?? route('admin.notifications.index'));
     }
 
     public function markAllAsRead()
     {
-        // A bulk UPDATE instead of unreadNotifications->markAsRead(), which
-        // loads every unread row into memory and issues one UPDATE each.
         auth()->user()->unreadNotifications()->update(['read_at' => now()]);
 
         if (request()->wantsJson()) {

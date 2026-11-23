@@ -13,10 +13,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Products can be tagged "Not returnable / refundable" (consumables, wires,
-// fiber connectors: RJ45, coaxial cable...). The tag is set on Add/Edit
-// Product, shows in the product list and details, and the Cashier can't put
-// a tagged product on a return request.
 class ProductReturnabilityTest extends TestCase
 {
     use RefreshDatabase;
@@ -57,9 +53,6 @@ class ProductReturnabilityTest extends TestCase
         }
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     private function productFields(array $overrides = []): array
     {
         return array_merge([
@@ -74,11 +67,9 @@ class ProductReturnabilityTest extends TestCase
         $coax = Product::where('ProductName', 'Coaxial RG59')->firstOrFail();
         $this->assertFalse($coax->IsReturnable);
 
-        // Unticked (the form always sends the hidden "0").
         $this->actingAs($this->admin)->put(route('admin.products.update', $coax), $this->productFields(['NonReturnable' => '0']))->assertSessionHasNoErrors();
         $this->assertTrue($coax->fresh()->IsReturnable);
 
-        // A product added without the box is returnable.
         $this->actingAs($this->admin)->post(route('admin.products.store'), $this->productFields(['ProductName' => 'Bullet Camera', 'Model' => 'BC-1', 'Barcode' => 'CCTVEX-000100']))->assertSessionHasNoErrors();
         $this->assertTrue(Product::where('ProductName', 'Bullet Camera')->firstOrFail()->IsReturnable);
     }
@@ -111,7 +102,6 @@ class ProductReturnabilityTest extends TestCase
         ])->assertStatus(400)->assertJsonPath('message', 'RJ45 Regular is not returnable / refundable.');
         $this->assertDatabaseMissing('SalesReturn', ['SalesTransactionID' => $this->sale->SalesTransactionID]);
 
-        // A returnable product on the same sale still goes through.
         $this->actingAs($this->cashier)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->sale->SalesTransactionID,
             'items' => [['product_id' => $this->camera->ProductID, 'quantity' => 1, 'reason_code' => 'factory_defect']],

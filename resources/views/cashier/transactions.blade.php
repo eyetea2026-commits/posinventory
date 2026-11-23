@@ -81,12 +81,8 @@
 @include('partials.print-bridge')
 
 <script>
-    // Local-only direct printing (see App\Services\ThermalReceiptPrinter).
     const RECEIPT_THERMAL_PRINTING = @json(\App\Services\ThermalReceiptPrinter::isEnabled());
 
-    // Print button: always asks first, then prints to the thermal printer
-    // (when enabled locally) or opens the on-screen receipt. window.open runs
-    // inside the confirm button's own click, so it isn't popup-blocked.
     window.confirmPrintReceipt = function (event, receiptNumber, receiptUrl) {
         event.preventDefault();
         const button = event.currentTarget;
@@ -103,9 +99,6 @@
             if (RECEIPT_THERMAL_PRINTING) {
                 reprintToThermal(button, receiptNumber, receiptUrl);
             } else {
-                // Deployed site: print through the cashier PC's local app
-                // (exactly like a local reprint); without it, open the
-                // on-screen receipt.
                 window.printViaBridge(receiptNumber, false)
                     .then(function () { toastSuccess('Receipt sent to the printer.'); })
                     .catch(function (message) {
@@ -118,9 +111,6 @@
         return false;
     };
 
-    // Reprint straight to the local thermal printer; if it can't be
-    // reached, open the normal on-screen receipt instead so the cashier is
-    // never stuck.
     function reprintToThermal(button, receiptNumber, receiptUrl) {
         if (button.dataset.printing === '1') return;
         button.dataset.printing = '1';
@@ -188,13 +178,11 @@
             }
         }
 
-        // Live/instant: every keystroke re-filters, no Search button needed.
         searchInput.addEventListener('input', function () {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(applyFilters, 300);
         });
 
-        // Search is already live — Enter shouldn't trigger a full page reload.
         form.addEventListener('submit', function (e) { e.preventDefault(); });
     })();
 </script>

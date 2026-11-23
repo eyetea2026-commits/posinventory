@@ -34,10 +34,6 @@ class CashierReturnController extends Controller
 {
     public function __construct()
     {
-        // Route-level role:cashier middleware already gates every route
-        // here — this constructor-level check is defense-in-depth, matching
-        // the same double-gate pattern every other controller in the app
-        // uses (this was previously the one controller without it).
         $this->middleware('auth');
         $this->middleware(function ($request, $next) {
             if (! auth()->user() || ! auth()->user()->isCashier()) {
@@ -48,10 +44,6 @@ class CashierReturnController extends Controller
         });
     }
 
-    // Resolves the logged-in cashier's own Staff row -- 0 (never a real
-    // StaffID) when none exists yet, so an ownership-scoped query naturally
-    // returns nothing instead of matching every SalesReturn with a null
-    // StaffID would.
     private function currentStaffId(): int
     {
         return Staff::where('UserID', Auth::id())->value('StaffID') ?? 0;
@@ -69,9 +61,6 @@ class CashierReturnController extends Controller
         $refunds = SalesReturn::with(['staff', 'salesTransaction', 'items.product'])
             ->where('StaffID', $staff->StaffID ?? 0)
             ->when($search, function ($query) use ($search) {
-                // Grouped in its own closure -- an ungrouped orWhere() here
-                // would break out of the StaffID scope above and leak every
-                // cashier's returns whose Reason happens to match $search.
                 return $query->where(function ($inner) use ($search) {
                     $inner->where('CustomerName', 'like', "%{$search}%")
                         ->orWhere('Reason', 'like', "%{$search}%");
@@ -89,9 +78,6 @@ class CashierReturnController extends Controller
         return view('cashier.refunds', compact('refunds', 'search', 'status', 'returnType'));
     }
 
-    /**
-     * Search for a transaction by receipt/invoice number, customer name, or barcode.
-     */
     public function searchTransaction(Request $request)
     {
         $data = $request->validate([
@@ -145,11 +131,8 @@ class CashierReturnController extends Controller
             })]);
         }
 
-        // SKU or barcode
         $product = Product::where('Barcode', $query)->orWhere('SKU', $query)->first();
 
-        // The QR code at the bottom of every receipt holds its receipt
-        // number (e.g. RCT-000066): scanning it here opens that receipt.
         if (! $product && preg_match('/^RCT-?\d+$/i', $query)) {
             $transaction = SalesTransaction::with(['items.product.category', 'payment', 'staff.user'])
                 ->find((int) preg_replace('/[^0-9]/', '', $query));
@@ -194,9 +177,6 @@ class CashierReturnController extends Controller
         })]);
     }
 
-    /**
-     * Get transaction details for the refund request form.
-     */
     public function getTransactionDetails($transactionId)
     {
         $transaction = SalesTransaction::with(['items.product.category', 'payment', 'staff.user'])
@@ -214,14 +194,10 @@ class CashierReturnController extends Controller
     {
         $receiptNumber = 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
-        // One row per product: a product sold from stock batches at
-        // different prices has one sale line per price.
         $items = $transaction->items->groupBy('ProductID')->map(function ($lines) use ($transaction) {
             $item = $lines->first();
             $quantityPurchased = Quantity::normalize($lines->sum(fn ($line) => (float) $line->Quantity));
             $totalPrice = round($lines->sum(fn ($line) => (float) $line->Quantity * (float) $line->UnitPrice), 2);
-            // Same count createRefund() enforces: every not-declined return
-            // request line for this product on this sale.
             $alreadyRequested = (float) SalesReturnItem::where('ProductID', $item->ProductID)
                 ->whereHas('salesReturn', function ($q) use ($transaction) {
                     $q->where('SalesTransactionID', $transaction->SalesTransactionID)
@@ -237,19 +213,14 @@ class CashierReturnController extends Controller
                 'Barcode' => $item->product?->Barcode,
                 'Category' => $item->product?->category?->CategoryName,
                 'CategoryID' => $item->product?->CategoryID,
-                // In the unit it was sold in ("1.5 meters", "1 box").
                 'QuantityPurchased' => $quantityPurchased,
                 'RemainingReturnableQty' => Quantity::normalize(max(0, $quantityPurchased - $alreadyRequested)),
                 'Unit' => $unit,
                 'UnitPlural' => UnitOfMeasure::plural($unit),
                 'AllowsDecimals' => $this->returnAllowsDecimals($item),
-                // Tagged "Not returnable / refundable" (consumables, wires, fiber connectors).
                 'IsReturnable' => (bool) ($item->product?->IsReturnable ?? true),
-                // The average when its pieces sold at different batch prices.
                 'UnitPrice' => (float) $quantityPurchased > 0 ? round($totalPrice / (float) $quantityPurchased, 2) : (float) $item->UnitPrice,
                 'TotalPrice' => $totalPrice,
-                // Serial-numbered: the sticker of each piece coming back is
-                // picked, so a damaged one is never sold again.
                 'TracksSerials' => (bool) $item->product?->tracksSerialNumbers(),
                 'SerialNumbers' => $item->product?->tracksSerialNumbers()
                     ? ProductSerial::returnableFor($transaction->SalesTransactionID, $item->ProductID)->pluck('SerialNumber')->values()->all()
@@ -270,10 +241,6 @@ class CashierReturnController extends Controller
         ];
     }
 
-    /**
-     * Part of a unit (0.5 of the 1.5 meters bought) can only come back when
-     * it was sold in a unit that allows decimals.
-     */
     private function returnAllowsDecimals(SalesItem $salesItem): bool
     {
         $unit = $salesItem->Unit ?: UnitOfMeasure::DEFAULT;
@@ -282,24 +249,16 @@ class CashierReturnController extends Controller
             || floor((float) $salesItem->Quantity) != (float) $salesItem->Quantity;
     }
 
-    /**
-     * Create a new return request (Refund) — pending admin approval.
-     */
     public function createRefund(Request $request)
     {
         $data = $request->validate([
             'transaction_id' => 'required|integer|exists:SalesTransaction,SalesTransactionID',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer|exists:Product,ProductID',
-            // In the unit the product was sold in (meters, boxes...).
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
-            // Always Factory Defect: set automatically when it isn't sent.
             'items.*.reason_code' => 'nullable|in:'.implode(',', array_keys(SalesReturn::REASON_CODES)),
-            // Serial-numbered products: the sticker of each piece returned.
             'items.*.serials' => 'nullable|array',
             'items.*.serials.*' => 'string|max:20',
-            // Every return is settled by a refund (replacements were retired
-            // on 2026-07-19 and their table removed on 2026-10-29).
             'return_type' => 'required|in:refund',
             'remarks' => 'nullable|string|max:500',
         ]);
@@ -309,10 +268,6 @@ class CashierReturnController extends Controller
 
         $transaction = SalesTransaction::find($data['transaction_id']);
 
-        // The 7-day return policy window is measured from the original sale
-        // date to today (the same math SalesReturn::days_since_purchase uses
-        // once a request exists) — checked here before a request record is
-        // even created, so a late request can't be submitted at all.
         $daysSincePurchase = Carbon::parse($transaction->SalesTransactionDate)->startOfDay()
             ->diffInDays(now()->startOfDay());
 
@@ -323,8 +278,6 @@ class CashierReturnController extends Controller
             ], 400);
         }
 
-        // Products tagged "Not returnable / refundable" can't be on a return
-        // request (checked here too, not only by the disabled checkbox).
         $nonReturnable = Product::whereIn('ProductID', collect($data['items'])->pluck('product_id'))
             ->where('IsReturnable', false)
             ->pluck('ProductName');
@@ -335,15 +288,6 @@ class CashierReturnController extends Controller
             ], 400);
         }
 
-        // Guards against duplicate submissions the disabled-submit-button
-        // client-side guard can't catch on its own (a second browser tab, a
-        // fast double-tap before the button disables, a replayed request) —
-        // only one return-request submission per cashier can be in flight
-        // at a time. Same pattern as processSale()'s per-cashier checkout
-        // lock; the per-item lockForUpdate() below only stops two DIFFERENT
-        // requests from jointly over-requesting past what was sold, not two
-        // identical duplicate requests that each individually have enough
-        // quantity headroom to pass on their own.
         $lock = Cache::lock("return-request:user:{$user->id}", 10);
         if (! $lock->get()) {
             return response()->json([
@@ -357,13 +301,6 @@ class CashierReturnController extends Controller
                 $lines = [];
 
                 foreach ($data['items'] as $itemData) {
-                    // Locked so two near-simultaneous requests for the same
-                    // transaction+product can't both read the same
-                    // "already requested" sum before either commits and
-                    // jointly over-request more than was sold (see audit
-                    // finding F6) — the second request blocks here until
-                    // the first's insert below is committed, then re-reads
-                    // a sum that already includes it.
                     $saleLines = SalesItem::linesForProduct((int) $data['transaction_id'], (int) $itemData['product_id'], true);
                     $salesItem = $saleLines->first();
 
@@ -371,9 +308,6 @@ class CashierReturnController extends Controller
                         throw new \RuntimeException('Product not found in transaction.');
                     }
 
-                    // A transaction can only be returned up to the quantity actually sold —
-                    // without this, repeated return requests for the same line item could
-                    // each get approved and inflate inventory/payouts beyond what was sold.
                     $alreadyRequested = SalesReturnItem::where('ProductID', $itemData['product_id'])
                         ->whereHas('salesReturn', function ($q) use ($data) {
                             $q->where('SalesTransactionID', $data['transaction_id'])
@@ -392,7 +326,6 @@ class CashierReturnController extends Controller
 
                     $lines[] = [
                         'salesItem' => $salesItem,
-                        // Each piece at its own sale line's price, after the pieces already requested.
                         'amounts' => SalesItem::returnedAmounts((int) $data['transaction_id'], (int) $itemData['product_id'], $quantity, (float) $alreadyRequested),
                         'productId' => $itemData['product_id'],
                         'quantity' => $quantity,
@@ -415,8 +348,6 @@ class CashierReturnController extends Controller
                 $productNames = [];
 
                 foreach ($lines as $line) {
-                    // In the unit it was sold in; BaseQuantity is what goes
-                    // back to stock (or to Damage): 1 box = 100 pieces.
                     $returnItem = SalesReturnItem::create([
                         'SalesReturnID' => $salesReturn->SalesReturnID,
                         'ProductID' => $line['productId'],
@@ -427,7 +358,6 @@ class CashierReturnController extends Controller
                         'Reason' => $line['reasonLabel'],
                     ]);
 
-                    // Those exact pieces are now on this return (released if it's declined).
                     if ($line['serialIds']) {
                         ProductSerial::whereIn('ProductSerialID', $line['serialIds'])->update(['SalesReturnID' => $salesReturn->SalesReturnID]);
                     }
@@ -446,11 +376,6 @@ class CashierReturnController extends Controller
 
         ActivityLog::record('return.requested', "Requested {$data['return_type']} #{$salesReturn->SalesReturnID} for ".implode(', ', $productNames)." (Txn #{$data['transaction_id']})");
 
-        // The return request record already committed above — a
-        // notification failure (broken mail transport, queue connection
-        // down) must not turn a successful submission into a 500 response
-        // that could prompt the cashier to retry and create a duplicate
-        // request.
         try {
             Notification::send(User::admins(), new NewRefundRequest($salesReturn));
         } catch (Throwable $e) {
@@ -470,9 +395,6 @@ class CashierReturnController extends Controller
         ]);
     }
 
-    /**
-     * Process a refund after admin approval.
-     */
     public function processRefund(Request $request, $salesReturnId)
     {
         $data = $request->validate([
@@ -482,10 +404,6 @@ class CashierReturnController extends Controller
 
         $staffId = $this->currentStaffId();
 
-        // Owner-scoped: a Cashier may only complete a refund they themselves
-        // filed (see CashierReturnController audit finding F2/F1) -- the
-        // lookup during refund creation already stamps StaffID from the
-        // authenticated user, so this is the same identity, not a new rule.
         $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->first();
 
         if (! $salesReturn) {
@@ -498,33 +416,17 @@ class CashierReturnController extends Controller
 
         try {
             $refundAmount = DB::transaction(function () use ($salesReturnId, $staffId, $data) {
-                // Re-fetch and lock the SalesReturn row itself (the earlier
-                // check above is only a fast-fail before the lock exists).
-                // Without this, two near-simultaneous requests for the same
-                // return can both read Status=approved before either commits,
-                // and both process the same refund — this lock plus the
-                // re-check below serializes them so only the first succeeds.
                 $salesReturn = SalesReturn::where('SalesReturnID', $salesReturnId)->where('StaffID', $staffId)->lockForUpdate()->first();
 
                 if (! $salesReturn || $salesReturn->Status !== SalesReturn::STATUS_APPROVED || $salesReturn->ReturnType !== SalesReturn::TYPE_REFUND) {
                     throw new \RuntimeException('This refund has already been processed or is no longer approved.');
                 }
 
-                // Recompute the payout from the original sale instead of
-                // trusting the client-submitted amount — that field is only
-                // pre-filled for display and is editable in the browser
-                // before this request is sent. Looped per line item since a
-                // request can cover multiple products.
                 $refundAmount = 0;
 
                 foreach ($salesReturn->items as $item) {
                     $saleLineIds = SalesItem::linesForProduct((int) $salesReturn->SalesTransactionID, (int) $item->ProductID)->pluck('SalesItemID')->all();
 
-                    // The customer is refunded in cash either way — Factory Defect /
-                    // Damaged Product units just skip going back into Inventory
-                    // (they were already diverted into the Damage module when the
-                    // admin approved this return; see SalesReturnController::approve()).
-                    // Every other reason also restores the unit to stock.
                     $refundAmount += $saleLineIds ? $item->refundableTotal() : 0;
 
                     if ($item->is_unsalable) {
@@ -539,12 +441,9 @@ class CashierReturnController extends Controller
                         );
                     }
 
-                    // The refunded pieces go back with their own serial stickers.
-                    // Back in the product's base unit (a box's 100 pieces).
                     SerialNumbers::returnToStock($salesReturn->SalesTransactionID, $item->ProductID, (int) $item->BaseQuantity, $salesReturn->SalesReturnID);
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->BaseQuantity);
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                    // Back onto the stock batches the sale took them from.
                     StockBatches::returningFrom($saleLineIds, fn () => $inventory->save());
                 }
 
@@ -575,17 +474,6 @@ class CashierReturnController extends Controller
         ]);
     }
 
-    /**
-     * The serials of the pieces coming back on a return line, taken from
-     * the receipt: a serial-numbered product names each returned piece's
-     * sticker (picked from the ones sold on that receipt), picked
-     * automatically when the count leaves no choice (bought 1, returning 1).
-     * A sale with no serials recorded (sold before they were tracked) has
-     * nothing to pick, and other products have none.
-     *
-     * @param  list<string>|null  $serialNumbers
-     * @return list<int>
-     */
     private function returnedSerialIds(SalesItem $salesItem, float $quantity, ?array $serialNumbers): array
     {
         $product = $salesItem->product;
@@ -594,7 +482,6 @@ class CashierReturnController extends Controller
         }
 
         $returnable = ProductSerial::returnableFor($salesItem->SalesTransactionID, $salesItem->ProductID)->lockForUpdate()->get();
-        // Pieces sold without a recorded serial can't be named.
         $needed = min((int) round($quantity * $salesItem->quantityPerUnit()), $returnable->count());
         $picked = collect($serialNumbers ?? [])->map(fn ($number) => strtoupper(trim((string) $number)))->filter()->unique()->values();
 
@@ -627,18 +514,12 @@ class CashierReturnController extends Controller
     {
         $refund = $this->buildRefundReceiptData($this->findOwnProcessedRefund($salesReturnId));
 
-        // Printed from the browser, it prints the same 32-column lines as
-        // the thermal printout, exactly like the sales receipt.
         return view('cashier.refund-receipt', $refund + [
             'printLines' => $printer->browserLines($printer->refundLines($refund)),
             'printTail' => $printer->tailText(),
         ]);
     }
 
-    /**
-     * Prints the refund receipt straight to the local thermal printer, like
-     * a sale's receipt (CashierAuthController::printThermalReceipt()).
-     */
     public function printThermalRefundReceipt($salesReturnId, ThermalReceiptPrinter $printer): JsonResponse
     {
         if (! ThermalReceiptPrinter::isEnabled()) {
@@ -661,10 +542,6 @@ class CashierReturnController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /**
-     * The refund receipt's thermal-printer lines, for the print bridge on
-     * the cashier PC (see partials/print-bridge).
-     */
     public function refundReceiptPrintLines($salesReturnId, ThermalReceiptPrinter $printer): JsonResponse
     {
         $refund = $this->buildRefundReceiptData($this->findOwnProcessedRefund($salesReturnId));
@@ -675,11 +552,6 @@ class CashierReturnController extends Controller
         ]);
     }
 
-    /**
-     * A processed refund of the logged-in cashier's own. Owner-scoped, same
-     * as viewReceipt() on the Transaction History page: another cashier's
-     * must 404 the same way a nonexistent one would (audit finding F1).
-     */
     private function findOwnProcessedRefund($salesReturnId): SalesReturn
     {
         $salesReturn = SalesReturn::with(['items.product', 'salesTransaction.payment', 'processedByUser'])
@@ -694,12 +566,6 @@ class CashierReturnController extends Controller
         return $salesReturn;
     }
 
-    /**
-     * Everything the refund receipt shows, shared by its page, the thermal
-     * printout and the print bridge so they never differ.
-     *
-     * @return array{receiptNumber: string, date: string, cashierName: string, originalReceipt: string, customerName: string, items: list<array{name: string, qty_label: string, price: float, amount: float, reason: string}>, refundAmount: float, refundMethod: string, referenceNumber: ?string}
-     */
     private function buildRefundReceiptData(SalesReturn $salesReturn): array
     {
         $customer = $salesReturn->CustomerName ?? $salesReturn->salesTransaction?->CustomerName;
@@ -724,9 +590,6 @@ class CashierReturnController extends Controller
         ];
     }
 
-    /**
-     * Get refund details.
-     */
     public function getRefundDetails($refundId)
     {
         $refund = SalesReturn::with(['transaction', 'items.product'])
@@ -739,10 +602,6 @@ class CashierReturnController extends Controller
         }
 
         $items = $refund->items->map(function (SalesReturnItem $item) {
-            // The refundable amount for this line — what was actually paid,
-            // not the full undiscounted UnitPrice*Quantity — comes from the
-            // ORIGINAL sale's SalesItem (which carries the discount that
-            // applied at sale time), not SalesReturnItem's own line_total.
             $refundableLineTotal = $item->refundableTotal();
 
             return [
@@ -773,9 +632,6 @@ class CashierReturnController extends Controller
         ]);
     }
 
-    /**
-     * Get cashier return/refund stats for the dashboard.
-     */
     public function getCashierStats()
     {
         $user = Auth::user();
@@ -800,7 +656,6 @@ class CashierReturnController extends Controller
             'approved_refunds' => (clone $base)->where('Status', SalesReturn::STATUS_APPROVED)->count(),
             'declined_refunds' => (clone $base)->where('Status', SalesReturn::STATUS_DECLINED)->count(),
             'processed_refunds' => (clone $base)->where('Status', SalesReturn::STATUS_PROCESSED)->count(),
-            // Approved-but-not-yet-processed: surfaces newly-approved admin decisions the cashier still needs to act on.
             'awaiting_action' => (clone $base)->where('Status', SalesReturn::STATUS_APPROVED)->count(),
         ]);
     }

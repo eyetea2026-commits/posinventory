@@ -31,7 +31,6 @@
                 'processed' => ['label' => 'Refunded', 'count' => $statusCounts['processed']],
             ];
         @endphp
-        {{-- Pending yellow, Approved green, Declined red (filled when selected). --}}
         <style>
             .status-tabs .status-tab--pending { color: #fcd34d; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.45); }
             .status-tabs .status-tab--approved { color: #6ee7b7; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.45); }
@@ -57,12 +56,6 @@
 
     <div class="card">
         <div class="toolbar">
-            {{-- Status filtering already lives in the tabs above (All/Pending/
-                 Approved/Declined/Refunded) — the "All Statuses" dropdown was
-                 a redundant second control for the same thing, so it's gone.
-                 The Return Type filter dropdown has been removed too; the
-                 status tabs' links still carry $search forward via
-                 array_filter() above. --}}
             <form method="GET" action="{{ route('admin.sales-returns.index') }}" data-live-search autocomplete="off" style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1;">
                 @if($status)
                     <input type="hidden" name="status" value="{{ $status }}">
@@ -71,10 +64,6 @@
                     <i class="search-icon fas fa-search"></i>
                     <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search returns..." />
                 </div>
-                {{-- No visible Search button: the search box still submits on
-                     Enter via this visually hidden submit control (removing
-                     it entirely would also disable the browser's native
-                     Enter-to-submit behavior). --}}
                 <button type="submit" aria-hidden="true" tabindex="-1" style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;">Search</button>
             </form>
         </div>
@@ -107,7 +96,6 @@
                             <td>{{ \Illuminate\Support\Carbon::parse($return->ReturnDate)->format('m/d/Y') }}</td>
                             <td>{{ $return->staff?->user?->full_name ?? 'N/A' }}</td>
                             <td>{{ $return->transaction ? 'RCT-' . str_pad($return->SalesTransactionID, 6, '0', STR_PAD_LEFT) : 'N/A' }}</td>
-                            {{-- No name given shows N/A (older records saved "Walk-in Customer"). --}}
                             <td>{{ \App\Http\Controllers\Admin\ReportController::customerLabel($return->CustomerName ?? $return->transaction?->CustomerName) }}</td>
                             <td>
                                 <span class="badge {{ $return->ReturnType === 'replacement' ? 'badge-info' : 'badge-primary' }}">
@@ -192,7 +180,6 @@
         </div>
     </div>
 
-    <!-- View Details Modal -->
     <div class="modal-overlay" id="detailsModal">
         <div class="modal">
             <div class="modal-header">
@@ -208,7 +195,6 @@
         </div>
     </div>
 
-    <!-- Decline Reason Modal -->
     <div class="modal-overlay" id="declineModal">
         <div class="modal">
             <div class="modal-header">
@@ -252,11 +238,6 @@ function viewReturnDetails(id) {
         .then(res => res.json())
         .then(data => {
             const t = data.transaction, items = data.items || [], r = data.return, rb = data.requestedBy;
-            // Customer name, reason text, and decline reason all originate as
-            // free text from the cashier/admin request forms — escape every
-            // server-supplied string before it goes into innerHTML so a
-            // return submitted with an HTML/script payload in its Reason or
-            // Customer Name can't execute in this admin session.
             const rowsHtml = items.map((item, index) => `
                 <tr>
                     <td>${index + 1}</td>

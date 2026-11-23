@@ -35,7 +35,6 @@
     .btn-process { padding: 6px 12px; background: #10b981; border: none; color: white; border-radius: 4px; cursor: pointer; }
     .btn-process:disabled { background: #4a5568; cursor: not-allowed; }
 
-    /* Modal Styles */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; }
     .modal.active { display: flex; align-items: center; justify-content: center; }
     .modal-content { background: #1a1d2d; border-radius: 16px; padding: 24px; width: 90%; max-width: 640px; max-height: 90vh; overflow-y: auto; }
@@ -191,7 +190,6 @@
     </table>
 </div>
 
-<!-- Create Return Request Modal -->
 <div class="modal" id="create-refund-modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -249,7 +247,6 @@
     </div>
 </div>
 
-<!-- View Refund Details Modal -->
 <div class="modal" id="view-refund-modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -260,7 +257,6 @@
     </div>
 </div>
 
-<!-- Process Refund Modal -->
 <div class="modal" id="process-refund-modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -310,16 +306,11 @@
 
 <script>
 let selectedItems = {};
-// The receipt's items by ProductID (serials for the return).
 let returnItemsById = {};
 let selectedRefundPaymentMethod = 'cash';
 let currentRefundAmount = 0;
 let searchMode = 'receipt';
 
-// Customer names, return reasons, and product/category text all originate
-// as free text from request forms — escape every server-supplied string
-// before it goes into innerHTML so a value containing an HTML/script
-// payload can't execute in this cashier session.
 function escapeHtml(value) {
     if (value === null || value === undefined) return '';
     return String(value)
@@ -335,18 +326,12 @@ document.addEventListener('DOMContentLoaded', function() {
     initRefundsLiveSearch();
 });
 
-// A request was approved/declined/processed elsewhere (see
-// partials/live-updates): refresh the counts and re-apply the search box.
 document.addEventListener('live-updates:applied', function () {
     loadRefundStats();
     const searchInput = document.getElementById('refundsSearchInput');
     if (searchInput) searchInput.dispatchEvent(new Event('input'));
 });
 
-// Instant/live search: filters the already-rendered rows (status/type
-// filters still submit normally via their own onchange) as the Cashier
-// types — no Search button, no server round-trip needed since every row
-// on the page already carries its own visible text to match against.
 function initRefundsLiveSearch() {
     const form = document.getElementById('refundsSearchForm');
     const searchInput = document.getElementById('refundsSearchInput');
@@ -359,7 +344,6 @@ function initRefundsLiveSearch() {
         });
     }
 
-    // Enter key shouldn't reload the page — filtering already happens live.
     form.addEventListener('submit', function (e) { e.preventDefault(); });
     searchInput.addEventListener('input', applyLiveFilter);
     applyLiveFilter();
@@ -469,11 +453,9 @@ function populateTransactionDetails(transaction) {
     productsContainer.innerHTML = transaction.items.map(item => {
         const productId = Number(item.ProductID);
         const maxQty = Number(item.RemainingReturnableQty);
-        // Quantities are in the unit it was sold in (1.5 meters, 1 box).
         const allowsDecimals = item.AllowsDecimals === true;
         const unitName = (qty) => Number(qty) === 1 ? (item.Unit || 'piece') : (item.UnitPlural || 'pieces');
         const firstQty = Math.min(1, maxQty);
-        // Tagged "Not returnable / refundable" by the Administrator.
         const notReturnable = item.IsReturnable === false;
         const disabled = maxQty <= 0 || notReturnable;
 
@@ -499,7 +481,6 @@ function populateTransactionDetails(transaction) {
                     </div>
                     <div class="form-group">
                         <label>Return Reason</label>
-                        {{-- Every return is a Factory Defect (set automatically). --}}
                         <input type="text" class="form-input refund-item-reason" value="Factory Defect" readonly tabindex="-1">
                     </div>
                 </div>
@@ -711,8 +692,6 @@ function viewRefundDetails(refundId) {
                 const itemsHtml = (r.items || []).map(item => `
                     <div class="refund-details-row"><span>${escapeHtml(item.product_name)} (${escapeHtml(item.quantity_label || ('x' + Number(item.quantity)))})</span><span>${escapeHtml(item.reason)} — ${window.formatPeso(item.line_total)}</span></div>
                 `).join('');
-                // Label above value, three per row (shared .ui-kv-grid); the
-                // returned products keep their own list below.
                 const kv = (label, value, wide) => `<div${wide ? ' class="ui-kv-wide"' : ''}><span>${label}</span><span>${value}</span></div>`;
                 document.getElementById('refund-details-content').innerHTML = `
                     <div class="ui-kv-grid">
@@ -813,9 +792,6 @@ document.getElementById('process-refund-form').addEventListener('submit', functi
     });
 });
 
-// The refund receipt prints like a sale's receipt: straight to the thermal
-// printer when it's on this PC, else through the cashier PC's print bridge,
-// else from a hidden frame (no pop-up window). The page reloads once done.
 const REFUND_THERMAL_PRINTING = @json(\App\Services\ThermalReceiptPrinter::isEnabled());
 
 function printRefundReceipt(refundId, receiptNumber) {
@@ -858,7 +834,7 @@ function printRefundReceiptInBackground(receiptUrl) {
             frame.contentWindow.addEventListener('afterprint', finish);
             frame.contentWindow.focus();
             frame.contentWindow.print();
-        } catch (e) { /* reload below either way */ }
+        } catch (e) { }
         setTimeout(finish, 1500);
     };
     frame.src = receiptUrl;

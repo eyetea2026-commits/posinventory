@@ -57,8 +57,6 @@ class StockAdjustmentModuleTest extends TestCase
         $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
     }
 
-    // The quantity is typed without a sign and always comes out of stock;
-    // it's stored negative so history and reports read it as a decrease.
     public function test_quantity_is_entered_without_a_sign_and_always_removes_stock(): void
     {
         $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), $this->basePayload(['QuantityAdjust' => 4]))
@@ -79,8 +77,6 @@ class StockAdjustmentModuleTest extends TestCase
             ->assertOk()->assertDontSee('<option value="Stolen"', false);
     }
 
-    // Stock only comes in through Stock Receiving: a negative (or signed)
-    // quantity is rejected for every reason.
     public function test_a_negative_quantity_is_rejected(): void
     {
         foreach ([StockAdjustment::REASON_DAMAGED, StockAdjustment::REASON_LOST] as $reason) {
@@ -106,7 +102,6 @@ class StockAdjustmentModuleTest extends TestCase
             ->assertDontSee('Use -5 to subtract');
     }
 
-    // Older adjustments keep showing the reason they were saved with.
     public function test_older_inventory_count_error_adjustments_still_show(): void
     {
         StockAdjustment::create([
@@ -162,8 +157,6 @@ class StockAdjustmentModuleTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'damage.created_from_adjustment')->exists());
     }
 
-    // A Damaged adjustment that's rejected (more than the stock on hand)
-    // never reaches the Damage module.
     public function test_a_rejected_damaged_adjustment_does_not_create_damage_record(): void
     {
         $this->actingAs($this->admin)->post(
@@ -184,9 +177,6 @@ class StockAdjustmentModuleTest extends TestCase
         $this->assertDatabaseCount('DamagedProduct', 0);
     }
 
-    // Product selection is a plain <select>, which the shared searchable
-    // dropdown gives a search box inside; only products with stock are
-    // listed, each with what's on hand.
     public function test_product_dropdown_is_a_searchable_select_of_products_with_stock(): void
     {
         $outOfStock = Product::create([

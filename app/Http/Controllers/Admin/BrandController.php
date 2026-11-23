@@ -24,11 +24,6 @@ class BrandController extends Controller
         });
     }
 
-    /**
-     * The exact "This brand already exists under the selected category."
-     * check — case-insensitive and whitespace-trimmed, scoped to one
-     * category.
-     */
     private function duplicateExists(string $name, int $categoryId): bool
     {
         $normalized = mb_strtolower(trim($name));
@@ -38,8 +33,6 @@ class BrandController extends Controller
             ->exists();
     }
 
-    // Add a Brand to a Category — called from the Edit Category modal's
-    // inline "Brands" panel.
     public function store(Request $request, Category $category)
     {
         $data = $request->validate([
@@ -60,10 +53,6 @@ class BrandController extends Controller
                 'CategoryID' => $category->CategoryID,
             ]);
         } catch (QueryException $e) {
-            // Defense in depth: a concurrent request could pass the check
-            // above and still collide on the database's own unique index
-            // (BrandNameNormalized, CategoryID) a moment later. Never let
-            // that raw constraint error reach the user.
             if ($e->getCode() === '23000') {
                 throw ValidationException::withMessages([
                     'BrandName' => 'This brand already exists under the selected category.',
@@ -81,8 +70,6 @@ class BrandController extends Controller
         ]);
     }
 
-    // Remove a Brand — called from the Edit Category modal's inline
-    // "Brands" panel.
     public function destroy(Brand $brand)
     {
         if ($brand->products()->count() > 0) {

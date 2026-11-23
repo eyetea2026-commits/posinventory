@@ -22,14 +22,6 @@ class CategoryModuleTest extends TestCase
         $this->admin = User::factory()->create(['role_id' => $adminRole->id]);
     }
 
-    // Regression guard: the Add/Edit Category modal submits via fetch() with
-    // X-Requested-With + Accept: application/json, then follows the
-    // resulting redirect back to index() and parses that final response's
-    // HTML for the "Auto-show session messages" Swal marker (see
-    // admin/partials/ajax-modal-form). followingRedirects() reproduces that
-    // exact round trip — this fails if index()'s live-search JSON branch
-    // ever goes back to keying off those same XHR headers instead of the
-    // explicit ?ajax=1 flag the search JS sends.
     public function test_store_via_the_modals_xhr_flow_still_returns_html_after_the_redirect(): void
     {
         $response = $this->actingAs($this->admin)

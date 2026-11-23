@@ -6,11 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * New users give a birthdate instead of typing their age; the age is
-     * worked out from it (and must be 18+). Existing users keep their saved
-     * age until a birthdate is entered for them.
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {

@@ -13,13 +13,6 @@ use Illuminate\Support\Str;
 
 class ActivityLogController extends Controller
 {
-    /**
-     * Friendly names for each Action prefix (the part before the dot) that
-     * ActivityLog::record() is called with across the app. Unknown prefixes
-     * fall back to a headline-cased version of the prefix itself.
-     *
-     * @var array<string, string>
-     */
     public const MODULE_LABELS = [
         'auth' => 'Authentication',
         'user' => 'User Management',
@@ -34,7 +27,6 @@ class ActivityLogController extends Controller
         'return' => 'Returns',
     ];
 
-    /** @var list<string> */
     private const FILTER_KEYS = ['log_search', 'log_module', 'log_user', 'log_role', 'log_from', 'log_to'];
 
     public function __construct()
@@ -49,24 +41,12 @@ class ActivityLogController extends Controller
         });
     }
 
-    /**
-     * Read-only audit trail — deliberately no edit/delete actions, so the
-     * log can't be tampered with from the UI it's meant to monitor.
-     *
-     * Shown as the Activity Log card in the dashboard's Operational Activity
-     * section: the card fetches this over AJAX and swaps in the returned
-     * table. Filter params are prefixed log_ so they can't collide with the
-     * Recent Transactions card's own txn_ params on the same page. A normal
-     * (non-AJAX) visit is sent to that card on the dashboard.
-     */
     public function index(Request $request): JsonResponse|RedirectResponse
     {
         if (! ($request->ajax() || $request->wantsJson())) {
             return redirect()->to(route('admin.dashboard').'#activity-log');
         }
 
-        // Invalid filters are simply dropped and the message shown instead
-        // of failing the whole request.
         $validator = Validator::make($request->query(), [
             'log_search' => ['nullable', 'string', 'max:100'],
             'log_module' => ['nullable', 'string', 'max:50'],
@@ -104,8 +84,6 @@ class ActivityLogController extends Controller
             ->orderByDesc('DateRecorded')
             ->orderByDesc('ActivityLogID')
             ->paginate(10, ['*'], 'log_page')
-            // Page links must always point back at this endpoint, whatever
-            // page the card is embedded in.
             ->withPath(route('admin.activity-logs.index'))
             ->withQueryString();
 

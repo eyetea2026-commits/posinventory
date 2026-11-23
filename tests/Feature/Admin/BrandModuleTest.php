@@ -32,7 +32,6 @@ class BrandModuleTest extends TestCase
         $this->dvr = Category::create(['CategoryName' => 'DVR']);
     }
 
-    // The Edit Category modal's "Brands in this Category" panel posts here.
     public function test_admin_can_add_a_brand_to_a_category_from_the_edit_category_form(): void
     {
         $response = $this->actingAs($this->admin)
@@ -58,8 +57,6 @@ class BrandModuleTest extends TestCase
         $this->assertSame(1, Brand::where('BrandName', 'Samsung')->where('CategoryID', $this->tv->CategoryID)->count());
     }
 
-    // The exact scenario from the spec: Samsung / SAMSUNG / samsung / SamSung
-    // under TV must all collide with the existing "Samsung" row.
     public function test_store_rejects_case_insensitive_variations_of_an_existing_brand(): void
     {
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
@@ -80,7 +77,6 @@ class BrandModuleTest extends TestCase
     {
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
 
-        // Samsung under DVR is a different Brand+Category combination.
         $response = $this->actingAs($this->admin)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
             ->post(route('admin.categories.brands.store', $this->dvr), ['BrandName' => 'Samsung']);
@@ -120,8 +116,6 @@ class BrandModuleTest extends TestCase
         $this->assertDatabaseMissing('Brand', ['BrandID' => $brand->BrandID]);
     }
 
-    // A category with brands can't be deleted or deactivated, so its
-    // brands are never orphaned.
     public function test_a_category_with_brands_can_be_neither_deleted_nor_deactivated(): void
     {
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);
@@ -154,14 +148,9 @@ class BrandModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Brands in this Category');
-        // No CategoryID exists yet -- the panel starts empty, driven purely
-        // client-side until the whole Create Category form is submitted.
         $response->assertSee('data-category-id=""', false);
     }
 
-    // The Add Category form's "Brands in this Category" panel collects
-    // plain names client-side (see category-brands-behavior.blade.php) and
-    // submits them as Brands[] alongside CategoryName/Description.
     public function test_creating_a_category_also_creates_the_brands_submitted_with_it(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.categories.store'), [
@@ -185,8 +174,6 @@ class BrandModuleTest extends TestCase
         $this->assertDatabaseHas('Category', ['CategoryName' => 'Empty Category']);
     }
 
-    // The client already blocks adding the same name twice, but the server
-    // must not trust that alone.
     public function test_creating_a_category_de_duplicates_case_insensitive_brand_names_server_side(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.categories.store'), [
@@ -199,12 +186,6 @@ class BrandModuleTest extends TestCase
         $this->assertSame(1, Brand::where('CategoryID', $category->CategoryID)->count());
     }
 
-    // Database-level protection: the unique index on (BrandNameNormalized,
-    // CategoryID) must reject a case-insensitive duplicate even when
-    // created directly through the model -- i.e. it holds regardless of
-    // whether the app-level check in BrandController ever runs at all,
-    // which is exactly what a raw script, a future API endpoint, or a
-    // genuinely concurrent request would bypass.
     public function test_database_constraint_rejects_a_case_insensitive_duplicate_even_bypassing_the_controller(): void
     {
         Brand::create(['BrandName' => 'Samsung', 'CategoryID' => $this->tv->CategoryID]);

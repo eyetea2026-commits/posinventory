@@ -147,9 +147,6 @@
                     const digitsOnly = bubble.value.replace(/\D/g, '');
 
                     if (digitsOnly.length > 1) {
-                        // A full code was typed/autofilled into one box (common on
-                        // mobile with SMS/email autofill suggestions) — spread it
-                        // across the remaining boxes instead of truncating it.
                         fillFrom(index, digitsOnly);
                         return;
                     }

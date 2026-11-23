@@ -1,10 +1,3 @@
-{{-- Shared "Add Product" form behavior: HTML5 validity check, live
-     name/model duplicate check (reuses the existing admin.products.check-name
-     AJAX endpoint), live markup/profit calculation, and the "confirm before
-     saving" dialog. Does NOT decide how the form is actually submitted —
-     that's the caller's job via options.onConfirmedSubmit, so the same
-     validation backs both the standalone create page (real form submit) and
-     the Add Product modal (AJAX submit). --}}
 <script>
 window.initProductAddForm = function (formId, options) {
     options = options || {};
@@ -35,17 +28,13 @@ window.initProductAddForm = function (formId, options) {
 
     form.addEventListener('submit', function (e) { e.preventDefault(); });
 
-    var DEFAULT_PROFIT_MARGIN = 0.45; // Store default for new products — mirrors Product::PROFIT_MARGIN server-side.
+    var DEFAULT_PROFIT_MARGIN = 0.45;
 
-    // Prices: up to 5 whole-peso digits (99,999.99), the same limit
-    // ProductController validates; letters are stripped as they're typed.
     var MAX_PRICE = 99999.99;
     window.attachMoneyInput(costPriceInput, { maxIntegerDigits: 5 });
     window.attachMoneyInput(sellingPriceInput, { maxIntegerDigits: 5 });
     var sellingPriceErrorEl = form.querySelector('#error-Price');
 
-    // A Selling Price worked out from the Cost Price and margin can still
-    // come out above the limit; say so right away instead of on save.
     function checkSellingPriceLimit(sellingPrice) {
         if (!sellingPriceErrorEl) return;
         var tooHigh = sellingPrice > MAX_PRICE;
@@ -53,13 +42,6 @@ window.initProductAddForm = function (formId, options) {
         sellingPriceInput.classList.toggle('is-invalid', tooHigh);
     }
 
-    // Brand is dependent on Category: every <option> in #BrandID already
-    // carries the Brand's own Category as data-category — show only the
-    // ones matching whatever Category is currently selected, and replace
-    // the list with a single disabled "No brands available" option when
-    // none match. The previously-selected BrandID is preserved across a
-    // filter pass whenever it's still valid for the new Category (e.g. on
-    // first load while editing a product), and cleared otherwise.
     function filterBrandOptionsByCategory(preserveBrandId) {
         if (!categorySelect || !brandSelect) return;
         var categoryId = categorySelect.value;
@@ -93,33 +75,17 @@ window.initProductAddForm = function (formId, options) {
     }
 
     if (categorySelect && brandSelect) {
-        // Preserve the full, unfiltered option list so re-filtering after a
-        // later Category change can draw from every Brand again, not just
-        // whatever the previous filter pass left behind.
         var allBrandOptions = Array.prototype.slice.call(brandSelect.querySelectorAll('option[data-category]'));
         var initialBrandId = brandSelect.value;
 
         categorySelect.addEventListener('change', function () {
             brandSelect.innerHTML = '';
             allBrandOptions.forEach(function (option) { brandSelect.appendChild(option.cloneNode(true)); });
-            // A user-initiated Category change always starts the Brand
-            // field fresh, rather than risking it land on whatever
-            // arbitrary option the browser defaults a freshly-repopulated
-            // <select> to.
             filterBrandOptionsByCategory('');
         });
 
-        // Initial pass (Add mode: no category picked yet, so everything is
-        // hidden behind "Select a category first"; Edit mode: filter down
-        // to the product's own category and keep its current brand selected).
         filterBrandOptionsByCategory(initialBrandId);
 
-        // Inline "+Add Brand": lets the user type a new Brand name without
-        // leaving this form, scoped to whichever Category is currently
-        // selected. Reuses the same admin.categories.brands.store endpoint
-        // the Category module's own Brand Management panel calls (see
-        // category-brands-behavior.blade.php) so duplicate-name validation
-        // stays identical in both places.
         var addBrandBtn = form.querySelector('#addBrandBtn');
         var brandAddRow = form.querySelector('#brandAddRow');
         var newBrandNameInput = form.querySelector('#newBrandNameInput');
@@ -182,9 +148,6 @@ window.initProductAddForm = function (formId, options) {
                         option.textContent = data.brand.BrandName;
                         option.dataset.category = categorySelect.value;
 
-                        // Persist into the cached full option list too, so a
-                        // later Category change-and-change-back still finds
-                        // this brand instead of losing it.
                         allBrandOptions.push(option.cloneNode(true));
                         brandSelect.appendChild(option);
                         filterBrandOptionsByCategory(String(data.brand.BrandID));
@@ -212,16 +175,6 @@ window.initProductAddForm = function (formId, options) {
         }
     }
 
-    // Add mode only: lets the admin attach suppliers, each with its own
-    // cost price, to a product that doesn't exist yet. Held client-side as
-    // Suppliers[n][SupplierID] / Suppliers[n][CostPrice] hidden inputs (one
-    // index per supplier, so PHP keeps each pair together) and only
-    // actually linked once the whole Add Product form is submitted — see
-    // ProductController::store() and the matching Add Category "Brands[]"
-    // pattern this mirrors. No-ops entirely in Edit mode, where the
-    // #pendingProductSuppliersBody element this checks for doesn't exist —
-    // the AJAX supplier panel (window.initProductSuppliersPanel) takes over
-    // there instead.
     var pendingSuppliersBody = form.querySelector('#pendingProductSuppliersBody');
     var pendingSupplierError = form.querySelector('#pendingSupplierError');
     var addSupplierBtn = form.querySelector('#addProductSupplierBtn');
@@ -333,9 +286,6 @@ window.initProductAddForm = function (formId, options) {
         markupPercentEl.classList.toggle('negative', markupPercent < 0);
     }
 
-    // Cost Price changed: re-derive Selling Price from whatever margin is
-    // currently dialed in (not a hard-reset to 45%) — an admin who already
-    // customized the margin expects it to stick when the cost changes.
     function recalcFromCost() {
         var costPrice = window.parseMoney(costPriceInput.value);
         var marginFraction = currentMarginFraction();
@@ -344,8 +294,6 @@ window.initProductAddForm = function (formId, options) {
         updateMarkupDisplays(costPrice, sellingPrice);
     }
 
-    // Profit Margin edited by hand: re-derive Selling Price from Cost using
-    // the newly typed margin.
     function recalcFromMargin() {
         var costPrice = window.parseMoney(costPriceInput.value);
         var marginFraction = currentMarginFraction();
@@ -355,8 +303,6 @@ window.initProductAddForm = function (formId, options) {
         updateMarkupDisplays(costPrice, sellingPrice);
     }
 
-    // Selling Price edited by hand: leave it exactly as typed and re-derive
-    // the Profit Margin (and markup figures) from Cost + the typed price.
     function recalcFromSelling() {
         var costPrice = window.parseMoney(costPriceInput.value);
         var sellingPrice = window.parseMoney(sellingPriceInput.value);
@@ -410,10 +356,6 @@ window.initProductAddForm = function (formId, options) {
     }
 
     function runDuplicateCheck(requestId, name, model, barcode) {
-        // When editing, the product's own unchanged name/model/barcode must
-        // not be flagged as a "duplicate" of itself — exclude_id is set on
-        // the form's dataset by the edit page/modal, absent entirely in Add
-        // mode.
         var excludeId = form.dataset.excludeId || null;
 
         fetch('{{ route('admin.products.check-name') }}', {
@@ -437,7 +379,6 @@ window.initProductAddForm = function (formId, options) {
                 setDuplicateError(barcodeErrorEl, barcodeInput, barcodeDuplicate ? 'This barcode is already assigned to another product.' : '');
             })
             .catch(function () {
-                // Non-fatal — server-side check catches duplicates on submit.
             });
     }
 
@@ -485,8 +426,6 @@ window.initProductAddForm = function (formId, options) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = options.submittingLabel || '<span class="btn-spinner-sm"></span> Creating...';
             }
-            // The server expects a plain numeric string (validated as
-            // 'numeric'), not the comma-grouped display value.
             costPriceInput.value = window.parseMoney(costPriceInput.value).toFixed(2);
             sellingPriceInput.value = window.parseMoney(sellingPriceInput.value).toFixed(2);
             formChanged = false;
@@ -498,25 +437,11 @@ window.initProductAddForm = function (formId, options) {
         if (options.onCancel) options.onCancel(formChanged);
     }
 
-    // On load: if a Selling Price is already present (editing an existing
-    // product), derive the Profit Margin display from it rather than
-    // recomputing Selling Price from the default 45% — that would silently
-    // clobber a product's real, possibly-customized margin every time the
-    // edit form opens. Only seed Selling Price from Cost + the default
-    // margin when there's nothing there yet (Add mode).
-    // The Selling Price is automatic: always worked out from the Cost
-    // Price and the product's saved Profit Margin.
     recalcFromMargin();
 
-    // Unit of Measurement: the unit names in the labels follow the chosen
-    // base/purchase units. How many meters a roll holds is entered at Stock
-    // Receiving, not here; the product is sold by its base unit.
     var baseUnitSelect = form.querySelector('#UnitOfMeasure');
     var purchaseUnitSelect = form.querySelector('#PurchaseUnit');
 
-    // The Inventory Base Unit choices of the chosen category, default first:
-    // WIRE products Meter & Roll / Meter / Roll, every other product Piece /
-    // Box (no category yet: Piece / Box).
     var METER_AND_ROLL = @json(\App\Services\UnitOfMeasure::METER_AND_ROLL);
     function allowedUnits() {
         var option = categorySelect && categorySelect.selectedOptions[0];
@@ -530,10 +455,6 @@ window.initProductAddForm = function (formId, options) {
             option.hidden = option.disabled = allowed.indexOf(option.value) === -1;
         });
         if (allowed.indexOf(baseUnitSelect.value) === -1) baseUnitSelect.value = allowed[0];
-        // "Meter & Roll" is Meter bought by the Roll (kept in step with the
-        // Purchase Unit by the change listeners below).
-        // What each base unit can be bought by: a meter by the roll, a piece
-        // by the box; a roll or a box only by itself (None).
         var meterAndRoll = baseUnitSelect.value === METER_AND_ROLL;
         var baseUnit = meterAndRoll ? 'meter' : (baseUnitSelect.value || 'piece');
         var basePlural = (baseUnitSelect.selectedOptions[0] && baseUnitSelect.selectedOptions[0].dataset.plural) || baseUnit;
@@ -549,10 +470,6 @@ window.initProductAddForm = function (formId, options) {
         purchaseUnitSelect.options[0].textContent = 'None (bought by the ' + baseUnit + ')';
     }
 
-    // Keeps "Meter & Roll" and the Purchase Unit in step on a wire product:
-    // picking Meter & Roll sets the Purchase Unit to Roll; picking Roll as
-    // the Purchase Unit of a Meter product makes it Meter & Roll; picking
-    // None (or plain Meter) takes the roll off again.
     if (baseUnitSelect && purchaseUnitSelect) {
         baseUnitSelect.addEventListener('change', function () {
             if (baseUnitSelect.value === METER_AND_ROLL) {
@@ -575,8 +492,6 @@ window.initProductAddForm = function (formId, options) {
     [categorySelect, baseUnitSelect, purchaseUnitSelect].forEach(function (select) {
         if (select) select.addEventListener('change', syncUnitOfMeasureFields);
     });
-    // The Add Product popup resets the form each time it opens; the values
-    // change only after the "reset" event, so sync right after it.
     form.addEventListener('reset', function () { setTimeout(syncUnitOfMeasureFields, 0); });
     syncUnitOfMeasureFields();
 
@@ -589,9 +504,6 @@ window.initProductAddForm = function (formId, options) {
     };
 };
 
-// A supplier already linked to the product isn't offered again in the
-// Supplier box: its option is hidden (the searchable dropdown skips hidden
-// options) and disabled. Clears the box if it was showing one of them.
 window.hideLinkedSupplierOptions = function (select, supplierIds) {
     var linked = supplierIds.map(String);
     Array.prototype.forEach.call(select.options, function (option) {
@@ -604,15 +516,6 @@ window.hideLinkedSupplierOptions = function (select, supplierIds) {
     }
 };
 
-// Wires up the per-product suppliers panel (see the Edit-mode-only block in
-// product-form-fields.blade.php). Safe to call even when that panel
-// isn't in the DOM (Add mode) — it just no-ops. Called once the panel's
-// markup actually exists: directly on page load for the standalone Edit
-// Product page, and from openEditProductModal() after the modal's AJAX
-// fetch injects the form fields (see products/index.blade.php).
-// Pass the form the panel is in: the Add Product popup has a supplier box
-// and button with the same ids, so looking them up page-wide picked the
-// Add popup's empty box and said "Select a supplier." in Edit.
 window.initProductSuppliersPanel = function (productId, root) {
     root = root || document;
     var body = root.querySelector('#productSuppliersBody');
@@ -625,7 +528,6 @@ window.initProductSuppliersPanel = function (productId, root) {
         return value == null || value === '' ? '' : Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    // Adds a supplier or changes its price (the same request).
     function saveSupplier(supplierId, cost) {
         return fetch(suppliersUrl(), {
             method: 'POST',
@@ -684,7 +586,6 @@ window.initProductSuppliersPanel = function (productId, root) {
             });
     }
 
-    // A supplier's price is saved as soon as it's changed.
     body.onchange = function (e) {
         var input = e.target.closest('.supplier-cost-input');
         if (!input) return;
@@ -698,8 +599,6 @@ window.initProductSuppliersPanel = function (productId, root) {
         });
     };
 
-    // Delegated (rather than rebound per row) since renderSuppliers()
-    // replaces body.innerHTML wholesale on every reload.
     body.onclick = function (e) {
         var preferBtn = e.target.closest('[data-prefer-id]');
         if (preferBtn) {

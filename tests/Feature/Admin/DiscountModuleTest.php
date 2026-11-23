@@ -36,8 +36,6 @@ class DiscountModuleTest extends TestCase
         ]);
     }
 
-    // Creating/editing a promo (Tab 1) no longer selects a product — that's
-    // a separate step in the "Apply Discount/Promo" tab (Tab 2).
     private function basePromoPayload(array $overrides = []): array
     {
         return array_merge([
@@ -95,8 +93,6 @@ class DiscountModuleTest extends TestCase
         $response->assertSessionHasErrors('EndDate');
     }
 
-    // ---- No past dates ----
-
     public function test_a_promo_cannot_be_saved_with_past_dates(): void
     {
         $yesterday = now()->subDay()->format('Y-m-d');
@@ -107,7 +103,6 @@ class DiscountModuleTest extends TestCase
             ->assertSessionHasErrors('EndDate');
         $this->assertSame(0, Discount::count());
 
-        // The pickers grey out past days.
         $this->actingAs($this->admin)->get(route('admin.discounts.index'))->assertOk()
             ->assertSee('min="'.now()->toDateString().'" required>', false);
     }
@@ -118,7 +113,6 @@ class DiscountModuleTest extends TestCase
             'StartDate' => now()->subDays(5)->format('Y-m-d'), 'EndDate' => now()->addDays(5)->format('Y-m-d'),
         ]));
 
-        // Editing something else keeps its (past) Start Date.
         $this->actingAs($this->admin)->put(route('admin.discounts.update', $discount), $this->basePromoPayload([
             'Name' => 'Summer Sale Extended', 'StartDate' => now()->subDays(5)->format('Y-m-d'), 'EndDate' => now()->addDays(10)->format('Y-m-d'),
         ]))->assertSessionHasNoErrors();
@@ -132,8 +126,6 @@ class DiscountModuleTest extends TestCase
 
         $this->assertSame(now()->addDays(10)->toDateString(), $discount->fresh()->EndDate->toDateString());
     }
-
-    // ---- Promo names must be unique too (case-insensitive) ----
 
     public function test_store_rejects_a_duplicate_promo_name_ignoring_case_and_spaces(): void
     {
@@ -213,8 +205,6 @@ class DiscountModuleTest extends TestCase
             ->assertOk()->assertSee('window.attachPromoDuplicateCheck(form, '.$discount->DiscountID.');', false);
     }
 
-    // 100% is allowed (the item becomes free) -- the form warns before
-    // saving it, but the server must still accept it.
     public function test_a_100_percent_promo_can_be_saved(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload([
@@ -257,8 +247,6 @@ class DiscountModuleTest extends TestCase
         $this->assertDatabaseHas('Discount', ['PromoCode' => 'SUMMER20']);
     }
 
-    // Editing an existing promo must not be forced to bump its Start Date
-    // forward — a promo that's already active legitimately has a past one.
     public function test_update_does_not_reject_an_already_past_start_date(): void
     {
         $discount = Discount::create(array_merge($this->basePromoPayload(), [
@@ -281,8 +269,6 @@ class DiscountModuleTest extends TestCase
         $response->assertSessionHasErrors('DiscountType');
     }
 
-    // ---- Tab 2: assignProducts() ----
-
     public function test_assign_products_attaches_a_promo_to_multiple_products(): void
     {
         $discount = Discount::create($this->basePromoPayload());
@@ -302,13 +288,6 @@ class DiscountModuleTest extends TestCase
         $this->assertDatabaseHas('DiscountProduct', ['DiscountID' => $discount->DiscountID, 'ProductID' => $secondProduct->ProductID]);
     }
 
-    // Regression guard: the overlap check must be one batched query
-    // (whereIn) for the whole selection, not one query per selected
-    // product — assigning 5 products must cost the same number of queries
-    // as assigning 1, not scale with the selection size. Compared directly
-    // rather than against a fixed ceiling, since the exact count also
-    // includes unrelated framework/middleware queries (auth, session, ...)
-    // that have nothing to do with this endpoint's own logic.
     public function test_assign_products_overlap_check_does_not_scale_per_product(): void
     {
         $makeProducts = fn (int $count, string $prefix) => collect(range(1, $count))->map(fn ($i) => Product::create([
@@ -338,10 +317,6 @@ class DiscountModuleTest extends TestCase
         $responseFive->assertOk();
         $this->assertCount(1, $discountOne->fresh()->products);
         $this->assertCount(5, $discountFive->fresh()->products);
-        // A small, non-proportional difference is fine (e.g. session-state
-        // caching between the two sequential requests in this test); a real
-        // per-product regression would show roughly +4 queries for the 4
-        // extra products, not +1 or +2.
         $this->assertLessThanOrEqual(
             $queryCountForOne + 2,
             $queryCountForFive,
@@ -351,13 +326,6 @@ class DiscountModuleTest extends TestCase
 
     public function test_store_promo_still_notifies_admins_and_succeeds(): void
     {
-        // The admin notification is dispatched via afterResponse() (see
-        // store()'s comment) instead of sent inline, so the save doesn't
-        // wait on a live SMTP round trip. Laravel's test kernel runs
-        // terminating callbacks synchronously (no real fastcgi_finish_request
-        // to defer against), so this can only confirm the notification still
-        // ends up sent and the save still succeeds — not the response timing
-        // itself, which only manifests under real PHP-FPM.
         $response = $this->actingAs($this->admin)->post(route('admin.discounts.store'), $this->basePromoPayload());
 
         $response->assertRedirect(route('admin.discounts.index'));
@@ -389,9 +357,6 @@ class DiscountModuleTest extends TestCase
         $this->assertFalse($discount->fresh()->products->contains('ProductID', $unrelatedProduct->ProductID));
     }
 
-    // The "overlapping promo" invariant now applies at assign-time (per
-    // product being assigned), not at promo-creation time, since a promo no
-    // longer has a product until it's explicitly assigned one.
     public function test_assign_products_skips_a_product_already_covered_by_an_overlapping_promo(): void
     {
         $first = Discount::create(array_merge($this->basePromoPayload(), [
@@ -399,7 +364,6 @@ class DiscountModuleTest extends TestCase
         ]));
         $first->products()->attach($this->product->ProductID);
 
-        // Overlaps FIRST's window (starts on day 15 of FIRST's 30-day run).
         $second = Discount::create(array_merge($this->basePromoPayload(), [
             'PromoCode' => 'SECOND', 'StartDate' => now()->addDays(15)->format('Y-m-d'), 'EndDate' => now()->addDays(75)->format('Y-m-d'),
         ]));
@@ -420,7 +384,6 @@ class DiscountModuleTest extends TestCase
         ]));
         $first->products()->attach($this->product->ProductID);
 
-        // Starts the day after FIRST ends — no overlap.
         $second = Discount::create(array_merge($this->basePromoPayload(), [
             'PromoCode' => 'SECOND', 'StartDate' => now()->addDays(31)->format('Y-m-d'), 'EndDate' => now()->addDays(61)->format('Y-m-d'),
         ]));
@@ -458,8 +421,6 @@ class DiscountModuleTest extends TestCase
         $this->assertTrue($discount->fresh()->products->contains('ProductID', $this->product->ProductID));
     }
 
-    // ---- History ----
-
     public function test_history_lists_expired_promos(): void
     {
         $expired = Discount::create(array_merge($this->basePromoPayload(), [
@@ -486,8 +447,6 @@ class DiscountModuleTest extends TestCase
         $this->assertStringContainsString('USEDPROMO', $response->json('usedHtml'));
     }
 
-    // ---- Unrelated products stay unaffected ----
-
     public function test_index_renders_the_two_tab_apply_ui_and_embeds_the_product_promo_map(): void
     {
         $discount = Discount::create($this->basePromoPayload());
@@ -499,9 +458,6 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('Create Discount/Promo');
         $response->assertSee('Applied Discount/Promo List');
         $response->assertSee('Bullet 2MP');
-        // Main page: only the small "Select a Promo Discount" combo box and
-        // the Applied List — product selection lives entirely inside the
-        // Apply Discount/Promo popup, triggered by choosing a promo.
         $response->assertSee('Select a Promo Discount');
         $response->assertSee('Choose Promo Discount');
         $response->assertSee('applyProductsModal', false);
@@ -514,11 +470,6 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('DISCOUNT_META', false);
     }
 
-    // The promo list (Tab 1), the Applied Discount/Promo List (Tab 2), and
-    // the View Details popup's JSON metadata all read from the same
-    // Discount::Description column — each one showing it independently
-    // means a promo's blurb can't be visible in one place and silently
-    // missing in another.
     public function test_promo_description_appears_in_both_list_tabs_and_the_details_popup_metadata(): void
     {
         $discount = Discount::create($this->basePromoPayload(['Description' => 'Twenty percent off all cameras this summer.']));
@@ -576,9 +527,6 @@ class DiscountModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonStructure(['rows', 'pagination']);
-        // One row per promo, not per assigned product — the product itself
-        // (e.g. "Bullet 2MP") only appears in that promo's View Details
-        // popup, not in this list.
         $this->assertStringContainsString('SUMMER20', $response->json('rows'));
     }
 
@@ -601,11 +549,6 @@ class DiscountModuleTest extends TestCase
         $this->assertStringContainsString('<td>2</td>', $rows);
     }
 
-    // Once a promo's assignment has expired, it must disappear from the
-    // Applied Discount/Promo List entirely (not just show an "Expired"
-    // badge while staying listed) and surface only through History →
-    // Expired instead — using the same Discount/DiscountProduct rows, no
-    // duplicate record created anywhere.
     public function test_expired_applied_assignment_moves_from_the_applied_list_to_history(): void
     {
         $active = Discount::create($this->basePromoPayload(['PromoCode' => 'STILLGOOD']));
@@ -632,14 +575,11 @@ class DiscountModuleTest extends TestCase
         $this->assertStringContainsString($this->product->ProductName, $expiredHtml);
         $this->assertStringContainsString('Expired', $expiredHtml);
 
-        // No duplicate rows anywhere — same underlying pivot/promo records.
         $this->assertSame(1, Discount::where('PromoCode', 'ALLGONE')->count());
         $this->assertSame(1, DB::table('DiscountProduct')
             ->where('DiscountID', $expired->DiscountID)->where('ProductID', $this->product->ProductID)->count());
     }
 
-    // The expired promo's own assignment must not be re-applicable, even
-    // to a different product, once it has expired.
     public function test_expired_promo_cannot_be_applied_to_another_product_either(): void
     {
         $expired = Discount::create(array_merge($this->basePromoPayload(), [
@@ -701,7 +641,7 @@ class DiscountModuleTest extends TestCase
     {
         $discount = Discount::create($this->basePromoPayload(['DiscountRate' => 25]));
 
-        $this->assertEquals(750.0, $discount->discountedPriceFor($this->product)); // 1000 * (1 - 0.25)
+        $this->assertEquals(750.0, $discount->discountedPriceFor($this->product));
     }
 
     public function test_effective_status_is_expired_once_end_date_passes(): void
@@ -728,11 +668,6 @@ class DiscountModuleTest extends TestCase
 
         $this->assertSame(Discount::STATUS_ACTIVE, $discount->effective_status);
     }
-
-    // No manual activate/deactivate exists anymore — status is derived
-    // purely from the date fields, so it can't drift out of sync with the
-    // calendar (and there's no admin action left that could leave a promo
-    // "active" past its own End Date, or "inactive" within its own window).
 
     public function test_destroy_is_blocked_once_referenced_by_a_billing_record(): void
     {
@@ -775,15 +710,9 @@ class DiscountModuleTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.discounts.show', $discount));
 
         $response->assertOk();
-        $response->assertSee('800.00'); // 1000 * (1 - 0.20)
+        $response->assertSee('800.00');
     }
 
-    // Regression guard: same fetch()-follows-redirect collision already
-    // fixed on the Category/Damage modules — the Add/Edit Promo modal's
-    // AJAX submit carries X-Requested-With and follows its redirect back to
-    // this same index route, so a header-only AJAX check would hijack that
-    // redirect-follow into JSON instead of the full HTML page the modal's
-    // shared submit helper expects.
     public function test_store_via_the_modals_xhr_flow_still_returns_html_after_the_redirect(): void
     {
         $response = $this->actingAs($this->admin)
@@ -795,14 +724,6 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('Auto-show session messages', false);
         $response->assertSee('Promo code created successfully.');
 
-        // window.submitAjaxForm() (ajax-modal-form.blade.php) doesn't just
-        // check the message is present somewhere on the page — it scrapes
-        // for this exact literal Swal.fire({title:'Success', text:"..."})
-        // shape (the message written with @json) to tell a successful save
-        // from a failed one. A page that renders the same message through a
-        // different helper (e.g. toastSuccess()) still passes assertSee()
-        // above but silently reports every save as failed in the browser —
-        // this regex is what actually caught that regression.
         $this->assertMatchesRegularExpression(
             "/title:\s*'Success',\s*text:\s*\"Promo code created successfully\.\"/",
             $response->getContent()
@@ -831,10 +752,6 @@ class DiscountModuleTest extends TestCase
         $this->assertStringNotContainsString('NOMATCH', $response->json('rows'));
     }
 
-    // Regression guard: the Tab 1 live-search/refresh response must also
-    // carry fresh promo data, so the Apply tab's "Choose Promo Discount"
-    // dropdown and View Details data stay in sync after a promo is created
-    // or edited via the Add/Edit popup — without requiring a page reload.
     public function test_live_search_ajax_also_returns_fresh_apply_tab_data(): void
     {
         $discount = Discount::create($this->basePromoPayload());
@@ -848,10 +765,6 @@ class DiscountModuleTest extends TestCase
         $this->assertArrayHasKey((string) $discount->DiscountID, $response->json('discountMeta'));
     }
 
-    // Regression guard: View Details must work even for a legacy promo that
-    // predates PromoCode (discountMeta/discountProductMap must cover every
-    // Discount row, not just ones with a code) — the Apply tab's own
-    // "Choose Promo Discount" dropdown is correctly still code-only.
     public function test_apply_tab_data_covers_legacy_discounts_without_a_promo_code(): void
     {
         $legacy = Discount::create(['DiscountRate' => 10, 'Name' => 'Old General Discount', 'DiscountType' => Discount::TYPE_PERCENTAGE]);
@@ -863,15 +776,11 @@ class DiscountModuleTest extends TestCase
         preg_match('/let DISCOUNT_META = ({.*?});/', $response->getContent(), $matches);
         $discountMeta = json_decode($matches[1], true);
 
-        // Present in discountMeta (View Details data)...
         $this->assertArrayHasKey((string) $legacy->DiscountID, $discountMeta);
         $this->assertSame('Old General Discount', $discountMeta[(string) $legacy->DiscountID]['name']);
-        // ...but never selectable from the "Choose Promo Discount" dropdown.
         $response->assertDontSee('Old General Discount</option>', false);
     }
 
-    // Regression guard: Tab 1's "View" action must open the same View
-    // Details popup as the Applied List, not navigate to a separate page.
     public function test_promo_list_view_action_opens_the_details_popup_not_a_separate_page(): void
     {
         $discount = Discount::create($this->basePromoPayload());
@@ -883,16 +792,11 @@ class DiscountModuleTest extends TestCase
         $response->assertSee('event.preventDefault(); window.openPromoDetails', false);
     }
 
-    // Regression guard: a successful Create must not force a full page
-    // reload — Tab 1's table and the Apply tab's promo data both refresh
-    // via AJAX instead (see refreshDiscountsTable()/updateApplyTabData()).
     public function test_add_promo_success_handler_does_not_reload_the_page(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.discounts.index'));
 
         $response->assertOk();
-        // Scoped to the Save Promo handler itself: the page-wide session
-        // guard legitimately reloads a page restored by the Back button.
         $html = $response->getContent();
         $start = strpos($html, "document.getElementById('addDiscountSubmitBtn').addEventListener");
         $this->assertNotFalse($start, 'Save Promo handler not found');
@@ -901,9 +805,6 @@ class DiscountModuleTest extends TestCase
         $this->assertStringNotContainsString('location.reload', $handler);
     }
 
-    // A promo not yet assigned to any product doesn't count as "currently
-    // active" — scopeCurrentlyActive() requires at least one pivot row, so
-    // it never applies to a product until the admin explicitly assigns it.
     public function test_currently_active_scope_only_returns_promos_assigned_to_a_product_and_non_expired_started(): void
     {
         Discount::create(['DiscountRate' => 10, 'Name' => 'Unassigned Promo', 'PromoCode' => 'UNASSIGNED', 'DiscountType' => Discount::TYPE_PERCENTAGE]);
@@ -927,8 +828,6 @@ class DiscountModuleTest extends TestCase
         $this->assertFalse($results->contains('UNASSIGNED'));
     }
 
-    // ---- Automatic expiration (Promo Discount List / History) ----
-
     public function test_expired_promo_does_not_appear_in_the_active_promo_discount_list(): void
     {
         Discount::create(array_merge($this->basePromoPayload(), [
@@ -938,10 +837,6 @@ class DiscountModuleTest extends TestCase
             'PromoCode' => 'ALLGONE', 'StartDate' => '2020-01-01', 'EndDate' => '2020-01-31',
         ]));
 
-        // Checked against the rendered table rows specifically (not the
-        // whole page) — an expired promo's data legitimately still appears
-        // elsewhere in the page as embedded JSON, for its own History/View
-        // Details popup to work.
         $response = $this->actingAs($this->admin)->getJson(route('admin.discounts.index', ['ajax' => 1]));
 
         $response->assertOk();
@@ -950,8 +845,6 @@ class DiscountModuleTest extends TestCase
         $this->assertStringNotContainsString('ALLGONE', $rows);
     }
 
-    // A promo that hasn't started yet is not expired — it must stay visible
-    // in the Promo Discount List (only truly expired ones move to History).
     public function test_scheduled_promo_still_appears_in_the_active_promo_discount_list(): void
     {
         Discount::create(array_merge($this->basePromoPayload(), [
@@ -976,9 +869,6 @@ class DiscountModuleTest extends TestCase
         $response->assertDontSee('ALLGONE</option>', false);
     }
 
-    // Even if a stale tab has an already-expired promo's id in hand (e.g.
-    // the page was left open past its EndDate), the server must still
-    // refuse to apply it — the dropdown filter alone isn't enough.
     public function test_assign_products_rejects_an_expired_promo_even_if_directly_requested(): void
     {
         $expired = Discount::create(array_merge($this->basePromoPayload(), [
@@ -994,9 +884,6 @@ class DiscountModuleTest extends TestCase
         $this->assertFalse($expired->fresh()->products->contains('ProductID', $this->product->ProductID));
     }
 
-    // The expired promo's full information must still be intact and
-    // reachable via History/View Details — expiring never deletes or
-    // duplicates the record.
     public function test_expired_promo_is_preserved_intact_in_history_with_no_duplicate_record(): void
     {
         $expired = Discount::create(array_merge($this->basePromoPayload(), [
@@ -1015,7 +902,6 @@ class DiscountModuleTest extends TestCase
         $this->assertStringContainsString($this->product->ProductName, $expiredHtml);
         $this->assertStringContainsString('Expired', $expiredHtml);
 
-        // Exactly one row for this promo — no duplicate was created when it expired.
         $this->assertSame(1, Discount::where('PromoCode', 'ALLGONE')->count());
         $this->assertDatabaseHas('Discount', ['DiscountID' => $expired->DiscountID, 'PromoCode' => 'ALLGONE']);
     }

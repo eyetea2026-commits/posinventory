@@ -14,11 +14,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-// Covers the Cheque/Bank Transfer payment fix: previously account_number
-// was read from every non-cash request but never actually persisted
-// anywhere (Payment had no column for it). These tests exercise the new
-// ReferenceNumber/BankName/AccountName/PaymentDate/PaymentTime/Remarks
-// columns end-to-end, plus confirm Cash/GCash are unaffected.
 class ChequeAndBankTransferPaymentTest extends TestCase
 {
     use RefreshDatabase;
@@ -43,13 +38,11 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 50, 'Status' => 'Available']);
     }
 
-    // GCash, Bank Transfer and Cheque sales need a proof of payment photo,
-    // so one is attached unless the test passes its own.
     private function baseCheckoutPayload(array $overrides = []): array
     {
         $payload = array_merge([
             'items' => [['id' => $this->product->ProductID, 'qty' => 1]],
-            'payment_amount' => 1120, // 1000 + 12% VAT
+            'payment_amount' => 1120,
         ], $overrides);
 
         if (in_array($payload['payment_method'] ?? null, PaymentProof::METHODS, true) && ! array_key_exists('payment_proof', $payload)) {
@@ -58,8 +51,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
 
         return $payload;
     }
-
-    // ---- Cheque: valid payment persists every field ----
 
     public function test_valid_cheque_payment_persists_all_details(): void
     {
@@ -80,8 +71,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         $this->assertSame('Juan Dela Cruz', $payment->AccountName);
         $this->assertSame('2026-08-15', $payment->PaymentDate->format('Y-m-d'));
     }
-
-    // ---- Bank Transfer: valid payment persists every field ----
 
     public function test_valid_bank_transfer_persists_all_details(): void
     {
@@ -106,8 +95,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         $this->assertNotNull($payment->PaymentTime);
     }
 
-    // ---- Cheque: each required field missing is rejected ----
-
     public function test_cheque_rejects_missing_required_fields(): void
     {
         $required = ['reference_number', 'bank_name', 'account_name', 'payment_date'];
@@ -127,8 +114,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
             $response->assertStatus(422);
         }
     }
-
-    // ---- Bank Transfer: each required field missing is rejected ----
 
     public function test_bank_transfer_rejects_missing_required_fields(): void
     {
@@ -151,8 +136,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         }
     }
 
-    // ---- Duplicate reference number for the same method is rejected ----
-
     public function test_duplicate_cheque_number_is_rejected(): void
     {
         $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), $this->baseCheckoutPayload([
@@ -172,8 +155,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         $this->assertSame(1, Payment::where('ReferenceNumber', 'CHK-DUP-1')->count());
     }
 
-    // ---- Same reference number is fine across different methods ----
-
     public function test_same_reference_number_is_allowed_across_different_payment_methods(): void
     {
         $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), $this->baseCheckoutPayload([
@@ -191,8 +172,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('success', true);
     }
-
-    // ---- Regression: Cash and GCash still work without any new fields ----
 
     public function test_cash_still_succeeds_without_any_payment_detail_fields(): void
     {
@@ -219,8 +198,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
 
     public function test_gcash_reference_number_is_now_actually_persisted(): void
     {
-        // Regression guard for the root-cause bug: account_number used to be
-        // read from the request and then silently discarded.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), $this->baseCheckoutPayload([
             'payment_method' => 'gcash',
             'reference_number' => 'GCASH-REF-777',
@@ -230,8 +207,6 @@ class ChequeAndBankTransferPaymentTest extends TestCase
         $payment = Payment::where('PaymentMethod', 'gcash')->firstOrFail();
         $this->assertSame('GCASH-REF-777', $payment->ReferenceNumber);
     }
-
-    // ---- Receipt exposes the new fields ----
 
     public function test_receipt_shows_cheque_details(): void
     {

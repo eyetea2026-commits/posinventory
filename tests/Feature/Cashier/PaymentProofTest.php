@@ -14,9 +14,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-// GCash, Bank Transfer and Cheque sales must carry a proof of
-// payment photo. It's kept on the private disk and only shown to the
-// cashier who made the sale and to Administrators.
 class PaymentProofTest extends TestCase
 {
     use RefreshDatabase;
@@ -37,10 +34,6 @@ class PaymentProofTest extends TestCase
         Inventory::create(['ProductID' => $this->product->ProductID, 'Quantity' => 10, 'Status' => 'Available']);
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
     private function sale(array $overrides = []): array
     {
         return array_merge([
@@ -62,18 +55,15 @@ class PaymentProofTest extends TestCase
         Storage::disk(PaymentProof::DISK)->assertExists($payment->ProofImagePath);
         $this->assertStringStartsWith('payment-proofs/', $payment->ProofImagePath);
 
-        // The cashier who made the sale and Administrators can open it.
         $this->actingAs($this->cashier)->get(route('payments.proof', $payment))->assertOk();
         $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
         $this->actingAs($admin)->get(route('payments.proof', $payment))->assertOk();
 
-        // Another cashier can't, and nobody signed out can.
         $otherCashier = User::factory()->create(['role_id' => $this->cashier->role_id]);
         $this->actingAs($otherCashier)->get(route('payments.proof', $payment))->assertForbidden();
         auth()->logout();
         $this->get(route('payments.proof', $payment))->assertRedirect();
 
-        // Transaction History shows a Proof button on the sale.
         $this->actingAs($this->cashier)->get(route('cashier.transactions'))->assertOk()
             ->assertSee(route('payments.proof', $payment), false);
     }

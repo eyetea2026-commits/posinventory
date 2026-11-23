@@ -180,7 +180,6 @@
             flex: 1;
         }
 
-        /* Sales Analytics / Product Performance side-by-side row */
         .analytics-performance-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -198,9 +197,6 @@
             flex: 1;
         }
 
-        /* Sales Trend card — dark "line chart" stat header (invoices +
-           revenue with a period-over-period change badge), a pill toggle,
-           and a current/previous badge pair over the chart itself. */
         .sales-trend-card {
             background: linear-gradient(180deg, #0b0f19 0%, #0d1424 100%);
             border-color: rgba(148, 163, 184, 0.08);
@@ -273,10 +269,6 @@
             margin-top: 4px;
         }
 
-        /* Product Performance ranked bar list — rank, name, units, and % all
-           live inside the bar itself; the fill's width is the only thing
-           that encodes relative performance, so the text row is a full-width
-           overlay independent of how far the fill actually reaches. */
         .perf-list {
             display: flex;
             flex-direction: column;
@@ -403,8 +395,6 @@
         .card-body { padding: 24px; }
 
         .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 24px 0; flex-wrap: wrap; }
-        /* Two equal columns; minmax(0, 1fr) lets each table scroll inside
-           its own card instead of stretching the grid wider than the page. */
         .ops-tab-group { display: inline-flex; flex-wrap: wrap; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 16px; }
         .ops-tab-btn {
             padding: 9px 18px; border-radius: 9px; border: none; background: transparent; color: #94a3b8;
@@ -417,10 +407,6 @@
         .operational-tabs { min-width: 0; }
         .activity-log-toolbar { justify-content: flex-start; gap: 10px; }
         .activity-log-toolbar .search-box { flex: 1 1 260px; max-width: 340px; }
-        /* Explicit colors (matching the search box beside them): the shared
-           form-select/form-input styles get overridden to a light look on
-           this page. color-scheme: dark gives the date pickers a dark
-           calendar and a visible icon. */
         .activity-log-toolbar .form-select,
         .activity-log-toolbar .form-input {
             width: auto; min-width: 140px; padding: 11px 14px; font-size: 0.85rem;
@@ -476,9 +462,6 @@
         .badge-info { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
         .badge-replenish { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
 
-        /* Fills the rest of the card (which stretches to match the cards
-           beside it) and scrolls inside that space, instead of stopping
-           at a fixed 300px and leaving the bottom of the card empty. */
         #stockAlertsContainer {
             flex: 1 1 auto;
             min-height: 300px;
@@ -556,11 +539,6 @@
         .activity-title { font-weight: 600; color: #f8fafc; margin-bottom: 2px; font-size: 0.9rem; }
         .activity-meta { font-size: 0.78rem; color: #94a3b8; }
 
-        /* Loading skeleton shown over a chart's canvas until Chart.js has
-           finished its first render (covers the CDN script-load window and
-           gives the "loading" requirement real meaning instead of a
-           decorative flash) — shared by the Inventory Status and Sales by
-           Category charts. */
         .chart-skeleton {
             position: absolute;
             inset: 0;
@@ -587,7 +565,6 @@
             .chart-skeleton { animation: none; }
         }
 
-        /* Sales by Category — interactive ring chart + synced legend */
         .ring-chart-layout {
             display: flex;
             align-items: center;
@@ -771,7 +748,6 @@
 @endsection
 
 @section('content')
-    {{-- KPI Summary Cards --}}
     <div class="stats-grid mb-4">
         <a href="{{ route('admin.reports.index', ['type' => 'sales']) }}" class="stat-card" style="animation-delay: 0.02s" title="View Sales Report">
             <div class="stat-icon green"><i class="fas fa-peso-sign"></i></div>
@@ -815,7 +791,6 @@
         </a>
     </div>
 
-    {{-- Section 1: Sales Analytics + Product Performance, side by side --}}
     <div class="analytics-performance-grid mt-4">
         <div class="analytics-col">
             <h2 class="dashboard-section-title">Sales Analytics</h2>
@@ -847,8 +822,6 @@
                             </div>
                         </div>
                     </div>
-                    {{-- Which period the two numbers above cover; updated by
-                         the Daily/Weekly/Monthly/Yearly toggle. --}}
                     <div class="sales-trend-period" id="salesTrendPeriod">{{ $trendDaily['periodLabel'] ?? '' }}</div>
                     </div>
                     <div class="chart-toggle-group sales-trend-toggle" data-toggle="trend">
@@ -887,7 +860,6 @@
         </div>
     </div>
 
-    {{-- Section 2: Inventory Analytics --}}
     <h2 class="dashboard-section-title mt-4">Inventory Analytics</h2>
     <div class="charts-grid">
         <div class="chart-card">
@@ -945,10 +917,7 @@
         </div>
     </div>
 
-    {{-- Section 5: Operational Activity --}}
     <h2 class="dashboard-section-title mt-4">Operational Activity</h2>
-    {{-- Overall Transactions and Activity Log as two tabs (same style as
-         the Discounts page tabs). --}}
     <div class="ops-tab-group" role="tablist">
         <button type="button" class="ops-tab-btn active" data-ops-tab="transactions" role="tab" aria-selected="true" onclick="switchOperationalTab('transactions')">
             <i class="fas fa-receipt"></i> Overall Transactions
@@ -979,8 +948,6 @@
             </div>
         </div>
 
-        {{-- Activity Log: rows load over AJAX from
-             ActivityLogController::index(). --}}
         <div class="card ops-tab-panel" id="activity-log" role="tabpanel">
             <div class="card-header">
                 <div>
@@ -1013,7 +980,6 @@
 
 @push('scripts')
     <script>
-    // Operational Activity tabs: Overall Transactions / Activity Log.
     function switchOperationalTab(tab) {
         document.querySelectorAll('.ops-tab-btn').forEach(function (btn) {
             const active = btn.dataset.opsTab === tab;
@@ -1032,8 +998,6 @@
         let leastSellingRaw = @json($leastSelling->map(fn($i) => ['label' => $i->product?->ProductName ?? 'Unknown', 'quantity' => (float) $i->total_quantity, 'revenue' => (float) $i->total_revenue]));
 
         const PALETTE = ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c', '#94a3b8'];
-        // Canvas colors aren't CSS, so the charts pick their own for Light
-        // Mode, and are drawn again (page reload) when the theme changes.
         const IS_LIGHT = window.getTheme && window.getTheme() === 'light';
         document.addEventListener('themechange', function () { window.location.reload(); });
         Chart.defaults.color = IS_LIGHT ? '#475569' : '#94a3b8';
@@ -1046,9 +1010,6 @@
             return div.innerHTML;
         }
 
-        // Lightens (positive percent) or darkens (negative) a "#rrggbb" color
-        // — used by the 3D bar plugin to derive a bar's top/side face shades
-        // from its single flat fill color.
         function shadeColor(hex, percent) {
             const num = parseInt(hex.replace('#', ''), 16);
             let r = (num >> 16) + percent;
@@ -1060,11 +1021,6 @@
             return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
         }
 
-        // Fakes a 3D "box" look for a vertical bar chart with no extra chart
-        // library: after Chart.js draws each bar's flat front face, this
-        // draws a lighter parallelogram "top" cap and a darker parallelogram
-        // "side" face along the right edge, matching the depth/perspective
-        // effect the brief asks for.
         const bar3dDepthPlugin = {
             id: 'bar3dDepth',
             afterDatasetsDraw(chart) {
@@ -1076,7 +1032,7 @@
                     const { ctx } = chart;
                     meta.data.forEach((bar, i) => {
                         const props = bar.getProps(['x', 'y', 'base', 'width'], true);
-                        if (props.y === props.base) return; // zero-height bar, nothing to extrude
+                        if (props.y === props.base) return;
 
                         const color = Array.isArray(dataset.backgroundColor)
                             ? dataset.backgroundColor[i % dataset.backgroundColor.length]
@@ -1089,7 +1045,6 @@
 
                         ctx.save();
 
-                        // Side face (right edge)
                         ctx.beginPath();
                         ctx.moveTo(props.x + halfWidth, top);
                         ctx.lineTo(props.x + halfWidth + depth, top - depth);
@@ -1099,7 +1054,6 @@
                         ctx.fillStyle = shadeColor(color, -35);
                         ctx.fill();
 
-                        // Top face
                         ctx.beginPath();
                         ctx.moveTo(props.x - halfWidth, top);
                         ctx.lineTo(props.x - halfWidth + depth, top - depth);
@@ -1115,8 +1069,6 @@
             },
         };
 
-        // Live clock — ticks every second so the header date/time never goes
-        // stale while the dashboard is left open, without needing a reload.
         (function () {
             const dateEl = document.getElementById('dashboardCurrentDate');
             const timeEl = document.getElementById('dashboardCurrentTime');
@@ -1125,7 +1077,6 @@
             function tick() {
                 const now = new Date();
                 if (dateEl) {
-                    // Weekday, MM/DD/YYYY (e.g. Monday, 10/12/2026).
                     dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long' }) + ', '
                         + now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
                 }
@@ -1140,7 +1091,6 @@
             setInterval(tick, 1000);
         })();
 
-        // Animated KPI counters
         document.querySelectorAll('[data-counter]').forEach((el) => {
             const target = parseFloat(el.dataset.value || '0');
             const decimals = parseInt(el.dataset.decimals || '0', 10);
@@ -1161,13 +1111,6 @@
             requestAnimationFrame(tick);
         });
 
-        // Sales Trend (line, daily/weekly/monthly/yearly toggle) — one solid
-        // "current period" line against a dashed "previous period" line of
-        // the same length immediately before it, matching the reference
-        // line-chart design: a big Invoices/Revenue stat header instead of
-        // a title, sparse point markers only at local peaks/valleys (plus
-        // the latest point), no y-axis, and small current/previous badges
-        // over the chart instead of a value-ranked legend.
         function peakPointRadii(values, radius, endRadius) {
             return values.map((v, i, arr) => {
                 if (i === arr.length - 1) return endRadius;
@@ -1304,11 +1247,6 @@
             });
         }
 
-        // Sales by Category — interactive ring (doughnut) chart with a
-        // custom hover-synced legend and a center label, replacing the
-        // built-in Chart.js legend entirely so the legend can show
-        // value + percentage + a progress bar per category and stay in
-        // sync with which ring segment is highlighted.
         const categoryCanvas = document.getElementById('categoryChart');
         const categorySkeleton = document.getElementById('categoryChartSkeleton');
         const categoryLegendList = document.getElementById('categoryLegendList');
@@ -1441,11 +1379,6 @@
             }
         }
 
-        // Inventory Status — 3D-effect vertical bar chart, toggled between
-        // quantity-by-category and quantity-by-product views. Both views'
-        // data are already on hand (server sent both), so switching is an
-        // instant client-side `.update()`, matching the Sales Trend
-        // chart's daily/weekly/monthly/yearly toggle elsewhere on this page.
         const inventoryViewData = { category: inventoryStatusData.byCategory, product: inventoryStatusData.byProduct };
         let currentInventoryView = 'category';
         const inventoryCanvas = document.getElementById('inventoryStatusChart');
@@ -1513,17 +1446,6 @@
             });
         }
 
-        // Product Performance — ranked list with horizontal bars. Both bar
-        // width and the displayed percentage are each product's quantity
-        // relative to the all-time #1 top seller (never the max within
-        // whichever tab is currently showing) — Top Selling is always
-        // sorted descending, so its first row is guaranteed to be that
-        // top seller regardless of how many rows are actually displayed.
-        // Using a single shared baseline for both tabs means Least
-        // Selling's percentages stay genuinely low (reflecting how far
-        // below the top performer they are) instead of being renormalized
-        // to 100% for whichever item happens to be the best of a small,
-        // non-overlapping "least selling" slice.
         const perfListEl = document.getElementById('productPerformanceList');
         let globalMaxQty = Math.max(1, topSellingRaw[0]?.quantity || 0);
 
@@ -1561,8 +1483,6 @@
                 `;
             }).join('');
 
-            // Animate bars growing in from 0 on every render (including tab
-            // switches) for the "smooth transition between tabs" requirement.
             requestAnimationFrame(() => {
                 perfListEl.querySelectorAll('.perf-bar-fill').forEach((el) => {
                     el.style.width = el.dataset.targetWidth;
@@ -1582,14 +1502,6 @@
             });
         }
 
-        // Poll dashboard-wide widgets (Products, Inventory Status chart,
-        // Stock Alerts, Sales Today, Transactions, Recent Transactions,
-        // Product Rankings) so sales/refunds/receiving/adjustments/damage
-        // recording made elsewhere — including a sale completed by a
-        // Cashier in another tab — show up here without a page reload.
-        // Pauses while the tab is hidden to avoid pointless requests.
-        // Forwards the current URL's query string so an active Recent
-        // Transactions search/sort/page is preserved across polls.
         function refreshInventoryWidgets() {
             if (document.hidden) return;
 
@@ -1645,10 +1557,6 @@
                     const recentTxnContainer = document.getElementById('recentTransactionsContainer');
                     if (recentTxnContainer && typeof data.recentTransactionsHtml !== 'undefined') {
                         recentTxnContainer.innerHTML = data.recentTransactionsHtml;
-                        // The 10s poll just replaced these links with fresh
-                        // DOM nodes — re-attach the click handlers below or
-                        // the next click on them would fall through to a
-                        // real (page-jumping) navigation again.
                         bindRecentTransactionsLinks();
                     }
 
@@ -1663,18 +1571,11 @@
                     }
                 })
                 .catch(() => {
-                    // Non-fatal — keep showing the last known values.
                 });
         }
         setInterval(refreshInventoryWidgets, 10000);
-        // ...and straight away when sales or stock change (partials/live-updates).
         window.liveUpdates.watch(['sales', 'inventory', 'products', 'suppliers', 'returns', 'damages', 'stock_receivings', 'stock_adjustments'], refreshInventoryWidgets);
 
-        // Recent Transactions: pagination, column-sort, and search all stay
-        // on this same page instead of doing a real navigation (which always
-        // scrolls back to the top of the dashboard) — they fetch the same
-        // JSON endpoint the 10s poll already uses and swap in just this
-        // widget's markup.
         function fetchRecentTransactions(params) {
             const container = document.getElementById('recentTransactionsContainer');
             if (!container) return;
@@ -1693,7 +1594,6 @@
                     }
                 })
                 .catch(() => {
-                    // Non-fatal — the table just stays as it was.
                 });
         }
 
@@ -1717,9 +1617,6 @@
 
             let debounceTimer = null;
             function triggerSearch() {
-                // Reads the current address bar's query string (kept in
-                // sync by fetchRecentTransactions) so an active sort order
-                // survives a search instead of silently resetting.
                 const params = new URLSearchParams(window.location.search);
                 if (searchInput.value.trim()) {
                     params.set('txn_search', searchInput.value.trim());
@@ -1730,7 +1627,6 @@
                 fetchRecentTransactions(params);
             }
 
-            // Live/instant: no need for Enter or a Search button.
             form.addEventListener('submit', function (e) { e.preventDefault(); });
             searchInput.addEventListener('input', function () {
                 clearTimeout(debounceTimer);
@@ -1741,10 +1637,6 @@
         bindRecentTransactionsLinks();
         initRecentTransactionsSearch();
 
-        // Activity Log card: loads after the page, then every filter change
-        // or page link re-fetches just this table (no page reload, no jump
-        // back to the top). The module/user dropdowns are filled from the
-        // first response.
         (function () {
             const form = document.getElementById('activityLogFilters');
             const container = document.getElementById('activityLogContainer');
@@ -1774,7 +1666,7 @@
                 fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
-                        if (seq !== requestSeq) return; // a newer filter change won
+                        if (seq !== requestSeq) return;
                         container.innerHTML = data.html;
                         errorEl.textContent = data.filterError || '';
                         errorEl.style.display = data.filterError ? '' : 'none';
@@ -1822,8 +1714,6 @@
 
             applyFilters();
 
-            // Real time (partials/live-updates): new log entries show up
-            // on the same filters and page.
             window.liveUpdates.watch(['activity'], function () {
                 if (lastUrl) load(lastUrl);
             });

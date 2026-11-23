@@ -6,10 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Categories are deactivated instead of deleted. Every existing category
-     * starts out active.
-     */
     public function up(): void
     {
         Schema::table('Category', function (Blueprint $table) {

@@ -15,22 +15,14 @@ class PurchaseOrderItem extends Model
 
     protected $table = 'PurchaseOrderItem';
 
-    // Current Price: up to 5 whole-peso digits and 2 decimals (99,999.99),
-    // the same limit as a product's prices.
     const MAX_COST_PRICE = 99999.99;
 
-    // Quantity ordered: up to 3 digits.
     const MAX_QUANTITY = 999;
 
-    // Meters per roll typed on the order (100, 250, 1,000...): up to 4 digits.
     const MAX_METERS_PER_ROLL = 9999;
 
     protected $primaryKey = 'PurchaseOrderItemID';
 
-    // Quantity, ReceivedQuantity and CancelledQuantity are in the unit it
-    // was ordered in (Unit: roll, box...), CostPriceAtOrder is per that
-    // unit, and QuantityPerUnit is how many base units one of it adds to
-    // stock (1 roll = 5,000 meters), as it was when the order was made.
     protected $fillable = [
         'Quantity',
         'Unit',
@@ -46,21 +38,11 @@ class PurchaseOrderItem extends Model
         'QuantityPerUnit' => Quantity::class,
     ];
 
-    /**
-     * The unit and conversion a new order line for this product uses.
-     *
-     * @return array{Unit: string, QuantityPerUnit: int|float}
-     */
     public static function unitFor(Product $product): array
     {
         return ['Unit' => $product->orderUnit(), 'QuantityPerUnit' => $product->quantityPerOrderUnit()];
     }
 
-    /**
-     * The meters per roll this wire was ordered at (the Meter column of
-     * Create Purchase Order): Stock Receiving takes exactly that. Null for
-     * anything else, or an older order that never said.
-     */
     public function orderedMetersPerRoll(): int|float|null
     {
         $product = $this->product;
@@ -73,10 +55,6 @@ class PurchaseOrderItem extends Model
             : null;
     }
 
-    /**
-     * The ordered price per base unit (a 5,000-meter roll at ₱10,000 is
-     * ₱2 a meter), or null when no price was given.
-     */
     public function costPerBaseUnit(): ?float
     {
         if ($this->CostPriceAtOrder === null) {
@@ -86,28 +64,16 @@ class PurchaseOrderItem extends Model
         return round((float) $this->CostPriceAtOrder / ((float) $this->QuantityPerUnit ?: 1), 2);
     }
 
-    /**
-     * How many base units this many ordered units add to stock.
-     */
     public function toBaseQuantity(int|float $quantity): int|float
     {
         return Quantity::normalize($quantity * ((float) $this->QuantityPerUnit ?: 1));
     }
 
-    /**
-     * "2 rolls", "1 box".
-     */
     public function quantityLabel(int|float|null $quantity = null): string
     {
-        // Just the rolls/boxes: how many meters each holds is only known
-        // per delivery (StockReceivingDeliveryItem.BaseQuantity).
         return UnitOfMeasure::format($quantity ?? $this->Quantity, $this->Unit ?: UnitOfMeasure::DEFAULT);
     }
 
-    /**
-     * For tables: a plain count for pieces (as always), "2 rolls" for
-     * anything ordered by another unit.
-     */
     public function tableQuantity(int|float|null $quantity = null): string
     {
         $quantity ??= $this->Quantity;
@@ -115,9 +81,6 @@ class PurchaseOrderItem extends Model
         return $this->isOrderedByThePiece() ? UnitOfMeasure::number($quantity) : $this->quantityLabel($quantity);
     }
 
-    /**
-     * "₱4,500.00" per piece, "₱4,500.00/roll" otherwise.
-     */
     public function unitCostLabel(): string
     {
         return '₱'.number_format((float) $this->CostPriceAtOrder, 2).($this->isOrderedByThePiece() ? '' : '/'.$this->Unit);
@@ -138,20 +101,11 @@ class PurchaseOrderItem extends Model
         return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
     }
 
-    /**
-     * Still owed by the supplier: ordered, less what arrived and what the
-     * owner cancelled.
-     */
     public function getRemainingQuantityAttribute(): int
     {
         return max(0, $this->Quantity - $this->ReceivedQuantity - (int) $this->CancelledQuantity);
     }
 
-    // The financial value of this PO line — what was ORDERED at the price
-    // agreed for this order, not what has arrived so far. Using
-    // ReceivedQuantity here made every line show ₱0.00 until receiving
-    // started, which isn't what a Line Total is for; Received/Remaining
-    // already have their own columns for tracking fulfillment progress.
     public function getLineTotalAttribute(): float
     {
         return $this->Quantity * $this->CostPriceAtOrder;

@@ -1,10 +1,3 @@
-{{-- Shared "Create Purchase Order (from reorder)" field markup. Included by
-     both the standalone create-from-reorder page and, via AJAX-fetched JSON,
-     the glassmorphism modal opened from the Inventory module — so both
-     present identical read-only Product/Supplier sections plus the editable
-     Order Quantity / Remarks fields. Expects: $product, $quantity,
-     $threshold, $suggestedQuantity, $resolvedSupplier, $knownSuppliers,
-     $supplierState, $allSuppliers. --}}
 <style>
     .reorder-section { margin-bottom: 28px; }
     .reorder-section h3 {
@@ -75,12 +68,8 @@
 </div>
 
 @php
-    // Null/0 both mean "nothing on record yet" — CostPrice is nullable
-    // with a default of 0, so either is the genuine "no previous price"
-    // case, not a real ₱0.00 price.
     $previousCostPrice = $resolvedSupplier?->CostPrice ?? $product->CostPrice;
     $hasPreviousCostPrice = $previousCostPrice !== null && (float) $previousCostPrice > 0;
-    // Ordered by the purchase unit, so priced per roll/box.
     $previousCostPrice = \App\Http\Controllers\Admin\PurchaseOrderController::costPerPurchaseUnit($product, $previousCostPrice);
     $orderUnit = $product->orderUnit();
 @endphp

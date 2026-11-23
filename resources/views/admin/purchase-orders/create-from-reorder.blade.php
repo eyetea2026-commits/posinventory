@@ -1,8 +1,3 @@
-{{-- Fallback full-page view for direct navigation to this URL. The real
-     Inventory-module workflow no longer links here — it opens the same
-     reorder-form-fields partial inside a glassmorphism modal instead (see
-     admin/inventory/partials/reorder-modal.blade.php) so the admin never
-     leaves the Inventory page. --}}
 @extends('admin.layout')
 
 @push('styles')

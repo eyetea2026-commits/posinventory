@@ -1,6 +1,3 @@
-{{-- Type-specific report content, shared by the index page's live view and
-     the reactive fetch (admin.reports.preview) triggered on every Report
-     Type / date change, so both always show exactly the same data. --}}
 @if($reportType === 'inventory')
     <div class="card mt-4">
         <div class="card-header">

@@ -26,7 +26,6 @@ class Inventory extends Model
     ];
 
     protected $casts = [
-        // In the product's base unit (Product::baseUnit()): 4,999.5 meters.
         'Quantity' => Quantity::class,
         'AutoReorderTriggered' => 'boolean',
     ];
@@ -36,16 +35,6 @@ class Inventory extends Model
         return $this->belongsTo(Product::class, 'ProductID', 'ProductID');
     }
 
-    // The single source of truth for the stored Inventory.Status string
-    // (Out of Stock / Low Stock / Available) -- the value InventoryObserver
-    // reads to decide whether to fire LowStockAlert. Several call sites used
-    // to reimplement this with a hardcoded "<=10" cutoff instead of the
-    // product's own ReorderThreshold, which could leave a product sitting
-    // well under its real threshold marked "Available" and silently
-    // suppress the alert. Not to be confused with ProductController /
-    // InventoryController's resolveStockStatus(), a separate 4-tier
-    // (+ "Replenish") vocabulary computed live for display only and never
-    // written to this column.
     public static function resolveStatus(int|float $quantity, ?int $reorderThreshold): string
     {
         if ($quantity <= 0) {

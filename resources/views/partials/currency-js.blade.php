@@ -1,8 +1,3 @@
-{{-- Shared money-formatting helpers used across every admin and cashier
-     view: consistent ₱ + comma-grouped, always-2-decimal display formatting,
-     plus live thousands-separator formatting for money <input> fields (which
-     use type="text" instead of type="number" so commas can be displayed
-     while typing), with the caret position preserved as the user types. --}}
 <script>
     window.parseMoney = function (value) {
         var n = parseFloat(String(value == null ? '' : value).replace(/[^0-9.\-]/g, ''));
@@ -20,10 +15,6 @@
         return '₱' + window.formatMoneyPlain(value);
     };
 
-    // Binds live comma-formatting to a text <input> representing a money
-    // amount. Read the raw number back with parseMoney(input.value).
-    // options.maxIntegerDigits (optional) caps the whole-peso part, e.g. 7
-    // allows up to 9,999,999.99; extra digits are simply not accepted.
     window.attachMoneyInput = function (input, options) {
         if (!input || input.dataset.moneyBound) return;
         input.dataset.moneyBound = '1';
@@ -64,9 +55,6 @@
         input.addEventListener('input', reformat);
     };
 
-    // A text box marked data-money-digits="5" becomes a money box (up to
-    // 99,999.99) the first time it's focused, including boxes added later
-    // (the Create Purchase Order rows are loaded into a modal).
     document.addEventListener('focusin', function (e) {
         var input = e.target;
         if (!(input instanceof HTMLInputElement) || !input.dataset.moneyDigits) return;

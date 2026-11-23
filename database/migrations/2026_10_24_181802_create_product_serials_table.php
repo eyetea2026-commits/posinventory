@@ -7,18 +7,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Categories whose products are sold by the piece without a serial
-     * number (they keep using the product barcode).
-     *
-     * @var list<string>
-     */
     private const CATEGORIES_WITHOUT_SERIALS = ['ACCESSORIES', 'FIBER CONNECTOR', 'CONSUMABLES', 'WIRE'];
 
-    /**
-     * One serial number (SN00001, one count across all products) per piece
-     * in stock, for every category except consumables and wires.
-     */
     public function up(): void
     {
         Schema::table('Category', function (Blueprint $table) {
@@ -32,7 +22,6 @@ return new class extends Migration
         Schema::create('ProductSerial', function (Blueprint $table) {
             $table->increments('ProductSerialID');
             $table->unsignedInteger('ProductID');
-            // Filled in right after insert from the id (SN00001...).
             $table->string('SerialNumber', 20)->nullable()->unique();
             $table->string('Status', 30)->default('In Stock');
             $table->unsignedInteger('SalesTransactionID')->nullable();
@@ -43,7 +32,6 @@ return new class extends Migration
             $table->index(['ProductID', 'Status']);
         });
 
-        // Pieces already in stock get their serial numbers now.
         $inStock = DB::table('Inventory')
             ->join('Product', 'Product.ProductID', '=', 'Inventory.ProductID')
             ->join('Category', 'Category.CategoryID', '=', 'Product.CategoryID')

@@ -68,10 +68,6 @@ class ReportDetailsTest extends TestCase
         $transaction = SalesTransaction::create([
             'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
         ]);
-        // DiscountAmount is this line's own share of the sale's promo
-        // discount -- exercising it here proves the new "Discount"/"Total
-        // Amount" table columns are read from real stored data, not
-        // recomputed from scratch.
         SalesItem::create([
             'Quantity' => 2, 'UnitPrice' => 1000, 'DiscountAmount' => 200,
             'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
@@ -150,9 +146,6 @@ class ReportDetailsTest extends TestCase
         $response->assertJsonFragment(['warning' => 'This sale has been refunded.']);
     }
 
-    // A pending/declined return (or a replacement, which isn't a cash
-    // refund) must not trigger the warning -- only a fully processed
-    // ReturnType=refund does.
     public function test_sales_report_details_has_no_refund_warning_for_a_pending_or_replacement_return(): void
     {
         $transaction = SalesTransaction::create([
@@ -293,13 +286,11 @@ class ReportDetailsTest extends TestCase
             ->assertSee('onclick="window.print()"', false)
             ->assertSeeInOrder(['CCTV Express', 'Your Trusted Security Partner', 'Sales Report — '.$reportNumber,
                 'Report Information', 'Cashier Name', 'Jane Doe', 'Products Sold',
-                // The Sales Report table: receipt amounts on the last row, then its summary.
                 'Invoice No', 'Receipt Discount', 'Receipt VAT', 'Receipt Total', 'RCT-000001', 'DVR Camera', '₱1,800.00',
                 'Report Summary', 'Amount Collected (VAT included)', 'Net Sales (VAT excluded)', 'Prepared By'])
             ->assertDontSee('Product Numbering')
             ->assertDontSee('Total Transactions');
 
-        // The full Sales and Revenue Report still counts its transactions.
         $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
             ->assertSee('Total Transactions');
 
@@ -309,7 +300,6 @@ class ReportDetailsTest extends TestCase
         $this->actingAs($cashier)->get(route('admin.reports.details.print', ['type' => 'sales', 'id' => $transaction->SalesTransactionID]))
             ->assertRedirect()->assertDontSee('DVR Camera');
 
-        // The pop-up's button opens it, after the same Print Preview question.
         $this->actingAs($this->admin)->get(route('admin.reports.index'))->assertOk()
             ->assertSee('id="reportDetailsPrintPreview" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Preview" data-confirm-text="Open the print preview of this report?" target="_blank"', false)
             ->assertSee(route('admin.reports.details.print'), false)
@@ -320,8 +310,6 @@ class ReportDetailsTest extends TestCase
     {
         $this->fetchDetails('sales', 999999)->assertNotFound();
         $this->fetchDetails('not-a-real-type', 1)->assertNotFound();
-        // 'supplier' and 'stock_receiving' details were dropped along with
-        // their report types — no dispatch arm matches them anymore.
         $this->fetchDetails('supplier', $this->supplier->SupplierID)->assertNotFound();
     }
 

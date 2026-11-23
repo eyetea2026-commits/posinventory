@@ -15,8 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
-// A piece refunded as Damaged / Factory Defect is the exact serial the
-// customer brought back, and that sticker can never be sold at the POS again.
 class ReturnedSerialsTest extends TestCase
 {
     use RefreshDatabase;
@@ -39,9 +37,6 @@ class ReturnedSerialsTest extends TestCase
         Inventory::create(['ProductID' => $this->camera->ProductID, 'Quantity' => 3, 'ReorderThreshold' => 1, 'Status' => 'Available']);
     }
 
-    /**
-     * @param  list<string>  $serials
-     */
     private function sell(array $serials): SalesTransaction
     {
         $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
@@ -52,9 +47,6 @@ class ReturnedSerialsTest extends TestCase
         return SalesTransaction::latest('SalesTransactionID')->firstOrFail();
     }
 
-    /**
-     * @param  list<string>|null  $serials
-     */
     private function requestReturn(SalesTransaction $sale, int $quantity, ?array $serials = null)
     {
         return $this->actingAs($this->cashier)->postJson(route('cashier.refunds.create'), [
@@ -75,12 +67,10 @@ class ReturnedSerialsTest extends TestCase
     {
         $sale = $this->sell(['SN00001', 'SN00002']);
 
-        // The receipt lists the stickers that can come back.
         $this->actingAs($this->cashier)->getJson(route('cashier.refunds.transaction', $sale->SalesTransactionID))->assertOk()
             ->assertJsonPath('transaction.items.0.TracksSerials', true)
             ->assertJsonPath('transaction.items.0.SerialNumbers', ['SN00001', 'SN00002']);
 
-        // Two were sold, one comes back: which one has to be said.
         $this->requestReturn($sale, 1)->assertStatus(400)
             ->assertJsonPath('message', 'Pick the serial number of each "Dome Camera" being returned (1 needed).');
         $this->requestReturn($sale, 1, ['SN00003'])->assertStatus(400)
@@ -90,18 +80,15 @@ class ReturnedSerialsTest extends TestCase
         $this->assertSame($return->SalesReturnID, ProductSerial::where('SerialNumber', 'SN00002')->value('SalesReturnID'));
         $this->assertNull(ProductSerial::where('SerialNumber', 'SN00001')->value('SalesReturnID'));
 
-        // Approved as Damaged: that exact piece is Damaged, the other stays sold.
         $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return))->assertRedirect();
         $this->assertSame(ProductSerial::STATUS_DAMAGED, $this->serialStatus('SN00002'));
         $this->assertSame(ProductSerial::STATUS_SOLD, $this->serialStatus('SN00001'));
         $this->assertStringContainsString('Serial SN00002', DamagedProduct::where('SalesReturnID', $return->SalesReturnID)->value('Description'));
 
-        // Refunded: nothing goes back to stock.
         $this->actingAs($this->cashier)->postJson(route('cashier.refunds.process', $return), ['refund_method' => 'cash'])->assertOk();
         $this->assertSame(ProductSerial::STATUS_DAMAGED, $this->serialStatus('SN00002'));
         $this->assertSame(1, Inventory::where('ProductID', $this->camera->ProductID)->value('Quantity'));
 
-        // The POS refuses its sticker, scanned or sent with a sale.
         $this->actingAs($this->cashier)->getJson('/api/products/barcode/SN00002')->assertNotFound()
             ->assertJsonPath('message', 'Serial number SN00002 is a damaged / defective piece (refunded on Return #'.str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT).') and cannot be sold.');
         $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
@@ -119,11 +106,9 @@ class ReturnedSerialsTest extends TestCase
         $return = SalesReturn::latest('SalesReturnID')->firstOrFail();
         $this->assertSame($return->SalesReturnID, ProductSerial::where('SerialNumber', 'SN00003')->value('SalesReturnID'));
 
-        // Already on a return: it can't be on a second one.
         $this->actingAs($this->cashier)->getJson(route('cashier.refunds.transaction', $sale->SalesTransactionID))
             ->assertJsonPath('transaction.items.0.SerialNumbers', []);
 
-        // Declined: the customer keeps it, so it's no longer on a return and stays sold.
         $this->actingAs($this->admin)->post(route('admin.sales-returns.decline', $return), ['DeclineReason' => 'No defect found'])->assertRedirect();
         $this->assertNull(ProductSerial::where('SerialNumber', 'SN00003')->value('SalesReturnID'));
         $this->assertSame(ProductSerial::STATUS_SOLD, $this->serialStatus('SN00003'));
@@ -132,7 +117,6 @@ class ReturnedSerialsTest extends TestCase
     public function test_a_sale_without_recorded_serials_can_still_be_returned(): void
     {
         $sale = $this->sell(['SN00001']);
-        // Sold before serials were tracked: no piece is linked to the sale.
         ProductSerial::where('SerialNumber', 'SN00001')->update(['SalesTransactionID' => null]);
 
         $this->actingAs($this->cashier)->getJson(route('cashier.refunds.transaction', $sale->SalesTransactionID))
@@ -147,7 +131,6 @@ class ReturnedSerialsTest extends TestCase
         $return = SalesReturn::latest('SalesReturnID')->firstOrFail();
         $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return))->assertRedirect();
 
-        // As it was before: no link, both pieces still "Sold".
         DB::table('ProductSerial')->update(['SalesReturnID' => null, 'Status' => ProductSerial::STATUS_SOLD]);
         $migration = require database_path('migrations/2026_11_07_115108_add_sales_return_id_to_product_serial_table.php');
         $migration->down();

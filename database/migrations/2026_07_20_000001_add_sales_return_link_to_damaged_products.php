@@ -13,8 +13,6 @@ return new class extends Migration
             $table->foreign('SalesReturnID')->references('SalesReturnID')->on('SalesReturn')->nullOnDelete();
         });
 
-        // A return-originated damage record may not have a resolvable
-        // supplier at creation time, so this must accept NULL.
         Schema::table('DamagedProduct', function (Blueprint $table) {
             $table->unsignedInteger('SupplierID')->nullable()->change();
         });

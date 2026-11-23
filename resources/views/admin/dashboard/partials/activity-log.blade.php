@@ -1,6 +1,3 @@
-{{-- Activity Log card table (dashboard → Operational Activity). Rendered by
-     ActivityLogController::index() and swapped in over AJAX by the card's
-     filters and page links. --}}
 @php
     $controller = \App\Http\Controllers\Admin\ActivityLogController::class;
 @endphp

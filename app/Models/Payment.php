@@ -26,8 +26,6 @@ class Payment extends Model
         'PaymentDate',
         'PaymentTime',
         'Remarks',
-        // Optional proof of payment photo (GCash / Bank Transfer / Cheque),
-        // on the private disk - see App\Services\PaymentProof.
         'ProofImagePath',
     ];
 

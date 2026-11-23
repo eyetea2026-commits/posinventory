@@ -1,9 +1,3 @@
-{{-- "Cancel Remaining Items" for a partially received order: when the
-     supplier won't deliver the rest, the owner cancels what's still owed on
-     the ticked products, with a reason. The order is Closed once nothing is
-     owed; until then it stays open for the other products. Used in the
-     Stock Receiving "Delivery Details" pop-up and the Purchase Order page.
-     Expects $purchaseOrder with items.product loaded. --}}
 @if($purchaseOrder->Status === \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
     <form method="POST" action="{{ route('admin.purchase-orders.cancel-remaining', $purchaseOrder) }}" class="cancel-remaining-form js-confirm-submit"
           data-confirm-title="Cancel Remaining Items" data-confirm-text="Cancel what the supplier still owes on the ticked products? They will no longer be expected." data-confirm-icon="warning" data-confirm-color="#ef4444">

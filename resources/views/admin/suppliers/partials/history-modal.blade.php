@@ -1,11 +1,3 @@
-{{-- Glassmorphism "Supplier History" modal, opened from the Supplier List's
-     "View History" action. Keeps the admin on the Supplier List instead of
-     navigating to the standalone admin.suppliers.show page — reuses that
-     same controller's existing AJAX contract ({rows, pagination} JSON) for
-     both the initial fetch and the in-modal search, and the existing
-     purchase-order-details JSON endpoint for the nested "View Details"
-     drill-down. admin.partials.modal-styles is expected to already be
-     included on the page (Suppliers index already does). --}}
 <style>
     .supplier-history-table th { text-align: left; padding: 8px 10px; font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; border-bottom: 1px solid rgba(148, 163, 184, 0.15); }
     .supplier-history-table td { padding: 10px; color: #f8fafc; font-size: 0.88rem; border-bottom: 1px solid rgba(148, 163, 184, 0.08); }
@@ -46,7 +38,6 @@
     </div>
 </div>
 
-<!-- Nested "View Details" modal for a single Purchase Order -->
 <div id="supplierHistoryDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -172,7 +163,6 @@
         if (!supplierHistoryModalIsOpen()) return;
 
         if (e.key === 'Escape') {
-            // If the nested View Details modal is open, close that first.
             if (document.getElementById('supplierHistoryDetailsModal').classList.contains('active')) {
                 window.closeSupplierHistoryDetailsModal();
             } else {
@@ -201,7 +191,6 @@
         if (e.target === this) window.closeSupplierHistoryModal();
     });
 
-    // ---- Nested "View Details" modal ----
     window.viewSupplierHistoryDetails = function (supplierId, purchaseOrderId) {
         const modal = document.getElementById('supplierHistoryDetailsModal');
         const body = document.getElementById('supplierHistoryDetailsBody');

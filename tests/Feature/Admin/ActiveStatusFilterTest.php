@@ -11,8 +11,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
-// Products and Categories: no Active / Deactivated status anymore (stock
-// decides whether the POS lists a product), newest first.
 class ActiveStatusFilterTest extends TestCase
 {
     use RefreshDatabase;
@@ -39,8 +37,6 @@ class ActiveStatusFilterTest extends TestCase
 
         return $product;
     }
-
-    // ---- Products ----
 
     public function test_products_list_has_no_status_filter(): void
     {
@@ -69,10 +65,6 @@ class ActiveStatusFilterTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.products.index'))->assertSeeInOrder(['Zulu Camera', 'Alpha Camera']);
     }
 
-    // ---- Categories ----
-
-    // The Deactivate/Activate button was removed from categories entirely
-    // (and there's still no Delete): the row only offers Edit.
     public function test_category_rows_have_no_deactivate_or_delete_button(): void
     {
         $html = $this->actingAs($this->admin)->get(route('admin.categories.index'))->assertOk()->getContent();
@@ -96,8 +88,6 @@ class ActiveStatusFilterTest extends TestCase
         $this->assertDatabaseHas('Product', ['ProductName' => 'Dome Camera', 'CategoryID' => $this->category->CategoryID]);
     }
 
-    // The category status filter was removed: no dropdown, and a ?status=
-    // in the address no longer hides anything.
     public function test_categories_have_no_status_filter_and_list_every_category(): void
     {
         $older = Category::create(['CategoryName' => 'Alpha Cables', 'Description' => 'x']);

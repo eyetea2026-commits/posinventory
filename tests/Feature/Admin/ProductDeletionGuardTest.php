@@ -19,12 +19,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
-// Products used to be deletable when they had no dependent records -- and
-// every dependent table has an ON DELETE CASCADE foreign key to Product, so
-// one missed relation in the guard meant silently wiping history (audit
-// finding F14). Delete is gone entirely now: a product is deactivated
-// instead, which keeps all of its history and hides it from the POS and
-// from new Purchase Orders.
 class ProductDeletionGuardTest extends TestCase
 {
     use RefreshDatabase;
@@ -84,8 +78,6 @@ class ProductDeletionGuardTest extends TestCase
         $this->assertDatabaseHas('Product', ['ProductID' => $product->ProductID]);
     }
 
-    // Panel suggestion: products are no longer deactivated; stock alone
-    // decides whether the POS lists one. The product and its history stay.
     public function test_a_product_can_no_longer_be_deactivated(): void
     {
         $product = $this->makeProduct();
@@ -108,8 +100,6 @@ class ProductDeletionGuardTest extends TestCase
         $this->assertDatabaseHas('Inventory', ['ProductID' => $product->ProductID]);
     }
 
-    // Deactivated before the button was removed: turned back on, so none
-    // is left hidden with no way to bring it back.
     public function test_products_deactivated_before_are_turned_back_on(): void
     {
         $retired = $this->makeProduct('Retired Camera', false);

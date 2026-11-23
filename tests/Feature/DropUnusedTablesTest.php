@@ -8,8 +8,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-// Replacement (returns are refund-only) and the first Role table (the app
-// reads `roles`) were dropped because nothing uses them.
 class DropUnusedTablesTest extends TestCase
 {
     use RefreshDatabase;

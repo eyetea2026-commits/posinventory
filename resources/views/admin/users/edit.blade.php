@@ -101,9 +101,6 @@
             return;
         }
 
-        // Administrator target: clicking Update opens the "Enter Your
-        // Credentials" popup right away, before the generic "are you sure"
-        // dialog — only once that's confirmed does the normal save flow run.
         if (form.querySelector('input[name="_requires_admin_credentials"]')) {
             window.openAdminCredentialsGate(function (verifiedPassword) {
                 proceedWithUpdate(verifiedPassword);

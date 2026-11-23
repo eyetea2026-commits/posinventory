@@ -1,11 +1,3 @@
-{{-- Shared "Create Purchase Order" field markup. Included by both the
-     standalone create page and the Create Purchase Order modal.
-
-     Order Items is one table of every active product (low-stock ones first
-     and ticked), with Threshold, Previous Price, Current Price, Quantity and
-     Supplier. Only ticked rows are sent; Save creates one Draft Purchase
-     Order per supplier (PurchaseOrderController::store()). Notes sit at the
-     bottom. --}}
 @php
     $orderRows = \App\Http\Controllers\Admin\PurchaseOrderController::orderItemCandidates();
 @endphp
@@ -53,7 +45,6 @@
     <div class="po-items-toolbar">
         <div class="po-items-title">
             <h3>Order Items</h3>
-            {{-- Which products the table lists; low stock first by default. --}}
             <select id="po-items-view" class="form-select po-items-view" aria-label="Show products" onchange="applyOrderItemsView()">
                 <option value="low" selected>Low Stock</option>
                 <option value="all">All Products</option>
@@ -91,15 +82,12 @@
                             <span class="po-model">{{ $product->Model }} · Stock: {{ $row['stockLabel'] }}</span>
                         </td>
                         <td>{{ $row['thresholdLabel'] }}</td>
-                        {{-- Prices and quantity are per purchase unit (a roll, a box). --}}
                         <td>{{ $row['previousPrice'] > 0 ? '₱'.number_format($row['previousPrice'], 2).'/'.$row['unit'] : 'N/A' }}</td>
                         <td><div class="po-unit-input"><input type="text" name="items[{{ $product->ProductID }}][cost_price]" data-money-digits="5" data-max="{{ \App\Models\PurchaseOrderItem::MAX_COST_PRICE }}" value="{{ $row['currentPrice'] > 0 ? number_format($row['currentPrice'], 2) : '' }}" placeholder="0.00" required aria-label="Current price per {{ $row['unit'] }}"><span>/{{ $row['unit'] }}</span></div></td>
                         <td>
                             <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][quantity]" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_QUANTITY }}" step="1" data-max-digits="3" value="{{ $row['suggestedQuantity'] }}" required aria-label="Quantity in {{ $row['unitPlural'] }}"><span>{{ $row['unitPlural'] }}</span></div>
                             @if($row['unitHolds'])<small class="po-unit-holds">last {{ $row['unit'] }}: {{ $row['unitHolds'] }}</small>@endif
                         </td>
-                        {{-- How long each roll is (typed; starts at the last roll
-                             received), with the total meters under it. --}}
                         @if($row['ordersRollMeters'])
                             <td class="po-meters">
                                 <div class="po-unit-input"><input type="number" name="items[{{ $product->ProductID }}][meters_per_roll]" min="1" max="{{ \App\Models\PurchaseOrderItem::MAX_METERS_PER_ROLL }}" step="1" data-max-digits="4" value="{{ $row['metersPerRoll'] && $row['metersPerRoll'] <= \App\Models\PurchaseOrderItem::MAX_METERS_PER_ROLL ? \App\Casts\Quantity::normalize($row['metersPerRoll']) : '' }}" placeholder="e.g. 500" required aria-label="Meters per {{ $row['unit'] }}"><span>m/{{ $row['unit'] }}</span></div>
@@ -109,7 +97,6 @@
                             <td class="po-meters-none">—</td>
                         @endif
                         <td>
-                            {{-- The supplier with the lowest current price is picked already; it can be changed for this order (its price fills Current Price). --}}
                             <select name="items[{{ $product->ProductID }}][supplier_id]" class="po-item-supplier" required aria-label="Supplier" onchange="this.closest('tr').dataset.supplier = this.value; poSupplierPicked(this); syncOrderItems()">
                                 <option value="" {{ $row['supplier'] ? '' : 'selected' }}>Choose supplier</option>
                                 @if($row['ownSuppliers']->isNotEmpty())
@@ -144,7 +131,6 @@
 </div>
 
 <script>
-    // Picking another of the product's suppliers fills in its current price.
     window.poSupplierPicked = function (select) {
         var option = select.options[select.selectedIndex];
         var price = option ? option.dataset.price : null;
@@ -155,7 +141,6 @@
         }
     };
 
-    // The Meter column: total = rolls x meters per roll, under the box.
     function syncOrderMeters(row) {
         const perRoll = row.querySelector('input[name$="[meters_per_roll]"]');
         const qty = row.querySelector('input[name$="[quantity]"]');
@@ -169,7 +154,6 @@
         if (e.target.matches && e.target.matches('#order-items input[name$="[quantity]"], #order-items input[name$="[meters_per_roll]"]')) syncOrderMeters(e.target.closest('tr'));
     });
 
-    // Only ticked rows are sent: an unticked row's fields are disabled.
     function syncOrderItems() {
         const rows = Array.from(document.querySelectorAll('#order-items .po-item-row'));
         const suppliers = new Set();
@@ -187,7 +171,6 @@
             }
         });
 
-        // Select All reflects the rows currently shown.
         const shown = rows.filter(function (row) { return !row.classList.contains('is-hidden'); });
         const shownTicked = shown.filter(function (row) { return row.querySelector('.po-item-check').checked; }).length;
         const selectAll = document.getElementById('po-select-all');
@@ -212,8 +195,6 @@
         syncOrderItems();
     }
 
-    // Shows Low Stock or All Products (the dropdown beside Order Items),
-    // narrowed by the search box. A hidden row keeps its tick.
     function applyOrderItemsView() {
         const view = document.getElementById('po-items-view');
         const lowOnly = !view || view.value === 'low';
@@ -226,8 +207,6 @@
         syncOrderItems();
     }
 
-    // Back to the starting state (low-stock products ticked, suggested
-    // quantities); called when the Create Purchase Order popup opens.
     function resetOrderItems() {
         const search = document.getElementById('po-items-search');
         if (search) search.value = '';
@@ -242,9 +221,6 @@
         syncOrderItems();
     }
 
-    // Checked before saving: at least one product, and every ticked row has
-    // a quantity, a price and a supplier. Shows the first problem above the
-    // table and marks the fields. Returns true when the order can be saved.
     window.validateOrderItems = function () {
         const error = document.getElementById('error-products');
         const rows = Array.from(document.querySelectorAll('#order-items .po-item-row')).filter(function (row) {
@@ -259,7 +235,6 @@
             const qty = row.querySelector('input[name$="[quantity]"]');
             const supplier = row.querySelector('.po-item-supplier');
             const perRoll = row.querySelector('input[name$="[meters_per_roll]"]');
-            // One check per field, in column order: its problem, or ''.
             function problem(field, empty, emptyMessage, tooBig, tooBigMessage) {
                 if (!field) return '';
                 return empty ? emptyMessage : (tooBig ? tooBigMessage : '');

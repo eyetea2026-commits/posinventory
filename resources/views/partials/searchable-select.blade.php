@@ -1,14 +1,3 @@
-{{-- Searchable dropdowns for every <select> on admin and cashier pages.
-     Clicking (or pressing Enter / Space / Alt+Down / Down on) a select opens
-     this panel instead of the browser's native list: a search box at the
-     top, then the select's own options, filtered as you type. Picking an
-     option sets the real <select>'s value and fires its normal "input" and
-     "change" events, so every existing filter, form, and onchange handler
-     keeps working unchanged. The panel is rebuilt from the select's current
-     options each time it opens, so options added or replaced by JavaScript
-     (e.g. brands that follow the chosen category) always show up, and
-     selects injected later by AJAX modals work too (event delegation).
-     Opt out on a specific select with data-native-select. --}}
 <style>
     .ss-panel {
         position: fixed; z-index: 2147483000; display: flex; flex-direction: column;
@@ -39,9 +28,9 @@
         if (window.__searchableSelect) return;
         window.__searchableSelect = true;
 
-        let panel = null;      // the open panel element
-        let current = null;    // the <select> it belongs to
-        let items = [];        // visible option rows: { el, option }
+        let panel = null;
+        let current = null;
+        let items = [];
         let activeIndex = -1;
 
         function eligible(el) {
@@ -102,7 +91,6 @@
                     const header = document.createElement('li');
                     header.className = 'ss-group';
                     header.textContent = group.label;
-                    // A group can set its own heading colour: <optgroup data-group-color="#10b981">.
                     if (group.dataset.groupColor) header.style.color = group.dataset.groupColor;
                     list.appendChild(header);
                 }
@@ -127,7 +115,6 @@
                 list.appendChild(empty);
                 return;
             }
-            // Highlight the current selection when it's visible, else the first match.
             const selected = items.findIndex(function (it) { return it.option.index === current.selectedIndex; });
             if (selected >= 0 && !q) setActive(selected); else moveActive(1);
         }
@@ -173,7 +160,6 @@
             search.focus({ preventScroll: true });
         }
 
-        // Open our panel instead of the native list.
         document.addEventListener('mousedown', function (e) {
             const select = e.target instanceof Element ? e.target.closest('select') : null;
             if (select && eligible(select) && e.button === 0) {
@@ -193,7 +179,6 @@
             if (opens) { e.preventDefault(); open(select); }
         }, true);
 
-        // Keep the panel attached to its select; close it if the select goes away.
         window.addEventListener('resize', function () { close(false); });
         document.addEventListener('scroll', function (e) {
             if (!panel) return;

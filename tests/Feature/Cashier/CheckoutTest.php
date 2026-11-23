@@ -65,24 +65,17 @@ class CheckoutTest extends TestCase
         $this->assertSame(0, SalesTransaction::count());
         $this->assertSame(50, Inventory::where('ProductID', $unpriced->ProductID)->value('Quantity'));
 
-        // Scanning it is refused too, and its POS card warns instead of adding it.
         $this->actingAs($this->cashier)->getJson('/api/products/barcode/SPLIT-2WAY')->assertNotFound()
             ->assertJsonPath('message', '"2 Way Splitter" has no selling price yet. Ask the admin to set its price in Products.');
         $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()
             ->assertSee('onclick="warnNoPrice(&quot;2 Way Splitter&quot;)"', false);
 
-        // Once priced, it sells normally.
         $unpriced->update(['Price' => 50]);
         $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $unpriced->ProductID, 'qty' => 1]],
             'payment_method' => 'cash', 'payment_amount' => 50,
         ])->assertOk();
     }
-
-    // ---- Prices are VAT-inclusive: VAT is the VAT inside the post-discount
-    // Total (Total × 12/112), computed for the receipt/report breakdown only
-    // — it is NOT added on top of Total, which always equals the
-    // (post-discount) price exactly as listed. ----
 
     #[DataProvider('vatOnTotalProvider')]
     public function test_checkout_computes_vat_as_a_percent_of_total_without_inflating_total(float $price, float $expectedVat): void
@@ -108,7 +101,6 @@ class CheckoutTest extends TestCase
             'P1500' => [1500.00, 160.71],
             'P1000' => [1000.00, 107.14],
             'P2500' => [2500.00, 267.86],
-            // The report example: 213.00 ÷ 1.12 = 190.18 VATable + 22.82 VAT.
             'P213' => [213.00, 22.82],
         ];
     }
@@ -117,8 +109,6 @@ class CheckoutTest extends TestCase
     {
         $product = $this->makeProduct(1500);
 
-        // 3 x 1500 = 4500 — Total must stay 4500; VAT (4500 × 12/112 =
-        // 482.14) is a breakdown of it, never added on top.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 3]],
             'payment_method' => 'cash',
@@ -129,14 +119,9 @@ class CheckoutTest extends TestCase
         $billing = SalesTransaction::latest('SalesTransactionID')->firstOrFail();
         $this->assertEquals(4500.0, (float) $billing->Subtotal);
         $this->assertEquals(482.14, (float) $billing->VatAmount);
-        // Total − VAT is the VATable Sales, Total ÷ 1.12.
         $this->assertEquals(round(4500 / 1.12, 2), round(4500 - (float) $billing->VatAmount, 2));
         $this->assertEquals(4500.0, (float) $billing->TotalAmount);
     }
-
-    // ---- Receipt item table: Description | Quantity | Amount, each cell
-    // holding exactly one value — Amount is the line TOTAL (price * qty),
-    // never the unit price, and never text-combined with qty ("2 x ..."). ----
 
     public function test_receipt_item_table_shows_description_quantity_and_line_total_amount(): void
     {
@@ -158,20 +143,13 @@ class CheckoutTest extends TestCase
                 && (float) $items[0]['price'] === 2500.0;
         });
 
-        // Price 2500 x qty 2 = 5,000.00 line total — not the 2,500.00 unit
-        // price, and not run together with the quantity as "2 x 2,500.00".
         $receiptResponse->assertSee('<td class="col-qty">2</td>', false);
         $receiptResponse->assertSee('<td class="col-amt">5,000.00</td>', false);
-        // The on-screen table never uses "2 x price" (only the separate
-        // thermal-slip copy printed from the browser does).
         $onScreen = preg_replace('#<div class="print-text">.*?<pre class="pl-tail">.*?</pre>#s', '', $receiptResponse->getContent());
         $this->assertStringNotContainsString('2 x', $onScreen);
         $receiptResponse->assertDontSee('<td class="col-amt">2,500.00</td>', false);
     }
 
-    // The receipt only prints a business address line when one is actually
-    // configured (config('app.business_address'), env BUSINESS_ADDRESS) —
-    // never a fabricated placeholder when it's unset.
     public function test_receipt_shows_the_configured_business_address_when_set(): void
     {
         config(['app.business_address' => 'MMQG+3X City of Tacurong, Sultan Kudarat']);
@@ -206,8 +184,6 @@ class CheckoutTest extends TestCase
         $receiptResponse->assertDontSee('MMQG+3X');
     }
 
-    // ---- Payment sufficiency applies to every method, not just cash ----
-
     public function test_gcash_payment_below_total_is_rejected(): void
     {
         Storage::fake(PaymentProof::DISK);
@@ -230,7 +206,6 @@ class CheckoutTest extends TestCase
         Storage::fake(PaymentProof::DISK);
         $product = $this->makeProduct(1000);
 
-        // 1000 subtotal, no discount, price is VAT-inclusive -> total 1000
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
             'payment_method' => 'gcash',
@@ -277,9 +252,6 @@ class CheckoutTest extends TestCase
         $this->assertSame(['N/A', 'Narvaiz'], DB::table('SalesTransaction')->orderBy('SalesTransactionID')->pluck('CustomerName')->all());
     }
 
-    // ---- Insufficient stock is rejected server-side, not just hidden by
-    // the UI, and never partially decrements what little stock exists ----
-
     public function test_checkout_rejects_a_sale_that_exceeds_available_stock(): void
     {
         $product = $this->makeProduct(500, stock: 3);
@@ -295,9 +267,6 @@ class CheckoutTest extends TestCase
         $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'N/A']);
         $this->assertSame(3, Inventory::where('ProductID', $product->ProductID)->value('Quantity'));
     }
-
-    // ---- A second checkout for the same cashier while the first is still
-    // in flight is rejected (409), not processed twice ----
 
     public function test_a_second_checkout_for_the_same_cashier_while_one_is_in_flight_is_rejected(): void
     {
@@ -315,15 +284,9 @@ class CheckoutTest extends TestCase
         $this->assertDatabaseMissing('SalesTransaction', ['CustomerName' => 'N/A']);
     }
 
-    // ---- Money rounding: a discount rate that produces a repeating binary
-    // fraction must not make an exact-total payment look insufficient ----
-
     public function test_payment_exactly_matching_a_rounded_total_is_accepted(): void
     {
         $product = $this->makeProduct(99.99);
-        // A rate chosen so intermediate float math produces trailing-fraction
-        // noise before rounding (99.99 * 0.0725 etc.) — this is the scenario
-        // the round(...,2) fix at every step of processSale() protects.
         $discount = Discount::create([
             'DiscountRate' => 7.25, 'Name' => 'Odd Rate',
             'PromoCode' => 'ODDRATE', 'StartDate' => now()->subDay(), 'EndDate' => now()->addMonth(), 'Status' => 'active',
@@ -344,8 +307,6 @@ class CheckoutTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('success', true);
     }
-
-    // ---- Payment Amount is capped at 7 whole-peso digits ----
 
     public function test_payment_amount_above_seven_digits_is_rejected(): void
     {
@@ -385,28 +346,19 @@ class CheckoutTest extends TestCase
         $response->assertSee('id="change-group"', false);
         $response->assertSee('maxIntegerDigits: 7', false);
         $response->assertSee('function syncPaymentAmountMode()', false);
-        // Change only shows for Cash: hidden for GCash, Bank Transfer and Cheque.
         $response->assertSee("const hidesChange = isExactOnly || selectedPaymentMethod === 'gcash';", false);
         $response->assertSee("document.getElementById('change-group').style.display = hidesChange ? 'none' : '';", false);
-        // The old inline handler ran before the formatter capped the value.
         $response->assertDontSee('oninput="calculateChange()"', false);
-        // Adding/scanning an item scrolls the cart to that line, and every
-        // other re-render keeps the cashier's scroll position.
         $response->assertSee('function scrollCartLineIntoView(container, itemId)', false);
         $response->assertSee('container.scrollTop = previousScrollTop;', false);
         $response->assertSee('data-cart-item-id="${item.id}"', false);
-        // Removing a single cart line asks for confirmation first.
         $response->assertSee('function confirmRemoveFromCart(id)', false);
         $response->assertSee('onclick="confirmRemoveFromCart(${item.id})"', false);
         $response->assertDontSee('onclick="removeFromCart(${item.id})"', false);
-        // Current Sale list is sized to show 7 cart lines at once.
         $response->assertSee('min-height: calc(7 * 79px)', false);
-        // The cashier side keeps the original font size (only admin is bigger).
         $response->assertDontSee('html { font-size:', false);
     }
 
-    // A 100% promo is allowed (with an admin-side warning when saving it), so
-    // a sale whose total is exactly ₱0.00 must still go through.
     public function test_a_fully_discounted_sale_with_a_zero_total_completes(): void
     {
         $product = $this->makeProduct(500);
@@ -428,9 +380,6 @@ class CheckoutTest extends TestCase
         $this->assertSame(49, Inventory::where('ProductID', $product->ProductID)->value('Quantity'));
     }
 
-    // ---- Receipt breakdown is stored at sale time and read back verbatim,
-    // immune to the Discount's rate being edited afterward ----
-
     public function test_receipt_reads_back_the_stored_breakdown_not_a_live_recompute(): void
     {
         $product = $this->makeProduct(1000);
@@ -443,7 +392,7 @@ class CheckoutTest extends TestCase
         $sale = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $product->ProductID, 'qty' => 1]],
             'payment_method' => 'cash',
-            'payment_amount' => 900.00, // 1000 - 100 discount, Total is unaffected by VAT
+            'payment_amount' => 900.00,
             'discount_id' => $discount->DiscountID,
         ]);
         $sale->assertOk();
@@ -452,10 +401,8 @@ class CheckoutTest extends TestCase
         $billing = SalesTransaction::where('DiscountID', $discount->DiscountID)->firstOrFail();
         $this->assertEquals(1000.00, (float) $billing->Subtotal);
         $this->assertEquals(100.00, (float) $billing->DiscountAmount);
-        $this->assertEquals(96.43, (float) $billing->VatAmount); // 900 × 12/112
+        $this->assertEquals(96.43, (float) $billing->VatAmount);
 
-        // Now edit the discount's rate — a live-recompute receipt would
-        // silently show a different amount than what was actually charged.
         $discount->update(['DiscountRate' => 50]);
 
         $receiptResponse = $this->actingAs($this->cashier)->get(route('cashier.receipt', $receiptNumber));
@@ -482,7 +429,6 @@ class CheckoutTest extends TestCase
             'Quantity' => 1, 'UnitPrice' => 1000, 'ProductID' => $product->ProductID,
             'SalesTransactionID' => $transaction->SalesTransactionID,
         ]);
-        // Simulate a historical row: Subtotal/DiscountAmount/VatAmount left null.
         $billing = tap(SalesTransaction::findOrFail($transaction->SalesTransactionID))->update([
             'VatApplied' => '12%',
             'TotalAmount' => 1008,

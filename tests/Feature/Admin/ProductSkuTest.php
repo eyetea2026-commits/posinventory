@@ -106,8 +106,6 @@ class ProductSkuTest extends TestCase
 
     public function test_add_product_form_never_shows_a_sku_field(): void
     {
-        // SKU can't exist until the product's ProductID is assigned at
-        // creation, so the Add form (unlike Edit) never renders it.
         $response = $this->actingAs($this->admin)->get(route('admin.products.create'));
 
         $response->assertOk();

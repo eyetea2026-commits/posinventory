@@ -15,10 +15,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// A purchase order stays open when the supplier delivers fewer items than
-// ordered: later deliveries add up (never past what's owed), until every
-// line is in or the owner cancels what's left (the order is then Closed).
-// Example: Camera 100/100, HDD 100/50, DVR 100/0 (supplier out of stock).
 class PurchaseOrderPartialDeliveryTest extends TestCase
 {
     use RefreshDatabase;
@@ -29,7 +25,6 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
 
     private StockReceivingBatch $batch;
 
-    /** @var array<string, PurchaseOrderItem> */
     private array $lines = [];
 
     protected function setUp(): void
@@ -50,14 +45,10 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
             $this->lines[$name] = PurchaseOrderItem::create(['PurchaseOrderID' => $this->po->PurchaseOrderID, 'ProductID' => $product->ProductID, 'Quantity' => 100, 'CostPriceAtOrder' => 600]);
         }
 
-        // Printing sends the order to Stock Receiving.
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $this->po));
         $this->batch = StockReceivingBatch::where('PurchaseOrderID', $this->po->PurchaseOrderID)->firstOrFail();
     }
 
-    /**
-     * @param  array<string, int>  $quantities
-     */
     private function receive(array $quantities, string $receipt)
     {
         return $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $this->batch), [
@@ -79,13 +70,11 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
         $this->assertSame(StockReceivingBatch::STATUS_PENDING, $this->batch->fresh()->Status);
         $this->assertSame(50, $this->lines['HDD']->fresh()->remaining_quantity);
 
-        // The second delivery adds to the first.
         $this->receive(['HDD' => 30], 'DR-002')->assertSessionMissing('error');
         $this->assertSame(80, $this->lines['HDD']->fresh()->ReceivedQuantity);
         $this->assertSame(80, $this->stock('HDD'));
         $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $this->po->fresh()->Status);
 
-        // Both deliveries are kept, each with its own receipt number.
         $this->assertSame(['DR-001', 'DR-002'], StockReceivingDelivery::where('PurchaseOrderID', $this->po->PurchaseOrderID)->orderBy('StockReceivingDeliveryID')->pluck('ReceiptNumber')->all());
         $html = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', $this->batch))->json('html');
         $this->assertStringContainsString('Delivery History', $html);
@@ -93,9 +82,6 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
         $this->assertStringContainsString('Cancel Remaining Items', $html);
     }
 
-    // Add to Inventory pressed again for the same delivery (the first click
-    // went through while the page was slow): nothing is added twice, and the
-    // owner is told the delivery is already in.
     public function test_pressing_add_to_inventory_again_does_not_add_the_delivery_twice(): void
     {
         $this->receive(['Camera' => 100, 'HDD' => 50], 'SUP1')->assertSessionMissing('error');
@@ -110,7 +96,6 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
         $this->assertSame(1, StockReceivingDelivery::where('StockReceivingBatchID', $this->batch->StockReceivingBatchID)->count());
     }
 
-    // The pop-up shows a message's quote marks as quote marks, not &quot;.
     public function test_the_stock_receiving_pop_up_shows_quote_marks_as_they_are(): void
     {
         $this->actingAs($this->admin)->withSession(['error' => 'Receipt Number "SUP1" has already been used for another delivery.'])
@@ -119,9 +104,6 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
             ->assertDontSee("text: 'Receipt Number &quot;SUP1&quot;", false);
     }
 
-    // The Stock Receiving lists show each order's status, colored like the
-    // Purchase Orders list: Pending (gray), Partially Received (yellow),
-    // Fully Received (green).
     public function test_stock_receiving_lists_show_the_order_status(): void
     {
         $statusCell = fn (string $tone, string $label) => '<td><span class="badge badge-'.$tone.' receiving-status-badge">'.$label.'</span></td>';
@@ -145,7 +127,6 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
         $this->receive(['HDD' => 51], 'DR-002')->assertSessionHas('error', 'Only 50 more "HDD" can be received on this order (ordered 100, received 50 so far).');
         $this->assertSame(50, $this->stock('HDD'));
 
-        // Nothing at all is not a delivery.
         $this->receive([], 'DR-003')->assertSessionHas('error', 'Enter how many of each product arrived in this delivery.');
         $this->assertSame(1, StockReceivingDelivery::count());
     }
@@ -154,17 +135,14 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
     {
         $this->receive(['Camera' => 100, 'HDD' => 50], 'DR-001');
 
-        // Cancel only the DVR (supplier out of stock): HDD is still owed, so the order stays open.
         $this->actingAs($this->admin)->post(route('admin.purchase-orders.cancel-remaining', $this->po), [
             'items' => [$this->lines['DVR']->PurchaseOrderItemID], 'reason' => 'Supplier out of stock',
         ])->assertSessionHas('success', 'Remaining items cancelled. The order stays open for the other products.');
         $this->assertSame(100, (int) $this->lines['DVR']->fresh()->CancelledQuantity);
         $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $this->po->fresh()->Status);
 
-        // A DVR can no longer be received on this order.
         $this->receive(['DVR' => 1], 'DR-002')->assertSessionHas('error');
 
-        // The rest of the HDD is cancelled too: nothing is owed, the order is Closed.
         $this->actingAs($this->admin)->post(route('admin.purchase-orders.cancel-remaining', $this->po), [
             'items' => [$this->lines['HDD']->PurchaseOrderItemID], 'reason' => 'Supplier discontinued it',
         ])->assertSessionHas('success', 'Remaining items cancelled. This purchase order is now Closed.');
@@ -184,7 +162,6 @@ class PurchaseOrderPartialDeliveryTest extends TestCase
 
     public function test_cancelling_the_remainder_needs_a_partly_received_order_a_product_and_a_reason(): void
     {
-        // Nothing received yet: the whole order can be cancelled instead.
         $this->actingAs($this->admin)->post(route('admin.purchase-orders.cancel-remaining', $this->po), [
             'items' => [$this->lines['DVR']->PurchaseOrderItemID], 'reason' => 'x',
         ])->assertSessionHas('error', 'Only a partially received purchase order can have its remaining items cancelled.');

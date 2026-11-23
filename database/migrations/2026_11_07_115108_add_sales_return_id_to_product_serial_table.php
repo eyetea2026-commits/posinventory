@@ -7,14 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * The return request a sold piece came back on, so the exact serial of a
-     * Damaged / Factory Defect return is known and can never be sold again.
-     *
-     * Returns made before this was tracked are linked to their sale's
-     * serials (latest sold first), and the approved ones marked Damaged:
-     * every return reason now is unsalable.
-     */
     public function up(): void
     {
         Schema::table('ProductSerial', function (Blueprint $table) {
@@ -50,9 +42,6 @@ return new class extends Migration
         }
     }
 
-    /**
-     * Pieces marked Damaged by a return go back to Sold.
-     */
     public function down(): void
     {
         DB::table('ProductSerial')->whereNotNull('SalesReturnID')->where('Status', 'Damaged')

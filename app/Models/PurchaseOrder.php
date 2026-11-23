@@ -46,8 +46,6 @@ class PurchaseOrder extends Model
 
     const STATUS_CANCELLED = 'cancelled';
 
-    // Part was received and the owner cancelled the rest: nothing more is
-    // expected from the supplier.
     const STATUS_CLOSED = 'closed';
 
     const STATUS_LABELS = [
@@ -60,10 +58,6 @@ class PurchaseOrder extends Model
         self::STATUS_CLOSED => 'Closed',
     ];
 
-    /**
-     * The badge color of a status in lists (Purchase Orders, Stock
-     * Receiving): green Fully Received, yellow Partially Received.
-     */
     public static function statusTone(?string $status): string
     {
         return match ($status) {
@@ -75,8 +69,6 @@ class PurchaseOrder extends Model
         };
     }
 
-    // Statuses where the supplier/items are still safe to change — once
-    // approved, receiving starts referencing these exact line IDs.
     const EDITABLE_STATUSES = [self::STATUS_DRAFT, self::STATUS_PENDING];
 
     public function supplier()
@@ -99,10 +91,6 @@ class PurchaseOrder extends Model
         return $this->hasMany(StockReceiving::class, 'PurchaseOrderID', 'PurchaseOrderID');
     }
 
-    // The single Stock Receiving batch this PO was sent into when printed
-    // (see PurchaseOrderController::printPreview()) — distinct from the
-    // legacy per-line stockReceivings() log above, which the manual "Record
-    // Receipt" flow still uses independently.
     public function stockReceivingBatch()
     {
         return $this->hasOne(StockReceivingBatch::class, 'PurchaseOrderID', 'PurchaseOrderID');
@@ -125,9 +113,6 @@ class PurchaseOrder extends Model
         return $items->isNotEmpty() && $items->every(fn (PurchaseOrderItem $item) => $item->ReceivedQuantity >= $item->Quantity);
     }
 
-    /**
-     * Nothing more is owed: every line is received or its rest cancelled.
-     */
     public function isSettled(): bool
     {
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();

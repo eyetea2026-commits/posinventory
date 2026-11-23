@@ -14,8 +14,6 @@ return new class extends Migration
             $table->string('IPAddress', 45)->nullable();
             $table->text('UserAgent')->nullable();
             $table->string('DeviceSummary', 150)->nullable();
-            // The exact session this login created -- lets "deny" end only
-            // that one session, never a legitimately newer one.
             $table->string('SessionID', 128)->nullable();
             $table->string('ConfirmationStatus', 20)->default('pending');
             $table->dateTime('LoginAt');

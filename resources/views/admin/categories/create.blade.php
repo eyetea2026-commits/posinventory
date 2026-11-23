@@ -107,7 +107,6 @@
         font-size: 0.85rem;
     }
 
-    /* Brands panel, inline in this form */
     .brand-chip-list {
         display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
         min-height: 32px;

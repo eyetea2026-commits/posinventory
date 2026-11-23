@@ -272,7 +272,6 @@
         font-weight: 600;
     }
 
-    /* Modal Styles */
     .modal-overlay {
         display: none;
         position: fixed;
@@ -329,7 +328,6 @@
         margin-bottom: 10px;
     }
 
-    /* Three cards per row in the 860px pop-up, fewer on smaller screens. */
     .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 10px; }
 
     .detail-item {
@@ -389,10 +387,7 @@
         .detail-item.full-width { grid-column: 1 / -1; }
     }
 
-    /* Add User Modal */
     .form-modal-overlay {
-        /* Below SweetAlert2's z-index (~1060) since the confirm-before-save
-           and validation dialogs are shown while this modal is still open. */
         z-index: 900;
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
@@ -407,8 +402,6 @@
         transition: transform 0.25s ease, opacity 0.25s ease;
     }
 
-    /* Room for three fields per row (see user-form-styles); doubled class
-       so it wins over the shared 600px .modal-content rule. */
     .modal-content.form-modal-content {
         max-width: 860px;
     }
@@ -418,9 +411,6 @@
         opacity: 1;
     }
 
-    /* Compact overrides — the modal packs the same fields into a tighter
-       space than the spacious standalone create page, which keeps its own
-       (unscoped) spacing from user-form-styles.blade.php untouched. */
     .form-modal-content .modal-header {
         margin-bottom: 12px;
         padding-bottom: 12px;
@@ -596,7 +586,6 @@
     </div>
 </div>
 
-<!-- View User Modal -->
 <div id="viewModal" class="modal-overlay">
     <div class="modal-content">
         <div class="modal-header">
@@ -615,7 +604,6 @@
     </div>
 </div>
 
-<!-- Add User Modal -->
 <div id="addUserModal" class="modal-overlay form-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addUserModalTitle" aria-hidden="true">
     <div class="modal-content form-modal-content">
         <div class="modal-header">
@@ -626,11 +614,6 @@
         <div id="addUserGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
 
         <form id="addUserForm">
-            {{-- Explicit user=>null guards against the $user variable leaking in
-                 from the @forelse($users as $user) table loop earlier on this
-                 same page (Blade @include merges parent scope for any key not
-                 in this array — without this, the Add modal would render in
-                 "Edit" mode using whichever user was last in the table). --}}
             @include('admin.users.partials.user-form-fields', ['roles' => $assignableRoles, 'user' => null])
         </form>
 
@@ -645,7 +628,6 @@
     </div>
 </div>
 
-<!-- Edit User Modal -->
 <div id="editUserModal" class="modal-overlay form-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editUserModalTitle" aria-hidden="true">
     <div class="modal-content form-modal-content">
         <div class="modal-header">
@@ -674,7 +656,6 @@
 @include('admin.users.partials.reset-password-modal')
 
 <script>
-    // Search functionality
     const searchInput = document.getElementById('searchInput');
     let searchTimeout;
 
@@ -686,20 +667,15 @@
                 if (searchInput.value) {
                     url.searchParams.set('search', searchInput.value);
                 }
-                // Fetch and swap the table in place instead of a full page
-                // navigation — a real navigation was reloading the whole
-                // page on every pause while typing, which dropped focus out
-                // of the search box and forced re-clicking it to keep typing.
                 history.replaceState(null, '', url.toString());
                 fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                     .then(function (response) { return response.text(); })
                     .then(function (html) { refreshUsersTable(html); })
-                    .catch(function () { /* non-fatal — the next keystroke retries */ });
+                    .catch(function () { });
             }, 300);
         });
     }
 
-    // Handle status toggle with SweetAlert
     function handleStatusChange(userId, checkbox) {
         const isActive = checkbox.checked;
 
@@ -785,7 +761,6 @@
         });
     }
 
-    // View User Details
     window.openUserDetails = function(userId) {
         const modal = document.getElementById('viewModal');
         const detailsContainer = document.getElementById('userDetails');
@@ -832,7 +807,6 @@
 
             const user = data.user;
             const fullName = [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(' ') || 'N/A';
-            // MM/DD/YYYY hh:mm AM/PM, matching the date format used across the system.
             const mdyDateTime = (value) => new Date(value).toLocaleString('en-US', {
                 month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
             }).replace(',', '');
@@ -846,7 +820,6 @@
                 '<div class="detail-item full-width" style="background: rgba(239,68,68,0.15);">' +
                     '<span class="protected-badge"><i class="fas fa-shield-alt"></i> ' + (user.is_super_admin ? 'Super Admin' : 'Protected Administrator') + '</span>' +
                 '</div>' : '';
-            // Other Administrators' accounts are the Super Admin's to edit.
             updateBtn.style.display = user.can_edit ? '' : 'none';
 
             detailsContainer.innerHTML = `
@@ -945,7 +918,6 @@
         document.body.style.overflow = '';
     }
 
-    // Close modal on outside click
     document.addEventListener('click', function(e) {
         const modal = document.getElementById('viewModal');
         if (e.target === modal) {
@@ -953,14 +925,12 @@
         }
     });
 
-    // Close modal on Escape
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeModal();
         }
     });
 
-    // ---- Add User modal ----
     const ADD_USER_FIELD_IDS = ['first_name', 'middle_name', 'last_name', 'birthdate', 'address', 'contact_number', 'gender', 'email', 'role_id', 'name', 'password'];
     let addUserLastFocused = null;
 
@@ -1007,8 +977,6 @@
         banner.textContent = '';
     }
 
-    // Swaps in the freshly rendered table + pagination from the index page
-    // fetched after a successful save, without a real page navigation.
     function refreshUsersTable(html) {
         const parsed = new DOMParser().parseFromString(html, 'text/html');
 
@@ -1053,12 +1021,6 @@
                 return;
             }
 
-            // The store route still redirects (unchanged backend behavior) —
-            // fetch follows it and hands back the re-rendered index page.
-            // Both a successful save and the server-side duplicate-name guard
-            // redirect back to this same page with a flashed 'status' or
-            // 'error' message, so we read whichever one actually rendered
-            // rather than guessing from the HTTP status alone.
             const html = await response.text();
             const marker = 'Auto-show session messages';
             const tail = html.slice(html.indexOf(marker));
@@ -1113,7 +1075,6 @@
         }
     });
 
-    // Live "Please enter a valid email address." while typing (partials/email-check).
     window.attachEmailCheck(document.querySelector('#addUserForm input[name="email"]'), document.getElementById('error-email'));
 
     document.getElementById('addUserSubmitBtn').addEventListener('click', () => addUserModalForm.confirmSave());
@@ -1151,7 +1112,6 @@
         addUserLastFocused = document.activeElement;
         form.reset();
         clearAddUserFieldErrors();
-        // Clears the red "valid email" state left from last time.
         form.querySelector('input[name="email"]').dispatchEvent(new Event('input'));
         hideAddUserGeneralError();
         addUserModalForm.markUnchanged();
@@ -1160,8 +1120,6 @@
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
-        // Force a reflow so the opacity/transform transition below actually
-        // animates from its resting state instead of snapping straight in.
         void modal.offsetHeight;
         requestAnimationFrame(function () {
             modal.classList.add('active');
@@ -1195,19 +1153,11 @@
         }
     });
 
-    // ---- Edit User modal ----
     let editUserLastFocused = null;
     let editUserFormHelper = null;
     let currentEditUserId = null;
-    // Set once, right after the admin confirms their password in
-    // handleUpdateUserButtonClick() below, and attached to every save this
-    // Edit User modal session makes — cleared whenever the modal closes, so
-    // a fresh "View Details -> Update" always re-prompts.
     let verifiedAdminPasswordForEdit = null;
 
-    // View Details' "Update User" button — for an Administrator target, this
-    // is where the "Enter Your Credentials" gate belongs (before the edit
-    // form is even shown), not at Save time.
     window.handleUpdateUserButtonClick = function (event, btn) {
         if (event) event.preventDefault();
         const userId = btn.dataset.userId;
@@ -1266,9 +1216,6 @@
         const userId = currentEditUserId;
         hideEditUserGeneralError();
 
-        // PHP never parses a multipart/form-data body for a real HTTP PUT
-        // request (only POST) — send it as POST with Laravel's standard
-        // _method spoof instead, or every field comes back "required".
         const formData = new FormData(form);
         formData.append('_method', 'PUT');
         if (verifiedPassword) {
@@ -1288,13 +1235,6 @@
                 const data = await response.json();
                 const errors = data.errors || {};
 
-                // current_password has no matching input/error span in this
-                // form (the credentials gate collects it before the form is
-                // even shown) — showEditUserFieldErrors() would silently
-                // find nothing to fill in for it. Re-run the gate instead,
-                // same as reset-password-modal.blade.php does for this exact
-                // "verified password rejected on the authoritative re-check"
-                // case (e.g. it changed between gating and this submit).
                 if (errors.current_password) {
                     showEditUserGeneralError(errors.current_password[0]);
                     resetSubmitButton();
@@ -1361,7 +1301,7 @@
 
     window.openEditUserModal = function (event, userId) {
         if (event) event.preventDefault();
-        closeModal(); // close the View User modal underneath, if open
+        closeModal();
         const modal = document.getElementById('editUserModal');
         const form = document.getElementById('editUserForm');
 
@@ -1393,10 +1333,6 @@
                     },
                     confirmButtonText: 'Yes, Save Changes',
                     submittingLabel: '<span class="spinner"></span> Saving...',
-                    // The Administrator-target credentials check already
-                    // happened before this form was even shown (see
-                    // handleUpdateUserButtonClick above) — submit directly,
-                    // attaching whichever password that gate verified.
                     onConfirmedSubmit: function (resetSubmitButton) {
                         submitEditUserForm(resetSubmitButton, verifiedAdminPasswordForEdit);
                     },
@@ -1457,7 +1393,6 @@
         if (editUserFormHelper) editUserFormHelper.confirmSave();
     });
 
-    // Auto-show session messages
     @if(session('status'))
         Swal.fire({
             title: 'Success',

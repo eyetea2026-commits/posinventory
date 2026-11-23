@@ -64,7 +64,6 @@ class SupplierHistoryTest extends TestCase
         $response->assertOk();
         $response->assertSee('openSupplierHistoryModal('.$this->supplier->SupplierID.',', false);
         $response->assertSee('id="supplierHistoryModal"', false);
-        // No direct navigation link to the standalone history page anymore.
         $response->assertDontSee('href="'.route('admin.suppliers.show', $this->supplier).'"', false);
     }
 

@@ -1,10 +1,3 @@
-{{-- Live "valid email" check while typing. Include once on a page, then call
-     window.attachEmailCheck(input, messageEl?) for each email box. While the
-     box holds something that isn't a valid email address it turns red and
-     shows "Please enter a valid email address." under it; an empty box is
-     left alone (required fields are still checked on submit). The same
-     message is set as the box's validity, so the form can't be submitted
-     with an invalid address. The server still validates the address too. --}}
 <style>
     input.email-invalid {
         border-color: #ef4444 !important;
@@ -49,9 +42,6 @@
 
             input.addEventListener('input', check);
             input.addEventListener('blur', check);
-            // A value already in the box (e.g. kept after a failed submit)
-            // still blocks submitting, but the message waits for typing so it
-            // doesn't repeat the server's own error shown under the box.
             input.setCustomValidity(isInvalid() ? MESSAGE : '');
         };
     })();

@@ -9,9 +9,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('PurchaseOrderItem', function (Blueprint $table) {
-            // Multiple NULLs (a line with no receipt number entered yet) are
-            // still allowed under a unique index — only two equal non-null
-            // values collide.
             $table->unique('ReceiptNumber');
         });
     }

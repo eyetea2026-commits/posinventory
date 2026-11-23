@@ -5,12 +5,7 @@
     <title>{{ \App\Http\Controllers\Admin\ReportController::typeLabel($type) }} Report</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
-        /* Every report prints on A4 bond paper in landscape, 20 mm margins left and right (257 x 180 mm
-           inside the margins); the table always fits the page width. */
         @page { size: A4 landscape; margin: 15mm 0; }
-        /* The 20 mm left/right margins are the body's own padding when
-           printing, so they stay even when the browser's Margins
-           setting is "None" (which overrides @page margins). */
         body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: 1100px; margin: 0 auto; padding: 30px; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 12px; }
         .company-logo { width: 56px; height: 56px; object-fit: contain; margin: 0 auto 8px; display: block; }
@@ -46,7 +41,6 @@
         .col-qty, td.col-qty { text-align: center; }
         .col-money, td.col-money { text-align: right; }
         .col-total, td.col-total { text-align: right; font-weight: bold; }
-        /* Status: yellow waiting, green approved/settled, red declined/written off. */
         td.status-warning { color: #b45309; font-weight: bold; }
         td.status-success { color: #047857; font-weight: bold; }
         td.status-danger { color: #dc2626; font-weight: bold; }

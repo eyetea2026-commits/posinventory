@@ -30,8 +30,6 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        // First visit of the day: every Re-Order Point is recomputed (the
-        // 30-day sales window moved) before Low Stock is counted.
         try {
             ReorderPoint::refreshAllOncePerDay();
         } catch (Throwable $e) {
@@ -41,7 +39,6 @@ class DashboardController extends Controller
         $today = today();
         $yesterday = $today->copy()->subDay();
 
-        // KPI cards
         $salesToday = (float) SalesTransaction::whereDate('SalesTransactionDate', $today)->sum('TotalAmount');
         $salesYesterday = (float) SalesTransaction::whereDate('SalesTransactionDate', $yesterday)->sum('TotalAmount');
         $salesChangePct = $salesYesterday > 0
@@ -56,8 +53,6 @@ class DashboardController extends Controller
         $inventoryStatusChart = $inventorySnapshot['inventoryStatusChart'];
         $stockAlerts = $inventorySnapshot['stockAlerts'];
 
-        // Sales trend — all four granularities pre-computed, gap-filled, so
-        // the client can switch datasets with no server round-trip.
         $salesTrend = [
             'daily' => array_merge($this->dailyTrend(14), $this->periodStats('daily')),
             'weekly' => array_merge($this->weeklyTrend(8), $this->periodStats('weekly')),
@@ -65,17 +60,10 @@ class DashboardController extends Controller
             'yearly' => array_merge($this->yearlyTrend(5), $this->periodStats('yearly')),
         ];
 
-        // Sales by category — top 6 by revenue, remainder folded into "Others"
         $categoryChart = $this->buildCategorySalesChart();
 
-        // Top / least selling products — see buildProductRankings() for why
-        // each side is an independent top/bottom N rather than a strict
-        // non-overlapping half-split.
         ['topSelling' => $topSelling, 'leastSelling' => $leastSelling] = $this->buildProductRankings();
 
-        // Recent transactions — searchable/sortable/paginated in place,
-        // namespaced query params so it doesn't collide with any other
-        // paginated widget on this page.
         $txnSearch = $request->query('txn_search');
         $txnSort = $request->query('txn_sort', 'date_desc');
         $recentTransactions = $this->buildRecentTransactions($request);
@@ -98,16 +86,6 @@ class DashboardController extends Controller
         ]);
     }
 
-    /**
-     * Polled by the dashboard so inventory- and sales-derived widgets
-     * (Products count, Inventory Status chart, Stock Alerts, Sales Today,
-     * Transactions, Recent Transactions, Product Rankings) update without a
-     * page reload whenever a sale/refund/receiving/adjustment/damage record
-     * changes elsewhere — including from another cashier's tab. The Sales
-     * Trend chart is deliberately excluded (historical/comparative view,
-     * not "right now", and would multiply this poll's query cost by 4 for
-     * no visible benefit).
-     */
     public function liveInventory(Request $request)
     {
         $snapshot = $this->buildInventorySnapshot();
@@ -140,11 +118,6 @@ class DashboardController extends Controller
         ]);
     }
 
-    /**
-     * Shared by the initial page load and the live-polling endpoint so
-     * Recent Transactions stays in sync with the same query/filter/sort
-     * logic either way.
-     */
     private function buildRecentTransactions(Request $request)
     {
         $txnSearch = $request->query('txn_search');
@@ -153,11 +126,8 @@ class DashboardController extends Controller
         return SalesTransaction::query()
             ->select('SalesTransaction.*')
             ->with(['staff.user', 'payment'])
-            // Searches every transaction, not just the newest page.
             ->when($txnSearch, function ($query, $search) {
                 $search = trim($search);
-                // The table shows each sale as RCT-<id padded to 6 digits>,
-                // so "RCT-000016", "rct16" or "000016" all mean sale #16.
                 $receiptId = preg_match('/^(?:r(?:c(?:t)?)?)?-?\s*0*(\d+)$/i', $search, $m) ? (int) $m[1] : null;
 
                 $query->where(function ($inner) use ($search, $receiptId) {
@@ -176,23 +146,10 @@ class DashboardController extends Controller
             ->when($txnSort === 'date_asc', fn ($q) => $q->orderBy('SalesTransaction.SalesTransactionDate'))
             ->when(! in_array($txnSort, ['amount_desc', 'amount_asc', 'date_asc']), fn ($q) => $q->orderByDesc('SalesTransaction.SalesTransactionDate'))
             ->paginate(10, ['*'], 'txn_page')
-            // Pinned to the real dashboard page rather than the ambient
-            // current-request path: this same query also runs inside
-            // liveInventory()'s JSON polling endpoint, and without this the
-            // generated pagination links would point at that JSON-only URL
-            // once the 10-second poll re-renders this partial, so the next
-            // click on a page number landed on a raw JSON response instead
-            // of the dashboard.
             ->withPath(route('admin.dashboard'))
             ->withQueryString();
     }
 
-    /**
-     * Top 6 categories by revenue, remainder folded into "Others" — shared
-     * by the initial page load and the live-polling endpoint so the Sales
-     * by Category ring chart stays in sync with the same aggregation logic
-     * either way.
-     */
     private function buildCategorySalesChart(): array
     {
         $categorySales = SalesItem::join('Product', 'SalesItem.ProductID', '=', 'Product.ProductID')
@@ -217,20 +174,8 @@ class DashboardController extends Controller
         return ['labels' => $categoryLabels, 'data' => $categoryData];
     }
 
-    /**
-     * Top / least selling products — both expose quantity and revenue so
-     * the Product Ranking widget can toggle between the two client-side.
-     * Cap each side at half the number of distinct sold products (max 10)
-     * so Top and Least Selling never share a product — explicitly required
-     * over the alternative (independent top-N/bottom-N, which lets a thin
-     * catalog show the same products in both tabs reversed): a product
-     * must never appear in both lists at once, even at the cost of each
-     * list being small when few distinct products have ever sold.
-     */
     private function buildProductRankings(): array
     {
-        // Quantity in each product's base unit (a box sold counts as its
-        // 100 pieces); revenue is what each line was sold for.
         $sellingBase = SalesItem::select(
             'ProductID',
             DB::raw('SUM(BaseQuantity) as total_quantity'),
@@ -239,10 +184,6 @@ class DashboardController extends Controller
 
         $soldProductCount = (clone $sellingBase)->get()->count();
         if ($soldProductCount <= 1) {
-            // Only one (or zero) distinct product has ever sold, so there's
-            // nothing "least selling" that isn't also the top seller —
-            // populate Top Selling only and leave Least Selling empty
-            // instead of showing the same single product in both tabs.
             $topTake = $soldProductCount;
             $leastTake = 0;
         } else {
@@ -257,14 +198,6 @@ class DashboardController extends Controller
         return ['topSelling' => $topSelling, 'leastSelling' => $leastSelling];
     }
 
-    /**
-     * Inventory quantities grouped by Category and by Product (top 10),
-     * feeding the Inventory Status bar chart's By Category / By Product
-     * toggle. Both are computed unconditionally (not just whichever view is
-     * currently active) so the client can switch views instantly with no
-     * server round-trip, matching the Sales Trend chart's daily/weekly/
-     * monthly/yearly toggle pattern elsewhere on this page.
-     */
     private function buildInventoryQuantityChart(): array
     {
         $byCategoryRows = Inventory::join('Product', 'Inventory.ProductID', '=', 'Product.ProductID')
@@ -301,11 +234,6 @@ class DashboardController extends Controller
         ];
     }
 
-    /**
-     * Computed live from Quantity vs. ReorderThreshold rather than the
-     * stored Inventory.Status string, since that string uses inconsistent
-     * vocabulary across write paths.
-     */
     private function buildInventorySnapshot(): array
     {
         $totalProducts = Product::count();
@@ -443,11 +371,6 @@ class DashboardController extends Controller
         return $this->assembleTrend($labels, $data, $compareLabels, $compareData, $start, $end, $compareStart, $compareEnd);
     }
 
-    /**
-     * Revenue grouped into buckets by an arbitrary SQL expression, bounded
-     * to a specific date window — shared by the current and comparison
-     * series of every trend granularity above.
-     */
     private function trendWindow($start, $end, string $groupRaw, string $groupAlias)
     {
         return SalesTransaction::whereDate('SalesTransactionDate', '>=', $start->toDateString())
@@ -457,13 +380,6 @@ class DashboardController extends Controller
             ->pluck('total', $groupAlias);
     }
 
-    /**
-     * Bundles a trend series with the "Was this you?" header numbers the
-     * Sales Trend card shows (invoice count, revenue total, and the
-     * percentage change against the immediately preceding period of the
-     * same length) plus a human-readable range label for each series,
-     * shown as the current/previous badge tooltips.
-     */
     private function assembleTrend(array $labels, array $data, array $compareLabels, array $compareData, $start, $end, $compareStart, $compareEnd): array
     {
         return [
@@ -476,18 +392,6 @@ class DashboardController extends Controller
         ];
     }
 
-    /**
-     * The Transactions / Revenue numbers above the Sales Trend chart, for the
-     * CURRENT period of the selected toggle: Daily = today, Weekly = this
-     * week (Monday to today), Monthly = this month, Yearly = this year. The
-     * % badge compares against the whole previous period.
-     *
-     * These used to be totals over the chart's entire multi-period window
-     * (14 days / 8 weeks / 12 months / 5 years), so while every sale was
-     * recent all four toggles showed identical numbers.
-     *
-     * @return array{invoiceCount: int, revenueTotal: float, changePct: float|null, periodLabel: string, compareLabel: string}
-     */
     private function periodStats(string $granularity): array
     {
         $today = today();

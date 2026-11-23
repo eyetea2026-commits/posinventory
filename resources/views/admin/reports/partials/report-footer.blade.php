@@ -1,13 +1,3 @@
-{{-- Shared report footer + signature block, rendered once at the true end
-     of the document content (normal flow, not position:fixed — a repeating
-     page footer with page numbers is handled separately in pdf.blade.php's
-     own <style>, since dompdf's counter(page) trick needs a dedicated fixed
-     element and would wrongly repeat a signature block on every page).
-     Included by both admin/reports/pdf.blade.php and
-     admin/reports/print.blade.php. Expects: $pdf (bool) — PDF additionally
-     gets "Confidential Report". "Prepared By" is filled in with the name of
-     the Administrator printing/exporting the report; it is the only
-     signature line (no Checked By / Approved By). --}}
 <div class="signature-area">
     <div class="signature-block">
         <div class="signature-line"><strong>{{ auth()->user()?->full_name ?? '' }}</strong>&nbsp;<br><small>Administrator</small><br><small class="sig-caption">Prepared By</small></div>

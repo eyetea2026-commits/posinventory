@@ -1,11 +1,3 @@
-{{-- Print bridge (see App\Http\Controllers\PrintBridgeController). On the
-     deployed site, where direct thermal printing is off, the receipt's
-     printer lines are sent to the local copy of this app on the cashier PC,
-     which prints them exactly like a local sale. Resolves once printed;
-     rejects with a message when the printer reported a problem, or with
-     null when no bridge is running (the caller then falls back to the
-     browser print). linesUrl prints another slip's lines, e.g. a refund
-     receipt's (cashier/refunds/{id}/receipt/print-lines). --}}
 <script>
     window.PRINT_BRIDGE_URL = @json(\App\Services\ThermalReceiptPrinter::isEnabled() ? '' : (string) config('services.receipt_printer.bridge_url'));
 
@@ -14,10 +6,6 @@
             return Promise.reject(null);
         }
 
-        // Shown while printing, so the cashier never sees "nothing". If it
-        // takes more than a moment, Chrome is most likely waiting on its
-        // one-time local network permission (a small prompt by the address
-        // bar), which has to be allowed before the slip can print.
         Swal.fire({
             title: 'Printing receipt...',
             allowOutsideClick: false,
@@ -46,8 +34,6 @@
                 return r.json();
             })
             .then(function (receipt) {
-                // Long enough for Chrome's one-time "access devices on your
-                // local network" prompt; an unreachable bridge fails at once.
                 const controller = new AbortController();
                 const timer = setTimeout(function () { controller.abort(); }, 30000);
 

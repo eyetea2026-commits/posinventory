@@ -17,7 +17,6 @@ use App\Notifications\StockAdjustmentRecorded;
 use App\Services\SerialNumbers;
 use App\Services\StockBatches;
 use App\Services\UnitOfMeasure;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -53,7 +52,6 @@ class StockAdjustmentController extends Controller
                         $serial->where('SerialNumber', 'like', "%{$search}%");
                     });
             })
-            // Newest adjustment first (by when it was recorded, not its date).
             ->orderByDesc('AdjustmentID')
             ->paginate(15)
             ->withQueryString();
@@ -72,12 +70,6 @@ class StockAdjustmentController extends Controller
         ]);
     }
 
-    /**
-     * Only stock on hand can be damaged or lost. Serial-numbered products
-     * come with their in-stock serials, one of which is ticked per piece.
-     *
-     * @return Collection<int, Product>
-     */
     private function productsWithStock()
     {
         return Product::whereHas('inventory', fn ($inventory) => $inventory->where('Quantity', '>', 0))
@@ -94,8 +86,6 @@ class StockAdjustmentController extends Controller
     {
         $data = $request->validate([
             'ProductID' => ['required', 'integer', 'exists:Product,ProductID'],
-            // How much to take out, in the product's base unit; decimals only
-            // for a product that allows them (0.5 meters).
             'QuantityAdjust' => ['required', 'numeric', 'gt:0', 'decimal:0,2', 'max:9999999'],
             'Reason' => ['required', 'string', 'in:'.implode(',', StockAdjustment::REASONS)],
             'SerialNumbers' => ['nullable', 'array'],
@@ -114,7 +104,6 @@ class StockAdjustmentController extends Controller
             ]);
         }
 
-        // A serial-numbered product names the exact pieces taken out.
         $serialNumbers = [];
         if ($adjustedProduct->tracksSerialNumbers()) {
             $serialNumbers = array_values(array_unique(array_map(fn ($serial) => strtoupper(trim($serial)), $data['SerialNumbers'] ?? [])));
@@ -126,7 +115,6 @@ class StockAdjustmentController extends Controller
         }
         unset($data['SerialNumbers']);
 
-        // Stored negative: the adjustment takes this much out of stock.
         $data['QuantityAdjust'] = -$quantityRemoved;
 
         $newQty = null;
@@ -135,12 +123,6 @@ class StockAdjustmentController extends Controller
 
         try {
             DB::transaction(function () use ($data, $serialNumbers, $adjustedProduct, &$newQty, &$adjustment, &$damage) {
-                // Lock, compute, and re-validate entirely inside the
-                // transaction — reading/checking before the lock (as this
-                // used to) leaves a window where two concurrent adjustments
-                // for the same product can both pass the negative-stock
-                // check against the same stale quantity and jointly push
-                // the true total negative.
                 $inventory = Inventory::where('ProductID', $data['ProductID'])->lockForUpdate()->first();
 
                 if (! $inventory) {
@@ -175,9 +157,6 @@ class StockAdjustmentController extends Controller
 
                 $adjustment = StockAdjustment::create($data);
 
-                // Marked before the stock is saved, so the serial sync sees
-                // these exact pieces already gone instead of retiring the
-                // oldest ones.
                 $serialStatus = StockAdjustment::serialStatusFor($data['Reason']);
                 $serials->each(fn (ProductSerial $serial) => $serial->update([
                     'Status' => $serialStatus,
@@ -187,15 +166,11 @@ class StockAdjustmentController extends Controller
 
                 $inventory->Quantity = $newQty;
                 $inventory->Status = Inventory::resolveStatus($newQty, $inventory->ReorderThreshold);
-                // Out of the oldest stock batches first (FIFO), at their cost.
                 StockBatches::takingFor(
                     ['Reason' => StockBatchAllocation::REASON_STOCK_ADJUSTMENT, 'StockAdjustmentID' => $adjustment->AdjustmentID],
                     fn () => SerialNumbers::removingAs($serialStatus, fn () => $inventory->save())
                 );
 
-                // Damaged stock is a loss the Damage module needs to track
-                // (supplier return / disposal) — no separate manual damage
-                // entry should be required.
                 if ($data['Reason'] === StockAdjustment::REASON_DAMAGED) {
                     $damage = $this->createDamageRecordForAdjustment($adjustment, $serials->pluck('SerialNumber')->all());
                 }
@@ -210,9 +185,6 @@ class StockAdjustmentController extends Controller
         $newTotal = $product ? $product->formatQuantity($newQty) : $newQty;
         ActivityLog::record('stock.adjusted', "Adjusted \"{$productName}\" by {$adjustedBy} ({$data['Reason']}".($serialNumbers !== [] ? ': '.implode(', ', $serialNumbers) : '')."; new total: {$newTotal})".($damage ? " — created damage record #{$damage->DamageID}" : ''));
 
-        // The adjustment itself already committed above — a notification
-        // failure (broken mail transport, queue connection down) must not
-        // turn a successful adjustment into a 500 response.
         if ($product) {
             try {
                 Notification::send(
@@ -230,13 +202,6 @@ class StockAdjustmentController extends Controller
         return redirect()->route('admin.stock-adjustments.index')->with('success', 'Stock adjustment saved successfully.');
     }
 
-    // Mirrors SalesReturnController::createDamageRecordForItem() — a
-    // "Damaged" stock adjustment is exactly as much a loss as a customer's
-    // defective return, so it goes through the same Damage module/supplier
-    // return workflow instead of just silently decrementing inventory.
-    /**
-     * @param  list<string>  $serialNumbers
-     */
     private function createDamageRecordForAdjustment(StockAdjustment $adjustment, array $serialNumbers = []): DamagedProduct
     {
         $supplierId = PurchaseOrderItem::where('ProductID', $adjustment->ProductID)

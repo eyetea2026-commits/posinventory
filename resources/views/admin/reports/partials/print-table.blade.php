@@ -1,9 +1,3 @@
-{{-- Per-report-type table body, shared by the dompdf export (admin/reports/pdf.blade.php)
-     and the in-browser Print Preview (admin/reports/print.blade.php) so the two surfaces
-     never drift out of sync with each other. Expects: $type, $rows.
-     Alignment convention used throughout: text left, dates/quantities centered
-     (.col-date/.col-qty), currency right (.col-money), row/line totals right + bold
-     (.col-total) — matches the house alignment rules used elsewhere in the app. --}}
 @if($type === 'inventory')
     <table>
         <thead>
@@ -192,7 +186,6 @@
 <div class="report-summary">
     <div class="report-summary-title">Report Summary</div>
     @foreach(\App\Services\ReportSummaryBuilder::forType($type, $rows) as $entry)
-        {{-- A one-sale Print Preview leaves out "Total Transactions" (always 1). --}}
         @continue(in_array($entry['label'], $hiddenSummaryLabels ?? [], true))
         <div class="summary-row">
             <span>{{ $entry['label'] }}</span>

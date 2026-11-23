@@ -11,8 +11,6 @@ class CashierLayoutStylesTest extends TestCase
 {
     use RefreshDatabase;
 
-    // The notification dropdown's styles must load before the page content,
-    // or a long page (the POS) briefly draws the hidden dropdown as raw links.
     public function test_notification_dropdown_styles_load_in_the_head_before_the_content(): void
     {
         $role = Role::create(['role_name' => 'cashier']);

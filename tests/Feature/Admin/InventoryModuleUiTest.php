@@ -50,9 +50,6 @@ class InventoryModuleUiTest extends TestCase
         $noMatchResponse->assertDontSee('DVR Camera');
     }
 
-    // "View Details" now opens a modal instead of navigating — the list's
-    // link calls window.openInventoryDetailsModal() via onclick, which
-    // fetches this same route over AJAX.
     public function test_view_details_link_opens_a_modal_instead_of_navigating(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.inventory.index'));
@@ -73,10 +70,6 @@ class InventoryModuleUiTest extends TestCase
         $this->assertStringContainsString('DVR Camera', $response->json('html'));
     }
 
-    // The "Create Purchase Order" button used to show inside View Details
-    // for a low-stock product — removed on request; the row-level reorder
-    // trigger elsewhere on the Inventory list (AutomaticReorderTest) is a
-    // separate, untouched entry point.
     public function test_view_details_no_longer_offers_create_purchase_order_even_when_low_stock(): void
     {
         Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 1, 'ReorderThreshold' => 5]);
@@ -100,9 +93,6 @@ class InventoryModuleUiTest extends TestCase
         $response->assertSee('Back to Inventory');
     }
 
-    // The application already treats Product<->Inventory as strictly 1:1
-    // (Product::inventory() is a hasOne) — this confirms the database now
-    // enforces it too, rather than only the application layer.
     public function test_database_rejects_a_second_inventory_row_for_the_same_product(): void
     {
         $this->expectException(QueryException::class);

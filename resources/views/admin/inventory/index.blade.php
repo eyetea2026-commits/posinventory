@@ -29,7 +29,6 @@
         overflow: hidden;
     }
 
-    /* Toolbar */
     .toolbar {
         display: flex;
         justify-content: space-between;
@@ -115,7 +114,6 @@
         color: #f8fafc;
     }
 
-    /* Status pills row */
     .status-pills {
         display: flex;
         gap: 10px;
@@ -176,7 +174,6 @@
         color: white;
     }
 
-    /* Table */
     .table-container {
         overflow-x: auto;
         position: relative;
@@ -212,7 +209,6 @@
     .table tbody tr { transition: all 0.2s ease; }
     .table tbody tr:hover { background: rgba(59, 130, 246, 0.06); }
 
-    /* Product Info */
     .product-info {
         display: flex;
         flex-direction: column;
@@ -233,7 +229,6 @@
         font-weight: 500;
     }
 
-    /* Category */
     .category-chip {
         display: inline-flex;
         align-items: center;
@@ -247,7 +242,6 @@
         white-space: nowrap;
     }
 
-    /* Stock */
     .stock-info {
         display: flex;
         flex-direction: column;
@@ -279,7 +273,6 @@
     .badge-replenish { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
     .badge-out-of-stock { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
 
-    /* Threshold */
     .threshold-value {
         color: #f8fafc;
         font-weight: 600;
@@ -293,7 +286,6 @@
         margin-left: 2px;
     }
 
-    /* Velocity */
     .velocity-info {
         display: flex;
         flex-direction: column;
@@ -317,7 +309,6 @@
         font-weight: 500;
     }
 
-    /* Actions */
     .actions-group {
         display: flex;
         gap: 8px;
@@ -347,7 +338,6 @@
         transform: scale(1.05);
     }
 
-    /* Empty state */
     .empty-state { padding: 60px 20px; text-align: center; }
 
     .empty-icon {
@@ -372,7 +362,6 @@
 
     .empty-text { color: #64748b; margin-bottom: 20px; }
 
-    /* Pagination */
     .pagination {
         display: flex;
         justify-content: center;
@@ -410,7 +399,6 @@
         pointer-events: none;
     }
 
-    /* Alerts */
     .alert {
         padding: 16px 20px;
         border-radius: 12px;
@@ -432,7 +420,6 @@
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
 
-    /* Loading overlay */
     .table-loader {
         position: absolute;
         inset: 0;
@@ -457,7 +444,6 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Column widths */
     .col-product { min-width: 240px; }
     .col-category { width: 150px; }
     .col-stock { width: 160px; }
@@ -465,7 +451,6 @@
     .col-velocity { width: 140px; }
     .col-actions { width: 90px; text-align: right; }
 
-    /* Responsive */
     @media (max-width: 992px) {
         .col-product { min-width: 200px; }
     }
@@ -494,7 +479,6 @@
     }
 </style>
 
-<!-- Search + Status filter -->
 <div class="card glass-card">
     <div class="toolbar">
         <form
@@ -517,7 +501,6 @@
         </form>
     </div>
 
-    <!-- Status pills (REQ045) -->
     <div class="status-pills" id="statusPills">
         <button type="button" class="status-pill {{ ($status === null || $status === '') ? 'active' : '' }}" data-status="">
             All
@@ -559,7 +542,6 @@
         </div>
     @endif
 
-    <!-- Inventory Table -->
     <div class="table-container" id="inventoryTableContainer">
         <div class="table-loader" id="tableLoader">
             <div class="spinner"></div>
@@ -603,7 +585,6 @@
         let currentController = null;
         let currentPage = 1;
 
-        // Build URL query string from current filter state
         function buildQuery(page = 1) {
             const params = new URLSearchParams();
             const search = searchInput.value.trim();
@@ -616,21 +597,16 @@
             return params.toString();
         }
 
-        // Apply filters via AJAX and update table + pagination.
-        // `silent: true` (used by the background poll) skips the URL sync
-        // and loading spinner so it doesn't visually interrupt the page.
         async function applyFilters(page = 1, { silent = false } = {}) {
             currentPage = page;
             const query = buildQuery(page);
             const url = `${filterForm.action}${query ? '?' + query : ''}`;
 
             if (!silent) {
-                // Sync URL bar (no scroll)
                 window.history.replaceState({}, '', url);
                 tableLoader.classList.add('active');
             }
 
-            // Cancel previous in-flight request
             if (currentController) {
                 currentController.abort();
             }
@@ -657,7 +633,7 @@
                 updatePillCounts(data.counts);
             } catch (err) {
                 if (err.name === 'AbortError') return;
-                if (silent) return; // keep showing the last known table on a failed background poll
+                if (silent) return;
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="6">
@@ -686,7 +662,6 @@
             });
         }
 
-        // Re-bind click handlers for newly rendered pagination links
         function rebindPagination() {
             paginationWrapper.querySelectorAll('a.pagination-link').forEach(link => {
                 link.addEventListener('click', function (e) {
@@ -698,7 +673,6 @@
             });
         }
 
-        // Initialize Bootstrap tooltips (if Bootstrap JS is loaded)
         function initTooltips() {
             const tooltipTriggerList = [].slice.call(
                 document.querySelectorAll('[data-bs-toggle="tooltip"]')
@@ -708,46 +682,36 @@
             }
         }
 
-        // Debounced search
         searchInput.addEventListener('input', function () {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => applyFilters(1), 300);
         });
 
-        // Form submit (Enter key) — prevent full reload
         filterForm.addEventListener('submit', function (e) {
             e.preventDefault();
             applyFilters(1);
         });
 
-        // Status pill click handlers
         statusPills.querySelectorAll('.status-pill').forEach(pill => {
             pill.addEventListener('click', function () {
                 const newStatus = this.dataset.status || '';
                 if ((statusInput.value || '') === newStatus) {
-                    return; // already active, no-op
+                    return;
                 }
-                // Update visual active state
                 statusPills.querySelectorAll('.status-pill').forEach(p => p.classList.remove('active'));
                 this.classList.add('active');
-                // Sync hidden input and refetch
                 statusInput.value = newStatus;
                 applyFilters(1);
             });
         });
 
-        // Initial bindings
         rebindPagination();
         initTooltips();
 
-        // Poll for stock changes made elsewhere (sales, refunds, receiving,
-        // adjustments, damage recording) so the table and pill counts stay
-        // current without a manual refresh. Pauses while the tab is hidden.
         setInterval(function () {
             if (document.hidden) return;
             applyFilters(currentPage, { silent: true });
         }, 8000);
-        // ...and straight away when stock changes (partials/live-updates).
         window.liveUpdates.watch(['inventory', 'products'], function () {
             applyFilters(currentPage, { silent: true });
         });

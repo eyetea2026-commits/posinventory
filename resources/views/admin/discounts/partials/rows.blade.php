@@ -1,7 +1,3 @@
-{{-- Promo table rows, shared by the initial page load and the live-search
-     AJAX response (admin.discounts.index re-rendered into #discountsTbody).
-     One row per promo (not per assigned product) — see the "Applied
-     Discount/Promo List" in the Apply tab for the per-product view. --}}
 @forelse($discounts as $discount)
     @php
         $statusClass = match($discount->effective_status) {
@@ -35,10 +31,6 @@
         </td>
         <td>
             <div class="actions-group">
-                {{-- Opens the same View Details popup as the Applied
-                     Discount/Promo List, instead of navigating to the
-                     standalone details page — kept as an href fallback for
-                     non-JS clients, same pattern as the Edit button below. --}}
                 <a href="{{ route('admin.discounts.show', $discount->DiscountID) }}" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.openPromoDetails({{ $discount->DiscountID }})" title="View Details">
                     <i class="fa-solid fa-eye"></i>
                 </a>

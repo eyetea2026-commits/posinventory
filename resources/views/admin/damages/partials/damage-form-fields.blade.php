@@ -1,6 +1,3 @@
-{{-- Shared Damage field markup, used only for editing an already
-     auto-generated (approved-return) damage record. Records can no longer be
-     created manually — see routes/web.php and DamageController::edit(). --}}
 <div class="form-grid">
     <div class="form-group full-width">
         <label class="form-label" for="ProductID">Product <span class="required">*</span></label>
@@ -129,9 +126,6 @@
 </div>
 
 <script>
-    // Auto-populates read-only context and, when a resolvable supplier
-    // exists for the product, pre-selects it — the admin only needs to
-    // verify before saving, not hunt down category/supplier by hand.
     function onDamageProductChange(select) {
         const option = select.options[select.selectedIndex];
         const context = document.getElementById('damageProductContext');

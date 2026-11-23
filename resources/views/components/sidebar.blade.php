@@ -1,18 +1,7 @@
-{{--
-    Admin sidebar navigation.
-    Visual spec: fixed 240px, #0F172A background, #273449 active state,
-    40px item height, 16px horizontal padding, 8px radius, Public Sans font.
-    Mobile/tablet (< lg): off-canvas drawer, opened via the `sidebarOpen`
-    Alpine state on <body> (see admin/layout.blade.php) and an overlay.
-    Desktop (>= lg): a normal flex column in `.dashboard-container`'s row,
-    sticky at the top of the viewport so it stays exactly one viewport
-    tall (never grows with page content) while the page scrolls past it.
---}}
 <aside
     :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     class="sidebar fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col bg-[#0F172A] font-['Public_Sans',_Inter,_sans-serif] transition-transform duration-200 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-auto"
 >
-    {{-- Brand / system name --}}
     <div class="flex shrink-0 items-center gap-3 border-b border-white/5 px-4 py-4">
         <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white p-1.5">
             <img src="{{ asset('Images/logo.png') }}" alt="CCTV Express Solution logo" class="h-full w-full object-contain">
@@ -31,7 +20,6 @@
         </button>
     </div>
 
-    {{-- Navigation --}}
     <nav class="sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
         @foreach ($sections() as $section)
             @if ($section['label'])
@@ -91,7 +79,6 @@
         @endforeach
     </nav>
 
-    {{-- Logout --}}
     <div class="shrink-0 border-t border-white/5 p-3">
         <form method="POST" action="{{ route('admin.logout') }}" class="js-confirm-submit" data-confirm-title="Log Out" data-confirm-text="Are you sure you want to log out?" data-confirm-icon="question" data-confirm-color="#10b981">
             @csrf

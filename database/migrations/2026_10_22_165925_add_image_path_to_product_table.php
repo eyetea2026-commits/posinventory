@@ -6,10 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * A product photo, stored small (see App\Services\ProductImage) on the
-     * public disk. Optional: products without one show a placeholder.
-     */
     public function up(): void
     {
         Schema::table('Product', function (Blueprint $table) {

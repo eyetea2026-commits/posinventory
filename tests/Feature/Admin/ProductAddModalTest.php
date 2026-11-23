@@ -9,9 +9,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// The Add Product modal submits over AJAX and must get a direct answer from
-// store(): 201 "created" or 422 field errors — never the index's rows, which
-// made it report a false "already exists" for products on a later page.
 class ProductAddModalTest extends TestCase
 {
     use RefreshDatabase;
@@ -28,10 +25,6 @@ class ProductAddModalTest extends TestCase
         $this->category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
     private function productFields(array $overrides = []): array
     {
         return array_merge([
@@ -49,7 +42,6 @@ class ProductAddModalTest extends TestCase
 
     public function test_ajax_create_returns_success_even_when_the_product_sorts_onto_a_later_page(): void
     {
-        // 15 products per page, ordered by name: "DRS" lands after these.
         foreach (range(1, 16) as $i) {
             Product::create([
                 'ProductName' => sprintf('Camera %02d', $i), 'Model' => "CAM-{$i}", 'Barcode' => "BC-{$i}",

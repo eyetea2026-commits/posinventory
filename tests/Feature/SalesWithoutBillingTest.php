@@ -13,9 +13,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-// There's no Billing table: SalesTransaction -> SalesItem, with Payment
-// linked to the transaction. The sale holds what it came to (subtotal,
-// discounts, VAT, total) since the customer pays at once.
 class SalesWithoutBillingTest extends TestCase
 {
     use RefreshDatabase;
@@ -55,13 +52,12 @@ class SalesWithoutBillingTest extends TestCase
 
         $this->assertEquals(3000, (float) $sale->Subtotal);
         $this->assertEquals(3000, (float) $sale->TotalAmount);
-        $this->assertEquals(321.43, (float) $sale->VatAmount); // 3000 × 12/112
+        $this->assertEquals(321.43, (float) $sale->VatAmount);
         $this->assertSame('12%', $sale->VatApplied);
         $this->assertSame($sale->SalesTransactionID, $sale->payment->SalesTransactionID);
         $this->assertEquals(3500, (float) $sale->payment->PaymentAmount);
         $this->assertSame($sale->SalesTransactionID, Payment::firstOrFail()->transaction->SalesTransactionID);
 
-        // The receipt still reads the stored breakdown and the change.
         $this->actingAs($this->cashier)->get(route('cashier.receipt', 'RCT-'.str_pad($sale->SalesTransactionID, 6, '0', STR_PAD_LEFT)))
             ->assertOk()->assertSee('3,000.00')->assertSee('500.00');
     }

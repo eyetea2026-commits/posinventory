@@ -1,27 +1,3 @@
-{{-- Light Mode and Dark Mode for the admin and cashier screens.
-
-     The screens are designed dark, with their colors written straight into
-     each page's CSS. Light Mode is drawn from those same styles: every
-     stylesheet and <style> block on the page (including ones added later by
-     live updates) gets a matching light rule, and inline style="" colors are
-     swapped in place:
-       - dark surfaces become white and light gray, light text becomes dark
-         text, gray borders and shadows are softened;
-       - accent colors (blue buttons, green/red/amber badges) keep their
-         color, and text on a solid accent background stays as it is;
-       - light accent text (#93c5fd on dark) is darkened so it reads on white.
-     Each light rule has the same selector and specificity as the rule it
-     comes from (the theme check sits in :where()) and is placed right after
-     that stylesheet, so the pages' own cascade decides exactly as in Dark
-     Mode. Dark Mode is the original styling, so nothing is converted while
-     it is on. The choice is remembered per browser (localStorage
-     "cctv-theme").
-
-     Include it last in <head>, after every stylesheet, so the page never
-     shows dark before turning light. Toggle buttons: any element with
-     data-theme-toggle; .theme-label-light / .theme-label-dark inside it show
-     the mode it switches to. Pages listening for the "themechange" event
-     can redraw what CSS can't reach (the dashboard charts). --}}
 <style>
     html[data-theme="light"][data-theme-pending] body { opacity: 0 !important; }
     html[data-theme="light"] .theme-label-light,
@@ -43,8 +19,6 @@
                 return 'dark';
             }
         }
-
-        // ---------- colors ----------
 
         function rgbToHsl(r, g, b) {
             r /= 255; g /= 255; b /= 255;
@@ -72,9 +46,6 @@
             return [hue(p, q, h + 1 / 3) * 255, hue(p, q, h) * 255, hue(p, q, h - 1 / 3) * 255];
         }
 
-        // Dark surface lightness -> light surface lightness. The page itself
-        // (#020617) becomes light gray, cards and inputs (#0a1223) white, and
-        // the lighter dark grays (table headers, hovers) light grays again.
         var SURFACE = [[0, 0.93], [0.05, 0.95], [0.085, 1], [0.12, 0.972], [0.16, 0.952], [0.25, 0.91], [0.35, 0.86], [0.5, 0.78]];
 
         function surfaceLightness(l) {
@@ -91,8 +62,6 @@
             return (Math.max(r, g, b) - Math.min(r, g, b)) / 255 < 0.2;
         }
 
-        // One color, for the role it plays: bg (surface), text, border or
-        // shadow. Returns [r, g, b, alpha] with alpha as written (or null).
         function mapColor(rgb, alpha, role, keepText) {
             var r = rgb[0], g = rgb[1], b = rgb[2];
             var hsl = rgbToHsl(r, g, b), h = hsl[0], s = hsl[1], l = hsl[2];
@@ -104,9 +73,6 @@
 
             if (role === 'bg') {
                 if (neutral) {
-                    // Solid white surfaces (the pop-up dialogs) are already
-                    // light; only a faint white wash (lightening a dark
-                    // card) turns into a faint dark one.
                     if (l <= 0.5) l2 = surfaceLightness(l);
                     else if (opacity < 0.5) l2 = 1 - l;
                 } else if (l < 0.3) {
@@ -116,8 +82,6 @@
             } else if (role === 'text') {
                 if (keepText) return null;
                 if (neutral) {
-                    // Light text turns dark; text that is dark already sits
-                    // on a light surface and stays.
                     if (l >= 0.45) {
                         l2 = 1 - l;
                         if (l2 > 0.45) l2 = 0.45 + (l2 - 0.45) * 0.5;
@@ -175,7 +139,6 @@
 
         var COLOR_TOKEN = /#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])|rgba?\(([^()]*(?:\([^()]*\)[^()]*)*)\)|(^|[^\w-])(white|black)(?![\w-])/g;
 
-        // Every color in a CSS value (gradients and shadows have several).
         function transformValue(value, role, keepText) {
             var urls = [];
             var safe = value.replace(/url\([^)]*\)/g, function (u) { urls.push(u); return '\u0000' + (urls.length - 1) + '\u0000'; });
@@ -193,9 +156,6 @@
             return result.replace(/\u0000(\d+)\u0000/g, function (m, i) { return urls[i]; });
         }
 
-        // Which role a property's colors play. Custom properties are judged
-        // by name: --bg-card is a surface, --text-muted text, --primary an
-        // accent (left alone).
         function roleOf(prop) {
             if (prop.indexOf('--') === 0) {
                 if (/^--tw-/.test(prop)) {
@@ -219,8 +179,6 @@
 
         var ACCENT_VAR = /var\(--(primary|primary-hover|success|danger|warning|info)\)/;
 
-        // A solid accent background (a blue button, a red badge): its text
-        // keeps its color, usually white.
         function hasSolidAccentBackground(style) {
             var bg = [style.getPropertyValue('background-color'), style.getPropertyValue('background-image'), style.getPropertyValue('background')].join(' ');
             if (ACCENT_VAR.test(bg)) return true;
@@ -236,15 +194,12 @@
             return solid;
         }
 
-        // ---------- stylesheets ----------
-
         var processedSheets = typeof WeakSet === 'function' ? new WeakSet() : null;
 
         function isGenerated(node) {
             return !!(node && node.nodeType === 1 && node.hasAttribute('data-theme-generated'));
         }
 
-        // Same selector, same specificity, only matching in Light Mode.
         function lightSelector(selectorText) {
             var parts = [], depth = 0, start = 0;
             for (var i = 0; i < selectorText.length; i++) {
@@ -302,7 +257,7 @@
                     } else if (rule.styleSheet) {
                         css += lightRules(safeRules(rule.styleSheet));
                     }
-                } catch (e) { /* one odd rule never stops the rest */ }
+                } catch (e) { }
             }
             return css;
         }
@@ -311,12 +266,10 @@
             try {
                 return sheet.cssRules || [];
             } catch (e) {
-                return []; // another site's stylesheet (Font Awesome): no page colors there
+                return [];
             }
         }
 
-        // The light rules go in a style element right after the stylesheet
-        // they come from.
         function processSheet(sheet) {
             if (!sheet || isGenerated(sheet.ownerNode)) return;
             if (processedSheets) {
@@ -349,8 +302,6 @@
             }
         }
 
-        // ---------- inline style="" ----------
-
         var inlineApplied = typeof WeakMap === 'function' ? new WeakMap() : null;
         var inlineOriginal = typeof WeakMap === 'function' ? new WeakMap() : null;
 
@@ -362,8 +313,6 @@
             var props = [];
             for (var i = 0; i < el.style.length; i++) props.push(el.style[i]);
             props.forEach(function (prop) {
-                // Inline custom properties are set by scripts from colors
-                // already on screen (--ui-modal-bg), so they're light already.
                 if (prop.indexOf('--') === 0) return;
                 var value = el.style.getPropertyValue(prop);
                 if (!value || applied[prop] === value) return;
@@ -427,8 +376,6 @@
             watchPage();
         }
 
-        // ---------- switching ----------
-
         function apply(theme) {
             root.setAttribute('data-theme', theme);
             if (theme === 'light') {
@@ -444,7 +391,7 @@
 
         window.setTheme = function (theme) {
             theme = theme === 'light' ? 'light' : 'dark';
-            try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) { /* private window: this page only */ }
+            try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) { }
             apply(theme);
             document.dispatchEvent(new CustomEvent('themechange', { detail: { theme: theme } }));
         };
@@ -459,7 +406,6 @@
         var theme = savedTheme();
         root.setAttribute('data-theme', theme);
         if (theme === 'light') {
-            // Hidden until the whole page is converted, never longer than 3s.
             root.setAttribute('data-theme-pending', '');
             var reveal = function () { root.removeAttribute('data-theme-pending'); };
             setTimeout(reveal, 3000);

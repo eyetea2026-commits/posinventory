@@ -20,10 +20,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-// Automatic selling price with batch-level costing: every purchase batch
-// has its own cost, and is priced from it at the product's Profit Margin:
-//   Selling Price = Batch Unit Cost / (1 - Profit Margin)
-// The POS charges each piece at the price of the batch it comes from (FIFO).
 class AutomaticSellingPriceTest extends TestCase
 {
     use RefreshDatabase;
@@ -47,7 +43,6 @@ class AutomaticSellingPriceTest extends TestCase
         $this->supplier = Supplier::create(['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0912-345-6789', 'Address' => 'N/A']);
         $this->category = Category::create(['CategoryName' => 'CCTV']);
 
-        // ₱50 cost, ₱100 price: a 50% Profit Margin.
         $this->camera = Product::create(['ProductName' => 'Dome Camera', 'Model' => 'DC-1', 'Price' => 100, 'CostPrice' => 50, 'CategoryID' => $this->category->CategoryID, 'Barcode' => 'CCTVEX-000001']);
         Inventory::create(['ProductID' => $this->camera->ProductID, 'Quantity' => 0, 'ReorderThreshold' => 10, 'Status' => 'Out of Stock']);
     }
@@ -76,9 +71,6 @@ class AutomaticSellingPriceTest extends TestCase
         ]);
     }
 
-    /**
-     * ₱60 batch (sells at ₱120), then a ₱70 batch (sells at ₱140).
-     */
     private function receiveTwoBatches(): void
     {
         $this->receive(10, 60);
@@ -94,11 +86,9 @@ class AutomaticSellingPriceTest extends TestCase
         $this->assertSame([120.0, 140.0], $batches->map(fn ($batch) => (float) $batch->SellingPrice)->all());
         $this->assertSame([50.0, 50.0], $batches->map(fn ($batch) => $batch->marginPercent())->all());
 
-        // The product's price is the batch that sells next...
         $this->assertSame(120.0, (float) $this->camera->fresh()->Price);
         $this->assertSame([['quantity' => 10, 'price' => 120.0], ['quantity' => 5, 'price' => 140.0]], $this->camera->fresh()->priceTiers());
 
-        // ...and moves to the next batch once that one is sold out.
         $this->sell(10, 1200)->assertOk();
         $this->assertSame(140.0, (float) $this->camera->fresh()->Price);
     }
@@ -107,14 +97,12 @@ class AutomaticSellingPriceTest extends TestCase
     {
         $this->receiveTwoBatches();
 
-        // 12 x ₱120 isn't enough: 10 are ₱120 and 2 are ₱140.
         $this->sell(12, 1440)->assertStatus(400)->assertJsonPath('message', 'Payment amount must be greater than or equal to total.');
 
         $this->sell(12, 1480)->assertOk()->assertJsonPath('total', 1480);
         $lines = SalesItem::orderBy('SalesItemID')->get();
         $this->assertSame([[10, 120.0], [2, 140.0]], $lines->map(fn ($line) => [$line->Quantity, (float) $line->UnitPrice])->all());
 
-        // Two lines on the receipt.
         $receipt = 'RCT-'.str_pad((string) $lines->first()->SalesTransactionID, 6, '0', STR_PAD_LEFT);
         $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->assertOk()
             ->assertSeeInOrder(['Dome Camera', '120.00', 'Dome Camera', '140.00']);
@@ -156,7 +144,6 @@ class AutomaticSellingPriceTest extends TestCase
             'CostPrice' => 50, 'ProfitMargin' => 60, 'CategoryID' => $this->category->CategoryID,
         ])->assertRedirect();
 
-        // ₱60 / (1 - 60%) = ₱150; ₱70 / (1 - 60%) = ₱175.
         $this->assertSame([150.0, 175.0], StockBatch::fifo()->get()->map(fn ($batch) => (float) $batch->SellingPrice)->all());
         $this->assertSame(150.0, (float) $this->camera->fresh()->Price);
     }
@@ -176,11 +163,9 @@ class AutomaticSellingPriceTest extends TestCase
         $this->sell(12, 1480)->assertOk();
         $saleId = SalesItem::value('SalesTransactionID');
 
-        // The last pieces sold come back first: 2 at ₱140, then 1 at ₱120.
         $first = $this->returnRequest($saleId, 3);
         $this->assertSame(400.0, $first->refundableTotal());
 
-        // A later request starts after those: 2 more at ₱120.
         $second = $this->returnRequest($saleId, 2);
         $this->assertSame(240.0, $second->refundableTotal());
     }
@@ -200,7 +185,6 @@ class AutomaticSellingPriceTest extends TestCase
     public function test_the_migration_keeps_each_products_margin_and_prices_its_stock(): void
     {
         $this->receiveTwoBatches();
-        // As before: one typed price (₱100 at ₱50 cost), batches at it.
         StockBatch::query()->update(['SellingPrice' => 100]);
         Product::whereKey($this->camera->ProductID)->update(['Price' => 100]);
 
@@ -214,11 +198,9 @@ class AutomaticSellingPriceTest extends TestCase
 
     public function test_the_migration_never_sets_a_negative_margin_and_can_run_again(): void
     {
-        // A mistyped ₱423,423 receipt for a ₱280 adapter, no Cost Price.
         $this->receive(5, 423423);
         Product::whereKey($this->camera->ProductID)->update(['Price' => 280, 'CostPrice' => null]);
 
-        // An earlier run stopped part-way: the column is already there.
         (require database_path('migrations/2026_11_09_233507_add_profit_margin_to_product_table.php'))->up();
 
         $this->assertSame(0.0, (float) DB::table('Product')->value('ProfitMargin'));

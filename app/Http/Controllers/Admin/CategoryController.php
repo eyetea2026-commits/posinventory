@@ -29,7 +29,6 @@ class CategoryController extends Controller
         });
     }
 
-    // Display categories list
     public function index(Request $request)
     {
         $search = $request->get('search');
@@ -38,21 +37,10 @@ class CategoryController extends Controller
             ->when($search, function ($query) use ($search) {
                 return $query->where('CategoryName', 'like', "%{$search}%");
             })
-            // Active categories first (newest first); deactivated ones go last.
             ->orderByDesc('IsActive')
             ->orderBy('CategoryID', 'desc')
             ->paginate(15)->withQueryString();
 
-        // Real-time search: matches the debounced-AJAX pattern used by
-        // Products/Inventory — return just the rendered rows/pagination
-        // instead of a full page reload. Keyed off an explicit ?ajax=1 flag
-        // rather than the X-Requested-With header alone: the Add/Edit
-        // Category modal's own AJAX POST (via the shared submitAjaxForm
-        // helper) carries that same header and follows its redirect back to
-        // this same index route — a header-only check would hijack that
-        // redirect-follow into returning this JSON instead of the full HTML
-        // page submitAjaxForm parses for its success/error state (see the
-        // identical fix + regression test on the Damage module).
         if ($request->boolean('ajax')) {
             return response()->json([
                 'rows' => view('admin.categories.partials.rows', ['categories' => $categories])->render(),
@@ -63,15 +51,11 @@ class CategoryController extends Controller
         return view('admin.categories.index', compact('categories', 'search'));
     }
 
-    // Show create form
     public function create()
     {
         return view('admin.categories.create');
     }
 
-    // Live duplicate-name check (mirrors ProductController::checkName) — lets
-    // the Add/Edit Category form surface a uniqueness conflict before
-    // submit, instead of only finding out after a full round trip.
     public function checkName(Request $request)
     {
         $name = trim((string) $request->input('CategoryName', ''));
@@ -97,17 +81,11 @@ class CategoryController extends Controller
         ]);
     }
 
-    // Store new category
     public function store(Request $request)
     {
         $data = $request->validate([
             'CategoryName' => 'required|string|max:100|unique:Category,CategoryName',
             'Description' => 'nullable|string|max:500',
-            // A Brand can't be attached before the Category exists, so the
-            // Add Category form's "Brands in this Category" panel just
-            // collects plain names client-side and submits them alongside
-            // the category — created here in the same request instead of
-            // the immediate per-brand AJAX calls the Edit form uses.
             'Brands' => ['nullable', 'array'],
             'Brands.*' => ['nullable', 'string', 'max:100'],
         ], [
@@ -124,8 +102,6 @@ class CategoryController extends Controller
                 'TracksSerialNumbers' => $tracksSerialNumbers,
             ]);
 
-            // De-duplicate case-insensitively — the client already blocks
-            // adding the same brand name twice, but never trust that alone.
             $seen = [];
             foreach ($data['Brands'] ?? [] as $brandName) {
                 $brandName = trim((string) $brandName);
@@ -166,11 +142,8 @@ class CategoryController extends Controller
         return redirect()->route('admin.categories.index')->with('success', 'Category created successfully.');
     }
 
-    // Show edit form
     public function edit(Request $request, Category $category)
     {
-        // Edit Category modal: return just the rendered form fields instead
-        // of a full page, so the modal can inject it without navigating.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.categories.partials.category-form-fields', [
@@ -182,7 +155,6 @@ class CategoryController extends Controller
         return view('admin.categories.edit', compact('category'));
     }
 
-    // Update category
     public function update(Request $request, Category $category)
     {
         $request->validate([

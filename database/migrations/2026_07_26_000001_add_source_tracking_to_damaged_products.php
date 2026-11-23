@@ -16,11 +16,6 @@ return new class extends Migration
             $table->string('ImagePath', 255)->nullable()->after('Remarks');
         });
 
-        // Backfill existing rows: a non-null SalesReturnID means the record
-        // came from the customer-return diversion flow; every other
-        // pre-existing row was created via the manual "Add Damage Record"
-        // form (stock-adjustment-originated records don't exist yet — that
-        // path is introduced alongside this migration).
         DamagedProduct::whereNull('SourceModule')->whereNotNull('SalesReturnID')->update(['SourceModule' => 'customer_return']);
         DamagedProduct::whereNull('SourceModule')->update(['SourceModule' => 'manual']);
     }

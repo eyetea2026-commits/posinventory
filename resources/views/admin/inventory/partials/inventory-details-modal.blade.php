@@ -1,7 +1,3 @@
-{{-- "View Details" modal, opened from the Inventory list. Keeps the admin on
-     the Inventory page instead of navigating to a separate page — the same
-     content InventoryController::show() renders for direct navigation is
-     fetched over AJAX and injected into the modal body. --}}
 @include('admin.partials.modal-styles')
 
 <div id="inventoryDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="inventoryDetailsModalTitle" aria-hidden="true">

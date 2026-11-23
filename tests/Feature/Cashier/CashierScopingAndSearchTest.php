@@ -53,9 +53,6 @@ class CashierScopingAndSearchTest extends TestCase
         ]);
     }
 
-    // --- Ownership scoping (item 2/3/4) ---------------------------------
-
-    // Every cashier sees all of today's sales, but can only reprint their own.
     public function test_cashier_sees_every_cashiers_transactions_from_today(): void
     {
         for ($i = 0; $i < 5; $i++) {
@@ -93,8 +90,6 @@ class CashierScopingAndSearchTest extends TestCase
 
     public function test_a_cashier_with_no_sales_yet_sees_others_sales_as_view_only(): void
     {
-        // Cashier 2 has sold plenty; this cashier has never processed a
-        // sale, so no Staff row exists for them yet at all.
         for ($i = 0; $i < 3; $i++) {
             $this->makeTransactionFor($this->staff2);
         }
@@ -107,8 +102,6 @@ class CashierScopingAndSearchTest extends TestCase
         $response->assertDontSee('fa-print', false);
         $response->assertSee('View only');
     }
-
-    // --- Live search AJAX branch (item 5) -------------------------------
 
     public function test_ajax_request_returns_json_rows_and_pagination(): void
     {
@@ -129,7 +122,7 @@ class CashierScopingAndSearchTest extends TestCase
     {
         $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
         $this->makeTransactionFor($this->staff1, 'Maria Santos');
-        $this->makeTransactionFor($this->staff2, 'Juan Dela Cruz'); // same name, different cashier
+        $this->makeTransactionFor($this->staff2, 'Juan Dela Cruz');
 
         $response = $this->actingAs($this->cashier1)
             ->withHeaders(['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'])
@@ -139,7 +132,6 @@ class CashierScopingAndSearchTest extends TestCase
         $rows = $response->json('rows');
         $this->assertSame(2, substr_count($rows, 'Juan Dela Cruz'));
         $this->assertStringNotContainsString('Maria Santos', $rows);
-        // The AJAX-rendered rows apply the same own-vs-others action rule.
         $this->assertSame(1, substr_count($rows, 'fa-print'));
         $this->assertStringContainsString('View only', $rows);
     }
@@ -174,8 +166,6 @@ class CashierScopingAndSearchTest extends TestCase
         }
     }
 
-    // The list searches live on every keystroke, so a partly-typed receipt
-    // number must already match, not only the complete one.
     public function test_partly_typed_receipt_numbers_match_while_typing(): void
     {
         $a = $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
@@ -245,10 +235,6 @@ class CashierScopingAndSearchTest extends TestCase
         $response->assertDontSee('>Search</button>', false);
     }
 
-    // Regression: the Print action used to link back to the transactions
-    // list itself (with an unused ?print= param the controller never read),
-    // opening a duplicate copy of the list in a new tab instead of the
-    // actual printable receipt.
     public function test_print_action_links_to_the_actual_receipt_not_a_duplicate_of_the_list(): void
     {
         $transaction = $this->makeTransactionFor($this->staff1, 'Juan Dela Cruz');
@@ -259,12 +245,9 @@ class CashierScopingAndSearchTest extends TestCase
         $response->assertOk();
         $response->assertSee(route('cashier.receipt', $receiptNumber), false);
         $response->assertDontSee(route('cashier.transactions').'?print=', false);
-        // Print asks for confirmation before printing.
         $response->assertSee("confirmPrintReceipt(event, '{$receiptNumber}', this.href)", false);
         $response->assertSee("title: 'Print Receipt'", false);
     }
-
-    // --- Refund Requests: no blue button, live filter, no Invoice # -----
 
     public function test_refunds_page_has_no_search_button_and_wires_up_live_filter(): void
     {

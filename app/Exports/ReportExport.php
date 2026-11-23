@@ -136,20 +136,11 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 (float) $row->UnitPrice,
                 $row->Discount,
                 $row->VatAmount,
-                // The invoice's actual net total (post-discount), not the
-                // per-line gross ItemTotal — same first-row-only convention
-                // as Discount/VatAmount above, so "Total" here always
-                // agrees with them instead of ignoring the discount shown
-                // two columns over.
                 $row->TotalAmount,
             ],
         };
     }
 
-    // Column indices (1-based) holding a currency amount in the data grid —
-    // each gets a currency cell format, and any that also map onto a
-    // Report Summary row (via summaryFormulaColumns()) gets a real SUM()
-    // formula there instead of a hardcoded value.
     private function moneyColumns(): array
     {
         return match ($this->type) {
@@ -160,13 +151,8 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         };
     }
 
-    /**
-     * Money cells stay real numbers (so sums and formulas still work) but
-     * display with the peso sign, e.g. ₱1,234.50.
-     */
     private const PESO_FORMAT = '"₱"#,##0.00';
 
-    // Dates are written as MM/DD/YYYY, the format used everywhere in the system.
     private static function mdy($value): string
     {
         return $value ? Carbon::parse($value)->format('m/d/Y') : 'N/A';
@@ -181,15 +167,6 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
         };
     }
 
-    // Maps a Report Summary label to the data-grid column its value should
-    // be a live =SUM() formula over, instead of the static number
-    // ReportSummaryBuilder already computed — kept in sync by hand since
-    // both read from the same headings()/map() column order above. Sales'
-    // "Receipt Total" column holds each invoice's total (TotalAmount, last
-    // row only), which is exactly "Amount Collected (VAT included)" — Gross
-    // Sales (ItemTotal) has no visible grid column of its own, so it keeps
-    // the static PHP-computed value instead of a mismatched SUM(). Net
-    // Sales is Amount Collected − VAT (see the summary loop below).
     private function summaryFormulaColumns(): array
     {
         return match ($this->type) {
@@ -209,7 +186,6 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $lastColumnLetter = Coordinate::stringFromColumnIndex($columnCount);
                 $dataRowCount = $this->rows->count();
 
-                // ---- Title block, inserted above the heading/data grid ----
                 $period = ($this->dateFrom || $this->dateTo)
                     ? ($this->dateFrom ? self::mdy($this->dateFrom) : 'Earliest').' to '.($this->dateTo ? self::mdy($this->dateTo) : 'Latest')
                     : 'As of '.now()->format('m/d/Y');
@@ -246,7 +222,6 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $sheet->getStyle('A10')->getFont()->setBold(true);
                 $sheet->getRowDimension(1)->setRowHeight(20);
 
-                // ---- Header row + data ----
                 $headerRow = $offset + 1;
                 $dataStartRow = $headerRow + 1;
                 $dataEndRow = $headerRow + $dataRowCount;
@@ -257,9 +232,6 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                 $sheet->setAutoFilter("A{$headerRow}:{$lastColumnLetter}{$headerRow}");
                 $sheet->freezePane('A'.$dataStartRow);
 
-                // Printed from Excel like the other report outputs: A4 bond
-                // paper, landscape, every column on one page width (as many
-                // pages tall as needed), the header row repeated per page.
                 $sheet->getPageSetup()
                     ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
                     ->setPaperSize(PageSetup::PAPERSIZE_A4)
@@ -282,8 +254,6 @@ class ReportExport implements FromCollection, ShouldAutoSize, WithDrawings, With
                     }
                 }
 
-                // ---- Report Summary, editable cells with a formula where
-                // it maps onto a real column in this type's data grid ----
                 $summaryRow = $dataEndRow + 2;
                 $sheet->setCellValue("A{$summaryRow}", 'REPORT SUMMARY');
                 $sheet->getStyle("A{$summaryRow}")->getFont()->setBold(true);

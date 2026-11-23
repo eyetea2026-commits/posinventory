@@ -1,28 +1,3 @@
-{{-- Two things share this partial:
-       1. #adminCredentialsModal ("Enter Your Credentials") — a GENERIC
-          "confirm it's you" gate. window.openAdminCredentialsGate(onVerified,
-          options) re-enters the ACTING admin's own password, verifies it
-          against admin.users.verify-password, then calls onVerified(password)
-          and closes. Used by both:
-            a) Reset Password (window.openResetPasswordModal below), which
-               chains into step 2 (#resetPasswordModal) on success.
-            b) Update User for an Administrator target (see index.blade.php /
-               edit.blade.php), which submits the Edit User form with the
-               verified password attached as current_password.
-       2. #resetPasswordModal (New Password / Confirm Password) — only
-          reachable after the gate succeeds via the Reset Password path.
-          Its Save posts the already-verified admin password back to
-          admin.users.reset-password, which re-checks it server-side
-          (defense in depth — a client that skips the gate and posts
-          straight to reset-password still can't get through without the
-          real admin password).
-
-     Kept entirely separate from the Edit User form/modal on purpose: this
-     partial is included directly in the page (index.blade.php /
-     edit.blade.php), never injected via .innerHTML like the Edit User form
-     fields are — a <script> tag inside HTML set via .innerHTML never
-     executes, which was the actual bug behind "Reset Password doesn't
-     work" before this. --}}
 @include('admin.partials.modal-styles')
 
 <div id="adminCredentialsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="adminCredentialsModalTitle" aria-hidden="true">
@@ -70,7 +45,6 @@
 
         <form id="resetPasswordForm" onsubmit="return false;">
             <div class="form-grid">
-                {{-- New | Confirm side by side, the rules under both. --}}
                 <div class="form-group">
                     <label class="form-label">New Password <span class="required">*</span></label>
                     <div class="password-input-wrapper">
@@ -115,10 +89,6 @@
     let resetPasswordLastFocused = null;
     let verifiedAdminPassword = null;
 
-    // Show/hide eye buttons of both pop-ups, wired here so they work on
-    // every page that includes this partial (the Edit User page loads it
-    // without user-form-behavior); data-toggle-wired keeps that partial's
-    // own wiring from binding them a second time.
     function setPasswordVisible(btn, visible) {
         if (!btn) return;
         btn.previousElementSibling.type = visible ? 'text' : 'password';
@@ -132,19 +102,10 @@
         });
     });
 
-    // ---- Generic "Enter Your Credentials" gate ----
-
     let adminCredentialsLastFocused = null;
     let adminCredentialsOnVerified = null;
     let adminCredentialsOnCancel = null;
 
-    // Opens the "Enter Your Credentials" popup, verifies the ACTING admin's
-    // own password against admin.users.verify-password, then calls
-    // onVerified(password) — used by both Reset Password (chains into step
-    // 2 below) and Update User for an Administrator target (see
-    // index.blade.php / edit.blade.php). options.hint customizes the
-    // shown reason; options.onCancel fires if the admin closes the popup
-    // without confirming (e.g. to re-enable a disabled Save button).
     window.openAdminCredentialsGate = function (onVerified, options) {
         options = options || {};
         adminCredentialsOnVerified = onVerified;
@@ -169,8 +130,6 @@
         document.getElementById('adminCredentialsPassword').focus();
     };
 
-    // Reset Password's own entry point — just chains into step 2 as its
-    // "verified" callback.
     window.openResetPasswordModal = function (userId) {
         resetPasswordUserId = userId;
         window.openAdminCredentialsGate(function (verifiedPassword) {
@@ -180,10 +139,6 @@
         });
     };
 
-    // Pure UI teardown, used both after a successful verification (the
-    // confirm handler below calls this itself before invoking onVerified)
-    // and by an explicit cancel — cancelAdminCredentialsGate() is what
-    // actually fires onCancel, so a successful close never double-fires it.
     window.closeAdminCredentialsModal = function () {
         const modal = document.getElementById('adminCredentialsModal');
         modal.classList.remove('active');
@@ -282,10 +237,6 @@
                 }
 
                 resetAdminCredentialsConfirmBtn();
-                // Capture BEFORE closing -- closeAdminCredentialsModal()
-                // clears adminCredentialsOnVerified as part of its normal
-                // teardown, and this deliberately bypasses
-                // cancelAdminCredentialsGate() so onCancel never fires here.
                 const callback = adminCredentialsOnVerified;
                 const verified = password;
                 window.closeAdminCredentialsModal();
@@ -296,8 +247,6 @@
                 resetAdminCredentialsConfirmBtn();
             });
     });
-
-    // ---- Step 2: New Password / Confirm Password ----
 
     function openResetPasswordFormModal(userId, verifiedPassword) {
         resetPasswordUserId = userId;
@@ -422,13 +371,6 @@
                         const data = await response.json();
                         const currentPasswordError = data.errors?.current_password?.[0];
                         if (currentPasswordError) {
-                            // The verified admin password was rejected on
-                            // the authoritative re-check (e.g. it changed
-                            // mid-flow) -- send the admin back to step 1
-                            // rather than silently failing here. Capture the
-                            // user id BEFORE closing -- closeResetPasswordModal()
-                            // clears resetPasswordUserId as part of its
-                            // normal teardown.
                             const userId = resetPasswordUserId;
                             window.closeResetPasswordModal();
                             window.openResetPasswordModal(userId);

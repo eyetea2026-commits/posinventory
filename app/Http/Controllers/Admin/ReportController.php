@@ -38,9 +38,6 @@ class ReportController extends Controller
         });
     }
 
-    /**
-     * The report types offered; anything else shows the Sales report.
-     */
     private const REPORT_TYPES = ['sales', 'inventory', 'damage', 'returns', 'stock_adjustment', 'receiving', 'orders'];
 
     private function reportType(Request $request): string
@@ -65,12 +62,6 @@ class ReportController extends Controller
         ]));
     }
 
-    /**
-     * AJAX: renders the same report-body partial the index page shows, for
-     * the "Preview Report" modal — fetched fresh so the preview always
-     * matches whatever Report Type / date range is currently selected, and
-     * a successful preview is what unlocks the download buttons client-side.
-     */
     public function preview(Request $request)
     {
         $reportType = $this->reportType($request);
@@ -85,24 +76,11 @@ class ReportController extends Controller
                 'dateTo' => $effectiveTo,
             ]))->render(),
             'dateRangeError' => $dateRangeError,
-            // The "Total Revenue (Selected Range)" card lives outside the
-            // swapped #reportBodyContainer, so it needs its own value in
-            // this payload — otherwise it silently stays stuck at whatever
-            // the very first page load showed no matter how the filter
-            // changes afterward.
             'totalRevenue' => (float) ($data['sales']->total_revenue ?? 0),
-            // Same for the Sales and Revenue summary cards above the filters.
             'salesSummary' => $data['salesSummary'],
         ]);
     }
 
-    /**
-     * AJAX: "View Details" modal for a single report row, shared by every
-     * Report Type. Each type builds the same generic {title, sections,
-     * audit} shape — a list of {heading, fields|table} sections — so the
-     * front-end has exactly one renderer and adding a future report type
-     * only means adding one more match arm here, not new modal markup or JS.
-     */
     public function details(Request $request)
     {
         $payload = $this->detailPayload($request->get('type'), $request->get('id'));
@@ -114,19 +92,12 @@ class ReportController extends Controller
         return response()->json($payload);
     }
 
-    /**
-     * Print Preview of one record's View Details: the same sections as the
-     * pop-up, on a white page of its own (company header, Print button,
-     * Prepared By), like the report's own Print Preview.
-     */
     public function detailsPrint(Request $request)
     {
         $payload = $this->detailPayload($request->get('type'), $request->get('id'));
 
         abort_unless($payload, 404, 'Report record not found.');
 
-        // A sale's items print in the Sales Report's own table format (with
-        // its note and Report Summary) instead of the pop-up's simple table.
         $receiptRows = $request->get('type') === 'sales'
             ? $this->receiptItemRows(SalesTransaction::with(['payment', 'items.product'])->findOrFail($request->get('id')))
             : null;
@@ -140,9 +111,6 @@ class ReportController extends Controller
         ]);
     }
 
-    /**
-     * @return array{title: string, sections: array<int, array<string, mixed>>}|null
-     */
     private function detailPayload(?string $type, mixed $id): ?array
     {
         return match ($type) {
@@ -182,11 +150,6 @@ class ReportController extends Controller
         $cashierName = $transaction->staff?->user?->full_name ?? 'Unknown User';
         $reportNumber = 'SALE-'.str_pad((string) $transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
-        // Per-item DiscountAmount is this line's own share of the sale's
-        // promo discount (see SalesItem::getRefundableUnitPriceAttribute()
-        // for the same source-of-truth) — reused here rather than
-        // recomputed, so "Total Amount" always matches what the customer
-        // was actually charged for that line.
         $productsTable = [
             'columns' => ['Product Numbering', 'Product Name', 'Price', 'Quantity', 'Discount', 'Total Amount'],
             'rows' => ($transaction?->items ?? collect())->values()->map(fn (SalesItem $item, int $index) => [
@@ -216,12 +179,6 @@ class ReportController extends Controller
             ['heading' => 'Products Sold', 'table' => $productsTable],
         ];
 
-        // Flagged at the end rather than mixed into "Report Information" —
-        // a refund means cash actually left the business after this sale,
-        // so it needs to stand out rather than read as just another field.
-        // A sale can have more than one partial return (multi-item returns),
-        // so this checks for ANY processed refund against this transaction,
-        // not a 1:1 link.
         $wasRefunded = SalesReturn::where('SalesTransactionID', $transaction->SalesTransactionID)
             ->where('ReturnType', 'refund')
             ->where('Status', SalesReturn::STATUS_PROCESSED)
@@ -416,10 +373,6 @@ class ReportController extends Controller
         ];
     }
 
-    // In-browser Print Preview (window.print()) for the currently filtered
-    // report — distinct from export()'s dompdf download, reviewed on-screen
-    // first. Shares admin.reports.partials.print-table with the PDF export
-    // so the two surfaces never drift out of sync.
     public function printPreview(Request $request)
     {
         $type = $this->reportType($request);
@@ -434,16 +387,6 @@ class ReportController extends Controller
         ]);
     }
 
-    // Every other type is one plain word ucfirst() handles fine on its
-    // own — only the underscored keys need an actual label instead of a
-    // literal "Stock_adjustment"/"stock_adjustment". Shared by the
-    // Print Preview/PDF titles and the Excel export's title block so none
-    // of them can drift from each other.
-    /**
-     * How a customer appears on the reports: a sale or return where the
-     * customer gave no name shows "N/A" (saved as "N/A"; older records
-     * saved "Walk-in Customer", which shows as N/A too).
-     */
     public static function customerLabel(?string $name): string
     {
         $name = trim((string) $name);
@@ -473,9 +416,6 @@ class ReportController extends Controller
 
         if ($format === 'pdf') {
             $rows = $this->rowsForType($type, $dateFrom, $dateTo);
-            // The template uses DejaVu Sans for its ₱ glyph; subsetting
-            // embeds only the characters used instead of the whole ~700KB
-            // font file in every PDF.
             $pdf = Pdf::setOption('isFontSubsettingEnabled', true)->loadView('admin.reports.pdf', [
                 'type' => $type,
                 'rows' => $rows,
@@ -483,8 +423,6 @@ class ReportController extends Controller
                 'dateTo' => $dateTo,
             ])->setPaper('a4', 'landscape');
 
-            // "Page X of Y" centred at the foot of every page (dompdf's CSS
-            // counter(pages) prints 0, so it's drawn once the count is known).
             $dompdf = $pdf->getDomPDF();
             $dompdf->render();
             $canvas = $dompdf->getCanvas();
@@ -507,16 +445,6 @@ class ReportController extends Controller
         return $this->exportCSV($type, $dateFrom, $dateTo, $filenameBase.'.csv');
     }
 
-    /**
-     * Reads date_from/date_to off the request and validates the range.
-     * Returns [rawFrom, rawTo, effectiveFrom, effectiveTo, error] — the raw
-     * values repopulate the form fields even when invalid, while the
-     * "effective" values are what actually get used to query/filter data.
-     * An invalid (backwards) range is clamped to a single day (Start Date)
-     * rather than silently falling back to unfiltered — the client already
-     * prevents picking a backwards range via the End Date's "min" attribute,
-     * this is just a server-side safety net.
-     */
     private function resolveDateRange(Request $request): array
     {
         $dateFrom = $request->get('date_from') ?: null;
@@ -524,12 +452,6 @@ class ReportController extends Controller
 
         $error = null;
 
-        // A hand-edited URL or stale bookmark can send something that isn't
-        // a real Y-m-d date at all — whereDate() against that wouldn't
-        // throw, it would just silently fail to filter anything, which
-        // looks like "the date range doesn't work" from the outside. Reject
-        // it up front instead, the same way the backwards-range case below
-        // already surfaces a friendly error rather than degrading silently.
         if ($dateFrom && ! $this->isValidDate($dateFrom)) {
             $error = 'Start Date is not a valid date.';
             $dateFrom = null;
@@ -557,11 +479,6 @@ class ReportController extends Controller
         return $parsed && $parsed->format('Y-m-d') === $value;
     }
 
-    /**
-     * All data the report views need, computed once and shared by index(),
-     * preview(), and (for the type-specific rows) export() — so the
-     * on-screen report, its preview, and every download format all agree.
-     */
     private function buildReportData(string $reportType, ?string $dateFrom, ?string $dateTo): array
     {
         $salesQuery = SalesTransaction::query();
@@ -609,15 +526,6 @@ class ReportController extends Controller
         ];
     }
 
-    /**
-     * The three Sales and Revenue summary cards for the selected range:
-     * everything sold, the money given back on completed refunds, and
-     * what's left after those refunds. A refund counts on the day it was
-     * paid out (RefundDate), or its request date if that's missing.
-     * Replacements hand back goods, not money, so they don't count.
-     *
-     * @return array{sales_total: float, refund_total: float, net_total: float}
-     */
     private function salesSummary(float $salesTotal, ?string $dateFrom, ?string $dateTo): array
     {
         $refundTotal = (float) SalesReturn::query()
@@ -658,14 +566,6 @@ class ReportController extends Controller
             ->get();
     }
 
-    // Print/PDF/Excel Sales Report: one row per product per invoice, so the
-    // documented columns (Product/Qty/Unit Price) mean something — unlike
-    // the on-screen preview (which still uses salesRows() above,
-    // deliberately untouched), this is export-only. Discount/VAT/Total are
-    // transaction-level facts in this system (never stored per item), so
-    // they're only populated on each invoice's first item row — showing
-    // them on every row would imply an even per-item split that never
-    // happened. ReportSummaryBuilder::sales() relies on exactly this shape.
     private function salesItemRows(?string $dateFrom, ?string $dateTo)
     {
         $sales = $this->salesRows($dateFrom, $dateTo)->load('items.product');
@@ -673,11 +573,6 @@ class ReportController extends Controller
         return $sales->flatMap(fn (SalesTransaction $sale) => $this->receiptItemRows($sale))->values();
     }
 
-    /**
-     * One sale's rows in the Sales Report table: one per item, the receipt's
-     * Discount/VAT/Total on its last item row, closing the receipt like the
-     * bottom of a paper receipt.
-     */
     private function receiptItemRows(SalesTransaction $sale): Collection
     {
         $items = $sale->items;
@@ -700,12 +595,10 @@ class ReportController extends Controller
             'CustomerName' => self::customerLabel($sale->CustomerName),
             'PaymentMethod' => $sale->payment?->PaymentMethod,
             'ProductName' => $item?->product?->ProductName ?? 'N/A',
-            // In the unit it was sold in (UnitPrice is per that unit).
             'Quantity' => $item?->Quantity ?? 0,
             'Unit' => $item?->Unit,
             'UnitPrice' => $item?->UnitPrice ?? 0,
             'ItemTotal' => round(($item?->Quantity ?? 0) * ($item?->UnitPrice ?? 0), 2),
-            // FIFO cost of the pieces sold (summary only).
             'CostAmount' => (float) ($item?->CostAmount ?? 0),
             'Discount' => $isLast ? (float) ($sale->DiscountAmount ?? 0) : null,
             'VatAmount' => $isLast ? (float) ($sale->VatAmount ?? 0) : null,
@@ -714,11 +607,6 @@ class ReportController extends Controller
         ];
     }
 
-    // Inventory itself has no date column (it's a live quantity, not a
-    // ledger), so "within the selected date range" is expressed as "this
-    // product had stock movement — received or adjusted — in that range",
-    // matching every other report's when()-filtered pattern. No range
-    // selected still shows every tracked product, same as before.
     private function inventoryRows(?string $dateFrom, ?string $dateTo)
     {
         return Inventory::with(['product.category', 'product.suppliers.supplier'])
@@ -737,9 +625,6 @@ class ReportController extends Controller
             ->get();
     }
 
-    // Its own report type — every adjustment (increase or decrease,
-    // whatever the reason) that touched stock in the selected range, so
-    // "reports reflect every stock adjustment" is verifiably true.
     private function stockAdjustmentRows(?string $dateFrom, ?string $dateTo)
     {
         return StockAdjustment::with('product')
@@ -750,9 +635,6 @@ class ReportController extends Controller
             ->get();
     }
 
-    // One row per product line of each delivery received (Stock Receiving's
-    // Add to Inventory), newest first: the quantity in the unit it was
-    // ordered in (2 rolls) and what it added to stock (1,000 meters).
     private function receivingRows(?string $dateFrom, ?string $dateTo)
     {
         return StockReceivingDelivery::with(['items.product', 'items.purchaseOrderItem', 'purchaseOrder.supplier', 'receivedByUser'])
@@ -796,11 +678,6 @@ class ReportController extends Controller
             ->get();
     }
 
-    // Print/PDF/Excel "Purchase Report": one row per ordered product line
-    // (PO Number/Date/Supplier/Product/Qty/Unit Price/Subtotal), not per PO
-    // — unlike the on-screen preview (which still uses orderRows() above,
-    // deliberately untouched). No VAT column: purchase orders have no VAT
-    // concept in this system (VAT only applies at POS checkout).
     private function orderItemRows(?string $dateFrom, ?string $dateTo)
     {
         return $this->orderRows($dateFrom, $dateTo)->flatMap(function (PurchaseOrder $order) {
@@ -819,7 +696,6 @@ class ReportController extends Controller
             'PurchaseDate' => $order->PurchaseDate,
             'SupplierName' => $order->supplier?->SupplierName ?? 'N/A',
             'ProductName' => $item?->product?->ProductName ?? 'N/A',
-            // In the unit it was ordered in (UnitPrice is per that unit).
             'Quantity' => $item?->Quantity ?? 0,
             'Unit' => $item?->Unit,
             'UnitPrice' => (float) ($item?->CostPriceAtOrder ?? 0),
@@ -828,8 +704,6 @@ class ReportController extends Controller
         ];
     }
 
-    // One row per returned product line, not per request — a single
-    // multi-item return request now flattens to one CSV/report row per item.
     private function returnRows(?string $dateFrom, ?string $dateTo)
     {
         return SalesReturn::with(['items.product', 'staff.user', 'processedByUser', 'transaction.payment'])
@@ -840,8 +714,6 @@ class ReportController extends Controller
             ->get()
             ->flatMap(function (SalesReturn $return) {
                 $receiptNumber = $return->transaction?->payment?->ReceiptNumber ?? ('TXN-'.$return->SalesTransactionID);
-                // Only set once an admin actually finalizes the refund/replacement —
-                // falls back to whoever logged the request so pending rows aren't blank.
                 $processedBy = $return->processedByUser?->full_name ?? $return->staff?->user?->full_name ?? 'N/A';
 
                 return $return->items->map(fn (SalesReturnItem $item) => (object) [
@@ -875,8 +747,6 @@ class ReportController extends Controller
     {
         return new StreamedResponse(function () use ($type, $dateFrom, $dateTo) {
             $handle = fopen('php://output', 'w');
-            // UTF-8 byte order mark: without it Excel opens the CSV as ANSI
-            // and garbles non-ASCII text (₱, ñ, —) in names and reasons.
             fwrite($handle, "\xEF\xBB\xBF");
 
             if ($type === 'sales') {

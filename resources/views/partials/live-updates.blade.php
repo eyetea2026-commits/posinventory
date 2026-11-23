@@ -1,34 +1,4 @@
-{{-- Real-time updates for signed-in pages (see LiveUpdatesController and
-     App\Services\LiveDataVersions).
-
-     Every few seconds, while the tab is visible, asks the server for short
-     fingerprints of the data this page shows. When one changes (a sale, a
-     new product, a return request, an approval, a notification...), the
-     page updates itself without a refresh, in one of two ways:
-
-     - Parts marked  data-live-region="name" data-live-topics="products,inventory"
-       are swapped in place: the page quietly re-fetches its own address
-       (which carries its search/filter/page) and replaces just those parts.
-       A part the user is typing in is left alone; an open notification
-       dropdown stays open.
-     - Page code can register its own refresh:
-           window.liveUpdates.watch(['sales', 'inventory'], function (topics) { ... });
-       for widgets it already knows how to reload (charts, AJAX tables).
-
-     Topics: notifications, returns, plus every key in
-     LiveDataVersions::TOPICS. After swapping parts the page also gets a
-     "live-updates:applied" event (detail: regions, topics).
-
-     Search as you type: a GET filter form marked  data-live-search  searches
-     on every keystroke in its text box (after a short pause, no Enter
-     needed) and re-filters as soon as one of its dropdowns/dates changes.
-     The results replace the page's live parts in place, and the address
-     bar keeps the search so a reload or the real-time refresh shows the
-     same results. --}}
 @auth
-{{-- The "new notification" card. Our own markup (not a SweetAlert toast):
-     the site-wide SweetAlert styles size every popup as a 520px dialog,
-     which squashed the small corner toast into a broken white box. --}}
 <style>
     .live-toast-stack { position: fixed; top: 16px; right: 16px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; width: 340px; max-width: calc(100vw - 32px); pointer-events: none; }
     .live-toast {
@@ -90,8 +60,6 @@
         return groups;
     }
 
-    // Resolves to the names of the parts that were replaced, or null if the
-    // page couldn't be re-fetched (retried on the next check).
     function refreshRegions(changed, url, signal) {
         const current = regionsByName(document, changed);
         if (!Object.keys(current).length) return Promise.resolve([]);
@@ -102,7 +70,6 @@
             credentials: 'same-origin',
             signal: signal,
         }).then(function (r) {
-            // Signed out / sent elsewhere: leave it to the session guard.
             if (!r.ok || r.redirected) return null;
             return r.text().then(function (html) {
                 const fresh = regionsByName(new DOMParser().parseFromString(html, 'text/html'), null);
@@ -112,7 +79,6 @@
                     current[name].forEach(function (el, i) {
                         const replacement = (fresh[name] || [])[i];
                         if (!replacement || el.innerHTML === replacement.innerHTML) return;
-                        // Don't pull the rug out from under someone typing.
                         if (document.activeElement && document.activeElement !== document.body && el.contains(document.activeElement)) return;
 
                         const dropdownOpen = el.querySelector('.notif-dropdown.active') !== null;
@@ -157,7 +123,6 @@
             setTimeout(function () { toast.remove(); }, 300);
         };
         toast.querySelector('.live-toast-close').addEventListener('click', function (e) { e.stopPropagation(); close(); });
-        // Clicking the card opens the notifications list.
         toast.addEventListener('click', function () { window.location.href = notificationsUrl; });
         toast.addEventListener('mouseenter', function () { clearTimeout(timer); });
         toast.addEventListener('mouseleave', function () { timer = setTimeout(close, 3000); });
@@ -187,13 +152,11 @@
                 if (!changed.length) return;
 
                 return refreshRegions(changed).then(function (applied) {
-                    // Only move on once the page caught up, so a failed
-                    // refresh is retried on the next check.
                     if (applied === null) return;
 
                     watchers.forEach(function (w) {
                         if (!overlaps(w.topics, changed)) return;
-                        try { w.callback(changed); } catch (e) { /* one widget failing mustn't stop the rest */ }
+                        try { w.callback(changed); } catch (e) { }
                     });
                     if (applied.length) {
                         document.dispatchEvent(new CustomEvent('live-updates:applied', { detail: { regions: applied, topics: changed } }));
@@ -204,7 +167,7 @@
                     unread = state.unread;
                 });
             })
-            .catch(function () { /* offline: the next check retries */ })
+            .catch(function () { })
             .finally(function () { busy = false; });
     }
 
@@ -213,7 +176,6 @@
         if (document.visibilityState === 'visible') poll();
     });
 
-    // ---- Search as you type (forms marked data-live-search) ----
     const SEARCH_DELAY_MS = 300;
     let searchController = null;
 
@@ -224,7 +186,6 @@
         });
         const url = form.action.split('?')[0] + (params.toString() ? '?' + params.toString() : '');
 
-        // Only the newest search may paint the page.
         if (searchController) searchController.abort();
         searchController = new AbortController();
 

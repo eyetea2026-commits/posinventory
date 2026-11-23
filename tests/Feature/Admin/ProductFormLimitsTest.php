@@ -10,11 +10,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Cost and Selling Price take up to 5 whole-peso digits (99,999.99); the
-// Re-Order Point is computed, never typed in; number fields take no
-// letters; and the Add/Edit Product form reads Photo | Name, Category,
-// Cost Price / Model, Brand, Re-Order Point, then the units (with the
-// Selling Price), pricing and suppliers.
 class ProductFormLimitsTest extends TestCase
 {
     use RefreshDatabase;
@@ -31,10 +26,6 @@ class ProductFormLimitsTest extends TestCase
         $this->category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
     private function productFields(array $overrides = []): array
     {
         return array_merge([
@@ -60,16 +51,12 @@ class ProductFormLimitsTest extends TestCase
         $this->assertSame(99999.99, (float) Product::firstOrFail()->Price);
     }
 
-    // The Selling Price worked out from the Cost Price and the Profit
-    // Margin (45% by default) must stay within the limit too.
     public function test_a_selling_price_worked_out_from_the_cost_stays_within_five_digits(): void
     {
         $this->store(['CostPrice' => 60000, 'Price' => null])->assertStatus(422)->assertJsonValidationErrors('ProfitMargin');
         $this->assertSame(0, Product::count());
     }
 
-    // A Re-Order Point sent with the form is ignored: a new product starts
-    // at the minimum (no sales yet) and editing keeps the computed one.
     public function test_the_reorder_point_is_computed_not_typed_in(): void
     {
         $this->store(['ReorderThreshold' => 999])->assertCreated();
@@ -99,7 +86,6 @@ class ProductFormLimitsTest extends TestCase
         $this->assertStringContainsString('Automatic: (Avg. Daily Sales × Lead Time) + Safety Stock, minimum 10.', $html);
         $this->assertStringContainsString('window.attachMoneyInput(costPriceInput, { maxIntegerDigits: 5 });', $html);
         $this->assertStringContainsString('window.attachMoneyInput(sellingPriceInput, { maxIntegerDigits: 5 });', $html);
-        // The supplier is picked in the table's last row: the dropdown, then Add Supplier.
         $this->assertMatchesRegularExpression('/<tfoot>.*?<select id="newSupplierId" class="form-select" aria-label="Supplier">.*?id="addProductSupplierBtn".*?<\/tfoot>/s', $html);
     }
 

@@ -8,9 +8,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Every search box searches while typing (no Enter needed). These five
-// pages' filter forms do it through data-live-search (partials/live-updates);
-// the rest of the system's search boxes already had their own handlers.
 class LiveSearchTest extends TestCase
 {
     use RefreshDatabase;

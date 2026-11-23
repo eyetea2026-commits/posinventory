@@ -1,5 +1,3 @@
-{{-- Shared "Add User" form field styling. Included by both the standalone
-     create page and the Add User modal so there is one source of truth. --}}
 <style>
     .form-grid {
         display: grid;
@@ -10,12 +8,8 @@
     .form-group { margin-bottom: 0; }
     .form-group.full-width { grid-column: 1 / -1; }
 
-    /* Add/Edit User: three fields per row - First / Middle / Last Name;
-       Birthdate / Contact Number / Email; Address on its own row; Gender /
-       Role; Username / Password / Confirm Password. */
     .form-grid.user-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .form-grid.user-form-grid .user-row-start { grid-column-start: 1; }
-    /* Address can be dragged taller (not wider). */
     textarea.user-address-input {
         display: block;
         width: 100%;
@@ -105,17 +99,13 @@
         list-style: none;
         margin: 8px 0 0;
         padding: 0;
-        /* Two rules per column: 8 characters / uppercase, then number / special. */
         display: grid;
-        /* First column only as wide as its text, so the longer "special
-           character" rule gets the rest and stays on one line. */
         grid-template-columns: max-content minmax(0, 1fr);
         grid-template-rows: repeat(2, auto);
         grid-auto-flow: column;
         gap: 4px 28px;
         font-size: 0.8rem;
     }
-    /* Add User: the list sits right under Password + Confirm Password. */
     .form-grid.user-form-grid .password-requirements-row {
         grid-column: 2 / span 2;
         margin-top: -8px;

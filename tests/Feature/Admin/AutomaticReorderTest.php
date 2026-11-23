@@ -47,7 +47,6 @@ class AutomaticReorderTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('DVR Camera');
-        // (20 - 5) + 20 = 35
         $response->assertSee('35');
         $response->assertSee('No supplier is assigned to this product');
     }
@@ -63,7 +62,6 @@ class AutomaticReorderTest extends TestCase
         $response->assertDontSee('Multiple suppliers are on record');
         $response->assertSee('Acme Supplies');
         $response->assertSee('Jane Roe');
-        // Resolved supplier is read-only — no supplier <select> should render.
         $response->assertDontSee('id="SupplierID"', false);
     }
 
@@ -96,11 +94,9 @@ class AutomaticReorderTest extends TestCase
         $response->assertOk();
         $response->assertSee('openReorderModal('.$this->product->ProductID.')', false);
         $response->assertSee('id="reorderPurchaseOrderModal"', false);
-        // The page must no longer navigate away to a separate PO page.
         $response->assertDontSee('href="'.route('admin.purchase-orders.create-from-reorder', $this->product).'"', false);
     }
 
-    // Same price, none preferred, never delivered: nothing to pick by.
     public function test_create_reorder_page_flags_ambiguity_with_multiple_unpreferred_suppliers(): void
     {
         $supplier2 = Supplier::create(['SupplierName' => 'Other Supplier', 'ContactNumber' => '111', 'Email' => 'x@example.com', 'Address' => 'N/A']);
@@ -122,16 +118,9 @@ class AutomaticReorderTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.inventory.index'));
 
         $response->assertOk();
-        // The "Create Purchase Order" modal shell is always present in the
-        // page (so it can react to products becoming low-stock via the
-        // live poll without a reload) — what must be absent is a trigger
-        // wired to THIS specific, fully-stocked product.
         $response->assertDontSee('openReorderModal('.$this->product->ProductID.')', false);
     }
 
-    // An inactive product can't be ordered, so the Inventory list doesn't
-    // offer it; if the pop-up is opened anyway, it shows the server's reason
-    // instead of "undefined".
     public function test_an_inactive_low_stock_product_is_not_offered_for_reorder(): void
     {
         $this->product->update(['IsActive' => false]);
@@ -160,9 +149,6 @@ class AutomaticReorderTest extends TestCase
 
         $response->assertRedirect(route('admin.purchase-orders.index'));
 
-        // Every new Purchase Order starts as a Draft, including this
-        // Inventory-reorder-triggered one — it used to jump straight to
-        // Pending, skipping the review step Draft exists for.
         $this->assertDatabaseHas('PurchaseOrder', [
             'SupplierID' => $this->supplier->SupplierID,
             'Status' => PurchaseOrder::STATUS_DRAFT,
@@ -208,7 +194,6 @@ class AutomaticReorderTest extends TestCase
 
         $response->assertRedirect(route('admin.purchase-orders.index'));
 
-        // Picking a supplier for a product with none on record assigns it.
         $this->assertDatabaseHas('ProductSupplier', [
             'ProductID' => $this->product->ProductID,
             'SupplierID' => $this->supplier->SupplierID,
@@ -233,8 +218,6 @@ class AutomaticReorderTest extends TestCase
         $response->assertSessionHasErrors('SupplierID');
     }
 
-    // --- Automatic Draft PO on Low Stock (no manual click needed) ---------
-
     public function test_visiting_inventory_auto_drafts_exactly_one_po_for_a_low_stock_product(): void
     {
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
@@ -248,9 +231,6 @@ class AutomaticReorderTest extends TestCase
             'SupplierID' => $this->supplier->SupplierID,
             'Status' => PurchaseOrder::STATUS_DRAFT,
         ]);
-        // The visit recomputes the Re-Order Point first: nothing sold yet,
-        // so the minimum of 10. (10 - 5) + 10 = 15, same formula the manual
-        // reorder form suggests.
         $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->value('ReorderThreshold'));
         $this->assertDatabaseHas('PurchaseOrderItem', [
             'ProductID' => $this->product->ProductID, 'Quantity' => 15, 'CostPriceAtOrder' => 550,
@@ -262,8 +242,6 @@ class AutomaticReorderTest extends TestCase
     {
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
 
-        // Simulates refresh, reopening Inventory, and logout/login: the
-        // stock stays at the same Low Stock level across repeated checks.
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
@@ -281,7 +259,6 @@ class AutomaticReorderTest extends TestCase
         $response->assertOk();
         $response->assertSee('DVR Camera');
 
-        // Admin leaves it untouched — further checks don't touch its status.
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
 
@@ -296,13 +273,11 @@ class AutomaticReorderTest extends TestCase
         $this->assertDatabaseCount('PurchaseOrder', 1);
         $this->assertTrue(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
 
-        // Restocked above the threshold — the cycle resets.
         Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 100]);
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
         $this->assertFalse(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
         $this->assertDatabaseCount('PurchaseOrder', 1);
 
-        // Drops low again — exactly one new draft PO, not zero, not two.
         Inventory::where('ProductID', $this->product->ProductID)->update(['Quantity' => 5]);
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
@@ -313,8 +288,6 @@ class AutomaticReorderTest extends TestCase
     {
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
 
-        // Admin already manually created a PO for this product before the
-        // automatic check ever ran.
         $manualPo = PurchaseOrder::create([
             'PONumber' => 'PO-2026-000001',
             'PurchaseDate' => now()->toDateString(),
@@ -334,12 +307,10 @@ class AutomaticReorderTest extends TestCase
 
     public function test_no_resolvable_supplier_does_not_auto_draft_and_keeps_retrying(): void
     {
-        // The default setUp product has no known supplier at all.
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
         $this->assertDatabaseCount('PurchaseOrder', 0);
         $this->assertFalse(Inventory::where('ProductID', $this->product->ProductID)->first()->AutoReorderTriggered);
 
-        // Once a supplier is assigned, the very next check succeeds.
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplier->SupplierID, 'CostPrice' => 550]);
         $this->actingAs($this->admin)->get(route('admin.inventory.index'));
         $this->assertDatabaseCount('PurchaseOrder', 1);

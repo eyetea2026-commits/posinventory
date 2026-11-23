@@ -7,8 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// The "Enter Your Credentials" pop-up has a show/hide (eye) button for its
-// password, on both pages that use it: User Management and Edit User.
 class CredentialsPasswordToggleTest extends TestCase
 {
     use RefreshDatabase;
@@ -38,10 +36,6 @@ class CredentialsPasswordToggleTest extends TestCase
         $this->assertCredentialsToggle($html);
     }
 
-    /**
-     * The eye button right after the password box, wired by the pop-up's own
-     * script (so it works without user-form-behavior), and hidden again on open.
-     */
     private function assertCredentialsToggle(string $html): void
     {
         $this->assertMatchesRegularExpression(

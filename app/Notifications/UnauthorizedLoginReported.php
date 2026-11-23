@@ -7,13 +7,6 @@ use App\Notifications\Concerns\FormatsMailBadge;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-// Not ShouldQueue: same reason as every other notification in this app —
-// no reliable persistent queue worker on this host, dispatch inline.
-//
-// Broadcast to every admin (Notification::send(User::admins(), ...),
-// matching LowStockAlert/NewRefundRequest's existing pattern) — this is a
-// potential account-compromise report, so the whole admin team should see
-// it, not just the affected account.
 class UnauthorizedLoginReported extends Notification
 {
     use FormatsMailBadge;

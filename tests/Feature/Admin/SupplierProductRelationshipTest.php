@@ -64,8 +64,6 @@ class SupplierProductRelationshipTest extends TestCase
         $this->assertNull($this->product->resolveReorderSupplier());
     }
 
-    // Panel suggestion: the supplier is picked by its current price, even
-    // over the preferred one; the preferred one only settles a tie.
     public function test_the_cheapest_supplier_is_resolved_and_the_preferred_settles_a_tie(): void
     {
         $cheapest = ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => 500]);
@@ -110,7 +108,6 @@ class SupplierProductRelationshipTest extends TestCase
             'Source' => ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE,
         ]);
 
-        // Updating the same pair again with a different cost should log the old→new change.
         $this->actingAs($this->admin)->postJson(route('admin.products.suppliers.store', $this->product), [
             'SupplierID' => $this->supplierA->SupplierID,
             'CostPrice' => 550,
@@ -153,8 +150,6 @@ class SupplierProductRelationshipTest extends TestCase
         ]);
     }
 
-    // "Suppliers for this Product" only asks for the supplier now -- no cost
-    // price. The link has none, so the product's own Cost Price is used.
     public function test_adding_a_product_with_just_a_supplier_needs_no_cost_price(): void
     {
         $category = Category::create(['CategoryName' => 'Networking', 'Description' => 'Switches']);
@@ -185,7 +180,6 @@ class SupplierProductRelationshipTest extends TestCase
         ])->assertOk()->assertJson(['success' => true]);
         $this->assertDatabaseHas('ProductSupplier', ['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierA->SupplierID, 'CostPrice' => null]);
 
-        // A supplier that already had a price keeps it when added again.
         ProductSupplier::create(['ProductID' => $this->product->ProductID, 'SupplierID' => $this->supplierB->SupplierID, 'CostPrice' => 550]);
         $this->actingAs($this->admin)->postJson(route('admin.products.suppliers.store', $this->product), [
             'SupplierID' => $this->supplierB->SupplierID,
@@ -195,7 +189,6 @@ class SupplierProductRelationshipTest extends TestCase
         $this->assertDatabaseMissing('ProductCostHistory', ['ProductID' => $this->product->ProductID, 'Source' => ProductCostHistory::SOURCE_SUPPLIER_PIVOT_UPDATE]);
     }
 
-    // Panel suggestion: each supplier is entered with its own price.
     public function test_supplier_panel_takes_a_cost_price_for_each_supplier(): void
     {
         $html = $this->actingAs($this->admin)->get(route('admin.products.index'))->assertOk()->getContent();
@@ -270,7 +263,6 @@ class SupplierProductRelationshipTest extends TestCase
         $response->assertOk();
         $response->assertSee($this->supplierA->SupplierName);
         $response->assertSee('Transaction History');
-        // The old profile-style sections should no longer be shown.
         $response->assertDontSee('Supplier Information');
         $response->assertDontSee('Total Purchase Orders');
         $response->assertDontSee('Receiving History');

@@ -1,8 +1,3 @@
-{{-- Shared "View Details" content. Included by both the standalone show page
-     and the View Details modal. Expects $product (with brand/category/inventory
-     loaded), $profit, $margin, $status in scope. --}}
-{{-- Label above value, three per row in the pop-up (shared .ui-kv-grid in
-     partials/responsive-ui); the photo fills the first two rows' first cell. --}}
 <div class="ui-kv-grid">
     <div class="ui-kv-photo">
         @include('partials.product-thumb', ['product' => $product, 'class' => 'thumb-large'])
@@ -13,7 +8,6 @@
     <div><span>Barcode</span><code>{{ $product->Barcode ?? '-' }}</code></div>
     <div><span>Category</span><span>{{ $product->category?->CategoryName ?? 'Uncategorized' }}</span></div>
     <div><span>Brand</span><span>{{ $product->brand?->BrandName ?? 'N/A' }}</span></div>
-    {{-- Current Supplier: the one that delivered it last (it's picked for new purchase orders). --}}
     @php($currentSupplierId = $product->lastDeliveredSupplierId())
     <div><span>Current Supplier</span><span>{{ $currentSupplierId ? (\App\Models\Supplier::find($currentSupplierId)?->SupplierName ?? 'N/A') : 'No delivery yet' }}</span></div>
     <div><span>Suppliers</span><span>@forelse($product->suppliers as $link){{ $link->supplier?->SupplierName ?? 'N/A' }}@if($link->IsPreferred) <small>(Preferred)</small>@endif — ₱{{ number_format($product->supplierPrice($link), 2) }} @if(! $loop->last)<br>@endif @empty None @endforelse</span></div>
@@ -23,7 +17,6 @@
     <div><span>Quantity</span><span>{{ $product->stockLabel($product->inventory?->Quantity ?? 0) }}</span></div>
     <div><span>Re-Order Point</span><span>{{ $product->formatQuantity($product->inventory?->ReorderThreshold ?? 0) }}</span></div>
     <div><span>Inventory Base Unit</span><span>{{ ucfirst($product->baseUnit()) }}@if($product->AllowsFractionalQuantity) <small>(decimals allowed)</small>@endif</span></div>
-    {{-- The roll/box size comes from the last Stock Receiving. --}}
     <div><span>Purchase Unit</span><span>@if(! $product->hasPurchaseUnit())None@elseif($product->purchaseUnitSize()){{ ucfirst($product->PurchaseUnit) }} <small>(last received: 1 {{ $product->PurchaseUnit }} = {{ $product->formatQuantity($product->purchaseUnitSize()) }})</small>@else{{ ucfirst($product->PurchaseUnit) }} <small>(size set at Stock Receiving)</small>@endif</span></div>
     <div><span>Selling Unit</span><span>{{ collect($product->sellingUnits())->keys()->map(fn ($unit) => 'Per '.$unit)->implode(', ') }}</span></div>
     <div>
@@ -42,7 +35,6 @@
 </div>
 
 @if($product->tracksSerialNumbers())
-    {{-- One serial number per piece; each sticker is that piece's barcode at the POS. --}}
     @php($inStockSerials = $product->serials->where('Status', \App\Models\ProductSerial::STATUS_IN_STOCK))
     <form method="GET" action="{{ route('admin.products.serial-stickers', $product) }}" target="_blank"
           class="serial-section js-confirm-submit" data-confirm-title="Print Serial Stickers" data-confirm-text="Open the ticked serial number stickers as a PDF for printing?">

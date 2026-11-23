@@ -4,10 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-// CACHE_STORE=database has been configured since initial deploy, but no
-// migration ever created the table it needs — every cache read/write
-// (including the throttle:* rate limiter used on login/OTP routes) has been
-// silently failing with "table 'cache' doesn't exist" on production.
 return new class extends Migration
 {
     public function up(): void

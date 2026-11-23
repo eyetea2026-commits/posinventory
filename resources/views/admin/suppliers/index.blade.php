@@ -3,8 +3,6 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('Administrator/Suppliers.css') }}">
     <style>
-        /* Status and Actions take just the room they need and never wrap
-           ("Activ / e"); the text columns share the rest. */
         .suppliers-table .col-status,
         .suppliers-table .col-actions { width: 1%; white-space: nowrap; }
         .suppliers-table .col-status .badge { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
@@ -20,7 +18,6 @@
 
 @section('content')
 @include('admin.suppliers.partials.supplier-form-validation')
-    <!-- REQ081: Search existing supplier profile -->
     <div class="card">
         <div class="toolbar">
             <div class="search-box">
@@ -29,7 +26,6 @@
                     <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search suppliers by name or contact..." />
                 </form>
             </div>
-            <!-- REQ080: Create supplier profile -->
             <a href="{{ route('admin.suppliers.create') }}" onclick="event.preventDefault(); window.openAddSupplierModal();" class="btn btn-primary">
                 <i class="fas fa-plus"></i> Add Supplier
             </a>
@@ -42,7 +38,6 @@
             </div>
         @endif
 
-        <!-- REQ082: View supplier profile details -->
         <div class="table-container">
             <table class="table suppliers-table">
                 <thead>
@@ -78,7 +73,6 @@
                                     >
                                         <i class="fas fa-clock-rotate-left"></i>
                                     </button>
-                                    <!-- REQ083: Update supplier profile details -->
                                     <a href="{{ route('admin.suppliers.edit', $supplier) }}" class="action-btn edit" title="Edit" onclick="openEditSupplierModal(event, {{ $supplier->SupplierID }})">
                                         <i class="fas fa-edit"></i>
                                     </a>
@@ -125,7 +119,6 @@
 
     @include('admin.partials.modal-styles')
 
-    <!-- Add Supplier Modal -->
     <div id="addSupplierModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addSupplierModalTitle" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
@@ -150,7 +143,6 @@
         </div>
     </div>
 
-    <!-- Edit Supplier Modal -->
     <div id="editSupplierModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editSupplierModalTitle" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
@@ -179,12 +171,6 @@
     @include('admin.suppliers.partials.history-modal')
 
     <script>
-        // ---- Add Supplier modal — opens the same shared field markup
-        // (supplier-form-fields.blade.php) already used by Edit Supplier,
-        // rendered directly in this page rather than fetched, since a blank
-        // Add form needs no data to load. Submits to the existing store()
-        // route/validation/save exactly as the standalone Add Supplier page
-        // already did — only the presentation moved from a page to a popup. ----
         const ADD_SUPPLIER_FIELD_IDS = ['SupplierName', 'ContactPerson', 'ContactNumber', 'Email', 'Address'];
         let addSupplierLastFocused = null;
 
@@ -266,11 +252,6 @@
             const form = document.getElementById('addSupplierForm');
 
             addSupplierLastFocused = document.activeElement || addSupplierLastFocused;
-            // Fetched fresh (not rendered statically in the page) so its
-            // SupplierName/Email fields only exist in the DOM while this
-            // modal is actually open — same as Edit Supplier — avoiding a
-            // duplicate-id clash between the two forms' shared field ids
-            // that the live duplicate-check listener relies on.
             form.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
             hideAddSupplierGeneralError();
             resetAddSupplierSubmitButton();
@@ -553,7 +534,6 @@
             });
         });
 
-        // Auto-show session messages
         @if(session('status'))
             Swal.fire({
                 title: 'Success',
@@ -573,9 +553,6 @@
             });
         @endif
 
-        // Live duplicate name/email check for the Edit Supplier modal —
-        // delegated on document since #SupplierName/#Email are only in the
-        // DOM once the modal's form fields have been fetched and injected.
         (function () {
             let checkTimer = null;
 

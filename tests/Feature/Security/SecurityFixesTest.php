@@ -46,8 +46,6 @@ class SecurityFixesTest extends TestCase
         ]);
     }
 
-    // ---- #1: Secure unauthenticated endpoints ----
-
     public function test_barcode_api_rejects_unauthenticated_requests(): void
     {
         $this->get('/api/products/barcode/1234567890')->assertRedirect(route('welcome'));
@@ -55,8 +53,6 @@ class SecurityFixesTest extends TestCase
 
     public function test_barcode_api_rejects_admin_role(): void
     {
-        // Cashier-only endpoints — an authenticated admin session should not
-        // be able to use them either.
         $this->actingAs($this->admin)->get('/api/products/barcode/1234567890')->assertForbidden();
     }
 
@@ -96,8 +92,6 @@ class SecurityFixesTest extends TestCase
             ->assertJsonPath('message', 'Product Not Found. This barcode is not registered in the system.');
     }
 
-    // Hands-free scanning sends one request per unit scanned; the old
-    // 60/minute limit could block a cashier scanning a stack of items.
     public function test_barcode_api_allows_rapid_scanning_beyond_sixty_a_minute(): void
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
@@ -120,13 +114,9 @@ class SecurityFixesTest extends TestCase
         $response->assertSee('const SCAN_MIN_LENGTH = 6;', false);
         $response->assertSee('function lookupAndAddBarcode(barcode)', false);
         $response->assertSee('placeholder="Enter Barcode"', false);
-        // Scans add automatically, so there's no Scan button to click.
         $response->assertDontSee('onclick="scanBarcode()"', false);
     }
 
-    // A wireless scanner can stall mid-code; the scan must wait for the rest
-    // instead of submitting early (CCTVEX-000031 used to arrive as
-    // CCTVEX-00003 and show "Product Not Found").
     public function test_pos_scan_detection_waits_through_a_mid_scan_stall(): void
     {
         $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
@@ -152,8 +142,6 @@ class SecurityFixesTest extends TestCase
         $response->assertJsonPath('product.ProductID', $product->ProductID);
     }
 
-    // ---- #6: Prevent username enumeration ----
-
     public function test_check_user_role_response_does_not_disclose_existence_or_role(): void
     {
         $existsResponse = $this->postJson('/check-user-role', ['username' => $this->admin->name]);
@@ -168,11 +156,8 @@ class SecurityFixesTest extends TestCase
             $response->assertJsonMissingPath('isCashier');
         }
 
-        // Identical body regardless of whether the account exists.
         $this->assertSame($existsResponse->json('message'), $missingResponse->json('message'));
     }
-
-    // ---- #3: Strengthen role validation / prevent privilege escalation ----
 
     public function test_user_store_rejects_a_role_id_other_than_cashier(): void
     {
@@ -182,7 +167,7 @@ class SecurityFixesTest extends TestCase
             'contact_number' => '09990000001',
             'name' => 'sneakyadmin',
             'email' => 'sneaky@example.com',
-            'role_id' => $this->adminRole->id, // attempting to self-assign admin
+            'role_id' => $this->adminRole->id,
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
         ]);
@@ -208,8 +193,6 @@ class SecurityFixesTest extends TestCase
         $this->assertDatabaseHas('users', ['name' => 'newcashier', 'role_id' => $this->cashierRole->id]);
     }
 
-    // ---- #10: Password policy ----
-
     public function test_user_store_rejects_a_password_missing_complexity(): void
     {
         $response = $this->actingAs($this->admin)->post(route('admin.users.store'), [
@@ -226,8 +209,6 @@ class SecurityFixesTest extends TestCase
         $response->assertSessionHasErrors('password');
         $this->assertDatabaseMissing('users', ['name' => 'weakpassworduser']);
     }
-
-    // ---- #4: Audit logging for User Management ----
 
     public function test_user_management_actions_are_all_logged(): void
     {
@@ -264,8 +245,6 @@ class SecurityFixesTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'user.deleted')->exists());
     }
 
-    // ---- #8: Login lockout + failed-attempt logging ----
-
     public function test_repeated_failed_logins_are_logged_and_eventually_locked_out(): void
     {
         for ($i = 0; $i < 5; $i++) {
@@ -278,7 +257,6 @@ class SecurityFixesTest extends TestCase
         $lockedResponse->assertSessionHasErrors('username');
         $this->assertTrue(ActivityLog::where('Action', 'auth.login_locked')->exists());
 
-        // Even the CORRECT password is rejected while locked out.
         RateLimiter::clear('login:'.strtolower($this->admin->name));
     }
 
@@ -291,8 +269,6 @@ class SecurityFixesTest extends TestCase
 
         $this->assertEquals(0, RateLimiter::attempts('login:'.strtolower($this->admin->name)));
     }
-
-    // ---- Unified login: no upfront role choice, routed by credentials ----
 
     public function test_login_page_has_a_single_form_with_no_role_choice(): void
     {
@@ -320,9 +296,6 @@ class SecurityFixesTest extends TestCase
         $response->assertRedirect('/cashier/pos');
         $this->assertAuthenticatedAs($this->cashier);
     }
-
-    // ---- Login page role badge removed (it doubled as a public
-    // username/role enumeration endpoint) ----
 
     public function test_role_lookup_endpoint_no_longer_exists(): void
     {
@@ -385,13 +358,6 @@ class SecurityFixesTest extends TestCase
             ->assertSee('Forgot Password?');
     }
 
-    // ---- #9: File upload restrictions ----
-
-    // Damage records are only ever created automatically from an approved
-    // return — there is no manual create/store endpoint — so this coverage
-    // exercises the same 'Image' mime validation on the still-manual
-    // update() path instead (an admin correcting a pending, auto-generated
-    // record).
     public function test_damage_record_rejects_svg_upload(): void
     {
         $category = Category::create(['CategoryName' => 'CCTV', 'Description' => 'Cameras']);
@@ -454,8 +420,6 @@ class SecurityFixesTest extends TestCase
         $this->assertNotNull($damage->fresh()->ImagePath);
     }
 
-    // ---- #13: Administrator protection logic ----
-
     public function test_last_active_admin_cannot_be_deactivated_or_deleted(): void
     {
         $deactivateResponse = $this->actingAs($this->admin)->post(route('admin.users.deactivate', $this->admin));
@@ -467,9 +431,6 @@ class SecurityFixesTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $this->admin->id]);
     }
 
-    // The last active admin's Status column shows a purely visual "Locked"
-    // indicator (renamed from "Protected") — a lock icon, never a clickable
-    // toggle/button, since this account can't be deactivated anyway.
     public function test_protected_admin_status_shows_as_a_non_clickable_locked_badge(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.users.index'));
@@ -478,19 +439,8 @@ class SecurityFixesTest extends TestCase
         $response->assertSee('protected-badge', false);
         $response->assertSee('fa-lock', false);
         $response->assertSee('Locked');
-        // "Protected Administrator" still appears elsewhere on this page (an
-        // unrelated detail-view JS notice, intentionally left as-is) — the
-        // real check is that the Status column's own badge specifically no
-        // longer uses that wording, which the fa-lock/protected-badge/
-        // "Locked" assertions above already confirm.
     }
 
-    // Editing an Administrator account shows no password UI at all —
-    // Administrator passwords are never resettable through this form (the
-    // reset-password-modal.blade.php popup and its endpoint, tested below,
-    // are unreachable for an admin target, both in the UI and server-side).
-    // It does carry the hidden marker the page's submit handler uses to
-    // gate the save behind the "Enter Your Credentials" popup.
     public function test_edit_user_form_shows_no_password_ui_for_an_admin_target(): void
     {
         $response = $this->actingAs($this->admin)
@@ -508,10 +458,6 @@ class SecurityFixesTest extends TestCase
         $this->assertStringContainsString('name="_requires_admin_credentials"', $html);
     }
 
-    // Editing a Cashier (or any future non-admin role) still shows the
-    // masked placeholder + Reset Password button — only Administrator
-    // targets lose this UI, and only Administrator targets carry the
-    // admin-credentials-gate marker.
     public function test_edit_user_form_shows_masked_password_with_reset_button_for_a_non_admin_target(): void
     {
         $response = $this->actingAs($this->admin)
@@ -529,9 +475,6 @@ class SecurityFixesTest extends TestCase
         $this->assertStringNotContainsString('name="_requires_admin_credentials"', $html);
     }
 
-    // "Enter Your Credentials" step, shown before the Reset Password form
-    // itself: verifies the ADMIN's own password, independent of whichever
-    // user's password is about to be reset.
     public function test_verify_password_endpoint_confirms_the_admins_own_correct_password(): void
     {
         $response = $this->actingAs($this->admin)
@@ -556,8 +499,6 @@ class SecurityFixesTest extends TestCase
         $response->assertJsonValidationErrors('password');
     }
 
-    // The Reset Password popup itself posts to its own dedicated endpoint,
-    // independent of the general profile Update User form.
     public function test_reset_password_endpoint_updates_the_password_and_keeps_it_hashed(): void
     {
         $oldHash = $this->cashier->password;
@@ -575,9 +516,6 @@ class SecurityFixesTest extends TestCase
 
         $this->cashier->refresh();
         $this->assertNotSame($oldHash, $this->cashier->password);
-        // Hash::check is exactly what the login flow itself uses to verify
-        // a password — this is the authoritative proof the new password
-        // actually works for logging in, not just that some hash changed.
         $this->assertTrue(Hash::check('NewSecure!Pass123', $this->cashier->password));
     }
 
@@ -598,8 +536,6 @@ class SecurityFixesTest extends TestCase
         $this->assertSame($oldHash, $this->cashier->password);
     }
 
-    // The capability, not just the button, must be gone for an admin
-    // target -- a direct request must be blocked the same as a hidden UI.
     public function test_reset_password_endpoint_rejects_an_admin_target(): void
     {
         $oldHash = $this->admin->password;
@@ -617,10 +553,6 @@ class SecurityFixesTest extends TestCase
         $this->assertSame($oldHash, $this->admin->password);
     }
 
-    // Resetting a Cashier's password requires the Admin to re-enter their
-    // OWN current password first -- a wrong (or missing) admin password
-    // must block the reset even though the new password itself is valid,
-    // and must never touch the cashier's password.
     public function test_reset_password_endpoint_requires_the_admins_own_current_password(): void
     {
         $oldHash = $this->cashier->password;
@@ -652,7 +584,6 @@ class SecurityFixesTest extends TestCase
         $response->assertJsonValidationErrors('current_password');
     }
 
-    // By the Super Admin: only the Super Admin manages Administrator accounts.
     public function test_second_admin_account_can_be_deactivated_normally(): void
     {
         $this->admin->forceFill(['is_super_admin' => true])->save();
@@ -671,7 +602,6 @@ class SecurityFixesTest extends TestCase
     {
         $cashierRoleId = $this->cashierRole->id;
 
-        // Updating own contact info succeeds.
         $response = $this->actingAs($this->admin)->put(route('admin.users.update', $this->admin), [
             'first_name' => 'Updated', 'last_name' => 'Admin',
             'contact_number' => '09991112222',
@@ -683,7 +613,6 @@ class SecurityFixesTest extends TestCase
         $response->assertRedirect(route('admin.users.index'));
         $this->assertDatabaseHas('users', ['id' => $this->admin->id, 'first_name' => 'Updated']);
 
-        // Attempting to change the sole admin's role away from admin is rejected.
         $roleChangeResponse = $this->actingAs($this->admin)->put(route('admin.users.update', $this->admin), [
             'first_name' => 'Updated', 'last_name' => 'Admin',
             'contact_number' => '09991112222',
@@ -692,14 +621,10 @@ class SecurityFixesTest extends TestCase
             'role_id' => $cashierRoleId,
             'current_password' => 'password',
         ]);
-        // (Only the Super Admin may remove the Administrator role.)
         $roleChangeResponse->assertSessionHasErrors('role_id');
         $this->assertDatabaseHas('users', ['id' => $this->admin->id, 'role_id' => $this->adminRole->id]);
     }
 
-    // Updating an Administrator account requires the acting admin's own
-    // current password, on top of normal auth — a step-up check, same
-    // pattern as resetPassword()'s current_password requirement.
     public function test_updating_an_admin_account_requires_the_admins_own_current_password(): void
     {
         $response = $this->actingAs($this->admin)->put(route('admin.users.update', $this->admin), [
@@ -729,8 +654,6 @@ class SecurityFixesTest extends TestCase
         $this->assertDatabaseMissing('users', ['id' => $this->admin->id, 'first_name' => 'Updated']);
     }
 
-    // Updating a Cashier (non-admin target) never requires the acting
-    // admin's own password — the step-up check is admin-target-only.
     public function test_updating_a_non_admin_account_does_not_require_current_password(): void
     {
         $response = $this->actingAs($this->admin)->put(route('admin.users.update', $this->cashier), [

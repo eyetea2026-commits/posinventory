@@ -16,10 +16,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-// Covers the new Create -> Draft -> Print -> Pending -> Add to Inventory ->
-// Completed workflow end to end, without disturbing the existing Approve/
-// Submit/Cancel path or the legacy manual Stock Receiving flow (both keep
-// their own full coverage in PurchaseOrderModuleTest.php).
 class PurchaseOrderReceivingWorkflowTest extends TestCase
 {
     use RefreshDatabase;
@@ -136,11 +132,8 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response->assertSee('id="receivingSearchInput"', false);
         $response->assertSee('id="receivingSupplierFilter"', false);
         $response->assertSee($this->supplier->SupplierName);
-        // Search and filter share the tabs' row, right after the Completed tab.
         $response->assertSeeInOrder(['class="tabs-header"', 'Completed (', 'class="toolbar receiving-filters"', 'id="receivingSearchInput"', 'id="tab-pending"'], false);
     }
-
-    // ---- PO History tab: printed POs stay viewable and reprintable ----
 
     private function makeSecondDraftOrder(): PurchaseOrder
     {
@@ -199,9 +192,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(1, StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->count());
     }
 
-    // Regression: the search's OR conditions used to be ungrouped, so a
-    // supplier-name search could pull already-printed POs back into the
-    // active list.
     public function test_searching_the_active_list_never_surfaces_a_printed_po(): void
     {
         $printed = $this->makeDraftOrder();
@@ -220,9 +210,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
         $firstBatchId = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->value('StockReceivingBatchID');
 
-        // Print two more times for good measure -- covers both "already
-        // Pending" (this PO's actual state right now) and repeated clicks
-        // in general.
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
 
@@ -232,10 +219,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(PurchaseOrder::STATUS_PENDING, $po->fresh()->Status);
     }
 
-    // Explicitly covers the "already Completed" case: printing a PO whose
-    // batch has already been completed (Add to Inventory already ran) must
-    // not create a second batch, must not touch Inventory again, and must
-    // not change the PO's own (now Partially/Fully Received) status.
     public function test_printing_a_po_whose_batch_is_already_completed_changes_nothing(): void
     {
         $po = $this->makeDraftOrder();
@@ -257,8 +240,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $inventoryAAfterCompletion = Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity');
         $inventoryBAfterCompletion = Inventory::where('ProductID', $this->productB->ProductID)->value('Quantity');
 
-        // Printing again now that the batch is Completed and the PO has
-        // moved on to Fully Received — must be a total no-op.
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
 
         $this->assertSame(1, StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->count());
@@ -287,8 +268,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
         $response->assertRedirect(route('admin.stock-receivings.index'));
 
-        // Ordered Quantity (the reference) is untouched; Inventory only
-        // gained the actually-received amount, not the ordered amount.
         $itemA->refresh();
         $this->assertSame(50, $itemA->Quantity);
         $this->assertSame(48, $itemA->ReceivedQuantity);
@@ -299,14 +278,11 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(20, $itemB->ReceivedQuantity);
         $this->assertSame(2 + 20, Inventory::where('ProductID', $this->productB->ProductID)->value('Quantity'));
 
-        // 2 of product A are still owed, so the order stays open (Partially
-        // Received, still pending in Stock Receiving) for the next delivery.
         $batch->refresh();
         $this->assertSame(StockReceivingBatch::STATUS_PENDING, $batch->Status);
         $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $po->fresh()->Status);
         $this->assertNull($batch->CompletedAt);
 
-        // The rest arrives: received adds up, and the order is complete.
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
             'receipt_number' => 'RCT-A2',
             'items' => [
@@ -364,10 +340,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.stock-receivings.index'));
 
         $response->assertOk();
-        // Listed in exactly one table row (Completed tab) rather than two (it
-        // must have disappeared from the Pending tab's table). Counted by
-        // row cell, not the whole page: the admin bell's "Delivery Received"
-        // notice legitimately mentions the PO number too.
         $response->assertSeeInOrder([$po->PONumber]);
         $this->assertSame(1, substr_count($response->getContent(), 'po-number-cell">'.$po->PONumber.'<'));
     }
@@ -387,9 +359,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $response = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
             'receipt_number' => 'DR-OVER-1',
             'items' => [
-                // Over the ordered 50 -- must reject the whole batch, not
-                // just this line, leaving Product B's otherwise-valid line
-                // unapplied too.
                 ['purchase_order_item_id' => $itemA->PurchaseOrderItemID, 'quantity_received' => 999],
                 ['purchase_order_item_id' => $itemB->PurchaseOrderItemID, 'quantity_received' => 20],
             ],
@@ -428,19 +397,14 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
         $second = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), $payload);
 
-        // Nothing is added twice; the owner is told the delivery is already in.
         $second->assertSessionHas('success', 'This delivery (Receipt Number "DR-TWICE-1") was already added to Inventory.');
         $this->assertSame($inventoryAAfterFirst, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
 
-        // A second delivery under a different receipt is still refused once
-        // the order is complete.
         $third = $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), ['receipt_number' => 'DR-TWICE-2'] + $payload);
         $third->assertSessionHas('error');
         $this->assertSame($inventoryAAfterFirst, Inventory::where('ProductID', $this->productA->ProductID)->value('Quantity'));
     }
 
-    // Add to Inventory needs the delivery's Receipt Number; the button stays
-    // disabled until one is typed.
     public function test_add_to_inventory_requires_a_receipt_number(): void
     {
         $po = $this->makeDraftOrder();
@@ -488,8 +452,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(50, $itemA->fresh()->ReceivedQuantity);
         $this->assertSame(20, $itemB->fresh()->ReceivedQuantity);
 
-        // The completed delivery shows that one Receipt Number (also in its
-        // Delivery History row), no per-line column.
         $html = $this->actingAs($this->admin)->getJson(route('admin.stock-receivings.batches.show', $batch))->json('html');
         $this->assertStringContainsString('RCT-SAME', $html);
         $this->assertStringContainsString('Delivery History', $html);
@@ -503,8 +465,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $batch = StockReceivingBatch::where('PurchaseOrderID', $po->PurchaseOrderID)->firstOrFail();
 
         $migration = require database_path('migrations/2026_10_17_071332_add_receipt_number_to_stock_receiving_batch_table.php');
-        // Before the upgrade, Receipt Numbers were saved per product line
-        // (a column dropped since by the legacy-columns cleanup).
         Schema::table('PurchaseOrderItem', fn ($table) => $table->string('ReceiptNumber', 50)->nullable());
         $migration->down();
         PurchaseOrderItem::where('PurchaseOrderID', $po->PurchaseOrderID)->where('ProductID', $this->productA->ProductID)->update(['ReceiptNumber' => 'OLD-RCT-1']);
@@ -529,7 +489,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
             ],
         ]);
 
-        // A second, separate PO/batch tries to reuse the same receipt number.
         $po2 = PurchaseOrder::create([
             'PONumber' => 'PO-TEST-000002',
             'PurchaseDate' => now()->format('Y-m-d'),
@@ -558,8 +517,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertSame(StockReceivingBatch::STATUS_PENDING, $batch2->Status);
         $this->assertSame(0, $item2A->fresh()->ReceivedQuantity);
     }
-
-    // ---- Live "already used" check (check-receipt-number) ----
 
     public function test_check_receipt_number_reports_unused_for_a_fresh_value(): void
     {
@@ -609,8 +566,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
             ],
         ]);
 
-        // The order is still open (30 of 50 arrived); its next delivery is a
-        // different delivery, so it can't reuse the first one's receipt number.
         $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
             'receipt_number' => 'RCT-SELF',
             'exclude_batch_id' => $batch->StockReceivingBatchID,
@@ -626,7 +581,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
 
     public function test_view_details_shows_ordered_quantity_as_read_only_reference(): void
     {
-        // Add Product assigns every product a SKU (SKU-000001 style).
         $this->productA->update(['SKU' => Product::generateSku($this->productA->ProductID)]);
         $po = $this->makeDraftOrder();
         $this->actingAs($this->admin)->get(route('admin.purchase-orders.print', $po));
@@ -641,14 +595,11 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
         $this->assertStringContainsString('<th>Received Quantity</th>', $html);
         $this->assertStringNotContainsString('Still Owed', $html);
         $this->assertStringNotContainsString('Receiving Now', $html);
-        // The box stops at what's remaining as it's typed.
         $this->assertMatchesRegularExpression('/class="form-input receiving-now-input"[^>]*max="\d+" data-clamp-max/', $html);
         $this->assertStringContainsString('Receipt Number', $html);
-        // One Receipt Number field for the whole delivery, not one per line.
         $this->assertSame(1, substr_count($html, 'name="receipt_number"'));
         $this->assertStringNotContainsString('][receipt_number]', $html);
         $this->assertStringContainsString($this->productA->ProductName, $html);
-        // Each item shows its Model and SKU next to the product name.
         $product = $this->productA->fresh();
         $this->assertMatchesRegularExpression('#<th>Product</th>\s*<th>Model</th>\s*<th>SKU</th>#', $html);
         $this->assertStringContainsString('<td>'.e($product->Model).'</td>', $html);
@@ -666,10 +617,6 @@ class PurchaseOrderReceivingWorkflowTest extends TestCase
             'DateReceived' => now()->format('Y-m-d'),
         ]);
 
-        // The batch flow's own check must also catch a number already used
-        // by the separate manual flow — the two uniqueness domains
-        // (StockReceiving vs PurchaseOrderItem) aren't cross-validated on
-        // submit, so this live check is what actually closes that gap.
         $response = $this->actingAs($this->admin)->postJson(route('admin.stock-receivings.check-receipt-number'), [
             'receipt_number' => 'RCT-MANUAL',
         ]);

@@ -15,11 +15,6 @@
     @include('admin.partials.modal-styles')
 
     <style>
-        /* View Details Modal — mirrors the read-only detail-row/items-table
-           styling already used on the standalone show page, duplicated here
-           (same convention as admin/products/index.blade.php's own View
-           Details modal) since the fetched partial is injected into this
-           page, not the show page's own <style> block. */
         .detail-row {
             display: flex;
             justify-content: space-between;
@@ -68,9 +63,6 @@
         .items-total { text-align: right; margin-top: 14px; color: #f8fafc; font-size: 1rem; font-weight: 700; }
     </style>
 
-    {{-- Active = not yet printed. History = printed (sent to Stock
-         Receiving) orders, kept here read-only so they can still be viewed
-         and reprinted. Tab links carry the current filters across. --}}
     @php
         $tabFilters = array_filter(['search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'supplier_id' => $supplierId]);
     @endphp
@@ -101,13 +93,8 @@
                         <option value="{{ $supplier->SupplierID }}" {{ (string) $supplierId === (string) $supplier->SupplierID ? 'selected' : '' }}>{{ $supplier->SupplierName }}</option>
                     @endforeach
                 </select>
-                {{-- No visible Filter button: the date/supplier fields apply as soon as
-                     they change, and the search box still submits on Enter via this
-                     visually hidden submit control (removing it entirely would also
-                     disable the browser's native Enter-to-submit behavior). --}}
                 <button type="submit" aria-hidden="true" tabindex="-1" style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;">Search</button>
             </form>
-            <!-- REQ053: Create purchase order -->
             <a href="{{ route('admin.purchase-orders.create') }}" class="btn btn-primary" onclick="openPurchaseOrderModal(event)">
                 <i class="fas fa-plus"></i> New Order
             </a>
@@ -126,7 +113,6 @@
             </div>
         @endif
 
-        <!-- REQ058: Search purchase order & REQ059: View purchase order details -->
         <div class="table-container">
             <table class="table">
                 <thead>
@@ -134,7 +120,6 @@
                         <th>No.</th>
                         <th>Order Number</th>
                         <th>Supplier</th>
-                        <!-- REQ054: Select existing supplier profile -->
                         <th>Order Date</th>
                         <th>Status</th>
                         <th>Products Ordered</th>
@@ -170,7 +155,6 @@
         </div>
     </div>
 
-    <!-- Create Purchase Order Modal -->
     <div id="addPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addPurchaseOrderModalTitle" aria-hidden="true">
         <div class="modal-content modal-content-wide" style="max-width: 1100px;">
             <div class="modal-header">
@@ -195,7 +179,6 @@
         </div>
     </div>
 
-    <!-- View Purchase Order Details Modal -->
     <div id="viewPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="viewPurchaseOrderModalTitle" aria-hidden="true">
         <div class="modal-content modal-content-wide" style="max-width: 900px;">
             <div class="modal-header">
@@ -218,7 +201,6 @@
         </div>
     </div>
 
-    <!-- Edit Purchase Order Modal -->
     <div id="editPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editPurchaseOrderModalTitle" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
@@ -246,11 +228,7 @@
     @include('admin.partials.ajax-modal-form')
 
     <script>
-        // The search box, Start Date / End Date and Supplier all apply as
-        // they change, without a reload (the form's data-live-search, see
-        // partials/live-updates).
 
-        // Auto-show session messages
         @if(session('success'))
             Swal.fire({
                 title: 'Success',
@@ -270,7 +248,6 @@
             });
         @endif
 
-        // ---- Create Purchase Order modal ----
         const ADD_PO_FIELD_IDS = ['PurchaseDate', 'Notes'];
         let addPurchaseOrderLastFocused = null;
 
@@ -307,9 +284,6 @@
                         if (!firstInvalid) firstInvalid = input;
                     }
                 } else {
-                    // Dynamic "products.*.product_id" / "products.*.quantity" / "products"
-                    // rows have no stable per-row DOM target — surface these under
-                    // the Order Items section instead.
                     productsMessages.push(errors[field][0]);
                 }
             });
@@ -334,11 +308,6 @@
             banner.textContent = '';
         }
 
-        // store() now responds to this modal's fetch() with just the row
-        // markup (see PurchaseOrderController::store()) instead of a full
-        // page to scrape — this is the "row-html" shape, distinct from the
-        // "full-page-html" shape window.submitAjaxForm() (still used by
-        // every other Add-X modal in the app) expects.
         function refreshPurchaseOrdersTable(rowsHtml) {
             const currentTbody = document.getElementById('purchaseOrdersTbody');
             if (currentTbody) {
@@ -431,7 +400,6 @@
                 return;
             }
 
-            // One purchase order is made for each supplier of the ticked products.
             const supplierCount = new Set(Array.from(form.querySelectorAll('#order-items .po-item-row'))
                 .filter(function (row) { return row.querySelector('.po-item-check').checked; })
                 .map(function (row) { return row.dataset.supplier; })).size;
@@ -456,13 +424,6 @@
                 clearAddPurchaseOrderFieldErrors();
                 hideAddPurchaseOrderGeneralError();
 
-                // A dedicated fetch here (not the shared window.submitAjaxForm
-                // helper every other Add-X modal uses) because store() now
-                // answers this request with lean JSON — {success, message,
-                // html: <rows only>} — instead of a redirect the caller
-                // follows and scrapes a whole re-rendered page out of. That
-                // full-page round trip was the actual cause of "saving is
-                // slow"; this is the fix.
                 fetch('{{ route('admin.purchase-orders.store') }}', {
                     method: 'POST',
                     headers: {
@@ -512,7 +473,6 @@
             });
         });
 
-        // ---- View Purchase Order Details modal ----
         let viewPurchaseOrderLastFocused = null;
 
         function handleViewPurchaseOrderModalKeydown(e) {
@@ -524,7 +484,7 @@
         window.openViewPurchaseOrderModal = function (event, purchaseOrderId) {
             if (event) event.preventDefault();
             const modal = document.getElementById('viewPurchaseOrderModal');
-            if (modal.classList.contains('active')) return; // prevent duplicate modals
+            if (modal.classList.contains('active')) return;
 
             const body = document.getElementById('viewPurchaseOrderBody');
 
@@ -563,20 +523,6 @@
             if (e.target === this) closeViewPurchaseOrderModal();
         });
         document.getElementById('viewPurchaseOrderCloseBtn').addEventListener('click', closeViewPurchaseOrderModal);
-        // Print opens the print page in a new tab (target="_blank") — the
-        // browser handles that navigation natively and independently of
-        // everything below, so it's never blocked or delayed by it. That
-        // navigation is what actually moves a Draft PO to Stock Receiving
-        // server-side (see PurchaseOrderController::printPreview()). Since
-        // this tab has no callback for what happens in that other tab, a
-        // second, parallel background request to the exact same URL is
-        // fired from here instead, purely as a "the transition has landed"
-        // signal — printPreview() is already idempotent (a duplicate call
-        // just re-renders the print view without creating a second batch),
-        // so this never double-triggers anything. Once it resolves, this
-        // PO is a Draft no longer, so the list — which already excludes any
-        // PO with a Stock Receiving batch — is refreshed to drop it
-        // immediately instead of leaving a stale row until the next reload.
         document.getElementById('viewPurchaseOrderPrintBtn').addEventListener('click', function (event) {
             closeViewPurchaseOrderModal();
 
@@ -592,13 +538,9 @@
                     if (newTbody) refreshPurchaseOrdersTable(newTbody.innerHTML);
                 })
                 .catch(function () {
-                    // Non-fatal — the row just stays until the next manual
-                    // reload or search; the actual PO/Stock Receiving state
-                    // server-side is unaffected either way.
                 });
         });
 
-        // ---- Edit Purchase Order modal ----
         const EDIT_PO_FIELD_IDS = ['SupplierID', 'PurchaseDate', 'ExpectedDeliveryDate', 'Notes'];
         let editPurchaseOrderLastFocused = null;
         let currentEditPurchaseOrderId = null;
@@ -761,12 +703,6 @@
                         resetEditPurchaseOrderSubmitButton();
                     },
                     onSuccess: function (html, message) {
-                        // Unlike the Add modal's own JSON response (rows-only
-                        // HTML, see refreshPurchaseOrdersTable's own comment),
-                        // window.submitAjaxForm's onSuccess here hands back
-                        // the FULL redirected index page — parse it and pull
-                        // out just the tbody before reusing that function,
-                        // or the whole page ends up nested inside a <tbody>.
                         const parsed = new DOMParser().parseFromString(html, 'text/html');
                         const newTbody = parsed.querySelector('#purchaseOrdersTbody');
                         if (newTbody) {

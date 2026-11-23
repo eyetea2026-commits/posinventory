@@ -7,18 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * A purchase order stays open after a short delivery: more deliveries
-     * can be received against it until every line is received, or the
-     * owner cancels what's still owed (the order is then Closed).
-     *
-     * - PurchaseOrderItem.CancelledQuantity: the part of a line the owner
-     *   cancelled (never delivered).
-     * - PurchaseOrder.RemainderCancel*: why/who/when the rest was cancelled.
-     * - StockReceivingDelivery(+Item): one row per delivery (date, receipt
-     *   number, who received it, quantities), so a second delivery no longer
-     *   overwrites the first.
-     */
     public function up(): void
     {
         Schema::table('PurchaseOrderItem', function (Blueprint $table) {
@@ -56,8 +44,6 @@ return new class extends Migration
             $table->foreign('PurchaseOrderItemID')->references('PurchaseOrderItemID')->on('PurchaseOrderItem')->cascadeOnDelete();
         });
 
-        // Deliveries already completed become the first entry of their
-        // history (receipt number, who, when, what was received).
         $completed = DB::table('StockReceivingBatch')->where('Status', 'completed')->get();
         foreach ($completed as $batch) {
             $items = DB::table('PurchaseOrderItem')->where('PurchaseOrderID', $batch->PurchaseOrderID)->where('ReceivedQuantity', '>', 0)->get();
@@ -83,9 +69,6 @@ return new class extends Migration
             }
         }
 
-        // Orders that were short-delivered before this change were closed off
-        // after one delivery; reopen them so the rest can still be received
-        // (or cancelled by the owner).
         $partialOrderIds = DB::table('PurchaseOrder')->where('Status', 'partially_received')->pluck('PurchaseOrderID');
         DB::table('StockReceivingBatch')->whereIn('PurchaseOrderID', $partialOrderIds)
             ->update(['Status' => 'pending', 'CompletedAt' => null]);

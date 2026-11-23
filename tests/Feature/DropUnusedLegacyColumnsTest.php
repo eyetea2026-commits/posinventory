@@ -10,9 +10,6 @@ use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Tests\TestCase;
 
-// Columns left over from the first version (SalesReturn.ProductID /
-// Quantity / Reason, Discount.ProductID, PurchaseOrderItem.ReceiptNumber)
-// are dropped, but never while one of them still holds data.
 class DropUnusedLegacyColumnsTest extends TestCase
 {
     use RefreshDatabase;
@@ -30,7 +27,6 @@ class DropUnusedLegacyColumnsTest extends TestCase
         $this->assertFalse(Schema::hasColumn('Discount', 'ProductID'));
         $this->assertFalse(Schema::hasColumn('PurchaseOrderItem', 'ReceiptNumber'));
 
-        // The columns the system still uses stay.
         $this->assertTrue(Schema::hasColumn('SalesReturn', 'CustomerName'));
         $this->assertTrue(Schema::hasColumn('ProductSerial', 'SalesReturnID'));
         $this->assertTrue(Schema::hasColumns('Product', ['SellsByPurchaseUnit', 'AllowsFractionalQuantity']));
@@ -56,7 +52,6 @@ class DropUnusedLegacyColumnsTest extends TestCase
         $category = Category::create(['CategoryName' => 'CCTV']);
         $product = Product::create(['ProductName' => 'Dome Camera', 'Model' => 'DC-1', 'Price' => 100, 'CostPrice' => 50, 'CategoryID' => $category->CategoryID, 'Barcode' => 'CCTVEX-000001']);
 
-        // A value left in an old column stops the whole migration.
         DB::table('Discount')->update(['ProductID' => $product->ProductID]);
 
         try {

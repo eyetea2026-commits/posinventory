@@ -6,24 +6,8 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
-/**
- * Change tracking for real-time pages (see LiveUpdatesController).
- *
- * Most tables have no updated_at column, so an edit can't be seen by
- * looking at the data. Instead every insert/update/delete the app runs is
- * noticed as it happens (AppServiceProvider registers recordWrite() as a
- * DB listener) and bumps a version number for that table. Pages name the
- * kind of data they show ("topics" below); the "anything new?" check
- * returns a fingerprint per topic, so a page re-fetches only when its own
- * data changed.
- */
 class LiveDataVersions
 {
-    /**
-     * Topic => the tables whose changes it covers (lowercase).
-     *
-     * @var array<string, list<string>>
-     */
     public const TOPICS = [
         'products' => ['product', 'category', 'brand', 'inventory', 'productsupplier', 'supplier', 'discount', 'discountproduct'],
         'categories' => ['category', 'brand', 'product'],
@@ -39,10 +23,6 @@ class LiveDataVersions
         'activity' => ['activitylog'],
     ];
 
-    /**
-     * Tables written on (almost) every request, or by this tracker itself,
-     * which no page shows.
-     */
     private const IGNORED = ['sessions', 'cache', 'cache_locks', 'jobs', 'job_batches', 'failed_jobs', 'migrations'];
 
     public static function recordWrite(QueryExecuted $query): void
@@ -64,11 +44,6 @@ class LiveDataVersions
         Cache::forever(self::key($table), Str::random(12));
     }
 
-    /**
-     * One fingerprint per topic.
-     *
-     * @return array<string, string>
-     */
     public static function signatures(): array
     {
         $tables = array_values(array_unique(array_merge(...array_values(self::TOPICS))));

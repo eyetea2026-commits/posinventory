@@ -7,11 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Super Admin: an Administrator who can also add Administrators and
-     * activate/deactivate them. Every account that is an Administrator
-     * today becomes the Super Admin.
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {

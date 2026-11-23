@@ -13,7 +13,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// A custom % discount at the POS needs an Administrator's password.
 class CustomDiscountTest extends TestCase
 {
     use RefreshDatabase;
@@ -77,11 +76,9 @@ class CustomDiscountTest extends TestCase
         $this->assertEquals(1800, (float) $billing->TotalAmount);
         $this->assertSame($this->admin->id, $billing->CustomDiscountApprovedBy);
 
-        // Split across the lines, so a refund pays back what was paid.
         $this->assertEquals([100.0, 100.0], SalesItem::orderBy('SalesItemID')->pluck('DiscountAmount')->map(fn ($v) => (float) $v)->all());
         $this->assertEquals([900.0, 450.0], SalesItem::orderBy('SalesItemID')->get()->map(fn ($item) => round($item->refundable_unit_price, 2))->all());
 
-        // Shown on the receipt.
         $this->actingAs($this->cashier)->get(route('cashier.receipt', $sale->json('receipt_number')))
             ->assertOk()->assertSee('Discount (10%):')->assertSee('-₱200.00');
 
@@ -101,7 +98,6 @@ class CustomDiscountTest extends TestCase
     public function test_the_wrong_password_or_a_cashier_password_is_refused(): void
     {
         $this->approve(10, 'wrong')->assertStatus(422)->assertJson(['message' => 'Incorrect Administrator password.']);
-        // The cashier's own password is not an Administrator's.
         $this->cashier->update(['password' => 'Cashier-Pass-123']);
         $this->approve(10, 'Cashier-Pass-123')->assertStatus(422);
         $this->assertTrue(ActivityLog::where('action', 'pos.custom_discount_denied')->exists());
@@ -115,11 +111,9 @@ class CustomDiscountTest extends TestCase
         $camera = $this->makeProduct(1000);
         $this->approve(10)->assertOk();
 
-        // A bigger percent than approved is refused.
         $this->sell([['id' => $camera->ProductID, 'qty' => 1]], 500, 50)->assertStatus(403);
 
         $this->sell([['id' => $camera->ProductID, 'qty' => 1]], 900, 10)->assertOk();
-        // Used up: the next sale needs a new approval.
         $this->sell([['id' => $camera->ProductID, 'qty' => 1]], 900, 10)->assertStatus(403);
     }
 
@@ -135,7 +129,6 @@ class CustomDiscountTest extends TestCase
 
     public function test_the_percent_is_a_two_digit_whole_number(): void
     {
-        // (Approvals are limited to 5 tries a minute.)
         foreach ([0, 100, 12.5] as $percent) {
             $this->approve($percent)->assertStatus(422)->assertJsonValidationErrors('percent');
         }
@@ -155,9 +148,7 @@ class CustomDiscountTest extends TestCase
         $this->assertNotFalse($field);
         $this->assertLessThan(strpos($html, '<span>Salable Sales</span>'), $field);
         $this->assertStringContainsString('custom_discount_percent: customDiscount ? customDiscount.percent : null,', $html);
-        // Two digits only.
         $this->assertStringContainsString('<input type="text" id="custom-discount-input" inputmode="numeric" maxlength="2"', $html);
-        // Approval popup in the same design as User Management's "Enter Your Credentials".
         $this->assertStringContainsString('<h2 id="approval-modal-title"><i class="fas fa-shield-halved"></i> Administrator Approval</h2>', $html);
         $this->assertStringContainsString('<input type="password" id="approval-password" class="approval-input"', $html);
         $this->assertStringContainsString('<i class="fas fa-check"></i> Confirm Password', $html);

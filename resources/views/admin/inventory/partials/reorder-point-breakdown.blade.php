@@ -1,5 +1,3 @@
-{{-- How the product's Re-Order Point was forecast (App\Services\ReorderPoint).
-     Expects $product. --}}
 @php
     $rop = \App\Services\ReorderPoint::forProduct($product->ProductID);
     $minimum = \App\Services\ReorderPoint::MINIMUM;

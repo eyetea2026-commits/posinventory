@@ -7,11 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Every rate-limited route counts on its own. Laravel's plain throttle:N,M
-// keys guests by IP and signed-in users by id, shared across every route
-// using it, so the background polling of an open page (live updates, the
-// session check-in) used up the Send OTP and Log in limits from the same
-// network, and barcode scans used up a cashier's custom discount approvals.
 class RateLimitIsolationTest extends TestCase
 {
     use RefreshDatabase;

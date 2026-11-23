@@ -1,10 +1,3 @@
-{{-- Shared "New Stock Adjustment" field markup. Included by both the
-     standalone create page and the Add Stock Adjustment modal.
-     Product across the full width (then its serial numbers, for products
-     that have them); Quantity / Date / Reason on one row; Remarks across
-     the full width. An adjustment only takes stock out (Damaged or Lost):
-     the quantity is entered as a plain number and stock only comes in
-     through Stock Receiving. --}}
 <style>
     .form-grid.adjustment-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     @media (max-width: 899px) { .form-grid.adjustment-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -21,9 +14,6 @@
 <div class="form-grid adjustment-form-grid">
     <div class="form-group full-width">
         <label class="form-label" for="ProductID">Product <span style="color: var(--danger);">*</span></label>
-        {{-- A plain <select>: the shared searchable dropdown gives it a
-             search box inside the list. Only products with stock are
-             listed — nothing else can be damaged or lost. --}}
         <select id="ProductID" name="ProductID" class="form-select" required>
             <option value="">Select Product</option>
             @foreach($products as $product)
@@ -38,11 +28,6 @@
         <span class="form-error" id="error-ProductID">@error('ProductID'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Serial-numbered products: record the exact pieces that were damaged
-         or lost, one row each, picked from the searchable dropdown (typing
-         or scanning the sticker into its search box finds it) and added
-         with Add Serial, like the product form's suppliers. The quantity
-         follows the number recorded. --}}
     <div class="form-group full-width" id="adjustment-serials-group" style="display: none;">
         <label class="form-label" for="SerialNumberSelect">Serial Numbers <span style="color: var(--danger);">*</span><span id="adjustment-serial-count" class="adjustment-serial-count"></span></label>
         <table class="adjustment-serials-table">
@@ -115,7 +100,6 @@
         if (!productSelect || !quantityInput || !serialsGroup) return;
 
         var damagedReason = @json(\App\Models\StockAdjustment::REASON_DAMAGED);
-        // In-stock serials of the chosen product, and the ones recorded.
         var available = [];
         var recorded = @json(array_values((array) old('SerialNumbers', [])));
 
@@ -130,9 +114,6 @@
             try { return JSON.parse(option.dataset.serials); } catch (e) { return null; }
         }
 
-        // One row per recorded serial (with the SerialNumbers[] value sent);
-        // the dropdown offers only the ones not recorded yet. The quantity
-        // of a serial-numbered product is the number recorded.
         function renderSerials() {
             serialRows.innerHTML = '';
             recorded.forEach(function (serial, index) {
@@ -200,7 +181,6 @@
             var fractional = hasProduct && option.dataset.fractional === '1';
             var serials = hasProduct ? selectedSerials() : null;
 
-            // In the product's base unit; decimals only where allowed.
             unitLabel.textContent = hasProduct ? '(' + option.dataset.unitPlural + ')' : '';
             quantityInput.step = fractional ? '0.01' : '1';
             quantityInput.min = fractional ? '0.01' : '1';
@@ -208,7 +188,6 @@
 
             if (serialError) serialError.textContent = '';
             if (serials) {
-                // Kept only if they belong to this product (a re-shown form).
                 available = serials;
                 recorded = recorded.filter(function (serial) { return serials.indexOf(serial) !== -1; });
                 serialsGroup.style.display = '';

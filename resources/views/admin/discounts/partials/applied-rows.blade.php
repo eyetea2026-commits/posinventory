@@ -1,13 +1,5 @@
-{{-- One row per promo that has at least one product assigned (DiscountController::index()),
-     not one row per product-promo assignment — the assigned products
-     themselves only show in that promo's View Details popup. Shared by the
-     initial page load and the Tab 2 live-search/pagination AJAX response. --}}
 @forelse($appliedAssignments as $discount)
     @php
-        // Discount::STATUS_LABELS is the single source of truth for this
-        // wording — every list/popup that shows a promo's status must go
-        // through effective_status_label so they can't disagree with each
-        // other the way this list and the View Details popup once did.
         $statusLabel = $discount->effective_status_label;
         $statusClass = match ($discount->effective_status) {
             \App\Models\Discount::STATUS_ACTIVE => 'badge-success',

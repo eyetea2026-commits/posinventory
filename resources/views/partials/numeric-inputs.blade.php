@@ -1,13 +1,3 @@
-{{-- Number fields (quantities, thresholds, prices) on admin and cashier
-     pages take digits only. Browsers still let "e", "E", "+" and "-" into a
-     type="number" box (as in 1e5); this blocks those and any other letter
-     as it's typed or pasted, including in boxes added later by JavaScript
-     (POS cart, refunds). A minus sign is only allowed where the field's min
-     is below zero. data-max-digits="3" caps a box at that many whole digits
-     (maxlength doesn't apply to number inputs); data-clamp-max stops a box
-     at its max as it's typed (a received quantity at what's remaining).
-     The text-type money boxes strip letters themselves
-     (window.attachMoneyInput). --}}
 <script>
     (function () {
         if (window.__numericInputs) return;
@@ -37,7 +27,6 @@
             if (!isAllowed(input, e.key)) e.preventDefault();
         }, true);
 
-        // Typing on phones (where keydown doesn't name the key) and dropping text.
         document.addEventListener('beforeinput', function (e) {
             var input = e.target;
             if (!isNumberInput(input) || e.inputType === 'insertFromPaste' || typeof e.data !== 'string') return;

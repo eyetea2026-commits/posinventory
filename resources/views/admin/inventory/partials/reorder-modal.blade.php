@@ -1,9 +1,3 @@
-{{-- Glassmorphism "Create Purchase Order" modal, opened from an Inventory
-     row/detail page's "Create Purchase Order" button. Keeps the admin on
-     the Inventory page instead of navigating to a separate Purchase Order
-     page — the product/supplier fields are fetched over AJAX from
-     PurchaseOrderController::createFromReorder() and injected into the
-     modal body, then submitted to storeFromReorder() the same way. --}}
 @include('admin.partials.modal-styles')
 
 <div id="reorderPurchaseOrderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reorderPurchaseOrderModalTitle" aria-hidden="true">
@@ -93,9 +87,6 @@
         btn.innerHTML = '<i class="fas fa-save"></i> Create Purchase Order';
     }
 
-    // Product/Supplier information must be loaded before the order can be
-    // saved — the Submit button stays disabled until the AJAX fetch below
-    // resolves successfully.
     window.openReorderModal = function (productId) {
         const modal = document.getElementById('reorderPurchaseOrderModal');
         const body = document.getElementById('reorderPurchaseOrderBody');
@@ -125,7 +116,6 @@
             .then(function (result) {
                 const data = result.data || {};
                 const titleEl = document.getElementById('reorderPurchaseOrderModalTitle');
-                // Refused (an inactive product) or failed: say why, never "undefined".
                 if (!result.ok || typeof data.html !== 'string') {
                     if (titleEl) titleEl.innerHTML = '<i class="fas fa-cart-plus"></i> Create Purchase Order';
                     const message = document.createElement('p');
@@ -229,11 +219,6 @@
                 },
                 onSuccess: function (html, message) {
                     window.closeReorderModal();
-                    // Shows the success message, then — once it's actually
-                    // been seen, whether it auto-closed via the timer or the
-                    // admin dismissed it early — navigates to the Purchase
-                    // Order module, where the order just saved is already
-                    // in the database and will render on that page's load.
                     Swal.fire({
                         title: 'Success',
                         text: message,

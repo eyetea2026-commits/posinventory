@@ -36,25 +36,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
-// The one sign-in entry point for the whole system — see AuthController for
-// why this replaced separate admin/cashier login forms and a portal-picker
-// landing page.
 Route::get('/', [AuthController::class, 'showLogin'])->name('welcome');
 
-// JavaScript errors from any page (signed in or not, the login page too),
-// written to laravel.log as "Browser error" (partials/error-reporter).
 Route::post('/client-errors', [ClientErrorController::class, 'store'])
     ->name('client-errors.store')->middleware('throttle:30,1,client-errors');
 
-// Polled by every page only when it's shown again (tab refocused, restored
-// from Back, or another tab signed in/out) -- never on a timer, so an
-// unattended screen still times out normally. Says only whether this browser
-// is signed in, and as which user id, so a page can leave if that changed.
-// Every throttle below names its own counter (the third parameter). Without
-// a name, all throttled routes share ONE counter per visitor (per IP for
-// guests and sessionless polling, per user once signed in), so the
-// background polling of any open page used up the Send OTP and Log in
-// limits, and barcode scans used up the custom discount approvals.
 Route::get('/session/status', function () {
     return response()->json([
         'authenticated' => Auth::check(),
@@ -62,12 +48,6 @@ Route::get('/session/status', function () {
     ]);
 })->name('session.status')->middleware('throttle:120,1,session-status');
 
-// "This browser is still open" check-in, sent every 30 seconds by every
-// signed-in page (partials/session-guard). It runs WITHOUT the session
-// middleware, so it never counts as activity (the 2-hour idle timeout still
-// applies); it only refreshes the marker User::hasActiveSession() reads, so
-// a browser that was closed stops blocking the next login within
-// User::SESSION_ALIVE_SECONDS.
 Route::get('/session/alive', function (Request $request) {
     $sessionId = $request->cookie(config('session.cookie'));
     if (is_string($sessionId) && preg_match('/^[A-Za-z0-9]{40}$/', $sessionId)
@@ -80,33 +60,15 @@ Route::get('/session/alive', function (Request $request) {
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
     ->middleware('throttle:120,1,session-alive');
 
-// "Anything new?" check polled every few seconds by every signed-in page
-// (see LiveUpdatesController / partials/live-updates). Sessionless like
-// /session/alive, so polling never counts as activity.
 Route::get('/live/signature', LiveUpdatesController::class)->name('live.signature')
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
     ->middleware('throttle:240,1,live-signature');
 
-// Print bridge (see PrintBridgeController): only used on the cashier PC's
-// local copy, which the deployed POS sends receipt lines to. Sessionless and
-// without CSRF since the request comes from the deployed site's page; the
-// controller itself only accepts this PC and the allowed site.
 Route::match(['post', 'options'], '/print-bridge', PrintBridgeController::class)->name('print-bridge')
     ->withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, ValidateCsrfToken::class])
     ->middleware('throttle:60,1,print-bridge');
-// throttle:15,1 is an outer safety net only — the real brute-force defense is
-// AuthController's own per-username RateLimiter (5 attempts/60s, with a
-// friendly "too many attempts" message). This route limit used to be 6/min,
-// which was tight enough that a handful of legitimate retries (typos, a
-// couple of wrong-password attempts) could trip Laravel's raw, unstyled 429
-// page before the friendly per-account lockout ever kicked in.
 Route::post('/login', [AuthController::class, 'login'])->name('login.post')->middleware('throttle:15,1,login');
 
-// AJAX route to check user role for password reset eligibility. Deliberately
-// unauthenticated — it's called from the pre-login "forgot password" screen,
-// before any session exists — but the response is intentionally generic and
-// never confirms/denies account existence or discloses a role, to prevent
-// username enumeration. Rate limited to slow down probing.
 Route::post('/check-user-role', function (Request $request) {
     $username = $request->input('username');
 
@@ -114,23 +76,14 @@ Route::post('/check-user-role', function (Request $request) {
         return response()->json(['error' => 'Username is required'], 400);
     }
 
-    // Same generic message regardless of whether the account exists, its
-    // role, or eligibility — an attacker can't distinguish "no such account"
-    // from "found, but a cashier" from "found, admin, reset available".
     return response()->json([
         'message' => 'If this is a valid Administrator account, password reset instructions are available. Cashier accounts must contact an Administrator for a password reset.',
     ]);
 })->name('check.user.role')->middleware('throttle:10,1,check-user-role');
 
-// API route for barcode scanning (POS) — cashier-only, mirrors every other
-// data-bearing route's auth requirement instead of being publicly reachable.
-// Throttle sized for hands-free scanning: every unit scanned is one request,
-// so a cashier scanning a stack of items one by one easily exceeds 60/min.
 Route::get('/api/products/barcode/{barcode}', function ($barcode) {
-    // A serial number sticker (SN00001) is that one piece's barcode.
     $serial = ProductSerial::where('SerialNumber', strtoupper(trim($barcode)))->first();
     if ($serial && $serial->Status !== ProductSerial::STATUS_IN_STOCK) {
-        // A piece refunded as Damaged / Factory Defect is never sold again.
         $message = $serial->Status === ProductSerial::STATUS_DAMAGED
             ? "Serial number {$serial->SerialNumber} is a damaged / defective piece".($serial->SalesReturnID ? ' (refunded on Return #'.str_pad((string) $serial->SalesReturnID, 6, '0', STR_PAD_LEFT).')' : '').' and cannot be sold.'
             : "Serial number {$serial->SerialNumber} is not in stock ({$serial->Status}).";
@@ -150,24 +103,18 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
         return response()->json(['product' => null, 'message' => 'Product Not Found. This barcode is not registered in the system.'], 404);
     }
 
-    // Serial-numbered products are sold by each piece's own sticker.
     if (! $serial && $product->tracksSerialNumbers()) {
         return response()->json(['product' => null, 'message' => "Scan the serial number sticker on the \"{$product->ProductName}\" instead."], 404);
     }
 
-    // Deactivated products are hidden from the POS; scanning one must not
-    // sneak it into the cart only for checkout to reject it later.
     if (! $product->IsActive) {
         return response()->json(['product' => null, 'message' => "\"{$product->ProductName}\" is no longer available for sale."], 404);
     }
 
-    // No selling price yet (no Cost Price entered): it can't be sold for ₱0.00.
     if ((float) $product->Price <= 0) {
         return response()->json(['product' => null, 'message' => "\"{$product->ProductName}\" has no selling price yet. Ask the admin to set its price in Products."], 404);
     }
 
-    // The units it's sold in (price and stock taken per unit) and its stock
-    // in words, so a measured product opens the POS quantity popup.
     return response()->json([
         'product' => $product,
         'serial' => $serial?->SerialNumber,
@@ -176,11 +123,6 @@ Route::get('/api/products/barcode/{barcode}', function ($barcode) {
     ]);
 })->middleware(['auth', 'role:cashier', 'throttle:300,1,barcode-lookup']);
 
-// Smart post-login landing spot for the "dashboard" route name (nothing in
-// this app links here directly anymore — admin/cashier logins redirect
-// straight to their own dashboard/POS — kept as a harmless fallback in case
-// anything still resolves an old intended-redirect to this URL).
-// Proof of payment photo (private): Administrators any, Cashiers their own sales.
 Route::get('/payments/{payment}/proof', PaymentProofController::class)
     ->name('payments.proof')->middleware(['auth', 'throttle:120,1,payment-proof']);
 
@@ -188,7 +130,6 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth'])
     ->name('dashboard');
 
-// Admin routes
 Route::prefix('admin')->group(function () {
     Route::post('logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
@@ -264,13 +205,11 @@ Route::prefix('admin')->group(function () {
     Route::put('products/{product}', [ProductController::class, 'update'])
         ->name('admin.products.update')->middleware(['auth', 'role:admin']);
 
-    // Inventory (view-only)
     Route::get('inventory', [InventoryController::class, 'index'])
         ->name('admin.inventory.index')->middleware(['auth', 'role:admin']);
     Route::get('inventory/{product}', [InventoryController::class, 'show'])
         ->name('admin.inventory.show')->middleware(['auth', 'role:admin']);
 
-    // Categories
     Route::get('categories', [CategoryController::class, 'index'])
         ->name('admin.categories.index')->middleware(['auth', 'role:admin']);
     Route::get('categories/create', [CategoryController::class, 'create'])
@@ -284,14 +223,11 @@ Route::prefix('admin')->group(function () {
     Route::put('categories/{category}', [CategoryController::class, 'update'])
         ->name('admin.categories.update')->middleware(['auth', 'role:admin']);
 
-    // Brands — managed inline from the Edit Category modal, not a module of
-    // their own. Every Brand belongs to exactly one Category.
     Route::post('categories/{category}/brands', [BrandController::class, 'store'])
         ->name('admin.categories.brands.store')->middleware(['auth', 'role:admin']);
     Route::delete('brands/{brand}', [BrandController::class, 'destroy'])
         ->name('admin.brands.destroy')->middleware(['auth', 'role:admin']);
 
-    // Discounts
     Route::get('discounts', [DiscountController::class, 'index'])
         ->name('admin.discounts.index')->middleware(['auth', 'role:admin']);
     Route::get('discounts/create', [DiscountController::class, 'create'])
@@ -300,8 +236,6 @@ Route::prefix('admin')->group(function () {
         ->name('admin.discounts.store')->middleware(['auth', 'role:admin']);
     Route::post('discounts/check-promo-code', [DiscountController::class, 'checkPromoCode'])
         ->name('admin.discounts.check-promo-code')->middleware(['auth', 'role:admin']);
-    // Must stay before the wildcard discounts/{discount} routes below —
-    // both are static segments that would otherwise be swallowed by it.
     Route::get('discounts/history', [DiscountController::class, 'history'])
         ->name('admin.discounts.history')->middleware(['auth', 'role:admin']);
     Route::get('discounts/{discount}/edit', [DiscountController::class, 'edit'])
@@ -317,9 +251,6 @@ Route::prefix('admin')->group(function () {
     Route::get('discounts/{discount}', [DiscountController::class, 'show'])
         ->name('admin.discounts.show')->middleware(['auth', 'role:admin']);
 
-    // Damages — records are created automatically when an approved customer
-    // return is for an unsalable reason (see SalesReturnController::approve());
-    // there is no manual create/store route.
     Route::get('damages', [DamageController::class, 'index'])
         ->name('admin.damages.index')->middleware(['auth', 'role:admin']);
     Route::get('damages/{damage}/print', [DamageController::class, 'printReport'])
@@ -452,12 +383,6 @@ Route::prefix('admin')->group(function () {
         ->name('admin.reports.print')->middleware(['auth', 'role:admin']);
 });
 
-// Admin login security review — deliberately OUTSIDE the auth-protected
-// admin group above: the "Was this you?" email must be actionable from a
-// phone that isn't logged in. Each route accepts either a valid signed URL
-// (LoginSecurityController::authorizeAccess()) or an authenticated admin
-// session, so the in-app prompt's fetch calls reuse the exact same routes.
-// throttle limits brute-force guessing of a login-event ID.
 Route::prefix('admin/security')->middleware('throttle:30,1,login-security')->group(function () {
     Route::get('login-events/{loginSecurityEvent}/review', [LoginSecurityController::class, 'review'])
         ->name('admin.security.review');
@@ -467,22 +392,16 @@ Route::prefix('admin/security')->middleware('throttle:30,1,login-security')->gro
         ->name('admin.security.deny');
 });
 
-// Cashier routes
 Route::prefix('cashier')->group(function () {
     Route::post('logout', [CashierAuthController::class, 'logout'])->name('cashier.logout');
-
-    // Forgot password functionality is disabled for Cashier - Only Administrator can reset passwords
-    // Cashier users must contact the Administrator for password resets
 
     Route::get('pos', [CashierAuthController::class, 'pos'])->name('cashier.pos')->middleware(['auth', 'role:cashier']);
     Route::get('pos/promo-map', [CashierAuthController::class, 'promoMap'])->name('cashier.pos.promo-map')->middleware(['auth', 'role:cashier']);
     Route::post('pos/apply-promo', [CashierAuthController::class, 'applyPromo'])->name('cashier.pos.apply-promo')->middleware(['auth', 'role:cashier']);
     Route::post('pos/process-sale', [CashierAuthController::class, 'processSale'])->name('cashier.process-sale')->middleware(['auth', 'role:cashier']);
-    // Throttled: it checks Administrator passwords.
     Route::post('pos/custom-discount/approve', [CashierAuthController::class, 'approveCustomDiscount'])->name('cashier.custom-discount.approve')->middleware(['auth', 'role:cashier', 'throttle:5,1,custom-discount']);
     Route::get('transactions', [CashierAuthController::class, 'transactions'])->name('cashier.transactions')->middleware(['auth', 'role:cashier']);
 
-    // Return/Refund routes
     Route::get('refunds', [CashierReturnController::class, 'index'])->name('cashier.refunds')->middleware(['auth', 'role:cashier']);
     Route::get('refunds/search', [CashierReturnController::class, 'searchTransaction'])->name('cashier.refunds.search')->middleware(['auth', 'role:cashier']);
     Route::post('refunds/create', [CashierReturnController::class, 'createRefund'])->name('cashier.refunds.create')->middleware(['auth', 'role:cashier']);
@@ -494,7 +413,6 @@ Route::prefix('cashier')->group(function () {
     Route::get('refunds/{salesReturn}/receipt/print-lines', [CashierReturnController::class, 'refundReceiptPrintLines'])->name('cashier.refunds.receipt.print-lines')->middleware(['auth', 'role:cashier']);
     Route::get('stats', [CashierReturnController::class, 'getCashierStats'])->name('cashier.stats')->middleware(['auth', 'role:cashier']);
 
-    // Notification routes
     Route::get('notifications', [App\Http\Controllers\Cashier\NotificationController::class, 'index'])
         ->name('cashier.notifications.index')->middleware(['auth', 'role:cashier']);
     Route::post('notifications/{notification}/read', [App\Http\Controllers\Cashier\NotificationController::class, 'markAsRead'])
@@ -502,7 +420,6 @@ Route::prefix('cashier')->group(function () {
     Route::post('notifications/read-all', [App\Http\Controllers\Cashier\NotificationController::class, 'markAllAsRead'])
         ->name('cashier.notifications.read-all')->middleware(['auth', 'role:cashier']);
 
-    // Receipt route (REQ102)
     Route::get('receipt/{receiptNumber}', [CashierAuthController::class, 'viewReceipt'])->name('cashier.receipt')->middleware(['auth', 'role:cashier']);
     Route::post('receipt/{receiptNumber}/thermal', [CashierAuthController::class, 'printThermalReceipt'])->name('cashier.receipt.thermal')->middleware(['auth', 'role:cashier']);
     Route::get('receipt/{receiptNumber}/print-lines', [CashierAuthController::class, 'receiptPrintLines'])->name('cashier.receipt.print-lines')->middleware(['auth', 'role:cashier']);

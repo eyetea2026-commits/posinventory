@@ -1,8 +1,3 @@
-{{-- Full-page fallback for direct navigation to this URL. The real
-     Inventory list's "View Details" now opens the same
-     inventory-details.blade.php partial inside a modal instead (see
-     admin/inventory/partials/inventory-details-modal.blade.php) so the
-     admin never leaves the Inventory page. --}}
 @extends('admin.layout')
 
 @section('header')

@@ -119,7 +119,6 @@
     .pagination-link.active { background: linear-gradient(135deg, #3b82f6, #10b981); color: white; }
     .pagination-link.disabled { opacity: 0.4; pointer-events: none; }
 
-    /* Add/Edit Promo Modal */
     .form-group label { display: block; margin-bottom: 4px; font-weight: 600; color: #cbd5e1; font-size: 0.82rem; }
     .form-group label .required { color: #ef4444; }
     .form-group { margin-bottom: 16px; }
@@ -151,9 +150,6 @@
         transition: transform 0.25s ease, opacity 0.25s ease;
     }
     .modal-content.modal-content-wide { max-width: 780px; }
-    /* History's Expired/Used tables carry more columns than the other
-       "wide" modals, so it gets its own larger size instead of bumping the
-       shared .modal-content-wide (which would also widen the Apply popup). */
     #historyModal .modal-content { max-width: 1040px; max-height: 92vh; }
     .modal-overlay.active .modal-content { transform: scale(1) translateY(0); opacity: 1; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #334155; }
@@ -168,7 +164,6 @@
         padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 0.82rem;
     }
 
-    /* Tabs */
     .tabs-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
     .chart-toggle-group { display: inline-flex; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 4px; gap: 4px; }
     .chart-toggle-btn {
@@ -179,9 +174,6 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* Apply tab — a small "Select a Promo Discount" combo box card sits
-       beside the (much wider) Applied Discount/Promo List; picking a
-       promo opens the Apply Discount/Promo popup for product selection. */
     .apply-tab-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: stretch; }
     @media (max-width: 900px) { .apply-tab-layout { grid-template-columns: 1fr; } }
     .apply-picker-body { padding: 16px 18px; }
@@ -190,7 +182,6 @@
         letter-spacing: 0.05em; margin-bottom: 6px;
     }
 
-    /* Reused by the View Details modal's Promo Details section. */
     .apply-promo-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
     .apply-promo-detail-grid .detail-mini label {
         display: block; font-size: 0.95rem; color: #94a3b8; text-transform: uppercase;
@@ -198,8 +189,6 @@
     }
     .apply-promo-detail-grid .detail-mini span { font-weight: 400; color: #e2e8f0; font-size: 0.82rem; }
 
-    /* Apply Discount/Promo popup — wide/tall card, checkbox list for
-       selecting several products in one action. */
     .modal-content-tall { max-height: 92vh; }
     .modal-selected-count { margin: 8px 0 4px; font-size: 0.8rem; color: #94a3b8; }
     .modal-select-all-row {
@@ -233,16 +222,13 @@
     .modal-product-row .mp-price { font-weight: 600; color: #e2e8f0; font-size: 0.87rem; flex-shrink: 0; }
     .product-picker-empty { padding: 14px; color: #94a3b8; font-size: 0.85rem; text-align: center; }
 
-    /* Cleaner dot-prefixed status badge, scoped to the Apply tab only. */
     .badge-dot::before { content: '●'; font-size: 0.7em; margin-right: 5px; }
 
-    /* Promo Details ("View Details") modal section headers. */
     .section-title {
         color: #cbd5e1; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
         margin: 0 0 10px;
     }
 
-    /* History modal */
     .history-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
     .history-tab-btn {
         padding: 8px 16px; border-radius: 9px; border: 1px solid rgba(148, 163, 184, 0.15);
@@ -274,7 +260,6 @@
     </button>
 </div>
 
-{{-- ===================== TAB 1 — CREATE ===================== --}}
 <div id="tab-create" class="tab-panel active">
     <div class="card">
         <div class="card-header">
@@ -314,7 +299,6 @@
     </div>
 </div>
 
-{{-- ===================== TAB 2 — APPLY ===================== --}}
 <div id="tab-apply" class="tab-panel">
     <div class="apply-tab-layout">
         <div class="card">
@@ -360,7 +344,6 @@
     </div>
 </div>
 
-<!-- Add Promo Modal -->
 <div id="addDiscountModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addDiscountModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -371,8 +354,6 @@
         <div id="addDiscountGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
 
         <form id="addDiscountForm">
-            {{-- Explicit discount=>null guards against $discount leaking in
-                 from the @forelse($discounts as $discount) table loop above. --}}
             @include('admin.discounts.partials.discount-form-fields', ['discount' => null])
         </form>
 
@@ -383,7 +364,6 @@
     </div>
 </div>
 
-<!-- Edit Promo Modal -->
 <div id="editDiscountModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editDiscountModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -404,7 +384,6 @@
     </div>
 </div>
 
-<!-- Apply Discount/Promo popup (checkbox multi-select product picker) -->
 <div id="applyProductsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="applyProductsModalTitle" aria-hidden="true">
     <div class="modal-content modal-content-wide modal-content-tall">
         <div class="modal-header">
@@ -439,7 +418,6 @@
     </div>
 </div>
 
-<!-- History Modal -->
 <div id="historyModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle" aria-hidden="true">
     <div class="modal-content modal-content-wide">
         <div class="modal-header">
@@ -461,7 +439,6 @@
     </div>
 </div>
 
-<!-- Promo Details Modal (Apply tab's "View Details") -->
 <div id="promoDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="promoDetailsModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -478,15 +455,6 @@
 @include('admin.partials.ajax-modal-form')
 
 <script>
-    // Auto-show session messages — rendered as a literal Swal.fire({title:
-    // 'Success'|'Error', text: '...'}) call, not the toastSuccess()/
-    // toastError() helpers, because submitAjaxForm() (ajax-modal-form.blade.php)
-    // scrapes the redirected page's HTML for exactly this literal pattern to
-    // tell a successful save from a failed one — same convention as
-    // Category/Damage/Product. Using the helpers here (which pass the
-    // message through as a JS variable, not a literal string) made every
-    // save on this page silently fall through to submitAjaxForm's generic
-    // "Unable to save" message regardless of whether it actually succeeded.
     @if(session('success'))
         Swal.fire({
             title: 'Success',
@@ -506,7 +474,6 @@
         });
     @endif
 
-    // ---- Tabs ----
     window.switchDiscountTab = function (tab) {
         document.querySelectorAll('.chart-toggle-btn[data-tab]').forEach(function (btn) {
             btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -515,7 +482,6 @@
         document.getElementById('tab-apply').classList.toggle('active', tab === 'apply');
     };
 
-    // ---- Live search (Tab 1 promo list) ----
     (function () {
         const filterForm = document.getElementById('discountFilterForm');
         const searchInput = document.getElementById('discountSearchInput');
@@ -579,24 +545,12 @@
 
         rebindPagination();
         window.refreshDiscountsTable = function () { applyFilters(1); };
-        // Real time (partials/live-updates): same search and page.
         window.liveUpdates.watch(['discounts'], function () { applyFilters(currentPage); });
     })();
 
-    // ---- Tab 2: Apply Discount/Promo ----
     (function () {
-        {{-- {id, name, category} objects per promo — the source of
-             truth for "already assigned" (excluded from the picker) and for
-             the View Details modal's Applied Products table. Built in
-             DiscountController::index() rather than inline here — see that
-             method's comment for why. `let`, not `const`: refreshed in
-             place by updateApplyTabData() whenever Tab 1's Add/Edit popup
-             creates or edits a promo, so nothing here goes stale without a
-             page reload. --}}
         let DISCOUNT_PRODUCT_MAP = @json($discountProductMap);
 
-        {{-- Everything the View Details modal needs to render without a
-             second request. --}}
         let DISCOUNT_META = @json($discountMeta);
 
         const promoSelect = document.getElementById('applyPromoSelect');
@@ -608,7 +562,7 @@
         const appliedTbody = document.getElementById('appliedAssignmentsTbody');
         const appliedPaginationWrapper = document.getElementById('appliedPaginationWrapper');
 
-        let selectedProducts = []; // checked products: [{id, name, category}]
+        let selectedProducts = [];
         let searchDebounce = null;
         let searchController = null;
         let lastResults = [];
@@ -625,11 +579,6 @@
             return (promoId && DISCOUNT_PRODUCT_MAP[promoId]) ? DISCOUNT_PRODUCT_MAP[promoId].map(function (p) { return String(p.id); }) : [];
         }
 
-        // Called after Tab 1's promo table refreshes (including right after
-        // the Add/Edit popup saves) so a brand-new promo appears in the
-        // "Choose Promo Discount" dropdown, and an edited one's name/code/
-        // dates/status update everywhere they're shown — without a full
-        // page reload.
         window.updateApplyTabData = function (data) {
             if (!data || !data.allDiscounts) return;
 
@@ -655,9 +604,6 @@
             assignBtn.disabled = !(currentPromoId() && selectedProducts.length > 0);
         }
 
-        // Choosing a promo from the small "Select a Promo Discount" combo
-        // box opens the Apply Discount/Promo popup — product selection
-        // never sits permanently on the main page.
         window.onApplyPromoChange = function () {
             if (currentPromoId()) window.openApplyModal();
         };
@@ -726,13 +672,6 @@
             updateSelectAllState(products);
         }
 
-        // "Select All" only ever acts on the products currently displayed
-        // (lastResults — the same capped/searched list rendered above), not
-        // the whole catalog, and only the ones actually selectable (an
-        // already-assigned product's checkbox is disabled, so Select All
-        // leaves it alone). Its own checked state is fully derived from
-        // selectedProducts, never tracked independently, so it can never
-        // drift out of sync with the individual checkboxes.
         function selectableProducts(products) {
             const assignedIds = assignedIdsFor(currentPromoId());
             return products.filter(function (p) { return !assignedIds.includes(String(p.id)); });
@@ -829,13 +768,6 @@
                 assignBtn.disabled = true;
                 assignBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
 
-                // Building the request is wrapped separately from sending
-                // it: a synchronous error here (e.g. a bad selector) used to
-                // throw before fetch() ever ran, leaving the button stuck on
-                // "Applying..." forever with no request ever reaching the
-                // server and no error shown — this is what actually happened
-                // when the CSRF header used to be read from a <meta> tag
-                // that doesn't exist on this page.
                 let request;
                 try {
                     request = fetch('{{ url('admin/discounts') }}/' + discountId + '/products', {
@@ -879,7 +811,6 @@
             });
         };
 
-        // ---- Applied Discount/Promo List ----
         let appliedController = null;
         let appliedPage = 1;
 
@@ -916,10 +847,8 @@
         }
 
         rebindAppliedPagination();
-        // Real time (partials/live-updates): same page.
         window.liveUpdates.watch(['discounts'], function () { reloadAppliedList(appliedPage); });
 
-        // ---- View Details modal ----
         window.openPromoDetails = function (discountId) {
             const meta = DISCOUNT_META[discountId];
             const products = DISCOUNT_PRODUCT_MAP[discountId] || [];
@@ -974,7 +903,6 @@
         updateAssignButtonState();
     })();
 
-    // ---- History modal ----
     window.openHistoryModal = function () {
         const modal = document.getElementById('historyModal');
         modal.style.display = 'flex';
@@ -1034,8 +962,6 @@
         });
     }
 
-    // Escape closes whichever of these three read-mostly popups is open —
-    // matches the Add/Edit Promo modals' existing Escape-to-close behavior.
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape') return;
         if (document.getElementById('applyProductsModal').classList.contains('active')) { window.closeApplyModal(); return; }
@@ -1043,7 +969,6 @@
         if (document.getElementById('promoDetailsModal').classList.contains('active')) { window.closePromoDetails(); return; }
     });
 
-    // ---- Add Promo modal ----
     const ADD_DISCOUNT_FIELD_IDS = ['DiscountRate', 'DiscountType', 'Name', 'PromoCode', 'Description', 'StartDate', 'EndDate'];
     let addDiscountLastFocused = null;
 
@@ -1178,7 +1103,6 @@
         });
     });
 
-    // ---- Edit Promo modal ----
     let editDiscountLastFocused = null;
     let currentEditDiscountId = null;
 

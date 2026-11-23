@@ -103,9 +103,6 @@ class SalesReturnApprovalTest extends TestCase
 
         $return = SalesReturn::create($fields);
 
-        // Mirrors the backfill migration: every SalesReturn row has a
-        // matching SalesReturnItem line that approval now reads from
-        // instead of the legacy header ProductID/Quantity/Reason.
         SalesReturnItem::create([
             'SalesReturnID' => $return->SalesReturnID,
             'ProductID' => $fields['ProductID'],
@@ -129,17 +126,12 @@ class SalesReturnApprovalTest extends TestCase
         $indexResponse->assertDontSee('name="return_type"', false);
         $indexResponse->assertDontSee('All Types');
 
-        // Status still filters correctly via the tabs' query param, even
-        // without the dropdown.
         $pendingOnly = $this->actingAs($this->admin)->get(route('admin.sales-returns.index', ['status' => 'pending']));
         $pendingOnly->assertOk();
         $pendingOnly->assertSee('#'.$pending->SalesReturnID.'</td>', false);
         $pendingOnly->assertDontSee('#'.$declined->SalesReturnID.'</td>', false);
     }
 
-    // A refund is cash actually leaving the business, so its badge must be
-    // visually flagged (warning icon + distinct styling) rather than the
-    // plain-gray badge a completed replacement (no cash out) gets.
     public function test_refunded_status_badge_is_flagged_distinctly_from_a_completed_replacement(): void
     {
         $refunded = $this->makeReturn(['Status' => 'processed', 'ReturnType' => 'refund']);
@@ -199,9 +191,6 @@ class SalesReturnApprovalTest extends TestCase
         $this->assertDatabaseMissing('DamagedProduct', ['SalesReturnID' => $return->SalesReturnID]);
     }
 
-    // The Damage module must stay dynamic and synchronized only with
-    // APPROVED returns — a decline must never divert anything to Damage,
-    // even for an otherwise-unsalable reason.
     public function test_declining_a_return_does_not_create_a_damage_record(): void
     {
         $return = $this->makeReturn(['Reason' => 'Factory Defect']);
@@ -214,11 +203,6 @@ class SalesReturnApprovalTest extends TestCase
         $this->assertDatabaseMissing('DamagedProduct', ['SalesReturnID' => $return->SalesReturnID]);
     }
 
-    // End-to-end traceability: once an admin approves an unsalable-reason
-    // return, the auto-created Damage record's View Details must surface
-    // Product, Brand, Category, Quantity, the Transaction/Return reference,
-    // the Reason for Return, the cashier who filed the return, and the
-    // admin who approved it — without any manual data entry.
     public function test_damage_record_view_details_traces_back_to_product_brand_category_cashier_and_approver(): void
     {
         $category = $this->product->category;
@@ -295,19 +279,15 @@ class SalesReturnApprovalTest extends TestCase
         $response = $this->actingAs($this->admin)->getJson(route('admin.sales-returns.show', $return));
         $response->assertJson(['return' => ['EligibleForReturn' => false]]);
 
-        // Outside the window is a hard block now, not just advisory — approve must be rejected.
         $this->actingAs($this->admin)->post(route('admin.sales-returns.approve', $return));
         $this->assertSame('pending', $return->fresh()->Status);
 
-        // Decline must still work for an out-of-window request.
         $this->actingAs($this->admin)->post(route('admin.sales-returns.decline', $return), [
             'DeclineReason' => 'Outside the return window.',
         ]);
         $this->assertSame('declined', $return->fresh()->Status);
     }
 
-    // A customer who gave no name (stored as "Walk-in Customer") shows as
-    // "N/A" on the Approval list and in its View Details; real names stay.
     public function test_walk_in_customers_show_as_na_on_the_approval_page(): void
     {
         $walkIn = $this->makeReturn(['CustomerName' => 'Walk-in Customer']);

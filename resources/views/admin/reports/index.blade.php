@@ -17,9 +17,6 @@
         <span id="dateRangeErrorText">{{ $dateRangeError }}</span>
     </div>
 
-    {{-- Sales and Revenue only: totals for the selected date range. Kept
-         outside #reportBodyContainer, so refreshReportBody() fills them in
-         from the preview response and hides them for other report types. --}}
     @php $summary = $salesSummary ?? ['sales_total' => 0, 'refund_total' => 0, 'net_total' => 0]; @endphp
     <div id="salesSummaryCards" class="stats-grid mt-4" style="{{ $reportType === 'sales' ? '' : 'display:none;' }}">
         <div class="stat-card">
@@ -45,7 +42,6 @@
         </div>
     </div>
 
-    <!-- Report Type / Date Range -->
     <div class="card mt-4 report-filter-card">
         <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items:end;">
             <div class="form-group">
@@ -112,13 +108,6 @@
         ])
     </div>
 
-    {{-- Report Details modal: shared by every Report Type's "View Details"
-         row action. Lives outside #reportBodyContainer (which gets wholesale
-         replaced on every type/date change) so it survives those refreshes.
-         The body is rendered generically from whatever {sections} the
-         admin.reports.details endpoint returns for the given type/id, so a
-         future report type needs no new modal markup or JS — only a new
-         section builder server-side. --}}
     <div id="reportDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reportDetailsTitle" aria-hidden="true">
         <div class="modal modal-report-details">
             <div class="modal-header">
@@ -129,7 +118,6 @@
                 <p class="text-muted">Loading...</p>
             </div>
             <div class="modal-footer no-print">
-                {{-- Opens this record's Print Preview in a new tab (href set by viewReportDetails()). --}}
                 <a href="#" id="reportDetailsPrintPreview" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Preview" data-confirm-text="Open the print preview of this report?" target="_blank" style="display:none; text-decoration:none;"><i class="fas fa-print"></i> Print Preview</a>
                 <button type="button" class="btn btn-primary" onclick="closeReportDetailsModal()">Close</button>
             </div>
@@ -141,9 +129,6 @@
         .report-section-heading { margin: 0 0 12px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #f8fafc); text-transform: uppercase; letter-spacing: 0.04em; }
         .report-section-divider { border: none; border-top: 1px solid var(--border, rgba(148, 163, 184, 0.25)); margin: 18px 0; }
 
-        {{-- A sale that was later refunded needs to stand out from the rest
-             of its own details — reuses the same amber warning treatment as
-             the Returns module's "Refunded" badge (admin/sales-returns). --}}
         .report-detail-warning {
             display: flex;
             align-items: center;
@@ -157,9 +142,6 @@
             font-size: 0.85rem;
         }
 
-        {{-- Line-based report layout: each field is a plain "Label: Value"
-             row, no card/box around it -- replaces the previous
-             card-grid presentation for View Details. --}}
         .report-detail-lines { display: flex; flex-direction: column; }
         .report-detail-line {
             display: flex;
@@ -201,10 +183,8 @@
                     : '';
 
                 if (section.fields && section.fields.length) {
-                    // Label above value, three per row (shared .ui-kv-grid).
                     html += '<div class="report-detail-lines ui-kv-grid">';
                     section.fields.forEach(function (f) {
-                        // A field with a url (e.g. the proof of payment photo) is a link.
                         const value = f.url
                             ? `<a href="${escapeReportDetailHtml(f.url)}" target="_blank" rel="noopener"><i class="fas fa-image"></i> ${escapeReportDetailHtml(f.value)}</a>`
                             : escapeReportDetailHtml(f.value);
@@ -302,10 +282,6 @@
             const exportBaseUrl = '{{ route('admin.reports.export') }}';
             const printBaseUrl = '{{ route('admin.reports.print') }}';
 
-            // Keeps each date input's HTML5 min/max in sync with the other
-            // field's current value, so the browser itself blocks picking an
-            // End Date before Start Date (rather than only catching it after
-            // a round-trip to the server).
             function syncDateConstraints() {
                 dateTo.min = dateFrom.value || '';
                 dateFrom.max = dateTo.value || '';
@@ -318,9 +294,6 @@
                 return params;
             }
 
-            // The visible report list is always current for whatever's
-            // selected, so downloads always target exactly that — no
-            // separate "preview then unlock" step needed.
             function refreshDownloadTargets() {
                 const params = currentParams();
                 [['pdf', pdfLink], ['csv', csvLink], ['excel', excelLink]].forEach(([format, el]) => {
@@ -331,15 +304,8 @@
                 printPreviewLink.href = printBaseUrl + '?' + params.toString();
             }
 
-            // Guards against out-of-order responses: if the admin changes
-            // the type/dates again before an in-flight fetch resolves, only
-            // the response matching the LATEST request is allowed to paint
-            // the page — otherwise a slower, stale response could overwrite
-            // newer, correct results.
             let requestSequence = 0;
 
-            // The three Sales and Revenue cards: shown only for that report
-            // type, with the totals for the selected range.
             const salesSummaryCards = document.getElementById('salesSummaryCards');
             function updateSalesSummary(summary) {
                 salesSummaryCards.style.display = summary ? '' : 'none';
@@ -388,17 +354,10 @@
                 updateActivePreset();
             }));
 
-            // Real time (partials/live-updates): when anything a report
-            // covers changes, reload the visible report with the same
-            // type/dates.
             window.liveUpdates.watch(['sales', 'inventory', 'products', 'damages', 'purchase_orders', 'stock_receivings', 'stock_adjustments', 'returns', 'suppliers'], function () {
                 refreshReportBody();
             });
 
-            // Presets just fill the same two date inputs the manual pickers
-            // use, then run through the exact same syncDateConstraints() +
-            // refreshReportBody() path — no separate request logic to keep
-            // in sync with the manual-entry flow.
             function pad(n) { return String(n).padStart(2, '0'); }
             function toDateInputValue(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 
@@ -418,7 +377,7 @@
                     }
                     case 'this_week': {
                         const d = startOfDay(now);
-                        const day = d.getDay(); // 0=Sun..6=Sat
+                        const day = d.getDay();
                         const monday = new Date(d); monday.setDate(d.getDate() - ((day + 6) % 7));
                         const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
                         return [monday, sunday];

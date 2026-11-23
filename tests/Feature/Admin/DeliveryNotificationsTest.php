@@ -47,9 +47,6 @@ class DeliveryNotificationsTest extends TestCase
 
     private static int $poCounter = 0;
 
-    /**
-     * A PO that has been printed and is waiting in Stock Receiving.
-     */
     private function makePendingDelivery(?string $expectedDate, string $batchStatus = StockReceivingBatch::STATUS_PENDING): StockReceivingBatch
     {
         $po = PurchaseOrder::create([
@@ -67,8 +64,6 @@ class DeliveryNotificationsTest extends TestCase
 
         return StockReceivingBatch::create(['PurchaseOrderID' => $po->PurchaseOrderID, 'Status' => $batchStatus]);
     }
-
-    // ---- Stock received ----
 
     public function test_adding_a_delivery_to_inventory_notifies_admins_with_the_quantities(): void
     {
@@ -97,7 +92,6 @@ class DeliveryNotificationsTest extends TestCase
         $batch = $this->makePendingDelivery(now()->toDateString());
         $item = PurchaseOrderItem::where('PurchaseOrderID', $batch->PurchaseOrderID)->first();
 
-        // More than was ordered -- rejected, nothing written.
         $this->actingAs($this->admin)->post(route('admin.stock-receivings.batches.add-to-inventory', $batch), [
             'receipt_number' => 'DR-NOTIFY-2',
             'items' => [['purchase_order_item_id' => $item->PurchaseOrderItemID, 'quantity_received' => 99]],
@@ -105,8 +99,6 @@ class DeliveryNotificationsTest extends TestCase
 
         Notification::assertNotSentTo($this->admin, DeliveryReceived::class);
     }
-
-    // ---- Delivery due ----
 
     public function test_a_delivery_due_today_notifies_admins_exactly_once(): void
     {

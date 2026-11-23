@@ -7,11 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * The price of a roll/box is no longer typed in: it's the price per
-     * meter/piece x how many the last received roll held. Only whether the
-     * product is also sold by the roll is kept (SellsByPurchaseUnit).
-     */
     public function up(): void
     {
         Schema::table('Product', function (Blueprint $table) {

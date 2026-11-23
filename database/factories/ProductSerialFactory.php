@@ -5,16 +5,8 @@ namespace Database\Factories;
 use App\Models\ProductSerial;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * Pass the ProductID: ProductSerial::factory()->create(['ProductID' => $product->ProductID]).
- *
- * @extends Factory<ProductSerial>
- */
 class ProductSerialFactory extends Factory
 {
-    /**
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
         return [

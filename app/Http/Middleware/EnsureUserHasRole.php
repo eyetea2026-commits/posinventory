@@ -8,14 +8,6 @@ use Illuminate\Support\Facades\Auth;
 
 class EnsureUserHasRole
 {
-    /**
-     * Handle an incoming request.
-     *
-     * Someone signed in with the wrong role for a page (e.g. an Admin
-     * opening /cashier/pos) is sent to their own home page with a short
-     * message instead of a bare "403 Forbidden" page. Data requests (JSON
-     * and /api) still get a plain 403, since there's no page to redirect to.
-     */
     public function handle(Request $request, Closure $next, string $role)
     {
         $user = Auth::user();
@@ -45,9 +37,6 @@ class EnsureUserHasRole
         return redirect($home)->with('error', "That page is for {$pageFor} accounts only.");
     }
 
-    /**
-     * Where a signed-in user belongs, or null if their account has no role.
-     */
     private function homeFor($user): ?string
     {
         if ($user->isAdmin()) {

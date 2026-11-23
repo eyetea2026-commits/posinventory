@@ -1,9 +1,3 @@
-{{-- Supplier form checks, run when Save is clicked (Add/Edit Supplier popups
-     and the standalone pages). Each problem is shown under its field in red
-     and the form isn't sent. The Contact Number box drops letters as it's
-     typed; on Save each number (split on "/") is written as 0912-345-6789,
-     (02) 8123-4567 or (082) 295-7595. The server checks the same rules
-     (SupplierController). Include once per page. --}}
 <style>
     .supplier-field-invalid { border-color: #ef4444 !important; background: rgba(239, 68, 68, 0.12) !important; }
 </style>
@@ -15,13 +9,10 @@
         const PHONE = '(09\\d{2}-\\d{3}-\\d{4}|\\(02\\) \\d{4}-\\d{4}|\\(0[1-8]\\d\\) \\d{3}-\\d{4})';
         const CONTACT_NUMBER_PATTERN = new RegExp('^' + PHONE + '( / ' + PHONE + '){0,2}$');
 
-        // While typing: letters are dropped, everything else stays as typed.
         window.cleanSupplierContactNumber = function (value) {
             return String(value || '').replace(/[^0-9+()\-\/ ]/g, '');
         };
 
-        // On Save: each number written as 0912-345-6789, (02) 8123-4567 or
-        // (082) 295-7595, joined with " / " (same as the server).
         window.formatSupplierContactNumber = function (value) {
             return String(value || '').split(/[\/,;]/).map(function (part) {
                 let digits = part.replace(/\D/g, '');
@@ -42,7 +33,6 @@
                     if (v === '') return 'Contact Number is required.';
                     return CONTACT_NUMBER_PATTERN.test(v) ? '' : 'Enter a mobile number as 0912-345-6789 or a landline as (02) 8123-4567. Separate two numbers with "/".';
                 case 'Email':
-                    // Optional; checked only when filled in.
                     if (v === '') return '';
                     return EMAIL_PATTERN.test(v) ? '' : 'Please enter a valid email address.';
                 case 'Address':
@@ -72,8 +62,6 @@
             if (span) span.textContent = message;
         }
 
-        // Checks every field; shows each problem under its field. Returns
-        // true when the form can be saved.
         window.validateSupplierForm = function (form) {
             let firstInvalid = null;
             ['SupplierName', 'ContactNumber', 'Email', 'Address'].forEach(function (name) {
@@ -93,7 +81,6 @@
             return form && SUPPLIER_FORMS.includes(form.id);
         }
 
-        // Format the number as it's typed; clear a field's message once it's fixed.
         document.addEventListener('input', function (e) {
             const field = e.target;
             if (!field.form || !isSupplierForm(field.form)) return;
@@ -105,7 +92,6 @@
             }
         });
 
-        // The standalone Add/Edit pages submit a normal form.
         document.addEventListener('submit', function (e) {
             if (e.target.id === 'supplierForm' && !window.validateSupplierForm(e.target)) {
                 e.preventDefault();

@@ -7,12 +7,6 @@ use App\Services\ProductImage;
 use Illuminate\Console\Command;
 use Throwable;
 
-/**
- * Attaches a folder of product photos in one go. Each file is matched to a
- * product by its file name (without the extension): the product's SKU
- * (SKU-000041), barcode (CCTVEX-000041), or exact product name. Photos are
- * stored shrunk, like uploads from Edit Product.
- */
 class ImportProductPhotos extends Command
 {
     protected $signature = 'products:import-photos

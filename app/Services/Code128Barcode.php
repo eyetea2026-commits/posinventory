@@ -2,18 +2,8 @@
 
 namespace App\Services;
 
-/**
- * Code 128 barcodes drawn as SVG. Every character is encoded in code set B
- * (never set C): the store's scanner drops the last character of set C
- * codes, so set B is what scans reliably.
- */
 class Code128Barcode
 {
-    /**
-     * Bar/space widths (in modules) of every Code 128 symbol, 0-106.
-     *
-     * @var list<string>
-     */
     private const PATTERNS = [
         '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
         '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
@@ -32,11 +22,6 @@ class Code128Barcode
 
     private const STOP = 106;
 
-    /**
-     * Widths of the alternating bars and spaces, starting with a bar.
-     *
-     * @return list<int>
-     */
     public static function widths(string $text): array
     {
         $values = [self::START_B];
@@ -65,9 +50,6 @@ class Code128Barcode
         return $widths;
     }
 
-    /**
-     * An SVG of the barcode, $quietModules of white on each side.
-     */
     public static function svg(string $text, int $height = 40, int $quietModules = 10): string
     {
         $x = $quietModules;
@@ -84,9 +66,6 @@ class Code128Barcode
             .'<rect x="0" y="0" width="'.$totalWidth.'" height="'.$height.'" fill="#fff"/><g fill="#000">'.$rects.'</g></svg>';
     }
 
-    /**
-     * The SVG as a data: URI, for an <img> in a PDF.
-     */
     public static function dataUri(string $text, int $height = 40): string
     {
         return 'data:image/svg+xml;base64,'.base64_encode(self::svg($text, $height));

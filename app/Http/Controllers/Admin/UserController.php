@@ -14,7 +14,6 @@ use App\Notifications\UserAccountUpdated;
 use App\Services\ActionNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -28,12 +27,6 @@ class UserController extends Controller
 {
     public function __construct()
     {
-        // Route-level role:admin middleware already gates every route here —
-        // this constructor-level check is defense-in-depth, matching the
-        // same double-gate pattern every other admin controller uses, so a
-        // future route added without the right middleware doesn't go
-        // unprotected specifically in the one controller that manages
-        // accounts and roles.
         $this->middleware('auth');
         $this->middleware(function ($request, $next) {
             if (! auth()->user() || ! auth()->user()->isAdmin()) {
@@ -58,8 +51,6 @@ class UserController extends Controller
                         ->orWhere('last_name', 'like', "%{$search}%");
                 });
             })
-            // Administrator accounts always stay on top; every other account
-            // follows, newest first.
             ->orderByDesc('is_super_admin')
             ->orderByRaw('CASE WHEN role_id = ? THEN 0 ELSE 1 END', [$adminRoleId ?? 0])
             ->orderByDesc('id')
@@ -75,7 +66,6 @@ class UserController extends Controller
 
     public function create()
     {
-        // Cashier, plus Administrator for the Super Admin.
         $roles = $this->assignableRoles();
 
         return view('admin.users.create', [
@@ -83,10 +73,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * AJAX endpoint: check whether a given full name (first + middle + last)
-     * already exists. Returns { duplicate: bool, name: string }.
-     */
     public function checkName(Request $request)
     {
         $first = trim((string) $request->input('first_name', ''));
@@ -120,17 +106,12 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        // Cashier accounts, plus Administrator accounts for the Super Admin
-        // only — validated here server-side too, so a crafted request with a
-        // different role_id can't create an unauthorized Administrator
-        // account. Never rely on the dropdown alone to enforce this.
         $assignableRoleIds = $this->assignableRoles()->pluck('id')->all();
 
         $data = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
-            // The age is worked out from the birthdate; users must be 18+.
             'birthdate' => self::birthdateRules('required'),
             'address' => ['nullable', 'string', 'max:255'],
             'contact_number' => ['required', 'digits:11', 'unique:users,contact_number'],
@@ -150,12 +131,8 @@ class UserController extends Controller
             'password.confirmed' => 'Password and Confirm Password must match.',
         ]);
 
-        // Combine name from first, middle, last
         $fullName = trim($data['first_name'].' '.($data['middle_name'] ?? '').' '.$data['last_name']);
 
-        // Block duplicate full name (case-insensitive, whitespace-normalized).
-        // This is the authoritative server-side check — anything the client-side
-        // duplicate-name AJAX misses is caught here before a user is created.
         $normalizedFullName = preg_replace('/\s+/', ' ', strtolower(trim($fullName)));
         $duplicate = User::get()->first(function ($existing) use ($normalizedFullName) {
             $existingFullName = preg_replace(
@@ -210,11 +187,8 @@ class UserController extends Controller
         }
 
         $user->load('role');
-        // The roles this admin may give, plus the account's current one.
         $roles = $this->assignableRoles()->push($user->role)->filter()->unique('id')->sortBy('role_name')->values();
 
-        // Edit User modal: return just the rendered form fields instead of a
-        // full page, so the modal can inject it without navigating.
         if ($this->isAjaxRequest()) {
             return response()->json([
                 'html' => view('admin.users.partials.user-form-fields', [
@@ -240,7 +214,6 @@ class UserController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
-            // Optional here: users made before birthdates existed may not have one yet.
             'birthdate' => self::birthdateRules('nullable'),
             'address' => ['nullable', 'string', 'max:255'],
             'contact_number' => ['required', 'digits:11', 'unique:users,contact_number,'.$user->id],
@@ -254,11 +227,6 @@ class UserController extends Controller
             ...self::birthdateMessages(),
         ]);
 
-        // Updating an Administrator account requires the ACTING admin to
-        // re-enter their own current password first — a step-up check on
-        // top of the normal auth session, same as resetPassword() below.
-        // This gates any edit to an admin account (including an admin
-        // editing their own profile), not just a role or password change.
         if ($user->isAdmin()) {
             $request->validate(['current_password' => ['required', 'string']]);
 
@@ -271,8 +239,6 @@ class UserController extends Controller
 
         $roleChanged = (int) $data['role_id'] !== (int) $user->role_id;
 
-        // Making someone an Administrator, or taking it away, is the Super
-        // Admin's call; the Super Admin's own role never changes.
         if ($roleChanged) {
             $adminRoleId = (int) Role::whereRaw('LOWER(role_name) = ?', ['admin'])->value('id');
 
@@ -291,17 +257,11 @@ class UserController extends Controller
         $passwordChanged = ! empty($data['password']);
         $oldRoleName = $user->role?->role_name;
 
-        // Strip `password` before mass assignment. The ConvertEmptyStringsToNull
-        // middleware turns an empty password field into null, which would
-        // overwrite the user's hashed password and trip the NOT NULL constraint
-        // at save time. We re-apply the new password below only when one was
-        // actually submitted.
         $updateData = $data;
         unset($updateData['password']);
         if (! empty($data['birthdate'])) {
             $updateData['age'] = Carbon::parse($data['birthdate'])->age;
         } else {
-            // Leave an older user's saved birthdate/age alone when none is sent.
             unset($updateData['birthdate']);
         }
 
@@ -314,13 +274,6 @@ class UserController extends Controller
         };
 
         if ($roleChanged) {
-            // Never rely on the Edit form disabling the Role field
-            // client-side — if this is the last active Administrator,
-            // reject any attempt to change their role away from admin
-            // server-side too, since that would leave the system with zero
-            // admins. Locked (see withLastAdminGuard) so a concurrent
-            // role-change/deactivate/delete against a DIFFERENT admin can't
-            // race this same check.
             $blocked = $this->withLastAdminGuard(
                 $user,
                 'This is the last active Administrator account — its role cannot be changed.',
@@ -360,13 +313,6 @@ class UserController extends Controller
         return redirect()->route('admin.users.index')->with('status', 'User account updated successfully.');
     }
 
-    // "Enter Your Credentials" popup shown before the Reset Password form —
-    // lets the admin's own password be checked (and a wrong one rejected)
-    // as its own step, before the New Password fields even appear. This is
-    // a UX gate only; resetPassword() below re-checks the same password
-    // server-side against the same request, so a client that skips this
-    // call and posts straight to reset-password still can't get through
-    // without it.
     public function verifyPassword(Request $request)
     {
         $data = $request->validate([
@@ -382,17 +328,8 @@ class UserController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // Dedicated Reset Password popup — deliberately separate from update()
-    // above so it can be a small, self-contained form (just the two
-    // password fields) instead of having to carry every other profile
-    // field along just to change a password. Same hashing/validation the
-    // rest of the app already uses (Password::defaults(), Hash::make()) —
-    // no separate password system.
     public function resetPassword(Request $request, User $user)
     {
-        // Administrator accounts are never resettable through this flow —
-        // enforced here too, not just by hiding the button, since the UI
-        // alone is never a real boundary against a direct request.
         if ($user->isAdmin()) {
             abort(403);
         }
@@ -481,22 +418,6 @@ class UserController extends Controller
         return back()->with('status', 'User account activated.');
     }
 
-    // Closes the TOCTOU race on the "last active Administrator" guard: two
-    // concurrent requests against two DIFFERENT admins (e.g. both being
-    // deactivated, or one deactivated while another's role is changed) could
-    // each read isProtected() as false — since neither commit had landed
-    // yet, the count each sees is still >1 — and both proceed, leaving zero
-    // admins. Locks every currently-active admin row for the duration of one
-    // DB transaction (mirrors AuthController::login()'s lock-then-recheck
-    // pattern), re-fetches $user under that same lock, then re-evaluates
-    // isProtected() against the locked set before letting the callback run.
-    // Returns the callback's return value, or null if blocked.
-    /**
-     * A real date, no later than 18 years ago (the user must be 18+), and
-     * no more than 120 years ago.
-     *
-     * @return list<string>
-     */
     private static function birthdateRules(string $presence): array
     {
         return [
@@ -507,9 +428,6 @@ class UserController extends Controller
         ];
     }
 
-    /**
-     * @return array<string, string>
-     */
     private static function birthdateMessages(): array
     {
         return [
@@ -546,11 +464,6 @@ class UserController extends Controller
         });
     }
 
-    /**
-     * Cashier for every Administrator; Administrator too for the Super Admin.
-     *
-     * @return Collection<int, Role>
-     */
     private function assignableRoles()
     {
         $roleNames = auth()->user()->isSuperAdmin() ? ['admin', 'cashier'] : ['cashier'];
@@ -576,10 +489,6 @@ class UserController extends Controller
         return back()->with('error', $message);
     }
 
-    /**
-     * Check if the request is an AJAX request
-     * Works with both traditional X-Requested-With header and Accept header
-     */
     private function isAjaxRequest(): bool
     {
         return request()->ajax() ||

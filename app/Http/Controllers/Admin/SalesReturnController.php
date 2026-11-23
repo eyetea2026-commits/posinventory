@@ -7,7 +7,6 @@ use App\Models\ActivityLog;
 use App\Models\DamagedProduct;
 use App\Models\ProductSerial;
 use App\Models\PurchaseOrderItem;
-use App\Models\SalesItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Notifications\ReturnRequestApproved;
@@ -65,7 +64,6 @@ class SalesReturnController extends Controller
             ->when($status, function ($query, $status) {
                 $query->where('Status', $status);
             })
-            // Newest return request first.
             ->orderByDesc('SalesReturnID')
             ->paginate(15)
             ->withQueryString();
@@ -89,13 +87,6 @@ class SalesReturnController extends Controller
             'processedByUser',
         ]);
 
-        // Who actually submitted THIS return request (SalesReturn.StaffID) —
-        // deliberately separate from "OriginalCashier" below, which is
-        // whoever processed the original sale via SalesTransaction.StaffID.
-        // They're very often the same person but not guaranteed to be (a
-        // return can be filed by a different cashier than the one who rang
-        // up the original sale), so this must be resolved from the return
-        // record itself, never assumed to match the transaction.
         $requestStaff = $salesReturn->staff;
         $requestUser = $requestStaff?->user;
         $requestedBy = [
@@ -109,10 +100,6 @@ class SalesReturnController extends Controller
         $receiptNumber = $transaction ? 'RCT-'.str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) : null;
 
         $items = $salesReturn->items->map(function (SalesReturnItem $item) {
-            // What this line is actually refundable for — pulled from the
-            // ORIGINAL sale's SalesItem (which carries the discount that
-            // applied at sale time), not SalesReturnItem's own line_total
-            // (always the full undiscounted UnitPrice*Quantity).
             $refundableLineTotal = $item->refundableTotal();
 
             return [
@@ -168,23 +155,12 @@ class SalesReturnController extends Controller
             return back()->with('status', 'Only pending returns can be approved.');
         }
 
-        // Backstop for requests that predate the cashier-side window check
-        // (or that theoretically slipped through some other path) — a
-        // request outside the 7-day window can only be declined, not
-        // approved.
         if ($salesReturn->is_within_return_window === false) {
             return back()->with('status', "This request was made {$salesReturn->days_since_purchase} day(s) after purchase, outside the ".SalesReturn::RETURN_WINDOW_DAYS.'-day return window, and can no longer be approved. Decline it instead.');
         }
 
         try {
             DB::transaction(function () use ($salesReturn) {
-                // Re-fetch and lock the return, re-verifying it's still
-                // pending under the lock — the check above ran before this
-                // transaction opened, so a double-click or replayed request
-                // could otherwise also pass it and create a second Damage
-                // record for the same unsalable item (the unique constraint
-                // on DamagedProduct(SalesReturnID, ProductID) is the backstop
-                // if this check is ever bypassed some other way).
                 $locked = SalesReturn::where('SalesReturnID', $salesReturn->SalesReturnID)
                     ->where('Status', SalesReturn::STATUS_PENDING)
                     ->lockForUpdate()
@@ -199,17 +175,8 @@ class SalesReturnController extends Controller
                     'ApprovedBy' => auth()->id(),
                 ]);
 
-                // Factory Defect / Damaged Product units are unsalable — divert
-                // them into the Damage module right now instead of ever letting
-                // them flow back into Inventory. Inventory itself isn't touched
-                // here: the unit was already decremented at original sale time,
-                // and the only thing this prevents is CashierReturnController::
-                // processRefund() incrementing it back later. Checked per item —
-                // a single request can mix salable and unsalable products.
                 foreach ($salesReturn->items as $item) {
                     if ($item->is_unsalable) {
-                        // The exact pieces returned are Damaged: their
-                        // stickers can never be sold at the POS again.
                         ProductSerial::where('SalesReturnID', $salesReturn->SalesReturnID)
                             ->where('ProductID', $item->ProductID)
                             ->update(['Status' => ProductSerial::STATUS_DAMAGED, 'StatusDate' => now()]);
@@ -236,11 +203,6 @@ class SalesReturnController extends Controller
 
     private function createDamageRecordForItem(SalesReturn $salesReturn, SalesReturnItem $item): void
     {
-        // Best-effort: trace the product back to its most recent purchase
-        // order to guess a supplier. A customer return isn't tied to any
-        // specific PO, so this can legitimately come back null — SupplierID
-        // is nullable for exactly this reason; admin can look it up manually
-        // before returning the item to a supplier.
         $supplierId = PurchaseOrderItem::where('ProductID', $item->ProductID)
             ->join('PurchaseOrder', 'PurchaseOrder.PurchaseOrderID', '=', 'PurchaseOrderItem.PurchaseOrderID')
             ->orderByDesc('PurchaseOrder.PurchaseOrderID')
@@ -258,7 +220,6 @@ class SalesReturnController extends Controller
             'SalesReturnID' => $salesReturn->SalesReturnID,
             'SourceModule' => DamagedProduct::SOURCE_CUSTOMER_RETURN,
             'SupplierID' => $supplierId,
-            // In the product's base unit: a returned box is its 100 pieces.
             'Quantity' => $item->BaseQuantity,
             'Description' => "Customer return — {$item->Reason} (Return #{$salesReturn->SalesReturnID}, Receipt {$receiptNumber}{$serialText})",
             'DateRecorded' => now(),
@@ -289,7 +250,6 @@ class SalesReturnController extends Controller
                 'ApprovedBy' => auth()->id(),
                 'DeclineReason' => $data['DeclineReason'],
             ]);
-            // The customer keeps the pieces: they're no longer on a return.
             ProductSerial::where('SalesReturnID', $salesReturn->SalesReturnID)->update(['SalesReturnID' => null]);
 
             ActivityLog::record('return.declined', "Declined return #{$salesReturn->SalesReturnID}: {$data['DeclineReason']}");
@@ -305,8 +265,6 @@ class SalesReturnController extends Controller
         return back()->with('status', 'Return request declined.');
     }
 
-    // A notification failure (broken mail transport, queue connection down)
-    // must not turn a successful approve/decline into a 500 response.
     private function notifyCashier(SalesReturn $salesReturn, $notification): void
     {
         $cashierUser = $salesReturn->staff?->user;

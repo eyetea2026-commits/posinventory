@@ -5,23 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Drops columns left over from the system's first version that nothing
- * reads or writes any more:
- *  - SalesReturn.ProductID / Quantity / Reason: a return's products live in
- *    SalesReturnItem since multi-item returns.
- *  - Discount.ProductID: promos are assigned through DiscountProduct.
- *  - PurchaseOrderItem.ReceiptNumber: receipt numbers are kept per delivery
- *    (StockReceivingBatch / StockReceivingDelivery).
- *
- * It stops without changing anything if any of them still holds a value,
- * so no data can be lost.
- */
 return new class extends Migration
 {
-    /**
-     * @var array<string, list<string>>
-     */
     private const COLUMNS = [
         'SalesReturn' => ['ProductID', 'Quantity', 'Reason'],
         'Discount' => ['ProductID'],

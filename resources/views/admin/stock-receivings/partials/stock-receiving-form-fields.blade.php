@@ -1,7 +1,3 @@
-{{-- Shared "Record Stock Receiving" field markup. Included by both the
-     standalone create page and the Record Receipt modal. When $purchaseOrder
-     is set, receiving is against that PO's remaining line items instead of
-     a free product/supplier pick — ad-hoc receiving (no PO) is unchanged. --}}
 <div class="form-grid">
     @if(isset($purchaseOrder))
         <input type="hidden" name="purchase_order_id" value="{{ $purchaseOrder->PurchaseOrderID }}">
@@ -22,19 +18,10 @@
         </div>
     @else
         @php
-            // For re-showing the typed product name if the form re-renders
-            // after a validation error (old('ProductID') is still the ID).
             $oldProduct = old('ProductID') ? $products->firstWhere('ProductID', (int) old('ProductID')) : null;
         @endphp
         <div class="form-group full-width">
             <label class="form-label" for="ProductSearch">Product <span class="required">*</span></label>
-            {{-- A single searchable field, not a plain <select>: typing
-                 filters the browser's own native datalist suggestions
-                 immediately, no separate search box alongside it. The
-                 datalist only carries display names (HTML datalists can't
-                 carry a separate id), so the matching ProductID is looked
-                 up client-side and kept in the hidden input actually
-                 submitted. --}}
             <input type="text" id="ProductSearch" class="form-input" list="productOptions" autocomplete="off"
                    placeholder="Type to search product…" required
                    value="{{ old('_ProductSearch', $oldProduct ? $oldProduct->ProductName . ' - ' . $oldProduct->Model : '') }}">
@@ -61,9 +48,6 @@
                     for (var i = 0; i < options.length; i++) {
                         if (options[i].value === typed) { matched = options[i]; break; }
                     }
-                    // Cleared, not left stale, when the typed text no longer
-                    // matches an actual product exactly — prevents
-                    // submitting whatever the last valid selection was.
                     hiddenId.value = matched ? matched.dataset.productId : '';
                 });
             })();
@@ -108,8 +92,6 @@
 
 @if(isset($purchaseOrder))
 <script>
-    // Client-side hint only — the server re-validates the remaining
-    // quantity for the selected line inside a locked transaction regardless.
     function onReceivingLineChange(select) {
         const option = select.options[select.selectedIndex];
         const qtyInput = document.getElementById('Quantity');

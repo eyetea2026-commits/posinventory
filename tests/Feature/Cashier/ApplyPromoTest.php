@@ -44,9 +44,6 @@ class ApplyPromoTest extends TestCase
         Inventory::create(['ProductID' => $this->otherProduct->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
     }
 
-    // Creates a promo and assigns it to the given product(s) via the pivot —
-    // matches how the admin's "Apply Discount/Promo" tab actually attaches a
-    // promo, instead of the old single-ProductID column.
     private function makePromo(array $overrides = [], ?array $productIds = null): Discount
     {
         $discount = Discount::create(array_merge([
@@ -78,9 +75,6 @@ class ApplyPromoTest extends TestCase
 
     public function test_apply_promo_rejects_an_unknown_code(): void
     {
-        // A promo exists for this product, so the "unknown code" path is
-        // isolated from the separate "product has no promo at all" path
-        // covered by test_apply_promo_rejects_a_product_with_no_promo_at_all().
         $this->makePromo();
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
@@ -93,9 +87,6 @@ class ApplyPromoTest extends TestCase
 
     public function test_apply_promo_rejects_a_product_with_no_promo_at_all(): void
     {
-        // otherProduct has zero Discount rows assigned to it in this test —
-        // neither active, expired, nor future — matching a product that has
-        // simply never had a promo.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
             'promo_code' => 'ANYTHING', 'product_id' => $this->otherProduct->ProductID,
         ]);
@@ -107,9 +98,6 @@ class ApplyPromoTest extends TestCase
     public function test_apply_promo_rejects_a_code_that_belongs_to_a_different_product(): void
     {
         $this->makePromo();
-        // otherProduct has its own (different) promo, so this test isolates
-        // "wrong code for this product" from "product has no promo at all"
-        // (covered separately by test_apply_promo_rejects_a_product_with_no_promo_at_all()).
         $this->makePromo(['PromoCode' => 'DVR20'], [$this->otherProduct->ProductID]);
 
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.pos.apply-promo'), [
@@ -148,10 +136,6 @@ class ApplyPromoTest extends TestCase
     {
         $discount = $this->makePromo();
 
-        // Cart: 1x Bullet 2MP (promo'd, 1000) + 1x DVR 8CH (not promo'd, 2000).
-        // Subtotal = 3000. Discount only on the 1000 line: 1000*0.20 = 200.
-        // Total = 3000-200 = 2800 (VAT is not added on top of this).
-        // VAT inside it = 2800 × 12/112 = 300.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -172,11 +156,6 @@ class ApplyPromoTest extends TestCase
         $this->assertSame('SUMMER20', $billing->PromoCode);
     }
 
-    // Apply Promo is fully automatic now — processSale() independently
-    // determines each cart line's own active promo straight from the
-    // database, there's no client-sent discount_id to reject. A promo not
-    // assigned to a cart's product simply doesn't discount anything; the
-    // sale still succeeds at full price rather than failing.
     public function test_checkout_does_not_discount_a_product_the_promo_is_not_assigned_to(): void
     {
         $this->makePromo();
@@ -195,11 +174,6 @@ class ApplyPromoTest extends TestCase
         $this->assertEquals(2000.0, (float) $billing->TotalAmount);
     }
 
-    // Even though the DiscountProduct assignment row still exists, an
-    // expired promo must never be auto-applied — checked fresh against
-    // today's date at checkout time, not trusted from anything sent by the
-    // client (there's nothing to trust here in the first place: no
-    // discount_id is sent at all anymore).
     public function test_checkout_does_not_discount_a_product_whose_promo_has_expired(): void
     {
         $this->makePromo(['StartDate' => '2020-01-01', 'EndDate' => '2020-01-31']);
@@ -237,11 +211,8 @@ class ApplyPromoTest extends TestCase
         $receiptResponse->assertOk();
         $receiptResponse->assertViewHas('promoCode', 'SUMMER20');
         $receiptResponse->assertViewHas('promoProductName', 'Bullet 2MP');
-        // 200 discount / 1000 promo'd-line subtotal = 20%, not 200/3000=6.67%.
         $receiptResponse->assertViewHas('discountRate', 20.0);
     }
-
-    // ---- Multi-product promo behavior (new) ----
 
     public function test_apply_promo_reports_every_assigned_product_not_just_the_one_clicked(): void
     {
@@ -261,9 +232,6 @@ class ApplyPromoTest extends TestCase
     {
         $discount = $this->makePromo([], [$this->product->ProductID, $this->otherProduct->ProductID]);
 
-        // Cart: 1x Bullet 2MP (1000) + 1x DVR 8CH (2000), both assigned to
-        // the promo. Subtotal = 3000. Discount on the whole 3000: 600.
-        // Total = 3000-600 = 2400. VAT = 2400 × 12/112 = 257.14.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -291,9 +259,6 @@ class ApplyPromoTest extends TestCase
         ]);
         Inventory::create(['ProductID' => $thirdProduct->ProductID, 'Quantity' => 20, 'Status' => 'Available']);
 
-        // Cart: 1x Bullet 2MP (1000, assigned) + 1x NVR 16CH (500, NOT
-        // assigned). Subtotal = 1500. Discount only on the assigned 1000
-        // line: 200. Total = 1500-200 = 1300. VAT = 1300 × 12/112 = 139.29.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -311,18 +276,12 @@ class ApplyPromoTest extends TestCase
         $this->assertEquals(1300.0, (float) $billing->TotalAmount);
     }
 
-    // Apply Promo is fully automatic now, computed straight from
-    // Discount::discountedPriceFor() for whichever type the promo actually
-    // is — this locks in the 'fixed' branch at checkout (the existing
-    // coverage above is all 'percentage').
     public function test_checkout_computes_a_fixed_amount_discount_correctly(): void
     {
         $discount = $this->makePromo([
             'PromoCode' => 'FIXED150', 'DiscountType' => Discount::TYPE_FIXED, 'DiscountRate' => 150,
         ]);
 
-        // Bullet 2MP: 1000 - 150 fixed = 850. Subtotal (pre-discount) = 1000.
-        // Discount = 150. Total = 1000-150 = 850. VAT = 850 × 12/112 = 91.07.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [['id' => $this->product->ProductID, 'qty' => 1]],
             'payment_method' => 'cash',
@@ -338,9 +297,6 @@ class ApplyPromoTest extends TestCase
         $this->assertSame('FIXED150', $billing->PromoCode);
     }
 
-    // SalesItem.DiscountAmount is what a later return/refund prorates by —
-    // it must be THIS line's own share of the discount (per unit * qty on
-    // that line), not the transaction's whole DiscountAmount.
     public function test_checkout_records_the_per_line_discount_amount_on_the_sales_item(): void
     {
         $this->makePromo();
@@ -358,31 +314,20 @@ class ApplyPromoTest extends TestCase
         $transactionId = $response->json('receipt_number');
         $transactionId = (int) str_replace('RCT-', '', $transactionId);
 
-        // Bullet 2MP: 1000 * 20% = 200/unit discount, x2 qty = 400 total.
         $promodItem = SalesItem::where('SalesTransactionID', $transactionId)
             ->where('ProductID', $this->product->ProductID)->firstOrFail();
         $this->assertEquals(400.0, (float) $promodItem->DiscountAmount);
 
-        // DVR 8CH: not assigned to the promo — no discount at all.
         $unpromodItem = SalesItem::where('SalesTransactionID', $transactionId)
             ->where('ProductID', $this->otherProduct->ProductID)->firstOrFail();
         $this->assertEquals(0.0, (float) $unpromodItem->DiscountAmount);
     }
 
-    // Two different products can each carry their own, entirely independent
-    // active promo at once (nothing stops that — the "no overlap" rule only
-    // blocks two promos targeting the SAME product). A sale only has room
-    // for one DiscountID/PromoCode, predating per-product assignment, so
-    // this can't attribute the receipt's promo-code line to a single promo
-    // — but the total discount charged must still be exactly correct.
     public function test_checkout_sums_two_different_promos_but_cannot_attribute_a_single_discount_id(): void
     {
         $this->makePromo(['PromoCode' => 'PROMOA', 'DiscountRate' => 10], [$this->product->ProductID]);
         $this->makePromo(['PromoCode' => 'PROMOB', 'DiscountRate' => 20], [$this->otherProduct->ProductID]);
 
-        // Bullet 2MP: 1000 * 10% = 100 off. DVR 8CH: 2000 * 20% = 400 off.
-        // Subtotal = 3000. Discount = 500. Total = 3000-500 = 2500.
-        // VAT = 2500 × 12/112 = 267.86.
         $response = $this->actingAs($this->cashier)->postJson(route('cashier.process-sale'), [
             'items' => [
                 ['id' => $this->product->ProductID, 'qty' => 1],
@@ -401,11 +346,6 @@ class ApplyPromoTest extends TestCase
         $this->assertNull($billing->DiscountID);
     }
 
-    // The POS page's "Apply Promo" button only ever renders for a product
-    // PRODUCT_PROMO_MAP actually names (see pos.blade.php's renderCart()) —
-    // this locks in that CashierAuthController::pos() builds that map
-    // correctly: present for a product with a currently-active promo,
-    // absent for one with none, an expired one, or a not-yet-started one.
     public function test_pos_page_only_embeds_the_promo_map_entry_for_eligible_products(): void
     {
         $this->makePromo();
@@ -440,12 +380,6 @@ class ApplyPromoTest extends TestCase
         $response->assertDontSee('"'.$scheduled->ProductID.'":{"discount_id"', false);
     }
 
-    // The catalog cards on the left side of the POS Panel show the promo
-    // strikethrough/name/value directly (not only after adding to the
-    // cart) — renderProductCardPricing() in pos.blade.php does this by
-    // reading each card's data-product-id/data-price against
-    // PRODUCT_PROMO_MAP, so both attributes must actually be present on
-    // every card for it to work at all.
     public function test_pos_page_product_cards_carry_the_id_and_price_the_promo_display_needs(): void
     {
         $response = $this->actingAs($this->cashier)->get(route('cashier.pos'));
@@ -456,10 +390,6 @@ class ApplyPromoTest extends TestCase
         $response->assertSee('class="price-block"', false);
     }
 
-    // The POS page polls this endpoint (refreshPromoMap() in pos.blade.php)
-    // to pick up a promo created/assigned/expired in the admin's Discount
-    // Module without needing a page reload — same underlying query as the
-    // initial page load, exposed as JSON.
     public function test_promo_map_endpoint_reflects_a_promo_created_after_the_page_loaded(): void
     {
         $response = $this->actingAs($this->cashier)->getJson(route('cashier.pos.promo-map'));

@@ -16,7 +16,6 @@ class FaviconTest extends TestCase
         $icon = file_get_contents(public_path('favicon.ico'));
 
         $this->assertNotEmpty($icon);
-        // ICO file header: reserved 0, type 1 (icon).
         $this->assertSame("\x00\x00\x01\x00", substr($icon, 0, 4));
     }
 

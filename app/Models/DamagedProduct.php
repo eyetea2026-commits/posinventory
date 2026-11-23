@@ -39,7 +39,6 @@ class DamagedProduct extends Model
 
     protected $casts = [
         'DateRecorded' => 'date',
-        // In the product's base unit (meters can be damaged by the 0.5).
         'Quantity' => Quantity::class,
         'ResolvedDate' => 'date',
     ];
@@ -56,9 +55,6 @@ class DamagedProduct extends Model
 
     const STATUS_CANCELLED = 'cancelled';
 
-    // Display label for STATUS_FOR_SUPPLIER_RETURN — kept as "Pending Supplier
-    // Return" in the UI without renaming the stored value (avoids a data
-    // migration on existing rows).
     const STATUS_LABELS = [
         self::STATUS_PENDING => 'Pending',
         self::STATUS_FOR_SUPPLIER_RETURN => 'Pending Supplier Return',
@@ -74,7 +70,6 @@ class DamagedProduct extends Model
 
     const SOURCE_MANUAL = 'manual';
 
-    // Arrived damaged with a supplier's delivery (Stock Receiving).
     const SOURCE_STOCK_RECEIVING = 'stock_receiving';
 
     const SOURCE_LABELS = [
@@ -84,10 +79,6 @@ class DamagedProduct extends Model
         self::SOURCE_MANUAL => 'Manual Entry',
     ];
 
-    /**
-     * Status colour in reports: still waiting yellow, settled with the
-     * supplier green, written off red.
-     */
     public static function statusTone(?string $status): string
     {
         return match ($status) {
@@ -129,11 +120,6 @@ class DamagedProduct extends Model
         return $this->belongsTo(SalesReturn::class, 'SalesReturnID', 'SalesReturnID');
     }
 
-    /**
-     * What one base unit of the damaged pieces cost: its order line's cost,
-     * else what its sale line paid for it (FIFO), else the product's Cost
-     * Price. A replacement or restored piece goes back into stock at it.
-     */
     public function unitCost(): float
     {
         if ($this->PurchaseOrderID) {

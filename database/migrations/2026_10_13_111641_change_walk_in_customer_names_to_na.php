@@ -6,21 +6,11 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Tables that store the customer name of a sale or return.
-     *
-     * @var list<string>
-     */
     private array $tables = ['SalesTransaction', 'Billing', 'SalesReturn'];
 
-    /**
-     * A customer who gave no name used to be saved as "Walk-in Customer";
-     * it is now saved as "N/A".
-     */
     public function up(): void
     {
         foreach ($this->tables as $table) {
-            // Billing has since been merged into SalesTransaction.
             if (! Schema::hasTable($table)) {
                 continue;
             }

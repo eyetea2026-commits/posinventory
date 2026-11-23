@@ -14,20 +14,8 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Throwable;
 
-// Deliberately reachable WITHOUT an authenticated session (routes live
-// outside the `auth` middleware group): the email's "Yes"/"No" buttons must
-// work from a phone that isn't logged in. Each action instead accepts EITHER
-// a valid Laravel signed URL (proof of possessing the emailed link) OR an
-// authenticated admin session (for the in-app prompt's fetch calls) -- no
-// new auth mechanism, just an either/or check on top of what already exists.
 class LoginSecurityController extends Controller
 {
-    // A valid signature already proves possession of THIS event's own
-    // emailed link (the signature is generated per-event), so that branch
-    // needs no further scoping. The authenticated-admin fallback (the
-    // in-app "Was this you?" prompt) must additionally be the specific
-    // admin the event belongs to -- being *an* admin isn't enough, or one
-    // admin could confirm/deny another admin's own login-security prompt.
     private function authorizeAccess(Request $request, LoginSecurityEvent $loginSecurityEvent): void
     {
         if ($request->hasValidSignature()) {
@@ -41,9 +29,6 @@ class LoginSecurityController extends Controller
         abort(403);
     }
 
-    // GET, signed: a real page to land on (rather than mutating on the bare
-    // GET link) so an email client's link-prescanner can't silently trigger
-    // the confirm/deny action just by fetching the URL to preview it.
     public function review(Request $request, LoginSecurityEvent $loginSecurityEvent)
     {
         $this->authorizeAccess($request, $loginSecurityEvent);
@@ -117,11 +102,6 @@ class LoginSecurityController extends Controller
         return view('admin.security.thanks', ['status' => 'not_recognized']);
     }
 
-    // Ends only the ONE session this specific login created -- never
-    // whatever session happens to be "current" now, which could belong to a
-    // legitimate, newer login the admin has since made. Reuses the same
-    // sessions table / current_session_id column the one-session-per-account
-    // feature already maintains, rather than inventing a new mechanism.
     private function terminateAffectedSession(LoginSecurityEvent $event): void
     {
         if (! $event->SessionID) {

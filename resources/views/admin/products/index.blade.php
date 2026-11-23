@@ -28,7 +28,6 @@
         overflow: hidden;
     }
 
-    /* Toolbar */
     .toolbar {
         display: flex;
         justify-content: space-between;
@@ -39,7 +38,6 @@
         border-bottom: 1px solid var(--glass-border);
     }
 
-    /* Search Bar */
     .search-box-wrapper {
         position: relative;
         display: flex;
@@ -89,7 +87,6 @@
         outline: none;
     }
 
-    /* Filter Group */
     .filter-group {
         display: flex;
         gap: 12px;
@@ -128,7 +125,6 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
 
-    /* Buttons */
     .btn {
         display: inline-flex;
         align-items: center;
@@ -155,7 +151,6 @@
         color: white;
     }
 
-    /* Table */
     .table-container {
         overflow-x: auto;
         position: relative;
@@ -196,7 +191,6 @@
         background: rgba(59, 130, 246, 0.06);
     }
 
-    /* Product Info */
     .product-info {
         display: flex;
         flex-direction: column;
@@ -229,7 +223,6 @@
         -webkit-box-orient: vertical;
     }
 
-    /* Category */
     .category-chip {
         display: inline-flex;
         align-items: center;
@@ -243,7 +236,6 @@
         white-space: nowrap;
     }
 
-    /* Pricing */
     .pricing-info {
         display: flex;
         flex-direction: column;
@@ -282,7 +274,6 @@
     .pricing-profit.positive { color: #6ee7b7; }
     .pricing-profit.negative { color: #fca5a5; }
 
-    /* Stock */
     .stock-info {
         display: flex;
         flex-direction: column;
@@ -329,7 +320,6 @@
         color: #fca5a5;
     }
 
-    /* Actions */
     .actions-group {
         display: flex;
         gap: 8px;
@@ -405,7 +395,6 @@
         border-color: rgba(245, 158, 11, 0.35);
     }
 
-    /* Empty state */
     .empty-state {
         padding: 60px 20px;
         text-align: center;
@@ -436,7 +425,6 @@
         margin-bottom: 20px;
     }
 
-    /* Pagination */
     .pagination {
         display: flex;
         justify-content: center;
@@ -474,7 +462,6 @@
         pointer-events: none;
     }
 
-    /* Alerts */
     .alert {
         padding: 16px 20px;
         border-radius: 12px;
@@ -496,7 +483,6 @@
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
 
-    /* Loading overlay */
     .table-loader {
         position: absolute;
         inset: 0;
@@ -521,13 +507,11 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Column widths */
     .col-product { min-width: 240px; }
     .col-category { width: 150px; }
     .col-pricing { width: 200px; }
     .col-actions { width: 160px; text-align: right; }
 
-    /* Responsive */
     @media (max-width: 992px) {
         .col-product { min-width: 200px; }
     }
@@ -574,7 +558,6 @@
         .action-btn { width: 32px; height: 32px; font-size: 0.8rem; }
     }
 
-    /* Add Product Modal */
     .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .form-group { margin-bottom: 0; }
     .form-group.full-width { grid-column: 1 / -1; }
@@ -785,7 +768,6 @@
         .computed-fields { grid-template-columns: 1fr; }
     }
 
-    /* View Details Modal */
     .detail-table { width: 100%; border-collapse: collapse; }
     .detail-table tr { border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
     .detail-table tr:last-child { border-bottom: none; }
@@ -808,7 +790,6 @@
     }
 </style>
 
-<!-- Search + Category Filter -->
 <div class="card glass-card">
     <div class="toolbar">
         <form
@@ -862,7 +843,6 @@
         </div>
     @endif
 
-    <!-- Product Table -->
     <div class="table-container" id="productTableContainer">
         <div class="table-loader" id="tableLoader">
             <div class="spinner"></div>
@@ -902,7 +882,6 @@
         let debounceTimer = null;
         let currentController = null;
 
-        // Build URL query string from current filter state
         function buildQuery(page = 1) {
             const params = new URLSearchParams();
             const search = searchInput.value.trim();
@@ -915,18 +894,14 @@
             return params.toString();
         }
 
-        // Apply filters via AJAX and update table + pagination
         async function applyFilters(page = 1) {
             const query = buildQuery(page);
             const url = `${filterForm.action}${query ? '?' + query : ''}`;
 
-            // Sync URL bar (no scroll)
             window.history.replaceState({}, '', url);
 
-            // Show loader
             tableLoader.classList.add('active');
 
-            // Cancel previous in-flight request
             if (currentController) {
                 currentController.abort();
             }
@@ -969,7 +944,6 @@
             }
         }
 
-        // Re-bind click handlers for newly rendered pagination links
         function rebindPagination() {
             paginationWrapper.querySelectorAll('a.pagination-link').forEach(link => {
                 link.addEventListener('click', function (e) {
@@ -981,7 +955,6 @@
             });
         }
 
-        // Initialize Bootstrap tooltips (if Bootstrap JS is loaded)
         function initTooltips() {
             const tooltipTriggerList = [].slice.call(
                 document.querySelectorAll('[data-bs-toggle="tooltip"]')
@@ -991,38 +964,28 @@
             }
         }
 
-        // Debounced search
         searchInput.addEventListener('input', function () {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => applyFilters(1), 300);
         });
 
-        // Form submit (Enter key) — prevent full reload
         filterForm.addEventListener('submit', function (e) {
             e.preventDefault();
             applyFilters(1);
         });
 
-        // Category filter change — instant update
         categoryFilter.addEventListener('change', function () {
             categoryIdInput.value = this.value;
             applyFilters(1);
         });
 
-
-        // Initial bindings
         rebindPagination();
         initTooltips();
 
-        // Exposed so the Add Product modal can refresh the table using the
-        // exact same AJAX path as search/filter/pagination, after a
-        // successful create — no full page reload needed.
         window.refreshProductsTable = function () {
             applyFilters(1);
         };
 
-
-        // Auto-show session messages
         @if(session('status'))
             Swal.fire({
                 title: 'Success',
@@ -1044,7 +1007,6 @@
     })();
 </script>
 
-<!-- Add Product Modal -->
 <div id="addProductModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addProductModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -1069,7 +1031,6 @@
     </div>
 </div>
 
-<!-- View Details Modal -->
 <div id="viewProductModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="viewProductModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -1092,7 +1053,6 @@
     </div>
 </div>
 
-<!-- Edit Product Modal -->
 <div id="editProductModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editProductModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -1169,12 +1129,6 @@
         banner.textContent = '';
     }
 
-    // store() answers this AJAX submit directly: 201 JSON when the product
-    // was created, 422 with field errors for a duplicate name/model/barcode
-    // or any other invalid field. (It used to redirect, and the modal had
-    // to guess success by looking for the new name in the first page of
-    // rows — which reported a false "already exists" whenever the new
-    // product sorted onto a later page.)
     function submitAddProductForm(resetSubmitButton) {
         const form = document.getElementById('addProductForm');
         clearAddProductFieldErrors();
@@ -1296,7 +1250,6 @@
         }
     });
 
-    // ---- View Details modal ----
     let viewProductLastFocused = null;
 
     function handleViewProductModalKeydown(e) {
@@ -1350,7 +1303,6 @@
         closeViewProductModal();
         setTimeout(function () { openEditProductModal(null, id); }, 260);
     });
-    // ---- Edit Product modal ----
     let editProductLastFocused = null;
     let editProductFormHelper = null;
 
@@ -1392,11 +1344,6 @@
         const productId = currentEditProductId;
         hideEditProductGeneralError();
 
-        // PHP never parses a multipart/form-data body for a real HTTP PUT
-        // request (only POST) — send it as POST with Laravel's standard
-        // _method spoof instead, exactly what @method('PUT') generates as a
-        // hidden input on a normal <form>, or every field would come back
-        // "required" with an empty-looking request body.
         const formData = new FormData(form);
         formData.append('_method', 'PUT');
 

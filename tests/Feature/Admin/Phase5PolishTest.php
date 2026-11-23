@@ -11,9 +11,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Covers the "Validation & confirmation dialog polish" pass: SweetAlert
-// coverage on previously-uncovered actions (logout, PO submit/approve),
-// and the small server-side validation gaps found in the audit.
 class Phase5PolishTest extends TestCase
 {
     use RefreshDatabase;
@@ -47,7 +44,6 @@ class Phase5PolishTest extends TestCase
         ]);
 
         $response->assertSessionDoesntHaveErrors('ContactNumber');
-        // Saved in the 0912-345-6789 format.
         $this->assertDatabaseHas('Supplier', ['SupplierName' => 'Acme Supplies', 'ContactNumber' => '0912-345-6789']);
     }
 
@@ -63,11 +59,9 @@ class Phase5PolishTest extends TestCase
             $this->actingAs($this->admin)->post(route('admin.suppliers.store'), ['Email' => "bad{$i}@example.com", 'Address' => 'N/A', 'SupplierName' => "Bad {$i}", 'ContactNumber' => $bad])
                 ->assertSessionHasErrors(['ContactNumber' => 'Enter a mobile number as 0912-345-6789 or a landline as (02) 8123-4567. Separate two numbers with "/".']);
         }
-        // Letters only: nothing is left once they're dropped.
         $this->actingAs($this->admin)->post(route('admin.suppliers.store'), ['Email' => 'abc@example.com', 'Address' => 'N/A', 'SupplierName' => 'Abc', 'ContactNumber' => 'abc'])
             ->assertSessionHasErrors(['ContactNumber' => 'Contact Number is required.']);
 
-        // The forms format it as it's typed and check every field on Save.
         $this->actingAs($this->admin)->get(route('admin.suppliers.create'))->assertOk()
             ->assertSee('maxlength="50" placeholder="0912-345-6789 / (02) 8123-4567"', false);
         $html = $this->actingAs($this->admin)->get(route('admin.suppliers.index'))->assertOk()->getContent();
@@ -76,7 +70,6 @@ class Phase5PolishTest extends TestCase
         $this->assertStringNotContainsString('form.reportValidity();', $html);
     }
 
-    // A supplier may have a landline, a mobile and a landline, or no email.
     public function test_supplier_contact_number_accepts_landlines_and_two_numbers_and_email_is_optional(): void
     {
         $cases = [
@@ -95,14 +88,11 @@ class Phase5PolishTest extends TestCase
             ->assertSee('<label class="form-label">Email</label>', false);
     }
 
-    // Confirmation popups open fast (0.15s) with their icon already drawn,
-    // instead of SweetAlert2's slower zoom-in and drawing icons.
     public function test_confirmation_popups_open_quickly_on_admin_and_cashier_pages(): void
     {
         $this->actingAs($this->admin)->get(route('admin.suppliers.index'))->assertOk()
             ->assertSee('.swal2-popup.swal2-show { animation-duration: 0.15s !important; }', false)
             ->assertSee('.swal2-popup .swal2-icon *', false)
-            // Slightly smaller popup; icon scaled as a whole so the checkmark keeps its shape, in a clearer green.
             ->assertSee('width: 440px !important;', false)
             ->assertSee('.swal2-popup .swal2-icon { margin-top: 0.2rem !important; margin-bottom: 0.15rem !important; font-size: 11.2px !important; }', false)
             ->assertSee(".swal2-popup .swal2-icon.swal2-success [class^='swal2-success-line'] { background-color: #16a34a !important; }", false);
@@ -110,12 +100,10 @@ class Phase5PolishTest extends TestCase
         $cashier = User::factory()->create(['role_id' => Role::firstOrCreate(['role_name' => 'cashier'])->id]);
         $this->actingAs($cashier)->get(route('cashier.transactions'))->assertOk()
             ->assertSee('.swal2-popup.swal2-show { animation-duration: 0.15s !important; }', false)
-            // Success messages close after 1.2s on every page (they were 2-3s).
             ->assertSee('const SUCCESS_POPUP_MS = 1200;', false)
             ->assertSee("options.icon === 'success' && options.timer", false);
     }
 
-    // Actions that used to save straight away now ask first.
     public function test_actions_that_used_to_save_straight_away_now_ask_first(): void
     {
         $this->actingAs($this->admin)->get(route('admin.sales-returns.index'))->assertOk()
@@ -137,8 +125,6 @@ class Phase5PolishTest extends TestCase
             ->assertSee('data-confirm-title="Mark All as Read"', false);
     }
 
-    // Downloads, exports, prints, the full-page forms and removing a POS
-    // discount ask first too.
     public function test_downloads_prints_and_full_page_forms_ask_first(): void
     {
         $this->actingAs($this->admin)->get(route('admin.reports.index'))->assertOk()
@@ -147,7 +133,6 @@ class Phase5PolishTest extends TestCase
             ->assertSee('id="exportExcelLink" class="js-confirm-link"', false)
             ->assertSee('id="printPreviewLink" class="js-confirm-link"', false)
             ->assertSee('id="reportDetailsPrintPreview" class="btn btn-secondary js-confirm-link" data-confirm-title="Print Preview" data-confirm-text="Open the print preview of this report?"', false)
-            // Links are confirmed by one shared handler; a form's own validation runs first.
             ->assertSee("const link = e.target.closest('a.js-confirm-link');", false)
             ->assertSee("form.dataset.confirmed === 'true' || e.defaultPrevented) return;", false);
 
@@ -170,9 +155,6 @@ class Phase5PolishTest extends TestCase
 
     public function test_admin_layout_logout_form_carries_a_confirm_dialog(): void
     {
-        // Uses the Suppliers index rather than the dashboard — the
-        // dashboard's chart data query relies on MySQL's YEARWEEK(), which
-        // has no SQLite equivalent and isn't available under the test DB.
         $response = $this->actingAs($this->admin)->get(route('admin.suppliers.index'));
 
         $response->assertOk();
@@ -213,33 +195,16 @@ class Phase5PolishTest extends TestCase
         $response->assertSee('data-confirm-title="Approve Purchase Order"', false);
     }
 
-    // Regression test for a real bug found during the SweetAlert2 redesign:
-    // admin/layout.blade.php carried its own older `.swal2-popup { width:
-    // 28em !important; ... }` block, positioned AFTER the shared
-    // partials/swal-helpers.blade.php include — with matching specificity
-    // and !important, source order made it win every time, silently
-    // no-op'ing the shared partial's sizing on every single admin page.
     public function test_admin_layout_does_not_carry_a_duplicate_swal2_popup_override(): void
     {
         $response = $this->actingAs($this->admin)->get(route('admin.suppliers.index'));
 
         $response->assertOk();
-        // The shared partial's popup-width rule should be present exactly once.
         $content = $response->getContent();
         $this->assertSame(1, substr_count($content, 'width: 440px !important'));
-        // The old layout-local override (a competing "28em !important" width
-        // declaration) must not have come back — checked as the exact
-        // duplicate-rule signature, not a bare "28em" substring, since that
-        // string alone also appears inside this file's own explanatory CSS
-        // comment describing the bug that was fixed.
         $this->assertStringNotContainsString('width: 28em !important', $content);
     }
 
-    // Regression test for the "receipt never appears" bug: when the
-    // browser's popup blocker prevents window.open() from succeeding, the
-    // sale still completed successfully server-side but the cashier saw
-    // nothing — no receipt, no error. The POS page must always ship the
-    // in-page print frame so the receipt prints without needing popups.
     public function test_pos_page_ships_the_in_page_receipt_print_frame_for_blocked_popups(): void
     {
         $cashierRole = Role::firstOrCreate(['role_name' => 'cashier']);

@@ -7,12 +7,6 @@ use App\Notifications\Concerns\FormatsMailBadge;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-// Not ShouldQueue: this app has no reliable persistent queue worker
-// (Hostinger shared hosting has no crontab access), so dispatch inline.
-//
-// Covers "Purchase Order Rejection" from the notification spec — this app
-// has no separate reject action distinct from cancel(); a PO cancelled
-// before any stock is received against it is functionally a rejection.
 class PurchaseOrderCancelled extends Notification
 {
     use FormatsMailBadge;

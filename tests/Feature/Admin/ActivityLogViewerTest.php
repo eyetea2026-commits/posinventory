@@ -9,9 +9,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Tests\TestCase;
 
-// The Activity Log lives as a card in the dashboard's Operational Activity
-// section, beside Recent Transactions. The card loads its rows over AJAX from
-// admin.activity-logs.index, with log_-prefixed filters.
 class ActivityLogViewerTest extends TestCase
 {
     use RefreshDatabase;
@@ -167,11 +164,7 @@ class ActivityLogViewerTest extends TestCase
         $html = $this->cardHtml();
 
         $this->assertLessThan(strpos($html, 'First entry'), strpos($html, 'Second entry'));
-        // Page links use their own parameter so they can't move the Recent
-        // Transactions table's pages on the same dashboard, and always point
-        // back at this endpoint.
         $this->assertStringContainsString(route('admin.activity-logs.index').'?log_page=2', $html);
-        // Active filters are carried into the page links.
         $this->assertStringContainsString('log_module=auth', $this->cardHtml(['log_module' => 'auth']));
     }
 
@@ -196,8 +189,6 @@ class ActivityLogViewerTest extends TestCase
         $activity = strpos($html, '<h2 class="card-title">Activity Log</h2>');
         $this->assertNotFalse($activity);
         $this->assertGreaterThan($recent, $activity);
-        // Shown as two tabs (like the Discounts page): Overall Transactions
-        // open first, Activity Log one click away.
         $this->assertStringNotContainsString('operational-grid', $html);
         $tabs = strpos($html, '<div class="ops-tab-group" role="tablist">');
         $this->assertNotFalse($tabs);
@@ -206,14 +197,11 @@ class ActivityLogViewerTest extends TestCase
         $this->assertStringContainsString('<button type="button" class="ops-tab-btn" data-ops-tab="activity"', $html);
         $this->assertStringContainsString('<div class="card ops-tab-panel active" id="ops-tab-transactions" role="tabpanel">', $html);
         $this->assertStringContainsString('<div class="card ops-tab-panel" id="activity-log" role="tabpanel">', $html);
-        // Stock Alerts fill their card and scroll inside it, instead of a
-        // fixed 300px list leaving the bottom of the card empty.
         $this->assertStringContainsString('<div id="stockAlertsContainer">', $html);
         $this->assertMatchesRegularExpression('/#stockAlertsContainer \{\s*flex: 1 1 auto;\s*min-height: 300px;\s*position: relative;/', $html);
         $this->assertMatchesRegularExpression('/\.stock-alert-list \{\s*position: absolute;\s*inset: 0;/', $html);
         $this->assertStringContainsString('id="activityLogContainer"', $html);
         $this->assertStringContainsString(route('admin.activity-logs.index'), $html);
-        // No longer a separate sidebar page.
         $this->assertStringNotContainsString('<span>Activity Log</span>', $html);
     }
 }

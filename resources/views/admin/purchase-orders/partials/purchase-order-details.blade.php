@@ -1,10 +1,3 @@
-{{-- Shared "View Details" content. Included by both the standalone show page
-     (with $showStatus=true — the page keeps its own Status badge and its
-     separate action toolbar untouched) and the View Details modal fragment
-     (status/actions omitted — the modal is a read-only quick-look surface;
-     its own "Print" button lives in the modal shell, not in this partial, so
-     it isn't duplicated on the full page which already has one).
-     Expects $purchaseOrder with supplier/items.product loaded. --}}
 @php
     $showStatus = $showStatus ?? false;
 @endphp
@@ -78,7 +71,6 @@
                     <td>{{ $item->product?->ProductName ?? 'Unknown' }}</td>
                     <td>{{ $item->product?->Model ?: '—' }}</td>
                     <td style="white-space: nowrap;">{{ $item->product?->SKU ?: '—' }}</td>
-                    {{-- In the unit it was ordered in: "2 rolls (10,000 meters)". --}}
                     <td>{{ $item->tableQuantity() }}</td>
                     <td>{{ $item->tableQuantity($item->ReceivedQuantity) }}</td>
                     @if($purchaseOrder->hasAnyCancelledQuantity())

@@ -1,7 +1,3 @@
-{{-- Shared Supplier field markup. Included by the standalone edit page and
-     the Edit Supplier modal. Pass an optional $supplier to pre-fill.
-     Three per row: Supplier Name (two wide) / Status; Contact Person /
-     Contact Number / Email; Address across the full width. --}}
 <style>
     .form-grid.supplier-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .supplier-form-grid .supplier-span-2 { grid-column: span 2; }

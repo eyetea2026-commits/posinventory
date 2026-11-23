@@ -1,7 +1,3 @@
-{{-- Shown instead of Laravel's plain "500 | Server Error" page when something
-     unexpected fails on the server (production only: with APP_DEBUG on,
-     developers get the full error screen instead). The real error is still
-     written to storage/logs/laravel.log. --}}
 @extends('errors.layout')
 
 @section('title', 'Something Went Wrong')

@@ -8,30 +8,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * One lot of a product's stock: when it came in, from where, at what unit
- * cost and selling price, and how much of it is still on hand. Sales and
- * stock removals take from the oldest lot first (FIFO, App\Services\StockBatches).
- */
 class StockBatch extends Model
 {
     public const SOURCE_PURCHASE_ORDER = 'Purchase Order';
 
-    // The older single-product Stock Receiving form.
     public const SOURCE_STOCK_RECEIVING = 'Stock Receiving';
 
-    // Stock that was already on hand before batches were tracked.
     public const SOURCE_OPENING_STOCK = 'Opening Stock';
 
     public const SOURCE_SUPPLIER_REPLACEMENT = 'Supplier Replacement';
 
-    // A damage record cancelled: the pieces were fine after all.
     public const SOURCE_RESTORED = 'Restored from Damage';
 
-    // A refunded piece put back on the shelf beyond what its sale took.
     public const SOURCE_CUSTOMER_RETURN = 'Customer Return';
 
-    // Any other increase, at the product's Cost Price.
     public const SOURCE_STOCK_ADDED = 'Stock Added';
 
     protected $table = 'StockBatch';
@@ -101,21 +91,11 @@ class StockBatch extends Model
         return $this->belongsTo(StockReceivingDeliveryItem::class, 'StockReceivingDeliveryItemID', 'StockReceivingDeliveryItemID');
     }
 
-    /**
-     * The product's batches in the order FIFO sells them: oldest first.
-     *
-     * @param  Builder<StockBatch>  $query
-     */
     public function scopeFifo(Builder $query): void
     {
         $query->orderBy('ReceivedAt')->orderBy('StockBatchID');
     }
 
-    /**
-     * What this batch's sold pieces brought in, less what they cost:
-     * each sale line's price after its discount, per base unit, minus the
-     * batch's unit cost, for the pieces not refunded back onto it.
-     */
     public function realizedProfit(): float
     {
         return round($this->allocations
@@ -130,11 +110,6 @@ class StockBatch extends Model
             }), 2);
     }
 
-    /**
-     * Pieces of this batch sold and not refunded back onto it: whatever
-     * left the batch other than through a stock adjustment / removal, so
-     * pieces sold before batches were tracked count too.
-     */
     public function soldQuantity(): int|float
     {
         $removed = $this->allocations
@@ -149,9 +124,6 @@ class StockBatch extends Model
         return $this->hasMany(StockBatchAllocation::class, 'StockBatchID', 'StockBatchID');
     }
 
-    /**
-     * The batch's margin: (Selling Price - Unit Cost) / Selling Price.
-     */
     public function marginPercent(): ?float
     {
         if ((float) $this->SellingPrice <= 0) {
@@ -161,9 +133,6 @@ class StockBatch extends Model
         return round(((float) $this->SellingPrice - (float) $this->UnitCost) / (float) $this->SellingPrice * 100, 1);
     }
 
-    /**
-     * What is left of it, at its own cost.
-     */
     public function remainingValue(): float
     {
         return round((float) $this->QuantityRemaining * (float) $this->UnitCost, 2);

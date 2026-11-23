@@ -10,10 +10,6 @@ return new class extends Migration
 {
     public function up()
     {
-        // Give every pre-existing SalesReturn row (which only ever had one
-        // product) a matching SalesReturnItem, so application code can read
-        // $salesReturn->items uniformly for old and new rows alike instead
-        // of branching on whether the header ProductID is set.
         SalesReturn::whereNotNull('ProductID')->each(function (SalesReturn $return) {
             if ($return->items()->exists()) {
                 return;
@@ -37,9 +33,5 @@ return new class extends Migration
         });
     }
 
-    public function down()
-    {
-        // Irreversible: backfilled rows are indistinguishable from
-        // genuinely-created single-item SalesReturnItem rows.
-    }
+    public function down() {}
 };

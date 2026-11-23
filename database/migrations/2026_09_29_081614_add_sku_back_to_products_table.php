@@ -15,10 +15,6 @@ return new class extends Migration
             }
         });
 
-        // Every product created going forward gets a SKU at creation time
-        // (see ProductController::store()) — backfill existing rows here
-        // with the same 'SKU-000001' scheme so the field is never blank for
-        // products that already existed before this migration ran.
         DB::table('Product')->whereNull('SKU')->orderBy('ProductID')->get(['ProductID'])->each(function ($product) {
             DB::table('Product')->where('ProductID', $product->ProductID)->update([
                 'SKU' => 'SKU-'.str_pad((string) $product->ProductID, 6, '0', STR_PAD_LEFT),

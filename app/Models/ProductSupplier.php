@@ -13,6 +13,7 @@ class ProductSupplier extends Model
     public $timestamps = false;
 
     protected $table = 'ProductSupplier';
+
     protected $primaryKey = 'ProductSupplierID';
 
     protected $fillable = [
@@ -32,9 +33,6 @@ class ProductSupplier extends Model
         return $this->belongsTo(Supplier::class, 'SupplierID', 'SupplierID');
     }
 
-    // A single UPDATE can't atomically "move" a unique IsPreferred=1 value
-    // from one row to another, so this unsets any existing preferred row
-    // for the product first, inside a lock, before setting the new one.
     public function markPreferred(): void
     {
         DB::transaction(function () {

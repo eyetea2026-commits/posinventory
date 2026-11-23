@@ -6,11 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * A custom percentage discount given at the POS with an Administrator's
-     * approval. DiscountAmount keeps the sale's whole discount (promos plus
-     * this); these columns record the custom part and who approved it.
-     */
     public function up(): void
     {
         Schema::table('Billing', function (Blueprint $table) {

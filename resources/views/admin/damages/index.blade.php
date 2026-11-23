@@ -315,7 +315,6 @@
     </div>
 </div>
 
-<!-- Edit Damage Modal -->
 <div id="editDamageModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editDamageModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -340,7 +339,6 @@
     </div>
 </div>
 
-{{-- View Damage Details Modal --}}
 <div id="viewDamageModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="viewDamageModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -382,7 +380,6 @@
             .then(res => res.json())
             .then(data => {
                 const d = data.damage, p = data.product, s = data.supplier, r = data.requestedBy, a = data.approvedBy;
-                // Sections of label/value cards, three per row (shared .ui-kv-grid).
                 const kv = (label, value, wide) => `<div${wide ? ' class="ui-kv-wide"' : ''}><span>${escapeHtml(label)}</span><span>${value}</span></div>`;
                 const text = value => escapeHtml(value ?? 'N/A');
                 const section = (title, items) => `<h4 class="ui-kv-title">${escapeHtml(title)}</h4><div class="ui-kv-grid">${items.join('')}</div>`;
@@ -464,7 +461,6 @@
         });
     }
 
-    // Auto-show session messages
     @if(session('success'))
         Swal.fire({
             title: 'Success',
@@ -484,7 +480,6 @@
         });
     @endif
 
-    // ---- Edit Damage modal ----
     const EDIT_DAMAGE_FIELD_IDS = ['ProductID', 'SupplierID', 'PurchaseOrderID', 'Quantity', 'DateRecorded', 'DamageType', 'Description', 'InspectionNotes', 'WarehouseLocation', 'Remarks'];
     let editDamageLastFocused = null;
     let currentEditDamageId = null;

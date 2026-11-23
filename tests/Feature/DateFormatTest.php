@@ -12,8 +12,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Symfony\Component\Finder\Finder;
 use Tests\TestCase;
 
-// Dates are shown as MM/DD/YYYY everywhere in the system (admin, cashier,
-// printouts and exports).
 class DateFormatTest extends TestCase
 {
     use RefreshDatabase;
@@ -55,8 +53,6 @@ class DateFormatTest extends TestCase
 
     public function test_no_view_or_class_formats_dates_as_month_names(): void
     {
-        // Long month-name date formats ("Oct 05, 2026", "October 5, 2026")
-        // must not come back; chart axis labels without a year are fine.
         $files = Finder::create()->files()->name('*.php')
             ->in([app_path(), resource_path('views')])->exclude('vendor');
 

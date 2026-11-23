@@ -1,16 +1,3 @@
-{{-- Shared product field markup. Included by the standalone create page, the
-     Add Product modal, the standalone edit page, and the Edit Product modal.
-     Expects a $categories collection in scope; pass an optional $product to
-     pre-fill for editing (its absence means "Add" mode — no Quantity field,
-     all fields start blank). Error spans carry a predictable id="error-{field}"
-     so modal JS can inject a 422 validation message into the same slot the
-     @error directive fills on a real (non-AJAX) page submission. --}}
-{{-- The Product Photo down the left; beside it, three per row: Name /
-     Category / Cost Price, Model / Brand / Re-Order Point, then the
-     Specifications, the Barcode (and SKU when editing) and the returns
-     option across. Below: Unit of Measurement (with the Selling Price),
-     Pricing Calculations, and the product's Suppliers. Two per row on
-     tablets, one on phones. --}}
 <style>
     .form-grid.product-form-grid { grid-template-columns: minmax(170px, 0.85fr) repeat(3, minmax(0, 1fr)); }
     .form-grid.product-form-grid .product-photo-field { grid-column: 1; grid-row: 1 / span 5; }
@@ -53,7 +40,6 @@
 @php
     $baseUnit = old('UnitOfMeasure', $product->UnitOfMeasure ?? \App\Services\UnitOfMeasure::DEFAULT) ?: \App\Services\UnitOfMeasure::DEFAULT;
     $purchaseUnit = old('PurchaseUnit', $product->PurchaseUnit ?? '') ?: '';
-    // Counted by the meter and bought by the roll shows as "Meter & Roll".
     if ($baseUnit === \App\Services\UnitOfMeasure::METER_AND_ROLL || ($baseUnit === 'meter' && $purchaseUnit === 'roll')) {
         [$baseChoice, $baseUnit, $purchaseUnit] = [\App\Services\UnitOfMeasure::METER_AND_ROLL, 'meter', 'roll'];
     } else {
@@ -96,10 +82,7 @@
         <select name="CategoryID" id="CategoryID" class="form-select @error('CategoryID') is-invalid @enderror" required>
             <option value="">Select Category</option>
             @foreach($categories as $category)
-                {{-- Deactivated categories aren't offered, except the one a product already belongs to. --}}
                 @continue(! $category->IsActive && old('CategoryID', $product->CategoryID ?? null) != $category->CategoryID)
-                {{-- data-units: its Inventory Base Unit choices, default first
-                     (WIRE: Meter & Roll / Meter / Roll, others: Piece / Box). --}}
                 <option value="{{ $category->CategoryID }}" data-units="{{ implode(',', \App\Services\UnitOfMeasure::baseChoicesFor($category->CategoryName)) }}" {{ old('CategoryID', $product->CategoryID ?? null) == $category->CategoryID ? 'selected' : '' }}>
                     {{ $category->CategoryName }}
                 </option>
@@ -108,7 +91,6 @@
         <span class="form-error" id="error-CategoryID">@error('CategoryID'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Prices: up to 5 whole-peso digits (99,999.99); letters can't be typed. --}}
     <div class="form-group">
         <label class="form-label">Cost Price (₱) <span class="uom-per-base">per {{ $baseUnit }}</span> <span class="required">*</span></label>
         <input type="text" name="CostPrice" id="CostPrice" class="form-input @error('CostPrice') is-invalid @enderror"
@@ -126,14 +108,6 @@
 
     <div class="form-group">
         <label class="form-label">Brand</label>
-        {{-- Populated client-side (see product-form-behavior.blade.php) from
-             every option below, filtered down to whichever ones carry the
-             currently-selected Category's data-category id. The "+" button
-             lets the user type a new Brand name and create it on the fly
-             (scoped to the currently-selected Category), reusing the same
-             admin.categories.brands.store endpoint the Category module's
-             Brand Management panel already uses — see
-             category-brands-behavior.blade.php for that original pattern. --}}
         <div class="brand-select-row">
             <select name="BrandID" id="BrandID" class="form-select @error('BrandID') is-invalid @enderror">
                 <option value="">No Brand</option>
@@ -157,8 +131,6 @@
         <span class="form-error" id="error-BrandID">@error('BrandID'){{ $message }}@enderror</span>
     </div>
 
-    {{-- Computed by the system from sales and lead time (ReorderPoint),
-         counted in the base unit: shown, never typed in. --}}
     <div class="form-group">
         <label class="form-label" for="ReorderThreshold">Re-Order Point <span class="uom-unit-note">(<span class="uom-base-plural">{{ \App\Services\UnitOfMeasure::plural($baseUnit) }}</span>)</span></label>
         <input type="text" id="ReorderThreshold" class="form-input" value="{{ isset($product) && $product->inventory ? (int) $product->inventory->ReorderThreshold : \App\Services\ReorderPoint::MINIMUM }}" readonly tabindex="-1">
@@ -190,9 +162,6 @@
         </div>
     @endif
 
-    {{-- Cut, crimped or used items (consumables, wires, fiber connectors:
-         RJ45, coaxial cable...) can't be returned once sold; the Cashier's
-         return request won't offer them. --}}
     <div class="form-group product-span-3 product-returns-field">
         <input type="hidden" name="NonReturnable" value="0">
         <label class="non-returnable-toggle">
@@ -205,11 +174,6 @@
         </label>
     </div>
 
-    {{-- Unit of Measurement, read across like "Meter & Roll | Roll | ₱15 per
-         meter": stock is kept in the base unit (meters, pieces), bought by
-         the purchase unit (roll, box) - how many meters each roll holds is
-         entered at Stock Receiving - and it's sold by the base unit at the
-         Selling Price. Below: decimals (1.5 meters). --}}
     <div class="form-group full-width uom-section" data-uom-section>
         <label class="form-label uom-title"><i class="fas fa-ruler-combined"></i> Unit of Measurement</label>
         <div class="uom-grid">
@@ -235,9 +199,6 @@
                 <span class="form-error" id="error-PurchaseUnit">@error('PurchaseUnit'){{ $message }}@enderror</span>
             </div>
 
-            {{-- Automatic: worked out from the Cost Price and the Profit
-                 Margin below (never typed). Each stock batch is priced the
-                 same way from its own purchase cost. --}}
             <div class="form-group">
                 <label class="form-label" for="SellingPrice">Selling Price</label>
                 <div class="uom-price-input">
@@ -272,23 +233,6 @@
     </div>
 </div>
 
-{{-- Suppliers for this product: who supplies it, at what cost, and which
-     one is preferred (used by the auto-reorder flow to pick a supplier
-     automatically). The supplier is picked in the table's last row (the
-     searchable dropdown under Supplier, the Add Supplier button under
-     Actions).
-     Edit mode (a real ProductID exists): add/remove is an immediate AJAX
-     call, wired up by window.initProductSuppliersPanel() in
-     product-form-behavior.blade.php, called once this markup is actually in
-     the DOM (see that file and the Edit Product modal's openEditProductModal).
-     Add mode (no ProductID yet): a supplier can't be linked to a product
-     that doesn't exist, so chosen suppliers are held client-side as
-     "Suppliers[][SupplierID]" hidden inputs and are only actually linked
-     once the whole Add Product form is submitted (see
-     ProductController::store()) — same pattern as the Add Category form's
-     pending "Brands[]" list. Each supplier has its own Cost Price (per
-     base unit; left blank, the product's Cost Price is used): Create
-     Purchase Order picks the supplier with the lowest one. --}}
 <div class="card glass-card" style="margin-top: 24px;">
     <div class="content-header" style="margin-bottom: 16px;">
         <h1 style="font-size: 1.25rem;">Suppliers for this Product</h1>

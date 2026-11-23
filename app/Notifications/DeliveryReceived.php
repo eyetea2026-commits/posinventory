@@ -7,9 +7,6 @@ use App\Notifications\Concerns\FormatsMailBadge;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-// Sent when a Purchase Order's delivery is added to Inventory from Stock
-// Receiving. Not ShouldQueue: this app has no reliable persistent queue
-// worker (Hostinger shared hosting has no crontab access), so dispatch inline.
 class DeliveryReceived extends Notification
 {
     use FormatsMailBadge;

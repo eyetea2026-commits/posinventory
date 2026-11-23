@@ -8,13 +8,6 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 
-/**
- * One printable PDF with the serial sticker of every in-stock piece of
- * every product (the same A4 4 x 10 price-tag stickers as Products → View →
- * Print Stickers). Built from the command line because thousands of
- * stickers take longer than a web page may. Each product starts on a new
- * page, so its stickers stay together.
- */
 class PrintAllSerialStickers extends Command
 {
     protected $signature = 'serials:stickers
@@ -42,7 +35,6 @@ class PrintAllSerialStickers extends Command
             return self::SUCCESS;
         }
 
-        /** @var Collection<int, Collection<int, ProductSerial>> $pages */
         $pages = $serials->groupBy('ProductID')
             ->flatMap(fn (Collection $productSerials) => $productSerials->chunk(self::STICKERS_PER_PAGE))
             ->values();

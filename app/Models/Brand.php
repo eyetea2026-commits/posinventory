@@ -19,11 +19,6 @@ class Brand extends Model
 
     protected static function booted(): void
     {
-        // BrandNameNormalized backs the case-insensitive unique index on
-        // (BrandNameNormalized, CategoryID) -- kept in sync here so every
-        // write path (this controller, tinker, a future API endpoint, a
-        // script) gets the same duplicate protection without having to
-        // remember to set it manually.
         static::saving(function (Brand $brand) {
             $brand->BrandNameNormalized = mb_strtolower(trim((string) $brand->BrandName));
         });

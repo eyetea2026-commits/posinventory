@@ -6,10 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * The stock adjustment that took a piece out as Damaged or Lost, so the
-     * exact serial numbers removed can be traced back to it.
-     */
     public function up(): void
     {
         Schema::table('ProductSerial', function (Blueprint $table) {

@@ -8,24 +8,12 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\URL;
 
-// Not ShouldQueue: this app has no reliable persistent queue worker
-// (Hostinger shared hosting has no crontab access), so dispatch inline,
-// matching every other notification in this app.
-//
-// Sent to the ONE admin who just logged in (via $user->notify(), same
-// single-recipient pattern as PasswordResetRequested) -- a self-check on
-// their own account, not a broadcast to every admin. Other admins are only
-// looped in via UnauthorizedLoginReported if this login is flagged as not
-// recognized.
 class AdminLoginSecurityAlert extends Notification
 {
     use FormatsMailBadge;
 
     public function __construct(public LoginSecurityEvent $event) {}
 
-    // Database (in-app) notification fires regardless -- it doesn't need an
-    // email address. Mail is skipped when the admin has none registered,
-    // same as PasswordResetRequested's existing precedent.
     public function via(object $notifiable): array
     {
         return $notifiable->email ? ['database', 'mail'] : ['database'];
@@ -35,11 +23,6 @@ class AdminLoginSecurityAlert extends Notification
     {
         $event = $this->event;
 
-        // Two distinct buttons (Yes/No) aren't supported by MailMessage's
-        // fluent ->action() (one button only), so this renders a small
-        // custom markdown mail view instead -- same ->markdown() +
-        // resources/views/emails/ convention OtpMail already uses, still
-        // Laravel's built-in mail component system, no bespoke HTML template.
         return (new MailMessage)
             ->subject('Security Alert: New Admin Login')
             ->markdown('emails.admin-login-security-alert', [

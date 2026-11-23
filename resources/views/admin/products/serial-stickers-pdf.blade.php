@@ -1,10 +1,3 @@
-{{-- Serial number stickers: A4 sticker paper, 4 columns x 10 rows, each
-     52.5 x 29.7 mm, no page margin. Price-tag layout: product name and SKU
-     top left, the selling price large on the right of the SKU, and that piece's
-     barcode (Code 128 set B, scanned at the POS) with its serial below.
-     Expects $pages (serials per page) and either $product (one product's
-     stickers) or serials with their own product loaded (all products,
-     `php artisan serials:stickers`), plus an optional $title. --}}
 <!DOCTYPE html>
 <html>
 <head>

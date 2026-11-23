@@ -6,29 +6,12 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * FIFO with batch tracking and batch-level costing (panel suggestion).
- *
- * - StockBatch: every lot of stock that came in (a delivery line, an older
- *   Stock Receiving entry, a supplier replacement, the stock already on
- *   hand), with its own unit cost, selling price and what is left of it.
- * - StockBatchAllocation: which batches each sale / stock removal took
- *   from, oldest batch first, at that batch's cost.
- * - SalesItem.CostAmount: the line's cost of goods sold (FIFO).
- *
- * The stock on hand is split over the batches the FIFO way: what is left
- * is the most recent deliveries (older ones were sold first). Stock older
- * than every recorded delivery becomes one "Opening Stock" batch at the
- * product's Cost Price. Sales made before this get the product's current
- * Cost Price as their cost.
- */
 return new class extends Migration
 {
     public function up(): void
     {
         Schema::create('StockBatch', function (Blueprint $table) {
             $table->increments('StockBatchID');
-            // BATCH-000001, filled in from the id right after insert.
             $table->string('BatchNumber', 20)->nullable()->unique();
             $table->unsignedInteger('ProductID');
             $table->string('Source', 40);
@@ -39,10 +22,8 @@ return new class extends Migration
             $table->unsignedInteger('DamageID')->nullable();
             $table->string('ReceiptNumber', 50)->nullable();
             $table->dateTime('ReceivedAt');
-            // In the product's base unit (pieces, meters).
             $table->decimal('QuantityReceived', 12, 2);
             $table->decimal('QuantityRemaining', 12, 2);
-            // Per base unit.
             $table->decimal('UnitCost', 10, 2)->default(0);
             $table->decimal('SellingPrice', 10, 2)->nullable();
             $table->timestamps();
@@ -59,7 +40,6 @@ return new class extends Migration
             $table->unsignedInteger('SalesItemID')->nullable()->index();
             $table->unsignedInteger('StockAdjustmentID')->nullable()->index();
             $table->decimal('Quantity', 12, 2);
-            // Put back on the batch by a refund that restocked it.
             $table->decimal('ReturnedQuantity', 12, 2)->default(0);
             $table->decimal('UnitCost', 10, 2)->default(0);
             $table->timestamps();
@@ -89,14 +69,12 @@ return new class extends Migration
             $receipts = $this->receiptsOf($product);
             $left = max(0, round((float) $product->Quantity, 2));
 
-            // Newest first: the stock still on hand is the latest deliveries.
             foreach (array_reverse(array_keys($receipts)) as $index) {
                 $receipts[$index]['QuantityRemaining'] = min($receipts[$index]['QuantityReceived'], $left);
                 $left = round($left - $receipts[$index]['QuantityRemaining'], 2);
             }
 
             if ($left > 0) {
-                // Just before the first recorded delivery, so it sells first.
                 array_unshift($receipts, [
                     'Source' => 'Opening Stock',
                     'ReceivedAt' => isset($receipts[0]) ? Carbon::parse($receipts[0]['ReceivedAt'])->subSecond()->toDateTimeString() : now()->toDateTimeString(),
@@ -118,11 +96,6 @@ return new class extends Migration
         }
     }
 
-    /**
-     * Every recorded delivery of the product, oldest first.
-     *
-     * @return list<array<string, mixed>>
-     */
     private function receiptsOf(object $product): array
     {
         $deliveries = DB::table('StockReceivingDeliveryItem')

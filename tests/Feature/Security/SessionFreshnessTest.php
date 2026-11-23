@@ -7,9 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Pressing Back after logging out used to show a stored copy of the
-// signed-in page. Pages must never be cached, and every page carries the
-// session guard that re-checks sign-in state when it's shown again.
 class SessionFreshnessTest extends TestCase
 {
     use RefreshDatabase;
@@ -35,7 +32,6 @@ class SessionFreshnessTest extends TestCase
         $this->assertSame('no-cache', $response->headers->get('Pragma'));
     }
 
-    // Closing the whole browser signs the user out.
     public function test_the_login_cookie_is_deleted_when_the_browser_closes(): void
     {
         $this->assertTrue(config('session.expire_on_close'));
@@ -49,12 +45,8 @@ class SessionFreshnessTest extends TestCase
         $cookies = collect($response->headers->getCookies());
         $session = $cookies->first(fn ($c) => $c->getName() === config('session.cookie'));
         $this->assertNotNull($session);
-        // Expiry 0 = a browser-session cookie, removed when the browser closes.
         $this->assertSame(0, $session->getExpiresTime());
-        // No "remember me" cookie that would sign them back in, even if the
-        // old checkbox value is still sent.
         $this->assertNull($cookies->first(fn ($c) => str_starts_with($c->getName(), 'remember_')));
-        // A remembered login would have written a new remember token.
         $this->assertSame($tokenBefore, $this->cashier->fresh()->remember_token);
     }
 
@@ -113,7 +105,6 @@ class SessionFreshnessTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.products.index'))
             ->assertSee('const expectedUserId = '.$this->admin->id.';', false);
 
-        // Login page: guard present, expecting nobody signed in.
         $this->post(route('admin.logout'));
         $this->get(route('welcome'))->assertSee('const expectedUserId = null;', false);
     }

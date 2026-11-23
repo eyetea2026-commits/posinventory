@@ -1,12 +1,4 @@
-{{-- Defines window.onReorderSupplierChange, referenced via an inline
-     onchange="" attribute inside reorder-form-fields.blade.php. Must be
-     included via a real Blade @include (server-rendered into the page) —
-     not injected later through innerHTML — since <script> tags added via
-     innerHTML never execute. --}}
 <script>
-    // As the admin picks a supplier (ambiguous/none-known states), reflect
-    // its contact details immediately so the auto-filled fields stay
-    // accurate to what will actually be saved.
     function onReorderSupplierChange(select) {
         const option = select.options[select.selectedIndex];
         const preview = document.getElementById('reorderSupplierContactPreview');

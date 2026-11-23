@@ -8,15 +8,6 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Carbon;
 
-// Not ShouldQueue: this app has no reliable persistent queue worker
-// (Hostinger shared hosting has no crontab access), so dispatch inline. The
-// caller still wraps ->notify() in a try/catch so a mail hiccup here can't
-// block the OTP request itself.
-//
-// Covers both "password reset requested" and "OTP verification requested"
-// from the notification spec — in this app they're the same event (issuing
-// the OTP IS the password-reset request), so one notification represents
-// both rather than firing two near-identical alerts for one action.
 class PasswordResetRequested extends Notification
 {
     use FormatsMailBadge;

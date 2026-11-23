@@ -1,5 +1,3 @@
-{{-- Lucide-style outline icons, inlined as raw SVG path data (no external icon
-     package / CDN). Each entry is the inner markup for a 24x24 stroke icon. --}}
 @props(['name'])
 
 @php

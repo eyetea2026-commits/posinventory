@@ -15,9 +15,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Stock Receiving: when the supplier has no stock, what's still owed on the
-// ticked products is cancelled on that order and ordered from another
-// supplier as a new Draft purchase order.
 class ReorderFromAnotherSupplierTest extends TestCase
 {
     use RefreshDatabase;
@@ -46,9 +43,6 @@ class ReorderFromAnotherSupplierTest extends TestCase
         Inventory::create(['ProductID' => $this->recorder->ProductID, 'Quantity' => 2, 'ReorderThreshold' => 10, 'Status' => 'Low Stock']);
     }
 
-    /**
-     * A printed order (in Stock Receiving) for 50 cameras and 20 recorders.
-     */
     private function sentOrder(): PurchaseOrder
     {
         $po = PurchaseOrder::create([
@@ -97,7 +91,6 @@ class ReorderFromAnotherSupplierTest extends TestCase
         $this->assertSame([50, 20], $draft->items->sortBy('ProductID')->pluck('Quantity')->map(fn ($q) => (int) $q)->values()->all());
         $this->assertEquals(600, (float) $draft->items->firstWhere('ProductID', $this->camera->ProductID)->CostPriceAtOrder);
         $this->assertSame('Reorder of PO-2026-000001 (Acme Supplies): Supplier has no stock', $draft->Notes);
-        // A draft isn't in Stock Receiving until it's printed.
         $this->assertNull(StockReceivingBatch::where('PurchaseOrderID', $draft->PurchaseOrderID)->first());
         $this->assertSame(5, Inventory::where('ProductID', $this->camera->ProductID)->value('Quantity'));
     }
@@ -114,13 +107,11 @@ class ReorderFromAnotherSupplierTest extends TestCase
             ],
         ])->assertSessionHasNoErrors();
 
-        // Only the recorders come from someone else; 30 cameras are still owed here.
         $this->reorder($po, [$this->recorder])->assertSessionHas('success');
         $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $po->fresh()->Status);
         $this->assertSame(StockReceivingBatch::STATUS_PENDING, $batch->fresh()->Status);
         $this->assertSame(20, (int) PurchaseOrderItem::where('ProductID', $this->recorder->ProductID)->where('PurchaseOrderID', '!=', $po->PurchaseOrderID)->value('Quantity'));
 
-        // Then the rest of the cameras too: nothing more is coming, and part arrived, so Closed.
         $this->reorder($po, [$this->camera])->assertSessionHas('success');
         $this->assertSame(PurchaseOrder::STATUS_CLOSED, $po->fresh()->Status);
         $this->assertSame(StockReceivingBatch::STATUS_COMPLETED, $batch->fresh()->Status);

@@ -19,10 +19,6 @@ return new class extends Migration
         });
 
         Schema::table('Replacement', function (Blueprint $table) {
-            // Enforce the 1:1 relationship (SalesReturn::replacement() /
-            // Replacement::salesReturn() are modeled as hasOne/belongsTo) at
-            // the database layer, not just in application-level status
-            // guards, which a race condition could otherwise slip past.
             $table->unique('SalesReturnID');
         });
     }

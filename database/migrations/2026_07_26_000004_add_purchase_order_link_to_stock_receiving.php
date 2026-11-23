@@ -12,8 +12,6 @@ return new class extends Migration
             $table->unsignedInteger('PurchaseOrderID')->nullable()->after('ProductID');
             $table->unsignedInteger('PurchaseOrderItemID')->nullable()->after('PurchaseOrderID');
 
-            // Ad-hoc receiving (stock arriving with no formal PO) must keep
-            // working unchanged — both columns stay null for that case.
             $table->foreign('PurchaseOrderID')->references('PurchaseOrderID')->on('PurchaseOrder')->nullOnDelete();
             $table->foreign('PurchaseOrderItemID')->references('PurchaseOrderItemID')->on('PurchaseOrderItem')->nullOnDelete();
         });

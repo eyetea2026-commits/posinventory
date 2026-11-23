@@ -1,12 +1,3 @@
-{{-- Shared CSS for "Add X" modals (Damage, Stock Adjustment, Purchase Order).
-     Field classes (.form-input/.form-select/.form-label/.form-error/.form-group/
-     .form-grid) match the convention these three modules already use in their
-     create pages / module CSS (StockAdjustment.css, PurchaseOrder.css) — this
-     block just makes sure the same classes are defined wherever the standalone
-     module CSS isn't already linked (e.g. the Damage index page), and adds the
-     .error variant for JS-driven invalid-field styling. Modal chrome
-     (.modal-overlay/.modal-content/etc.) mirrors the Categories/Discounts
-     reference implementation. --}}
 <style>
     .form-group { margin-bottom: 16px; }
     .form-label { display: block; font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; }

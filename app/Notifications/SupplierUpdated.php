@@ -7,11 +7,6 @@ use App\Notifications\Concerns\FormatsMailBadge;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-// Not ShouldQueue: this app has no reliable persistent queue worker
-// (Hostinger shared hosting has no crontab access), so dispatch inline.
-// Covers both "Supplier Created" and "Supplier Updated" from the
-// notification spec via the $action flag, rather than two near-identical
-// classes for one entity.
 class SupplierUpdated extends Notification
 {
     use FormatsMailBadge;

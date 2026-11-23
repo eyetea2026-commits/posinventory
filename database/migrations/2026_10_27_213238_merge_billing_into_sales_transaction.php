@@ -7,13 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Billing was a one-to-one copy of every sale (customers pay at once),
-     * so its amounts move onto SalesTransaction and the Payment points at
-     * the sale itself: SalesTransaction -> SalesItem, with Payment linked
-     * to the transaction. Billing's CustomerName and BillingDate repeated
-     * the sale's own and aren't copied.
-     */
     public function up(): void
     {
         Schema::table('SalesTransaction', function (Blueprint $table) {

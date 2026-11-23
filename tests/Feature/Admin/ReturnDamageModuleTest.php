@@ -7,8 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Return & Damage is one module, like Discounts & Promos: one sidebar item,
-// and Return Approval / Damage as the two tabs at the top of it.
 class ReturnDamageModuleTest extends TestCase
 {
     use RefreshDatabase;
@@ -28,7 +26,6 @@ class ReturnDamageModuleTest extends TestCase
 
         $page->assertSee('<span>Return &amp; Damage</span>', false);
         $page->assertSee('href="'.route('admin.sales-returns.index').'"', false);
-        // No more "Return" dropdown with Approval / Damage under it.
         $page->assertDontSee('<span class="flex-1 text-left">Return</span>', false);
         $page->assertDontSee('<span>Approval</span>', false);
     }
@@ -44,14 +41,11 @@ class ReturnDamageModuleTest extends TestCase
         $damage->assertSeeInOrder(['class="rd-tab "', 'Return Approval', 'class="rd-tab active"', 'Damage'], false);
         $damage->assertSee('href="'.route('admin.sales-returns.index').'"', false);
 
-        // The single sidebar item stays highlighted on either tab.
         foreach ([$returns, $damage] as $page) {
             $page->assertSee('bg-[#273449] font-medium text-white', false);
         }
     }
 
-    // The status tabs are coloured: Pending yellow, Approved green, Declined
-    // red, filled solid when selected.
     public function test_the_status_tabs_are_coloured_per_status(): void
     {
         $page = $this->actingAs($this->admin)->get(route('admin.sales-returns.index'))->assertOk();

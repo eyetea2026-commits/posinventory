@@ -22,10 +22,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-// FIFO with batch tracking and batch-level costing: every delivery is its
-// own batch at its own cost; sales and removals take from the oldest batch
-// first, so each sale line's cost (and profit) follows the batches it came
-// out of, even when the same product was bought at different prices.
 class FifoStockBatchesTest extends TestCase
 {
     use RefreshDatabase;
@@ -77,9 +73,6 @@ class FifoStockBatchesTest extends TestCase
         return SalesItem::latest('SalesItemID')->firstOrFail();
     }
 
-    /**
-     * @return list<int|float>
-     */
     private function remainingPerBatch(): array
     {
         return StockBatch::where('ProductID', $this->camera->ProductID)->fifo()->get()->map(fn ($batch) => $batch->QuantityRemaining)->all();
@@ -107,8 +100,6 @@ class FifoStockBatchesTest extends TestCase
         $this->travel(1)->days();
         $this->receive(5, 70);
 
-        // 12 = all 10 of the ₱60 batch + 2 of the ₱70 batch; at the 50%
-        // margin they sell for ₱120 and ₱140: one sale line per price.
         $this->sell(12);
 
         $this->assertSame([0, 3], $this->remainingPerBatch());
@@ -158,8 +149,6 @@ class FifoStockBatchesTest extends TestCase
         $this->assertSame([0, 4], $this->remainingPerBatch());
         $lineIds = SalesItem::pluck('SalesItemID')->all();
 
-        // One piece refunded back to the shelf: back onto the ₱70 batch
-        // (the last one this sale took from), not a new batch.
         StockBatches::returningFrom($lineIds, function () {
             $inventory = Inventory::where('ProductID', $this->camera->ProductID)->first();
             $inventory->update(['Quantity' => $inventory->Quantity + 1]);
@@ -211,11 +200,8 @@ class FifoStockBatchesTest extends TestCase
         $this->assertStringContainsString('Stock Batches (FIFO)', $html);
         [$first, $second] = StockBatch::fifo()->pluck('BatchNumber')->all();
         $this->assertLessThan(strpos($html, $second), strpos($html, $first));
-        // The ₱60 batch is used up; the ₱70 one sells next.
         $this->assertMatchesRegularExpression('/'.$second.'<\/code>\s*<br><small class="batch-next">Sells next<\/small>/', $html);
-        // Profit: 10 sold at ₱120 from the ₱60 batch.
         $this->assertStringContainsString('₱600.00', $html);
-        // Stock value: 5 left at ₱70.
         $this->assertStringContainsString('₱350.00', $html);
     }
 
@@ -237,8 +223,6 @@ class FifoStockBatchesTest extends TestCase
         $this->receive(5, 70);
         $this->sell(3);
 
-        // As if the stock had been kept without batches: 18 on hand, but
-        // only 15 ever delivered, so 3 predate every recorded delivery.
         Inventory::where('ProductID', $this->camera->ProductID)->update(['Quantity' => 18]);
         $migration = require database_path('migrations/2026_11_09_231513_create_stock_batch_tables.php');
         Schema::table('SalesItem', fn ($table) => $table->dropColumn('CostAmount'));
@@ -249,10 +233,8 @@ class FifoStockBatchesTest extends TestCase
 
         $batches = DB::table('StockBatch')->orderBy('ReceivedAt')->orderBy('StockBatchID')->get();
         $this->assertSame(['Opening Stock', 'Purchase Order', 'Purchase Order'], $batches->pluck('Source')->all());
-        // What is left is the latest deliveries; the oldest stock sells first.
         $this->assertSame([3.0, 10.0, 5.0], $batches->map(fn ($batch) => (float) $batch->QuantityRemaining)->all());
         $this->assertSame([50.0, 60.0, 70.0], $batches->map(fn ($batch) => (float) $batch->UnitCost)->all());
-        // Earlier sales get the product's Cost Price as their cost.
         $this->assertSame(150.0, (float) DB::table('SalesItem')->value('CostAmount'));
     }
 }

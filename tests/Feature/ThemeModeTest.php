@@ -7,10 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Light Mode / Dark Mode: a toggle in the top bar beside the notification
-// bell, and the theme switcher loaded last in <head> (after every stylesheet
-// it reads).
-// Printed documents stay as they are.
 class ThemeModeTest extends TestCase
 {
     use RefreshDatabase;
@@ -32,7 +28,6 @@ class ThemeModeTest extends TestCase
         $html = $this->actingAs($this->admin)->get(route('admin.purchase-orders.index'))->assertOk()->getContent();
 
         $this->assertThemeSwitcher($html, 1);
-        // In the top bar, just before the bell; no longer in the sidebar.
         $header = substr($html, strpos($html, '<div class="header-controls"'));
         $this->assertLessThan(strpos($header, 'fa-bell'), strpos($header, 'data-theme-toggle'));
         $sidebar = substr($html, strpos($html, '<aside'), strpos($html, '</aside>') - strpos($html, '<aside'));
@@ -43,7 +38,6 @@ class ThemeModeTest extends TestCase
     {
         $html = $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()->getContent();
 
-        // Beside each bell: the phone header and the page's own header.
         $this->assertThemeSwitcher($html, 2);
         $sidebar = substr($html, strpos($html, '<aside'), strpos($html, '</aside>') - strpos($html, '<aside'));
         $this->assertStringNotContainsString('data-theme-toggle', $sidebar);
@@ -56,11 +50,6 @@ class ThemeModeTest extends TestCase
             ->assertDontSee('window.__themeEngine', false);
     }
 
-    /**
-     * The toggle buttons (sun to switch to Light Mode, moon to switch to
-     * Dark Mode), and the switcher placed after the last stylesheet and
-     * <style> block in <head>.
-     */
     private function assertThemeSwitcher(string $html, int $toggles): void
     {
         $this->assertSame($toggles, preg_match_all('/<button[^>]*\sdata-theme-toggle[\s>]/', $html));

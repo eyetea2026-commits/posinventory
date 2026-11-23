@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Admin sidebar: thin scrollbar, hidden until hovered, rounded thumb */
 .sidebar-scroll {
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
@@ -27,7 +26,6 @@
     background: rgba(148, 163, 184, 0.5);
 }
 
-/* Alpine: hide elements bound with x-cloak until Alpine has initialized */
 [x-cloak] {
     display: none !important;
 }

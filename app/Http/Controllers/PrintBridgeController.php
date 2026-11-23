@@ -10,17 +10,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
 
-/**
- * Print bridge, served by the local copy of this app on the cashier PC
- * (where direct thermal printing is on). The deployed site's POS can't reach
- * the USB printer, so after a sale it sends the receipt's lines here and
- * they print through the same ThermalReceiptPrinter as a local sale — the
- * slip comes out exactly the same.
- *
- * Only accepted from this PC itself and from the sites listed in
- * services.receipt_printer.bridge_origins, so another website or another
- * device on the network can't print to it.
- */
 class PrintBridgeController extends Controller
 {
     private const MAX_LINES = 300;
@@ -35,7 +24,6 @@ class PrintBridgeController extends Controller
             return response()->json(['success' => false, 'message' => 'Not allowed.'], 403);
         }
 
-        // CORS preflight for the deployed site's JSON POST.
         if ($request->isMethod('OPTIONS')) {
             return $this->withCors(response()->noContent(), $origin);
         }
@@ -59,12 +47,10 @@ class PrintBridgeController extends Controller
         }
 
         $lines = array_map(fn (array $line): array => [
-            // The printer only prints plain ASCII (see ThermalReceiptPrinter::ascii()).
             'text' => (string) preg_replace('/[^\x20-\x7E\n]/', '', (string) $line['text']),
             'center' => (bool) $line['center'],
             'bold' => (bool) $line['bold'],
             'tall' => (bool) $line['tall'],
-            // The receipt-number QR code (printable ASCII only).
             'qr' => (string) preg_replace('/[^\x20-\x7E]/', '', (string) ($line['qr'] ?? '')),
         ], $validator->validated()['lines']);
 
@@ -104,7 +90,6 @@ class PrintBridgeController extends Controller
         $response->headers->set('Access-Control-Allow-Origin', $origin);
         $response->headers->set('Access-Control-Allow-Methods', 'POST, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Accept');
-        // Lets a public https site reach this PC (Chrome's local network access).
         $response->headers->set('Access-Control-Allow-Private-Network', 'true');
         $response->headers->set('Access-Control-Max-Age', '600');
         $response->headers->set('Vary', 'Origin');

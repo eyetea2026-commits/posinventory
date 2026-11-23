@@ -7,8 +7,6 @@ use App\Notifications\Concerns\FormatsMailBadge;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-// Not ShouldQueue: this app has no reliable persistent queue worker
-// (Hostinger shared hosting has no crontab access), so dispatch inline.
 class UserAccountUpdated extends Notification
 {
     use FormatsMailBadge;

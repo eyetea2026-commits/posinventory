@@ -76,7 +76,6 @@
     }
     .filter-select:focus { outline: none; border-color: var(--primary); }
     .filter-select option { background: #1e293b; color: #f8fafc; }
-    /* Deactivated categories stay listed (history is kept) but read as retired. */
     tr.is-inactive .category-name-cell { opacity: 0.6; }
     .category-status-badge { margin-left: 8px; font-size: 0.72rem; vertical-align: middle; }
     .card-header {
@@ -88,7 +87,6 @@
         padding: 20px 24px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     }
-    /* Search Bar — matches Products/Inventory */
     .search-box-wrapper {
         position: relative;
         display: flex;
@@ -278,7 +276,6 @@
         white-space: normal;
     }
 
-    /* Add Category Modal */
     .form-group label { display: block; margin-bottom: 4px; font-weight: 600; color: #cbd5e1; font-size: 0.82rem; }
     .form-group label .required { color: #ef4444; }
     .form-group { margin-bottom: 16px; }
@@ -296,7 +293,6 @@
     textarea.form-control { min-height: 90px; resize: vertical; }
     .error { display: block; margin-top: 3px; color: #fca5a5; font-size: 0.72rem; }
 
-    /* Brands panel, inline in the Edit Category modal */
     .brand-chip-list {
         display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
         min-height: 32px;
@@ -442,7 +438,6 @@
     </div>
 </div>
 
-<!-- Add Category Modal -->
 <div id="addCategoryModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addCategoryModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -453,11 +448,6 @@
         <div id="addCategoryGeneralError" class="form-error-banner" style="display:none;" role="alert"></div>
 
         <form id="addCategoryForm">
-            {{-- Explicit category=>null guards against $category leaking in
-                 from the @forelse($categories as $category) table loop above
-                 (Blade @include merges parent scope for any key not passed
-                 here) — without this, the Add modal would render pre-filled
-                 with whichever category was last in the table. --}}
             @include('admin.categories.partials.category-form-fields', ['category' => null])
         </form>
 
@@ -472,7 +462,6 @@
     </div>
 </div>
 
-<!-- Edit Category Modal -->
 <div id="editCategoryModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="editCategoryModalTitle" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -501,7 +490,6 @@
 @include('admin.categories.partials.category-brands-behavior')
 
 <script>
-    // Auto-show session messages
     @if(session('success'))
         Swal.fire({
             title: 'Success',
@@ -521,7 +509,6 @@
         });
     @endif
 
-    // ---- Add Category modal ----
     const ADD_CATEGORY_FIELD_IDS = ['CategoryName', 'Description'];
     let addCategoryLastFocused = null;
     let addCategoryFormChanged = false;
@@ -583,7 +570,6 @@
         }
     }
 
-    // ---- Real-time debounced search (matches Products/Inventory) ----
     (function () {
         const filterForm = document.getElementById('filterForm');
         const searchInput = document.getElementById('searchInput');
@@ -679,13 +665,8 @@
         hideAddCategoryGeneralError();
         resetAddCategorySubmitButton();
         addCategoryFormChanged = false;
-        // Left set from a previous Edit Category session, this would make
-        // the live duplicate-name check exclude that category's ID here too
-        // — a name matching that category would wrongly report "available".
         currentEditCategoryId = null;
 
-        // form.reset() only reverts native input values — clear out any
-        // pending brand chips left over from a previous open too.
         const brandList = form.querySelector('.brand-chip-list');
         if (brandList) {
             brandList.innerHTML = '<span class="brand-chip-empty">No brands added yet.</span>';
@@ -808,7 +789,6 @@
         });
     });
 
-    // ---- Edit Category modal ----
     let editCategoryLastFocused = null;
     let currentEditCategoryId = null;
 
@@ -908,8 +888,6 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 form.innerHTML = data.html;
-                // submitAjaxForm always POSTs — this hidden field is Laravel's
-                // standard method-spoofing so it still routes to update().
                 form.insertAdjacentHTML('beforeend', '<input type="hidden" name="_method" value="PUT">');
                 const firstField = form.querySelector('input, textarea, select');
                 if (firstField) firstField.focus();
@@ -990,9 +968,6 @@
         });
     });
 
-    // Live duplicate-name check (mirrors the Products/Users pattern) —
-    // delegated on document since the Add and Edit modals' #CategoryName
-    // fields aren't necessarily both present/static in the DOM at once.
     (function () {
         let checkTimer = null;
 
@@ -1018,7 +993,7 @@
                 })
                     .then((r) => r.json())
                     .then((data) => {
-                        if (data.name_value !== input.value) return; // stale response
+                        if (data.name_value !== input.value) return;
                         if (data.name) {
                             errorEl.textContent = 'A category with this name already exists.';
                             input.classList.add('error');

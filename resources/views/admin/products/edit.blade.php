@@ -149,7 +149,6 @@
         font-size: 0.85rem;
     }
 
-    /* Computed Fields */
     .computed-fields {
         display: grid;
         grid-template-columns: repeat(3, 1fr);

@@ -14,45 +14,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Throwable;
 
-// The single sign-in entry point for the whole system — one username/password
-// form with no upfront "are you an Admin or a Cashier?" choice. The account's
-// role (looked up only *after* the credentials check succeeds) decides where
-// to land: Admin accounts go to /admin/dashboard, Cashier accounts go to
-// /cashier/pos. This replaced two separate, near-identical login forms
-// (AdminAuthController/CashierAuthController each had their own showLogin()
-// and login()) plus a portal-picker landing page — the admin/cashier
-// distinction is something the system determines from who you are, not
-// something you tell it up front.
 class AuthController extends Controller
 {
-    // Same per-account lockout convention as the rest of the auth system —
-    // keyed by username only now, since there's one login form for every
-    // account regardless of role.
     private const MAX_LOGIN_ATTEMPTS = 5;
 
     private const LOGIN_LOCKOUT_SECONDS = 60;
 
-    // Two things guard against the browser Back/Forward button showing a
-    // stale, confusing login form to someone who's actually still logged
-    // in:
-    //
-    // 1. An already-authenticated visitor is redirected straight to their
-    //    dashboard instead of ever seeing the login form — Auth::check()
-    //    reads the SAME session cookie/row the single-session guard in
-    //    login() checks, so this is the exact same "is this session still
-    //    valid" truth, just applied on the way IN instead of only at
-    //    submit time.
-    // 2. The response is sent with Cache-Control: no-store, not just
-    //    no-cache. Per the HTTP/bfcache spec, "no-cache" does NOT stop a
-    //    browser from serving this page out of its back-forward cache on
-    //    Back/Forward — only "no-store" does. Without this, pressing Back
-    //    after logging in shows a fully offline, previously-rendered copy
-    //    of this page with zero server contact; the login attempt itself
-    //    was always correctly rejected either way (the single-session
-    //    check in login() below never trusted the page you're looking at),
-    //    but forcing a fresh request here means check #1 actually runs
-    //    every time instead of only when the browser happens not to serve
-    //    this page from bfcache.
     public function showLogin()
     {
         if (Auth::check()) {
@@ -92,15 +59,11 @@ class AuthController extends Controller
                 ->with('show_forgot_password', $this->isAdminUsername($credentials['username']));
         }
 
-        // Authenticate using username (name field) instead of email
         $loginCredentials = [
             'name' => $credentials['username'],
             'password' => $credentials['password'],
         ];
 
-        // Never "remember" the login: closing the browser must sign the user
-        // out (config session.expire_on_close), and a remember-me cookie
-        // would silently sign them back in.
         if (Auth::attempt($loginCredentials, false)) {
             $request->session()->regenerate();
             $user = Auth::user();
@@ -113,19 +76,9 @@ class AuthController extends Controller
 
             RateLimiter::clear($throttleKey);
 
-            // One active session per account: force-persist this brand-new
-            // session row now (rather than waiting for Laravel's normal
-            // end-of-request save) so that a near-simultaneous login attempt
-            // on another device sees a real, fresh row here instead of none
-            // — closing the race window between "session registered" and
-            // "session actually written to the sessions table".
             $request->session()->save();
             $newSessionId = $request->session()->getId();
 
-            // Locks the user row for the duration of the check-and-set so
-            // two logins racing for the same account can't both read "no
-            // active session" before either has written one — only one
-            // request can hold this lock at a time, so only one wins.
             $sessionDenied = DB::transaction(function () use ($user, $newSessionId) {
                 $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
 
@@ -137,7 +90,6 @@ class AuthController extends Controller
 
                 $lockedUser->current_session_id = $newSessionId;
                 $lockedUser->save();
-                // Counts as open straight away, before its first check-in.
                 User::markSessionAlive($newSessionId);
 
                 return false;
@@ -165,7 +117,6 @@ class AuthController extends Controller
                 return redirect()->intended('/cashier/pos');
             }
 
-            // No recognized role assigned — nothing to route to.
             Auth::logout();
 
             return back()->withErrors(['username' => 'This account has no assigned role. Please contact an administrator.']);
@@ -179,26 +130,11 @@ class AuthController extends Controller
             ->with('show_forgot_password', $this->isAdminUsername($credentials['username']));
     }
 
-    /**
-     * Whether a failed login was for an Admin account, which is when the
-     * login page offers "Forgot Password?" (only Admins can reset their own
-     * password; Cashiers ask an Admin).
-     */
     private function isAdminUsername(string $username): bool
     {
         return (bool) User::where('name', $username)->first()?->isAdmin();
     }
 
-    // "Was this you?" security check — Admin accounts only (Cashier is
-    // untouched). Records a per-login row (structured, updatable status —
-    // see LoginSecurityEvent) alongside the ActivityLog entry already
-    // written above, then notifies the admin (in-app notification bell +
-    // email) so they can confirm or flag it from there.
-    // Wrapped end-to-end: this is a security *notification*, not part of
-    // authentication itself, so nothing in here — a missing/locked table,
-    // a mail failure — may ever turn a successful login into a 500. Any
-    // failure is logged and simply means the admin doesn't get this
-    // particular alert for this login.
     private function recordLoginSecurityEvent(Request $request, User $user, string $sessionId): void
     {
         try {
@@ -219,9 +155,6 @@ class AuthController extends Controller
             return;
         }
 
-        // Always notify -- the database (in-app) channel doesn't need an
-        // email; AdminLoginSecurityAlert::via() itself skips the mail
-        // channel when the admin has none registered.
         try {
             $user->notify(new AdminLoginSecurityAlert($event));
         } catch (Throwable $e) {

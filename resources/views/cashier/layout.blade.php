@@ -35,13 +35,6 @@
         body { background: #050816; color: #e2e8f0; margin: 0; }
         .pos-container { display: flex; height: 100vh; }
 
-        /* Matches the Admin sidebar's visual spec exactly (see
-           resources/views/components/sidebar.blade.php): #0F172A
-           background, #273449 active state, 40px item height, 16px
-           horizontal padding, 8px radius, Public Sans font -- kept as
-           plain CSS here (rather than pulling in Tailwind/Alpine, which
-           power only the Admin sidebar component) since the existing
-           vanilla-JS mobile-drawer toggle below already works. */
         .pos-sidebar {
             width: 240px;
             background: #0F172A;
@@ -168,7 +161,6 @@
 
         .w-full { width: 100%; }
 
-        /* Mobile styles */
         .mobile-header {
             display: none;
             background: #0F172A;
@@ -240,9 +232,6 @@
             }
         }
     </style>
-    {{-- In the head (not after the page content) so the notification
-         dropdown and toasts are styled from the first paint: on a long page
-         like the POS the browser otherwise draws them as raw links first. --}}
     <style>
         .toast {
             position: fixed;
@@ -309,9 +298,6 @@
             right: 0;
             margin-top: 10px;
             width: 320px;
-            /* Shrinks to fit a narrow/resized viewport instead of
-               overflowing past the screen edge and clipping its own
-               content or the "Mark all read" / "View all" controls. */
             max-width: calc(100vw - 24px);
             background: rgba(26, 29, 45, 0.72);
             backdrop-filter: blur(20px) saturate(180%);
@@ -325,10 +311,6 @@
         .notif-dropdown.active { display: flex; }
         .notif-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); font-weight: 600; flex-shrink: 0; }
         .notif-dropdown-header button { background: none; border: none; color: #94a3b8; font-size: 0.75rem; cursor: pointer; }
-        {{-- Only the notification list itself scrolls -- the header and
-             "View all notifications" footer link stay pinned in view, and
-             the list never grows the dropdown past a fixed height no
-             matter how many unread notifications there are. --}}
         .notif-items { max-height: 320px; overflow-y: auto; }
         .notif-item { display: block; padding: 10px 16px; text-decoration: none; color: #e2e8f0; border-bottom: 1px solid rgba(148, 163, 184, 0.08); font-size: 0.85rem; }
         .notif-item:hover { background: rgba(59, 130, 246, 0.1); }
@@ -337,7 +319,6 @@
         .notif-view-all { display: block; text-align: center; padding: 10px; color: #94a3b8; font-size: 0.8rem; text-decoration: none; flex-shrink: 0; }
     </style>
     @include('partials.responsive-ui')
-    {{-- Last in <head>: Light / Dark Mode reads every stylesheet above. --}}
     @include('partials.theme')
 </head>
 <body>
@@ -413,7 +394,6 @@
             }
         });
 
-        // Toast notifications
         function showToast(message, type = 'success') {
             const toast = document.createElement('div');
             toast.className = `toast toast-${type}`;

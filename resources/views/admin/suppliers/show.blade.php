@@ -47,7 +47,6 @@
     .action-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: none; cursor: pointer; background: rgba(59,130,246,0.15); color: #93c5fd; }
     .action-btn:hover { background: rgba(59,130,246,0.25); }
 
-    /* Search bar — matches Products/Inventory/Category */
     .search-box-wrapper {
         position: relative; display: flex; align-items: center; flex: 1;
         min-width: 260px; max-width: 420px; background: rgba(30, 41, 59, 0.6);
@@ -69,7 +68,6 @@
     .pagination-link.active { background: linear-gradient(135deg, #3b82f6, #10b981); color: white; border-color: transparent; }
     .pagination-link.disabled { opacity: 0.4; pointer-events: none; }
 
-    /* View Details modal */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 900; align-items:center; justify-content:center; backdrop-filter: blur(6px); }
     .modal-overlay.active { display: flex; }
     .modal-content { background: #0f172a; border: 1px solid #334155; border-radius: 20px; padding: 20px 24px; width: 92%; max-width: 720px; max-height: 88vh; overflow-y: auto; }
@@ -106,7 +104,6 @@
     </div>
 </div>
 
-<!-- View Details Modal -->
 <div id="historyDetailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal-content">
         <div class="modal-header">
@@ -134,7 +131,6 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    // ---- Real-time debounced search over the transaction history table ----
     (function () {
         const filterForm = document.getElementById('historySearchForm');
         const searchInput = document.getElementById('historySearchInput');
@@ -205,7 +201,6 @@
         rebindPagination();
     })();
 
-    // ---- View Details modal ----
     function viewSupplierHistoryDetails(supplierId, purchaseOrderId) {
         const modal = document.getElementById('historyDetailsModal');
         const body = document.getElementById('historyDetailsBody');

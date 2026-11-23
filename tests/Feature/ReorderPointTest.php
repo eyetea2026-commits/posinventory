@@ -15,10 +15,6 @@ use App\Services\ReorderPoint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// The Re-Order Point is forecast from the product's own sales and its
-// supplier's delivery time, never below 10:
-//   Re-Order Point = (Average Daily Sales x Average Lead Time) + Safety Stock
-//   Safety Stock   = (Max Daily Sales x Max Lead Time) - (Average Daily Sales x Average Lead Time)
 class ReorderPointTest extends TestCase
 {
     use RefreshDatabase;
@@ -54,9 +50,6 @@ class ReorderPointTest extends TestCase
         $this->travelBack();
     }
 
-    /**
-     * Ordered $daysToDeliver days ago, delivered today.
-     */
     private function receiveOrderPlaced(int $daysToDeliver): void
     {
         $order = PurchaseOrder::create([
@@ -92,11 +85,9 @@ class ReorderPointTest extends TestCase
 
     public function test_the_reorder_point_follows_the_sales_and_the_lead_time(): void
     {
-        // Lead time: 5 days and 3 days (average 4, max 5).
         $this->receiveOrderPlaced(5);
         $this->receiveOrderPlaced(3);
 
-        // 30 sold in the last 30 days (the best day: 12); older sales don't count.
         $this->sell(20, 31);
         $this->sell(12, 10);
         $this->sell(6, 5);
@@ -110,17 +101,14 @@ class ReorderPointTest extends TestCase
         $this->assertSame(4.0, $result['average_lead_time']);
         $this->assertSame(5, $result['max_lead_time']);
         $this->assertSame(2, $result['lead_time_orders']);
-        // (1 x 4) + ((12 x 5) - (1 x 4)) = 4 + 56 = 60
         $this->assertSame(4.0, $result['demand_during_lead_time']);
         $this->assertSame(56.0, $result['safety_stock']);
         $this->assertSame(60, $result['reorder_point']);
 
-        // Saved by the sale itself, and the stock status follows it.
         $this->assertSame(60, $this->storedReorderPoint());
         $this->assertSame(170, (int) Inventory::where('ProductID', $this->camera->ProductID)->value('Quantity'));
         $this->assertSame('Available', Inventory::where('ProductID', $this->camera->ProductID)->value('Status'));
 
-        // The Inventory details show how it was worked out.
         $html = $this->actingAs($this->admin)->getJson(route('admin.inventory.show', $this->camera))->assertOk()->json('html');
         $this->assertStringContainsString('Re-Order Point (Forecast)', $html);
         $this->assertStringContainsString('(12.00 × 5) − (1.00 × 4.0) = 56.00', $html);
@@ -131,7 +119,6 @@ class ReorderPointTest extends TestCase
     {
         Inventory::where('ProductID', $this->camera->ProductID)->update(['Quantity' => 50]);
 
-        // 12 sold today, no deliveries yet (7 days assumed): 12 x 7 = 84.
         $this->sell(12);
 
         $this->assertSame(84, $this->storedReorderPoint());
@@ -143,7 +130,6 @@ class ReorderPointTest extends TestCase
         $this->sell(12);
         $this->assertSame(84, $this->storedReorderPoint());
 
-        // A month later nothing sold in the last 30 days: back to the minimum.
         $this->travel(31)->days();
         $this->actingAs($this->admin)->get(route('admin.inventory.index'))->assertOk();
         $this->assertSame(10, $this->storedReorderPoint());

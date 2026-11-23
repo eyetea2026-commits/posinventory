@@ -1,9 +1,3 @@
-{{-- Print Preview of one record's View Details (Reports → View Details →
-     Print Preview): the pop-up's sections on a white page, with the same
-     company header, Print button and Prepared By as the report's own Print
-     Preview (print.blade.php). A sale's items use the Sales Report's own
-     table (print-table, with its note and Report Summary). Expects: $title,
-     $sections, $receiptRows (null unless it's a sale). --}}
 <!DOCTYPE html>
 <html>
 <head>
@@ -11,11 +5,7 @@
     <title>{{ $title }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}?v=2">
     <style>
-        /* A4 bond paper, landscape, like every report. */
         @page { size: A4 landscape; margin: 15mm 0; }
-        /* The 20 mm left/right margins are the body's own padding when
-           printing, so they stay even when the browser's Margins
-           setting is "None" (which overrides @page margins). */
         body { font-family: sans-serif; font-size: 13px; color: #1a1a1a; max-width: 1100px; margin: 0 auto; padding: 30px; }
         .company-header { text-align: center; border-bottom: 2px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 12px; }
         .company-logo { width: 56px; height: 56px; object-fit: contain; margin: 0 auto 8px; display: block; }

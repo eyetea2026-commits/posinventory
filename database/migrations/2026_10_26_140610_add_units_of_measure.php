@@ -7,23 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Units of measurement: stock is kept in each product's base unit
-     * (Product.UnitOfMeasure: piece, meter...), it can be bought by a bigger
-     * purchase unit (1 roll = 5,000 meters, 1 box = 100 pieces) and sold by
-     * the base unit or, at its own price, by the purchase unit.
-     *
-     * - Product: PurchaseUnit, QuantityPerPurchaseUnit, PurchaseUnitPrice,
-     *   AllowsFractionalQuantity (1.5 meters); UnitOfMeasure becomes required.
-     * - Stock quantities become decimal(12,2) so 1.5 meters can be sold,
-     *   adjusted, returned or recorded as damaged.
-     * - SalesItem: Unit sold + BaseQuantity (what left the stock).
-     * - SalesReturnItem: Unit + BaseQuantity (what goes back / to Damage).
-     * - PurchaseOrderItem: Unit ordered + QuantityPerUnit at order time.
-     *
-     * Every existing row is a piece: Unit 'piece', BaseQuantity = Quantity,
-     * QuantityPerUnit 1, so nothing already recorded changes.
-     */
     public function up(): void
     {
         DB::table('Product')->whereNull('UnitOfMeasure')->orWhere('UnitOfMeasure', '')->update(['UnitOfMeasure' => 'piece']);

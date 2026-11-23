@@ -16,12 +16,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
-// Note: the dashboard's index() route can't be exercised end-to-end in this
-// SQLite-backed test suite — weeklyTrend() uses MySQL's YEARWEEK(), which
-// SQLite doesn't have. That's a pre-existing gap unrelated to this chart
-// rework, so these tests either go through liveInventory() (which never
-// touches the trend methods) or render the Blade view directly with
-// hand-built data to check the new markup in isolation.
 class DashboardChartsTest extends TestCase
 {
     use RefreshDatabase;
@@ -130,7 +124,6 @@ class DashboardChartsTest extends TestCase
         $this->assertStringContainsString('href="'.route('admin.reports.index', ['type' => 'sales']).'" class="stat-card"', $html);
         $this->assertStringContainsString('href="'.route('admin.products.index').'" class="stat-card"', $html);
         $this->assertStringContainsString('href="'.route('admin.suppliers.index').'" class="stat-card"', $html);
-        // Every stat card is now an <a>, not a plain non-interactive <div>.
         $this->assertStringNotContainsString('<div class="stat-card"', $html);
     }
 
@@ -148,8 +141,6 @@ class DashboardChartsTest extends TestCase
         $this->actingAs($this->admin);
         $html = view('admin.dashboard', $this->baseViewData())->render();
 
-        // Slim bars keep the Product Performance card, and the Sales Trend
-        // chart stretched beside it, compact.
         $this->assertMatchesRegularExpression('/\.perf-list \{[^}]*gap: 8px;/', $html);
         $this->assertMatchesRegularExpression('/\.perf-item \{[^}]*height: 38px;/', $html);
     }
@@ -187,12 +178,6 @@ class DashboardChartsTest extends TestCase
         ]);
         $response->assertJsonMissingPath('inventoryValue');
     }
-
-    // buildProductRankings() is invoked via reflection because index() can't
-    // be exercised end-to-end here (see class-level note) — it's the same
-    // private-method-under-test pattern, just without a live-polling route
-    // to go through like buildInventoryQuantityChart()/buildCategorySalesChart() have.
-    // ---- Sales Analytics header: each toggle shows its CURRENT period ----
 
     private function callPeriodStats(string $granularity): array
     {
@@ -232,14 +217,13 @@ class DashboardChartsTest extends TestCase
 
     public function test_each_trend_toggle_reports_its_own_current_period(): void
     {
-        // Wednesday, 2026-10-14. Week starts Monday 2026-10-12.
         Carbon::setTestNow('2026-10-14 15:00:00');
 
-        $this->billOn('2026-10-14', 100);   // today
-        $this->billOn('2026-10-13', 200);   // this week, not today
-        $this->billOn('2026-10-02', 400);   // this month, not this week
-        $this->billOn('2026-03-10', 800);   // this year, not this month
-        $this->billOn('2025-12-31', 1600);  // last year only
+        $this->billOn('2026-10-14', 100);
+        $this->billOn('2026-10-13', 200);
+        $this->billOn('2026-10-02', 400);
+        $this->billOn('2026-03-10', 800);
+        $this->billOn('2025-12-31', 1600);
 
         $daily = $this->callPeriodStats('daily');
         $weekly = $this->callPeriodStats('weekly');
@@ -263,14 +247,13 @@ class DashboardChartsTest extends TestCase
     {
         Carbon::setTestNow('2026-10-14 15:00:00');
 
-        $this->billOn('2026-10-14', 150);   // today
-        $this->billOn('2026-10-13', 100);   // yesterday
-        $this->billOn('2025-06-01', 3000);  // last year
+        $this->billOn('2026-10-14', 150);
+        $this->billOn('2026-10-13', 100);
+        $this->billOn('2025-06-01', 3000);
 
         $this->assertSame(50.0, $this->callPeriodStats('daily')['changePct']);
         $this->assertSame('vs yesterday', $this->callPeriodStats('daily')['compareLabel']);
         $this->assertSame(-91.7, $this->callPeriodStats('yearly')['changePct']);
-        // No sales at all last month -> nothing to compare against.
         $this->assertNull($this->callPeriodStats('monthly')['changePct']);
 
         Carbon::setTestNow();
@@ -305,9 +288,6 @@ class DashboardChartsTest extends TestCase
 
     public function test_product_rankings_never_show_the_same_product_in_both_lists(): void
     {
-        // Explicit requirement: Top Selling and Least Selling must never
-        // share a product, even if that means each list is small when few
-        // distinct products have ever sold.
         $productA = $this->makeProductWithStock('CCTV', 'High Seller', 50);
         $productB = $this->makeProductWithStock('CCTV', 'Low Seller', 50);
         $this->recordSale($productA, 86, 500);
@@ -338,9 +318,6 @@ class DashboardChartsTest extends TestCase
         $topQuantities = $rankings['topSelling']->pluck('total_quantity')->map(fn ($q) => (int) $q)->toArray();
         $leastQuantities = $rankings['leastSelling']->pluck('total_quantity')->map(fn ($q) => (int) $q)->toArray();
 
-        // 4 distinct products -> half-split of 2 each, no overlap: top 2
-        // (120, 90) and bottom 2 (30, 60), leaving neither list touching
-        // the other's products.
         $this->assertSame([120, 90], $topQuantities);
         $this->assertSame([30, 60], $leastQuantities);
 
@@ -360,15 +337,10 @@ class DashboardChartsTest extends TestCase
         $this->assertCount(0, $rankings['leastSelling']);
     }
 
-    // --- Live-sync coverage: liveInventory() must also carry the
-    // sales-derived widgets (Sales Today, Transactions, Recent
-    // Transactions, Product Rankings) so a sale completed in another tab
-    // shows up on the next 10s poll without a page reload. ---
-
     public function test_live_inventory_endpoint_reports_sales_today_and_transactions_matching_db_state(): void
     {
         $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 20);
-        $this->recordSale($product, 3, 500); // TotalAmount = 1500, dated now()
+        $this->recordSale($product, 3, 500);
 
         $response = $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'));
 
@@ -386,7 +358,6 @@ class DashboardChartsTest extends TestCase
     public function test_recent_transactions_search_finds_a_receipt_number_across_all_transactions(): void
     {
         $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 100);
-        // 12 sales: more than one page of 10, so the oldest is off page 1.
         for ($i = 0; $i < 12; $i++) {
             $this->recordSale($product, 1, 500);
             $this->travel(1)->minutes();
@@ -396,7 +367,6 @@ class DashboardChartsTest extends TestCase
 
         $this->assertStringNotContainsString($receipt, $this->actingAs($this->admin)->getJson(route('admin.dashboard.live-inventory'))->json('recentTransactionsHtml'));
 
-        // Full receipt number, lowercase, and the number without the prefix.
         foreach ([$receipt, strtolower($receipt), substr($receipt, 4)] as $search) {
             $html = $this->actingAs($this->admin)
                 ->getJson(route('admin.dashboard.live-inventory', ['txn_search' => $search]))
@@ -414,15 +384,10 @@ class DashboardChartsTest extends TestCase
         $this->recordSale($productA, 1, 500);
         $this->recordSale($productB, 1, 500);
 
-        // Search narrows the polled fragment the same way it narrows the
-        // full page — proves the poll forwards txn_search through.
         $response = $this->actingAs($this->admin)
             ->getJson(route('admin.dashboard.live-inventory', ['txn_search' => 'Walk-in']));
 
         $response->assertOk();
-        // Both sales share the same CustomerName search term, so both rows
-        // should still be present (search matches on customer/receipt/cashier,
-        // not product name — this just proves the filter was applied without erroring).
         $this->assertStringContainsString('table', $response->json('recentTransactionsHtml'));
     }
 
@@ -442,13 +407,6 @@ class DashboardChartsTest extends TestCase
         $this->assertEquals(6.0, $response->json('leastSelling.0.quantity'));
     }
 
-    // Regression: the recent-transactions partial renders identically from
-    // two different routes (the dashboard page and this JSON polling
-    // endpoint). Its pagination/sort links must always point at the real
-    // dashboard page, never at this JSON-only endpoint's own URL --
-    // otherwise, once the 10s poll re-renders this partial into the DOM,
-    // clicking a page number lands the admin on a raw JSON response instead
-    // of the dashboard.
     public function test_live_inventory_recent_transactions_pagination_links_point_at_the_dashboard_not_itself(): void
     {
         $product = $this->makeProductWithStock('CCTV', 'Dome Camera', 100);
@@ -476,8 +434,6 @@ class DashboardChartsTest extends TestCase
         $response->assertOk();
         $html = $response->json('recentTransactionsHtml');
 
-        // Default sort is date_desc, so the Amount header's toggle link
-        // targets amount_desc.
         $this->assertStringContainsString('txn_sort=amount_desc', $html);
         $this->assertStringContainsString(route('admin.dashboard').'?', $html);
         $this->assertStringNotContainsString(route('admin.dashboard.live-inventory'), $html);
@@ -494,9 +450,6 @@ class DashboardChartsTest extends TestCase
         $this->assertStringContainsString('id="recentTransactionsContainer"', $html);
     }
 
-    // Regression: pagination/sort/search on this widget must never do a real
-    // navigation (which always scrolls back to the top of the dashboard) --
-    // they're intercepted client-side and fetched via the JSON endpoint.
     public function test_dashboard_view_wires_up_ajax_handling_for_recent_transactions(): void
     {
         $this->actingAs($this->admin);

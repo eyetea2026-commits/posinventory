@@ -4,9 +4,6 @@ namespace App\Notifications;
 
 use Illuminate\Notifications\Notification;
 
-// The "something just happened" card for actions that have no notification
-// of their own (bell + live card only, no email). Sent via ActionNotifier.
-// Not ShouldQueue: this app has no reliable persistent queue worker.
 class ActionNotification extends Notification
 {
     public function __construct(
@@ -17,17 +14,11 @@ class ActionNotification extends Notification
         public string $color = 'info',
     ) {}
 
-    /**
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
         return ['database'];
     }
 
-    /**
-     * @return array{title: string, description: string, url: string, icon: string, color: string}
-     */
     public function toDatabase(object $notifiable): array
     {
         return [

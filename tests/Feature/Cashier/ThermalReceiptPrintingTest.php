@@ -21,7 +21,6 @@ class ThermalReceiptPrintingTest extends TestCase
 
     private Category $category;
 
-    /** Captures what would have been sent to the printer. */
     private object $capture;
 
     protected function setUp(): void
@@ -84,14 +83,9 @@ class ThermalReceiptPrintingTest extends TestCase
 
     private function printedText(): string
     {
-        // Drop ESC/POS control sequences so assertions read like the paper.
         return (string) preg_replace(["/\x1b@/", "/\x1b[aE!]./s", "/\x1d!./s", "/\x1dV.{1,2}/s", "/\x1bd./s", "/\x1bp.../s"], '', $this->withoutQrCommands($this->capture->bytes));
     }
 
-    /**
-     * Removes the QR code commands (GS ( k pL pH ...), whose data length
-     * is given by the two bytes after "GS ( k".
-     */
     private function withoutQrCommands(string $bytes): string
     {
         while (($start = strpos($bytes, "\x1d(k")) !== false) {
@@ -102,12 +96,8 @@ class ThermalReceiptPrintingTest extends TestCase
         return $bytes;
     }
 
-    /**
-     * The content of the QR code the printer was told to store, if any.
-     */
     private function printedQrContent(): ?string
     {
-        // Store-data command: GS ( k pL pH cn=49 fn=80 m=48 data...
         if (! preg_match('/\x1d\(k(.)(.)1P0/s', $this->capture->bytes, $m, PREG_OFFSET_CAPTURE)) {
             return null;
         }
@@ -127,8 +117,6 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertSame('', $this->capture->bytes);
     }
 
-    // Printing the receipt page from the browser (the deployed site, where
-    // direct printing is off) through the thermal printer's driver.
     public function test_browser_printed_receipt_matches_the_thermal_slip_without_page_header(): void
     {
         $receipt = $this->sellAndGetReceipt('Dome Camera 2MP', 1500, 2, 'cash', 5000);
@@ -147,11 +135,9 @@ class ThermalReceiptPrintingTest extends TestCase
         }
         $text .= html_entity_decode($m[2]);
 
-        // Two blank lines above the header.
         $this->assertSame([' ', ' '], [html_entity_decode($rows[0][2]), html_entity_decode($rows[1][2])]);
         $this->assertSame('CCTV Express', trim(html_entity_decode($rows[2][2])));
 
-        // Same bold / double-height lines as the direct thermal printout.
         $this->assertSame('pl pl-bold pl-tall', $classOf['CCTV Express']);
         $this->assertSame('pl pl-bold', $classOf['SALES RECEIPT']);
         $this->assertSame('pl pl-bold pl-tall', $classOf['TOTAL: P3,000.00']);
@@ -160,7 +146,6 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertStringContainsString('.print-text .pl-bold { font-weight: bold; }', $html);
         $this->assertStringContainsString('.print-text .pl-tall { transform: scaleY(2);', $html);
 
-        // Same lines as the direct thermal printout: padded columns, "P" amounts.
         $this->assertStringContainsString('2 x P1,500.00', $text);
         $this->assertMatchesRegularExpression('/TOTAL:\s+P3,000\.00/', $text);
         $this->assertMatchesRegularExpression('/Receipt #:\s+'.preg_quote($receipt, '/').'/', $text);
@@ -169,11 +154,8 @@ class ThermalReceiptPrintingTest extends TestCase
             $this->assertLessThanOrEqual(32, strlen($line), "too wide for 58mm: [{$line}]");
         }
 
-        // Blank lines after the footer (ending in "." so a text driver keeps
-        // them) feed the paper past the tear bar.
         $this->assertMatchesRegularExpression("/Please come again\n{7}\s*\.\n?$/", $text);
 
-        // Zero page margins leave no room for the browser's URL/date header and footer.
         $this->assertStringContainsString('@page { margin: 0; }', $html);
         $this->assertMatchesRegularExpression('/@media print \{.*?\.receipt \{ display: none; \}.*?\.print-text \{\s*display: block;\s*width: 48mm;/s', $html);
     }
@@ -196,14 +178,10 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertMatchesRegularExpression('/Amount Received:\s+P5,000\.00/', $text);
         $this->assertMatchesRegularExpression('/Change:\s+P2,000\.00/', $text);
 
-        // After the footer the paper feeds 6 lines (ESC d 6) so the receipt
-        // clears the tear bar before it's torn off.
         $this->assertMatchesRegularExpression("/Please come again\n.*\x1bd\x06/s", $this->capture->bytes);
 
-        // Two blank lines above the "CCTV Express" header.
         $this->assertMatchesRegularExpression("/^ \n \n[^\n]*CCTV Express/", $text);
 
-        // The on-screen receipt shows the same total.
         $this->actingAs($this->cashier)->get(route('cashier.receipt', $receipt))->assertOk()->assertSee('3,000.00');
     }
 
@@ -231,7 +209,6 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->actingAs($this->cashier)->postJson(route('cashier.receipt.thermal', $receipt))->assertOk();
 
         $this->assertSame($receipt, $this->printedQrContent());
-        // After the footer, so it sits at the bottom of the slip.
         $this->assertGreaterThan(strpos($this->capture->bytes, 'Please come again'), strpos($this->capture->bytes, "\x1d(k"));
     }
 
@@ -252,11 +229,9 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->enablePrinterWith();
         $receipt = $this->sellAndGetReceipt();
 
-        // Reprint: no drawer pulse (ESC p).
         $this->actingAs($this->cashier)->postJson(route('cashier.receipt.thermal', $receipt), ['new_sale' => false])->assertOk();
         $this->assertStringNotContainsString("\x1bp", $this->capture->bytes);
 
-        // Fresh sale: drawer pulse sent.
         $this->actingAs($this->cashier)->postJson(route('cashier.receipt.thermal', $receipt), ['new_sale' => true])->assertOk();
         $this->assertStringContainsString("\x1bp", $this->capture->bytes);
     }
@@ -307,8 +282,6 @@ class ThermalReceiptPrintingTest extends TestCase
             ->assertSee("confirmPrintReceipt(event, '{$receipt}'", false);
     }
 
-    // After "Yes, Complete Sale" the receipt prints from a hidden frame: no
-    // receipt pop-up on screen and no separate browser window.
     public function test_completed_sale_prints_the_receipt_without_a_popup_or_new_window(): void
     {
         $html = $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertOk()->getContent();
@@ -319,8 +292,6 @@ class ThermalReceiptPrintingTest extends TestCase
         $this->assertMatchesRegularExpression('/<iframe id="receiptPrintFrame"[^>]*visibility:hidden;/', $html);
         $this->assertStringContainsString('printReceiptInBackground(receiptUrl);', $html);
 
-        // It prints by itself once loaded (silently in Chrome --kiosk-printing),
-        // and only starts the next sale after printing.
         $this->assertMatchesRegularExpression('/frame\.onload = function \(\) \{.*?frame\.contentWindow\.print\(\);/s', $html);
         $this->assertMatchesRegularExpression("/addEventListener\('afterprint', finish\)/", $html);
         $this->assertMatchesRegularExpression("/const finish = function \(\) \{.*?toastSuccess\('Sale complete\. Receipt printed\.'\)\.then\(function \(\) \{\s*window\.location\.reload\(\);/s", $html);

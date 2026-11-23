@@ -5,44 +5,19 @@ namespace App\Services;
 use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
-use Mike42\Escpos\PrintConnectors\PrintConnector;
 use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
 use Mike42\Escpos\Printer;
 
-/**
- * Prints the sales receipt straight to a 58mm ESC/POS thermal printer
- * (Officom OC-58IIH) shared in Windows, with no browser print dialog.
- *
- * Only usable when this Laravel server runs on the same PC as the printer
- * (the local XAMPP setup), so it's gated behind
- * config('services.receipt_printer.enabled'), which is off by default.
- * Receipt figures come from the exact same array the on-screen receipt view
- * uses (CashierAuthController::buildReceiptData()), so paper and screen can
- * never disagree.
- */
 class ThermalReceiptPrinter
 {
-    /**
-     * Blank lines fed after the footer so the whole receipt clears the tear
-     * bar (the Officom's tear bar sits several lines above the print head).
-     */
     private const TAIL_LINES = 6;
 
-    /** Blank lines printed above the "CCTV Express" header. */
     private const HEAD_LINES = 2;
 
-    /**
-     * Dot size of each QR module (1-16). 8 dots makes the receipt-number QR
-     * about 21mm wide on a 58mm (8 dots/mm) printer: big enough for a
-     * handheld scanner, small enough to keep the slip short.
-     */
     private const QR_MODULE_SIZE = 8;
 
     private int $width;
 
-    /**
-     * @param  (Closure(): PrintConnector)|null  $connectorFactory  Overridable so tests can capture the bytes instead of printing.
-     */
     public function __construct(private ?Closure $connectorFactory = null)
     {
         $this->width = max(24, (int) config('services.receipt_printer.chars_per_line', 32));
@@ -53,25 +28,11 @@ class ThermalReceiptPrinter
         return (bool) config('services.receipt_printer.enabled', false);
     }
 
-    /**
-     * @param  array<string, mixed>  $receipt  Output of CashierAuthController::buildReceiptData().
-     *
-     * @throws \Throwable when the printer can't be reached (off, unplugged, not shared).
-     */
     public function printReceipt(array $receipt, bool $openDrawer = false): void
     {
         $this->printLineSpecs($this->lines($receipt), $openDrawer);
     }
 
-    /**
-     * Prints already-built receipt lines (the output of lines()). Used by
-     * printReceipt() and by the print bridge, which receives the deployed
-     * site's lines so its slip comes out exactly like a local one.
-     *
-     * @param  list<array{text: string, center: bool, bold: bool, tall: bool, qr?: string}>  $lines
-     *
-     * @throws \Throwable when the printer can't be reached (off, unplugged, not shared).
-     */
     public function printLineSpecs(array $lines, bool $openDrawer = false): void
     {
         $connector = $this->connectorFactory
@@ -87,15 +48,10 @@ class ThermalReceiptPrinter
                 $printer->pulse();
             }
         } finally {
-            // Sends the buffered job to the printer; always called so a
-            // half-built job never lingers.
             $printer->close();
         }
     }
 
-    /**
-     * A short slip used by `php artisan pos:printer-test`.
-     */
     public function printTestPage(): void
     {
         $connector = $this->connectorFactory
@@ -123,33 +79,15 @@ class ThermalReceiptPrinter
         }
     }
 
-    /**
-     * The receipt one printed line at a time (centred lines already padded
-     * to the paper width), each with the same bold / double-height styling
-     * the direct thermal printout uses. The receipt page prints these from
-     * the browser, so with a proper thermal driver the slip looks the same
-     * as the direct printout.
-     *
-     * @param  array<string, mixed>  $r
-     * @return list<array{text: string, bold: bool, tall: bool, qr?: string}>
-     */
     public function printLines(array $r): array
     {
         return $this->browserLines($this->lines($r));
     }
 
-    /**
-     * Any receipt's lines (lines(), refundLines()) as the browser-printed
-     * copy draws them: centred lines padded, multi-line entries split.
-     *
-     * @param  list<array{text: string, center: bool, bold: bool, tall: bool, qr?: string}>  $lines
-     * @return list<array{text: string, bold: bool, tall: bool, qr?: string}>
-     */
     public function browserLines(array $lines): array
     {
         $out = [];
         foreach ($lines as $line) {
-            // The browser copy draws the QR code itself (see receipt.blade.php).
             if (! empty($line['qr'])) {
                 $out[] = ['text' => '', 'bold' => false, 'tall' => false, 'qr' => $line['qr']];
 
@@ -163,19 +101,11 @@ class ThermalReceiptPrinter
         return $out;
     }
 
-    /**
-     * Blank lines after the footer so the paper feeds past the tear bar (the
-     * last lines aren't left inside the printer). Some text-only drivers drop
-     * trailing blank lines, so a final "." forces the feed.
-     */
     public function tailText(): string
     {
         return str_repeat("\n", self::TAIL_LINES).$this->center('.')."\n";
     }
 
-    /**
-     * @param  list<array{text: string, center: bool, bold: bool, tall: bool}>  $lines
-     */
     private function writeReceipt(Printer $printer, array $lines): void
     {
         $printer->initialize();
@@ -183,7 +113,6 @@ class ThermalReceiptPrinter
         foreach ($lines as $line) {
             $printer->setJustification($line['center'] ? Printer::JUSTIFY_CENTER : Printer::JUSTIFY_LEFT);
 
-            // Drawn by the printer itself (ESC/POS QR command), so it stays sharp.
             if (! empty($line['qr'])) {
                 $printer->qrCode($line['qr'], Printer::QR_ECLEVEL_M, self::QR_MODULE_SIZE);
                 $printer->text($line['text']);
@@ -199,18 +128,9 @@ class ThermalReceiptPrinter
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
         $printer->feed(self::TAIL_LINES);
-        // Models without an auto-cutter simply ignore this; the tear bar is used instead.
         $printer->cut();
     }
 
-    /**
-     * Every line of the sales receipt, in order. Shared by the thermal
-     * printout, the browser-printed copy and the print bridge so they never
-     * differ.
-     *
-     * @param  array<string, mixed>  $r
-     * @return list<array{text: string, center: bool, bold: bool, tall: bool, qr?: string}>
-     */
     public function lines(array $r): array
     {
         $lines = [];
@@ -219,13 +139,10 @@ class ThermalReceiptPrinter
         };
         $rule = str_repeat('-', $this->width);
 
-        // Blank space above the header (a space, so the browser-printed
-        // copy keeps the line's height too).
         for ($i = 0; $i < self::HEAD_LINES; $i++) {
             $add(' ');
         }
 
-        // Header
         $add('CCTV Express', center: true, bold: true, tall: true);
         $add('Your Trusted Security Partner', center: true);
         if (config('app.business_address')) {
@@ -234,7 +151,6 @@ class ThermalReceiptPrinter
         $add($rule, center: true);
         $add('SALES RECEIPT', center: true, bold: true);
 
-        // Meta
         $customer = ($r['customerName'] ?? null) === 'Walk-in Customer' ? 'N/A' : ($r['customerName'] ?? null);
         $add($this->row('Receipt #:', (string) $r['receiptNumber']));
         $add($this->row('Date:', (string) $r['date']));
@@ -244,7 +160,6 @@ class ThermalReceiptPrinter
         }
         $add($rule);
 
-        // Items: name on its own (wrapped) line, then "qty x price ... amount".
         foreach ($r['items'] as $item) {
             $add($this->wrap($this->ascii((string) $item['name'])));
             $lineTotal = round((float) $item['price'] * (float) $item['qty'], 2);
@@ -252,7 +167,6 @@ class ThermalReceiptPrinter
         }
         $add($rule);
 
-        // Discount
         if (! empty($r['hasDiscount'])) {
             if (! empty($r['promoCode'])) {
                 $add($this->row('Promo Code:', $this->ascii((string) $r['promoCode'])));
@@ -265,7 +179,6 @@ class ThermalReceiptPrinter
             $add($rule);
         }
 
-        // VAT breakdown (prices are VAT-inclusive; this splits the total).
         $total = (float) $r['total'];
         $vat = (float) $r['vatAmount'];
         $add($this->row('VATable Sales:', $this->money($total - $vat)));
@@ -277,7 +190,6 @@ class ThermalReceiptPrinter
         $add($this->row('TOTAL:', $this->money($total)), bold: true, tall: true);
         $add($rule);
 
-        // Payment
         $method = (string) ($r['paymentMethod'] ?? 'cash');
         $add($this->row('Payment:', $this->methodLabel($method)));
         if (! empty($r['referenceNumber'])) {
@@ -295,24 +207,14 @@ class ThermalReceiptPrinter
         }
         $add($rule);
 
-        // Footer
         $add('Thank you for your purchase!', center: true);
         $add('Please come again', center: true);
 
-        // QR code of the receipt number: scanning it in Refund Requests
-        // (New Return Request) finds this receipt.
         $lines[] = ['text' => "\n", 'center' => true, 'bold' => false, 'tall' => false, 'qr' => (string) $r['receiptNumber']];
 
         return $lines;
     }
 
-    /**
-     * Every line of a refund receipt, laid out like the sales receipt
-     * (same header, rules, 32 columns and "P" for the peso sign).
-     *
-     * @param  array<string, mixed>  $r  Output of CashierReturnController::buildRefundReceiptData().
-     * @return list<array{text: string, center: bool, bold: bool, tall: bool}>
-     */
     public function refundLines(array $r): array
     {
         $lines = [];
@@ -366,13 +268,6 @@ class ThermalReceiptPrinter
         return $lines;
     }
 
-    /**
-     * Prints a refund receipt (refundLines()) straight to the thermal printer.
-     *
-     * @param  array<string, mixed>  $refund
-     *
-     * @throws \Throwable when the printer can't be reached (off, unplugged, not shared).
-     */
     public function printRefundReceipt(array $refund): void
     {
         $this->printLineSpecs($this->refundLines($refund));
@@ -385,10 +280,6 @@ class ThermalReceiptPrinter
         return str_repeat(' ', $pad).$text;
     }
 
-    /**
-     * Left label and right value on one line, padded to the paper width.
-     * If they don't fit together, the value drops to its own right-aligned line.
-     */
     private function row(string $left, string $right): string
     {
         $space = $this->width - strlen($left) - strlen($right);
@@ -405,11 +296,6 @@ class ThermalReceiptPrinter
         return wordwrap($text, $this->width, "\n", true)."\n";
     }
 
-    /**
-     * The printer's built-in code page has no peso sign, and accented or
-     * other non-ASCII characters print as garbage, so everything sent is
-     * plain ASCII ("P" stands in for the peso sign).
-     */
     private function percent(float $value): string
     {
         return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.').'%';
@@ -422,8 +308,6 @@ class ThermalReceiptPrinter
 
     private function ascii(string $text): string
     {
-        // Str::ascii maps accents properly (á -> a); iconv's Windows
-        // transliteration turns them into stray apostrophes instead.
         return trim((string) preg_replace('/[^\x20-\x7E]/', '', Str::ascii($text)));
     }
 

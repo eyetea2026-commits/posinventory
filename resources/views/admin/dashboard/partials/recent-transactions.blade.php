@@ -5,9 +5,6 @@
                 <th>Receipt No.</th>
                 <th>Cashier</th>
                 <th>
-                    {{-- route(), not request()->fullUrlWithQuery(): this partial also
-                         renders inside the live-inventory JSON polling endpoint, whose
-                         own URL must never leak into a link the admin actually clicks. --}}
                     <a href="{{ route('admin.dashboard', array_merge(request()->query(), ['txn_sort' => $txnSort === 'amount_desc' ? 'amount_asc' : 'amount_desc', 'txn_page' => 1])) }}">
                         Amount <i class="fas fa-sort"></i>
                     </a>

@@ -1,4 +1,3 @@
-{{-- Light / Dark Mode sits beside the bell, outside its live region. --}}
 <button type="button" class="theme-toggle-btn" data-theme-toggle title="Switch between Light Mode and Dark Mode" aria-label="Switch between Light Mode and Dark Mode">
     <span class="theme-label-light" title="Light Mode"><i class="fas fa-sun"></i></span>
     <span class="theme-label-dark" title="Dark Mode"><i class="fas fa-moon"></i></span>
@@ -10,11 +9,6 @@
             <span class="notif-badge">{{ $headerUnreadCount > 99 ? '99+' : $headerUnreadCount }}</span>
         @endif
     </button>
-    {{-- This partial is included more than once per page (mobile header +
-         page header), so nothing in here may rely on a fixed id — duplicate
-         ids would make getElementById() silently grab the wrong instance
-         (e.g. the hidden mobile-header copy). Dropdown/form lookups below
-         use DOM relationships (closest/nextElementSibling) instead. --}}
     <div class="notif-dropdown">
         <div class="notif-dropdown-header">
             <span>Notifications</span>

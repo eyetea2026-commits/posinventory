@@ -1,7 +1,3 @@
-{{-- Header-only edit form for a draft/pending Purchase Order. Line items are
-     locked in once a PO leaves draft/pending (receiving starts referencing
-     the exact line IDs), so item corrections happen by cancelling and
-     recreating while still in draft/pending, not through this form. --}}
 <input type="hidden" name="_method" value="PUT">
 
 <div class="form-grid">

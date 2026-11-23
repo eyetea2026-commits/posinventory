@@ -6,12 +6,6 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Tells the browser never to keep a copy of any page. Without this, pressing
- * Back after logging out showed a stored copy of the page from before the
- * logout, so the account still looked signed in. With it, Back has to ask
- * the server again, which redirects a signed-out visitor to the login page.
- */
 class PreventBackHistory
 {
     public function handle(Request $request, Closure $next): Response

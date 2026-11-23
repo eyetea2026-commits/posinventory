@@ -11,10 +11,6 @@ class SalesReturn extends Model
 {
     use HasFactory;
 
-    // created_at is the real "return request submitted at" timestamp used
-    // by the Damage Record "Requested By" section — ReturnDate remains a
-    // separate DATE-only field used elsewhere (reports, return-window
-    // calculations) and is left untouched.
     protected $table = 'SalesReturn';
 
     protected $primaryKey = 'SalesReturnID';
@@ -46,27 +42,16 @@ class SalesReturn extends Model
 
     const TYPE_REFUND = 'refund';
 
-    // The reason given to every return: since 2026-11-07 a return is always
-    // a Factory Defect (set automatically; "Damaged Product" and "Other"
-    // were removed).
     const REASON_CODES = [
         'factory_defect' => 'Factory Defect',
     ];
 
     const DEFAULT_REASON_CODE = 'factory_defect';
 
-    // Reasons that mean the physical unit is unsalable — it must never be
-    // restored to Inventory and instead flows into the Damage module.
-    // "Damaged Product" stays for returns recorded before it was removed.
     const UNSALABLE_REASONS = ['Factory Defect', 'Damaged Product'];
 
-    // Store policy: how many days after purchase a product remains eligible for return.
     const RETURN_WINDOW_DAYS = 7;
 
-    /**
-     * Status colour in lists and reports: Pending yellow, Approved (and
-     * Refunded) green, Declined red.
-     */
     public static function statusTone(?string $status): string
     {
         return match ($status) {
@@ -81,7 +66,6 @@ class SalesReturn extends Model
         return $this->belongsTo(SalesTransaction::class, 'SalesTransactionID', 'SalesTransactionID');
     }
 
-    // Alias for transaction relationship
     public function salesTransaction()
     {
         return $this->belongsTo(SalesTransaction::class, 'SalesTransactionID', 'SalesTransactionID');
@@ -112,16 +96,11 @@ class SalesReturn extends Model
         return $this->hasOne(DamagedProduct::class, 'SalesReturnID', 'SalesReturnID');
     }
 
-    // Whether this return's reason means the unit is physically unsalable
-    // (Factory Defect / Damaged Product) and must never re-enter Inventory.
     public function getIsUnsalableReturnAttribute(): bool
     {
         return in_array($this->Reason, self::UNSALABLE_REASONS, true);
     }
 
-    // Whether any line item on this request is unsalable — the multi-item
-    // equivalent of is_unsalable_return, which only reflects the legacy
-    // single-product header fields.
     public function hasUnsalableItems(): bool
     {
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
@@ -129,9 +108,6 @@ class SalesReturn extends Model
         return $items->contains(fn (SalesReturnItem $item) => $item->is_unsalable);
     }
 
-    // Total quantity across all line items — the multi-item equivalent of
-    // the legacy header Quantity column, which is never populated by the
-    // item-based return flow.
     public function getTotalQuantityAttribute(): int|float
     {
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
@@ -139,7 +115,6 @@ class SalesReturn extends Model
         return Quantity::normalize($items->sum('Quantity'));
     }
 
-    // How many days elapsed between the original purchase and this return request.
     public function getDaysSincePurchaseAttribute(): ?int
     {
         $transaction = $this->relationLoaded('transaction') ? $this->transaction : $this->transaction()->first();
@@ -154,7 +129,6 @@ class SalesReturn extends Model
         return $purchaseDate->diffInDays($requestDate);
     }
 
-    // Whether this request was made within the store's return policy window.
     public function getIsWithinReturnWindowAttribute(): ?bool
     {
         $days = $this->days_since_purchase;

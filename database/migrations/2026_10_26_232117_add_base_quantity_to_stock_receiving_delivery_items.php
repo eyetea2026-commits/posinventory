@@ -7,12 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * How many meters/pieces each delivery line added to stock. A roll's
-     * length is entered when it's received (Stock Receiving), so it can
-     * differ from one delivery to the next. Existing lines: Quantity x the
-     * order line's size (pieces: the same number).
-     */
     public function up(): void
     {
         Schema::table('StockReceivingDeliveryItem', function (Blueprint $table) {

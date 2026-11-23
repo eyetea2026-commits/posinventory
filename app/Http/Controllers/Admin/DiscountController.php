@@ -32,15 +32,10 @@ class DiscountController extends Controller
         });
     }
 
-    // Display promo codes list (Tab 1) + the product-apply panel (Tab 2)
     public function index(Request $request)
     {
         $search = $request->get('search');
 
-        // Expired promos never show in this list — they're moved to History
-        // automatically (a live query, not a stored flag: see
-        // Discount::scopeNotExpired() / getEffectiveStatusAttribute()) as
-        // soon as their EndDate passes, with no admin action needed.
         $discounts = Discount::with('products')
             ->notExpired()
             ->when($search, function ($query) use ($search) {
@@ -54,25 +49,12 @@ class DiscountController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Live search — matches the Inventory/Damage module pattern. Keyed
-        // off an explicit ?ajax=1 flag rather than the X-Requested-With
-        // header alone: the Add/Edit Promo modal's own AJAX submit follows
-        // its redirect back to this same route carrying that same header,
-        // and a header-only check would hijack that redirect-follow into
-        // returning this JSON instead of the full HTML page the modal's
-        // shared submit helper expects (see the identical Category/Damage
-        // module fix).
         if ($request->boolean('ajax')) {
             $applyTabData = $this->applyTabData();
 
             return response()->json([
                 'rows' => view('admin.discounts.partials.rows', ['discounts' => $discounts])->render(),
                 'pagination' => view('admin.discounts.partials.pagination', ['discounts' => $discounts])->render(),
-                // So a promo just created/edited via this same page's Add/Edit
-                // modal shows up (or updates) in the Apply tab's "Choose Promo
-                // Discount" dropdown and View Details data without a full page
-                // reload — see refreshDiscountsTable()/updateApplyTabData() in
-                // the view.
                 'allDiscounts' => $applyTabData['allDiscounts']->map(fn ($d) => [
                     'id' => $d->DiscountID, 'name' => $d->Name, 'code' => $d->PromoCode,
                 ])->values(),
@@ -81,9 +63,6 @@ class DiscountController extends Controller
             ]);
         }
 
-        // Tab 2's product picker — a compact searchable multi-select, not a
-        // paginated catalog, so this just returns a capped, unpaginated
-        // JSON list of matches for whatever's currently typed.
         if ($request->boolean('ajax_products')) {
             $productSearch = $request->get('product_search');
 
@@ -105,14 +84,6 @@ class DiscountController extends Controller
             ]);
         }
 
-        // Tab 2's "Applied Discount/Promo List" — one row per promo that has
-        // at least one product assigned, not one row per product-promo
-        // assignment. The assigned products themselves are only shown in
-        // that promo's View Details popup. Once the promo's EndDate passes,
-        // it stops showing here at all — it's not deleted, just no longer
-        // part of this "currently active" view; it keeps showing under
-        // History → Expired instead (same underlying Discount/
-        // DiscountProduct rows, no duplication).
         $today = now()->toDateString();
 
         $appliedAssignments = Discount::whereHas('products')
@@ -137,40 +108,16 @@ class DiscountController extends Controller
             'search' => $search,
             'appliedAssignments' => $appliedAssignments,
             'allDiscounts' => $applyTabData['allDiscounts'],
-            // Pre-built in PHP (not inline in the Blade view) so the two
-            // @json() calls there stay simple single-variable expressions —
-            // Blade's @json directive splits its argument on every
-            // top-level comma to find an optional second (encoding-options)
-            // argument, which silently mangles anything more elaborate
-            // embedded directly in the view.
             'discountProductMap' => $applyTabData['discountProductMap'],
             'discountMeta' => $applyTabData['discountMeta'],
         ]);
     }
 
-    // Shared by the initial page render and the Tab 1 live-search/pagination
-    // AJAX response (so a promo created or edited via the Add/Edit popup
-    // shows up correctly in the Apply tab's dropdown and View Details data
-    // without requiring a full page reload).
-    //
-    // discountMeta/discountProductMap are built from EVERY Discount row
-    // (not just ones with a PromoCode) so the View Details popup works for
-    // every row Tab 1's list can show, including a pre-redesign legacy row
-    // that predates PromoCode existing — expired ones included, since
-    // History needs to display them too. allDiscounts (the "Choose Promo
-    // Discount" dropdown's source) stays restricted to named, non-expired
-    // promos — an expired promo can never be selected to apply, matching
-    // assignProducts()'s own server-side expiry guard.
     private function applyTabData(): array
     {
         $allDiscounts = Discount::whereNotNull('PromoCode')->notExpired()->orderBy('Name')
             ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate']);
 
-        // Was $d->products()->with('category')->get() inside the
-        // mapWithKeys() below — a fresh pair of queries per discount (N+1).
-        // Eager-loading products.category here instead makes this whole
-        // method a constant 3 queries total (discounts, products, product
-        // categories) no matter how many discounts exist.
         $allDiscountsForDetails = Discount::with('products.category')
             ->orderByDesc('DiscountID')
             ->get(['DiscountID', 'Name', 'PromoCode', 'DiscountType', 'DiscountRate', 'StartDate', 'EndDate', 'Description']);
@@ -195,10 +142,6 @@ class DiscountController extends Controller
                         : number_format($d->DiscountRate, 2).'%',
                     'start' => $d->StartDate?->format('m/d/Y') ?? '—',
                     'end' => $d->EndDate?->format('m/d/Y') ?? '—',
-                    // Discount::STATUS_LABELS is the single source of truth
-                    // for this wording — every list/popup that shows a
-                    // promo's status goes through effective_status_label so
-                    // they can't disagree with each other.
                     'statusLabel' => $d->effective_status_label,
                     'statusClass' => $d->effective_status === Discount::STATUS_EXPIRED ? 'badge-secondary'
                         : ($d->effective_status === Discount::STATUS_INACTIVE ? 'badge-warning' : 'badge-success'),
@@ -207,13 +150,11 @@ class DiscountController extends Controller
         ];
     }
 
-    // Show create form
     public function create()
     {
         return view('admin.discounts.create');
     }
 
-    // Live promo-code uniqueness check (mirrors ProductController::checkName)
     public function checkPromoCode(Request $request)
     {
         $code = strtoupper(trim((string) $request->input('PromoCode', '')));
@@ -232,11 +173,6 @@ class DiscountController extends Controller
         ]);
     }
 
-    /**
-     * Case-insensitive, whitespace-trimmed name match against every promo
-     * that hasn't been deleted (soft-deleted promos are excluded by the
-     * model), optionally ignoring the promo being edited.
-     */
     private static function promoNameTaken(string $name, ?int $excludeDiscountId = null): bool
     {
         $normalized = mb_strtolower(trim($name));
@@ -249,8 +185,6 @@ class DiscountController extends Controller
             ->exists();
     }
 
-    // Store new promo code — Tab 1 only defines the promo itself, no
-    // product selection; that's decided separately via assignProducts().
     public function store(Request $request)
     {
         $data = $this->validatePromo($request);
@@ -266,10 +200,6 @@ class DiscountController extends Controller
             'CreatedBy' => auth()->id(),
         ]);
 
-        // Guarded like the notification below it: the discount is already
-        // committed to the database at this point, so a logging failure
-        // here must never turn into a 500 that tells the admin their promo
-        // wasn't saved when it actually was.
         try {
             ActivityLog::record('discount.created', "Created promo \"{$discount->PromoCode}\"");
         } catch (Throwable $e) {
@@ -279,14 +209,6 @@ class DiscountController extends Controller
             ]);
         }
 
-        // Deferred to run after the response is sent: this notification's
-        // 'mail' channel is a live SMTP send (Gmail on production) and this
-        // app has no persistent queue worker to hand it off to (see
-        // DiscountUpdated's class comment), so without this the admin's
-        // browser sat waiting on an SMTP round trip before "Saved" could
-        // even show up. afterResponse() keeps it synchronous-in-process
-        // (no queue table, nothing to get stuck unprocessed) while no
-        // longer blocking the save itself.
         dispatch(function () use ($discount) {
             try {
                 Notification::send(User::admins(), new DiscountUpdated($discount, 'Created'));
@@ -301,11 +223,8 @@ class DiscountController extends Controller
         return redirect()->route('admin.discounts.index')->with('success', 'Promo code created successfully.');
     }
 
-    // Show edit form
     public function edit(Request $request, Discount $discount)
     {
-        // Edit Promo modal: return just the rendered form fields instead of
-        // a full page, so the modal can inject it without navigating.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.discounts.partials.discount-form-fields', [
@@ -317,7 +236,6 @@ class DiscountController extends Controller
         return view('admin.discounts.edit', ['discount' => $discount]);
     }
 
-    // Update promo code — same fields as store(), no product selection here.
     public function update(Request $request, Discount $discount)
     {
         $data = $this->validatePromo($request, $discount);
@@ -334,8 +252,6 @@ class DiscountController extends Controller
 
         ActivityLog::record('discount.updated', "Updated promo \"{$discount->PromoCode}\"");
 
-        // Same reasoning as store(): defer the live SMTP send so it doesn't
-        // block the save response.
         dispatch(function () use ($discount) {
             try {
                 Notification::send(User::admins(), new DiscountUpdated($discount, 'Updated'));
@@ -350,7 +266,6 @@ class DiscountController extends Controller
         return redirect()->route('admin.discounts.index')->with('success', 'Promo code updated successfully.');
     }
 
-    // Promo Details page
     public function show(Discount $discount)
     {
         $discount->load(['products.category', 'createdByUser']);
@@ -358,10 +273,8 @@ class DiscountController extends Controller
         return view('admin.discounts.show', ['discount' => $discount]);
     }
 
-    // Delete promo code
     public function destroy(Discount $discount)
     {
-        // Check if the promo was applied to any sale
         if ($discount->salesTransactions()->count() > 0) {
             return redirect()->route('admin.discounts.index')->with('error', 'Cannot delete a promo that is associated with past transactions.');
         }
@@ -374,18 +287,8 @@ class DiscountController extends Controller
         return redirect()->route('admin.discounts.index')->with('success', 'Promo code deleted successfully.');
     }
 
-    // Assign an existing promo to one or more products (Tab 2). Each
-    // product is checked independently — one already covered by another
-    // promo's overlapping date window is skipped (reported back, not a
-    // hard failure for the whole batch) rather than blocking every other
-    // product in the same request.
     public function assignProducts(Request $request, Discount $discount)
     {
-        // Belt-and-suspenders: the "Choose Promo Discount" dropdown already
-        // excludes expired promos, but that's a client-side snapshot — a
-        // tab left open past the promo's EndDate, or a direct API call,
-        // must still be rejected here. An expired promo can never be
-        // applied to a product, full stop.
         if ($discount->effective_status === Discount::STATUS_EXPIRED) {
             return response()->json([
                 'success' => false,
@@ -393,12 +296,6 @@ class DiscountController extends Controller
             ], 422);
         }
 
-        // Just shape/type validation here — deliberately not
-        // 'exists:Product,ProductID' on 'product_ids.*': Laravel's exists
-        // rule validates each array item as its own field, which runs one
-        // presence-check query PER selected product instead of batching
-        // them. Existence for the whole selection is checked below in one
-        // whereIn() query instead.
         $data = $request->validate([
             'product_ids' => ['required', 'array', 'min:1'],
             'product_ids.*' => ['integer'],
@@ -417,11 +314,6 @@ class DiscountController extends Controller
         $startDate = $discount->StartDate?->format('Y-m-d');
         $endDate = $discount->EndDate?->format('Y-m-d');
 
-        // One query for "already assigned", one query for "covered by an
-        // overlapping promo" — checked for the whole batch of selected
-        // products at once (whereIn), not per product in a loop. Selecting
-        // 10 products used to mean 10+ separate overlap queries; now it's
-        // always exactly 2 regardless of how many are selected.
         $alreadyAssigned = $discount->products()->pluck('Product.ProductID')->all();
         $candidateIds = array_values(array_diff($requestedIds, $alreadyAssigned));
 
@@ -430,14 +322,6 @@ class DiscountController extends Controller
         $rejected = array_values($overlapping);
 
         if (! empty($assigned)) {
-            // A single multi-row insert instead of
-            // $discount->products()->syncWithoutDetaching($assigned) —
-            // that helper re-queries current pivot rows (redundant, we
-            // already have $alreadyAssigned above) and then inserts one row
-            // at a time. $assigned is already guaranteed not-yet-attached,
-            // so a plain bulk insert is enough; insertOrIgnore only as a
-            // safety net against a concurrent request assigning the same
-            // pair in the moment between our check and this write.
             $now = now();
             DB::table('DiscountProduct')->insertOrIgnore(
                 collect($assigned)->map(fn ($productId) => [
@@ -449,9 +333,6 @@ class DiscountController extends Controller
             );
         }
 
-        // Guarded like store()'s activity log: the sync above has already
-        // committed, so a logging hiccup must never be reported back as a
-        // failed apply when the products were actually assigned.
         try {
             ActivityLog::record('discount.products_assigned', "Assigned promo \"{$discount->PromoCode}\" to ".count($assigned).' product(s)');
         } catch (Throwable $e) {
@@ -478,12 +359,6 @@ class DiscountController extends Controller
         ]);
     }
 
-    // Remove one product from a promo's assignment (the "Applied list"
-    // row action). Blocked, like destroy(), once the promo has been used
-    // in any past transaction — a sale doesn't track a per-product
-    // breakdown of a multi-product promo's discount, so this is a
-    // conservative "the whole promo was used" guard rather than a
-    // per-product one.
     public function detachProduct(Discount $discount, Product $product)
     {
         if ($discount->salesTransactions()->count() > 0) {
@@ -501,9 +376,6 @@ class DiscountController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // History modal data — Expired (past EndDate) and Used (applied to a
-    // sale) promos. Neither is ever deleted; this is purely a
-    // read-only audit view over records that already exist.
     public function history(Request $request)
     {
         $today = now()->toDateString();
@@ -530,15 +402,8 @@ class DiscountController extends Controller
     {
         $discountId = $discount?->DiscountID;
 
-        // Normalized to uppercase before validation runs, so the uniqueness
-        // check itself is inherently case-insensitive regardless of the
-        // database driver's collation (MySQL's default is already
-        // case-insensitive, but the test suite runs on SQLite, which isn't).
         $request->merge(['PromoCode' => strtoupper(trim((string) $request->input('PromoCode', '')))]);
 
-        // No past dates: a new Start Date can't be before today. An
-        // existing promo may keep the Start Date it already has (it may
-        // already be running), but can't be moved to another past day.
         $savedStartDate = $discount?->StartDate?->format('Y-m-d');
         $startDateRules = ['required', 'date', function (string $attribute, mixed $value, \Closure $fail) use ($savedStartDate) {
             $date = Carbon::parse($value)->toDateString();
@@ -576,12 +441,6 @@ class DiscountController extends Controller
         ]);
     }
 
-    // Checked at assign-time (per product being assigned) rather than at
-    // promo-creation time, since a promo no longer has a product until
-    // it's explicitly assigned one. Only one promo may cover a given
-    // product for any overlapping date window. Batched over every
-    // candidate product ID in a single query (whereIn), not called once
-    // per product — returns just the subset that's already covered.
     private function productIdsWithOverlappingActivePromo(array $productIds, ?string $startDate, ?string $endDate, ?int $excludeDiscountId = null): array
     {
         if (empty($productIds)) {

@@ -10,9 +10,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// The receipt shows the cashier's middle name as an initial ("Gina J.
-// Cole"); a printed or exported report fills "Prepared By" with the name of
-// the Administrator who printed it.
 class ReceiptAndReportNamesTest extends TestCase
 {
     use RefreshDatabase;
@@ -60,7 +57,6 @@ class ReceiptAndReportNamesTest extends TestCase
             ->assertSee('Gina J. Cole')
             ->assertDontSee('Gina Jack Cole');
 
-        // The thermal printout uses the same name.
         $lines = $this->actingAs($this->cashier)->getJson(route('cashier.receipt.print-lines', $receipt))->assertOk()->getContent();
         $this->assertStringContainsString('Gina J. Cole', $lines);
         $this->assertStringNotContainsString('Gina Jack Cole', $lines);
@@ -71,7 +67,6 @@ class ReceiptAndReportNamesTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
             ->assertSee('<strong>Maria Santos Reyes</strong>&nbsp;<br><small>Administrator</small><br><small class="sig-caption">Prepared By</small>', false);
 
-        // So is a View Details Print Preview.
         $category = Category::create(['CategoryName' => 'IP CAMERA']);
         $product = Product::create(['ProductName' => 'Dome Camera', 'Model' => 'DC-1', 'Price' => 1500, 'CategoryID' => $category->CategoryID]);
         $this->actingAs($this->admin)->get(route('admin.reports.details.print', ['type' => 'inventory', 'id' => $product->ProductID]))->assertOk()
@@ -89,13 +84,11 @@ class ReceiptAndReportNamesTest extends TestCase
                 ->assertDontSee('<small>Owner</small>', false);
         }
 
-        // The one signature, Prepared By, is centered on the page (print and PDF).
         $this->actingAs($this->admin)->get(route('admin.reports.print', ['type' => 'sales']))->assertOk()
             ->assertSee('.signature-area { display: flex; justify-content: center;', false)
             ->assertSee('.signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto;', false);
         $this->assertStringContainsString('.signature-block { flex: 0 0 32%; width: 32%; margin: 0 auto;', file_get_contents(resource_path('views/admin/reports/pdf.blade.php')));
 
-        // The exported PDF uses the same footer.
         $this->actingAs($this->admin)->view('admin.reports.partials.report-footer', ['pdf' => true])
             ->assertSee('Prepared By')
             ->assertSee('Confidential Report')

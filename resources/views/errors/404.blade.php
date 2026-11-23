@@ -1,6 +1,3 @@
-{{-- Shown instead of Laravel's plain "404 | Not Found" page when an address
-     doesn't exist, e.g. a typo like /Cashier/dashboard (addresses are
-     lowercase, and the Cashier's home is /cashier/pos). --}}
 @extends('errors.layout')
 
 @section('title', 'Page Not Found')

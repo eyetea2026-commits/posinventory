@@ -17,10 +17,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
-// Actions that had no notification of their own now send the "something
-// just happened" card: every Administrator for admin and cashier work,
-// plus the Cashier for their own sales, return requests, refunds and
-// replacements. Bell + card only, never email.
 class ActionNotificationsTest extends TestCase
 {
     use RefreshDatabase;
@@ -134,7 +130,6 @@ class ActionNotificationsTest extends TestCase
                 && str_contains($notification->description, '₱2,000.00 has been completed.')
                 && $notification->url === route('cashier.transactions');
         });
-        // Administrators keep their existing "Sale Completed" notification instead.
         Notification::assertNotSentTo($this->admin, ActionNotification::class);
     }
 }

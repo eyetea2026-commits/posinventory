@@ -9,17 +9,6 @@ use Tests\TestCase;
 
 class SessionExpiryTest extends TestCase
 {
-    // A stale form (expired session/CSRF token) used to hit Laravel's bare
-    // "419 | Page Expired" page with no way back. bootstrap/app.php now
-    // redirects to login with a friendly message instead.
-    //
-    // Laravel's Handler::prepareException() maps TokenMismatchException into
-    // a generic Symfony HttpException(419, ...) BEFORE any custom render()
-    // callback runs — a callback typed for TokenMismatchException itself
-    // would silently never match. This test exercises the actual mapped
-    // type (HttpException with status 419) the way it really arrives, so a
-    // future regression back to the wrong type-hint would be caught here
-    // instead of only surfacing as a raw 419 page in the browser.
     public function test_a_419_http_exception_redirects_to_login_with_a_friendly_message(): void
     {
         $handler = app(ExceptionHandler::class);
@@ -32,8 +21,6 @@ class SessionExpiryTest extends TestCase
         $this->assertEquals('Your session expired. Please sign in again.', session('status'));
     }
 
-    // Other HTTP status codes must fall through to normal rendering, not
-    // get swallowed by the 419 check.
     public function test_a_404_http_exception_is_not_redirected_to_login(): void
     {
         $handler = app(ExceptionHandler::class);

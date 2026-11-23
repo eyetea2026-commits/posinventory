@@ -1,8 +1,3 @@
-{{-- Shared Category field markup. Included by the standalone create/edit
-     pages and the Add/Edit Category modals. Pass an optional $category to
-     pre-fill for editing (its absence means "Add" mode).
-     Name with the serial-number option under it on the left, Description
-     beside both, Brands across the full width. --}}
 <style>
     .category-form-grid {
         display: grid;
@@ -34,8 +29,6 @@
     <span class="error" id="error-Description">@error('Description'){{ $message }}@enderror</span>
 </div>
 
-{{-- Serial numbers: one per piece, printed as that piece's barcode sticker.
-     Off for consumables and wires (sold with the product barcode). --}}
 <div class="form-group cat-serial">
     <input type="hidden" name="TracksSerialNumbers" value="0">
     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:normal;">
@@ -46,13 +39,6 @@
     <small style="color:#94a3b8;">Untick for consumables and wires, which use the product barcode.</small>
 </div>
 
-{{-- Brands panel: in Edit mode (a real CategoryID exists), adding/removing a
-     brand chip is an immediate AJAX call against that category. In Add mode
-     (no CategoryID yet), chips are held client-side only as "Brands[]"
-     hidden inputs and only actually created once the whole Create Category
-     form is submitted (see CategoryController::store()). Scoped via classes
-     rather than ids since the Add and Edit forms both exist in the DOM at
-     the same time. --}}
 <div class="form-group cat-brands">
     <label>Brands in this Category</label>
     <div class="brand-chip-list" data-category-id="{{ $category->CategoryID ?? '' }}">

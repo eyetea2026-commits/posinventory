@@ -55,11 +55,6 @@
     .clear-cart-btn { padding: 8px 16px; background: #ef4444; border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
     .clear-cart-btn:hover { background: #dc2626; }
 
-    /* Tall enough to show 7 cart lines at once (each row is ~73px: the
-       product name on its own line, then price / qty / total below, plus a
-       6px gap; promo lines and 2-line names are taller). The panel itself
-       scrolls, so the totals, payment and Complete Sale stay reachable
-       underneath. */
     .cart-items { flex: 1 0 auto; min-height: calc(7 * 79px); max-height: calc(7 * 79px); overflow-y: auto; margin-bottom: 14px; padding-right: 8px; position: relative; }
     .cart-item { transition: box-shadow 0.25s ease, background-color 0.25s ease; }
     .cart-item.cart-item-flash { background: #34445e; box-shadow: 0 0 0 2px #3b82f6 inset; }
@@ -68,9 +63,6 @@
     .cart-items::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
 
     .cart-item { display: flex; flex-wrap: wrap; align-items: center; padding: 7px 12px; background: #2d3748; border-radius: 10px; margin-bottom: 6px; gap: 4px 10px; box-sizing: border-box; }
-    /* The product name gets the full row width (up to 2 lines) instead of
-       sharing one line with the qty buttons and price, which squeezed it
-       down to a few letters in the narrow cart panel. */
     .cart-item-head { flex-basis: 100%; display: flex; align-items: flex-start; gap: 8px; }
     .cart-item-head .remove-btn { margin-left: auto; padding: 0 2px; flex-shrink: 0; }
     .cart-item-name {
@@ -130,7 +122,6 @@
     .form-group label { display: block; margin-bottom: 3px; color: #94a3b8; font-size: 0.76rem; }
     .form-group input, .form-group select { width: 100%; padding: 8px 10px; background: #2d3748; border: 1px solid #4a5568; color: #e2e8f0; border-radius: 8px; font-size: 0.85rem; }
     .form-group input:focus { outline: none; border-color: #3b82f6; }
-    /* Custom % discount (needs an Administrator's password). */
     .custom-discount { margin-bottom: 9px; flex-shrink: 0; }
     .custom-discount-row { display: flex; gap: 8px; }
     .custom-discount-row input { flex: 1; min-width: 0; }
@@ -140,8 +131,6 @@
     .custom-discount-status { margin-top: 4px; font-size: 0.74rem; color: #6ee7b7; }
     .custom-discount-status:empty { display: none; }
 
-    /* Administrator approval popup: same design as User Management's
-       "Enter Your Credentials" popup (admin/partials/modal-styles). */
     .approval-overlay { position: fixed; inset: 0; z-index: 1300; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(2, 6, 23, 0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
     .approval-overlay.active { display: flex; }
     .approval-box { box-sizing: border-box; width: 100%; max-width: 440px; background: #0f172a; border: 1px solid #334155; border-radius: 20px; padding: 18px 22px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5); transform: scale(0.95) translateY(12px); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
@@ -165,7 +154,6 @@
     .approval-btn-primary { background: linear-gradient(135deg, #3b82f6, #10b981); color: #fff; }
     .approval-btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
     .approval-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    /* Quantity popup for measured products + the unit beside a cart qty. */
     .quantity-stock { margin: 0 0 10px; color: #94a3b8; font-size: 0.85rem; }
     .quantity-units { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
     .quantity-units:empty { display: none; }
@@ -269,13 +257,10 @@
                 @php
                     $stock = $product->inventory?->Quantity ?? 0;
                     $stockClass = $stock <= 0 ? 'out-of-stock' : ($stock <= 10 ? 'low' : '');
-                    // With its unit: "Stock: 1 Roll (5,000 meters)", "Stock: 4,999 meters remaining".
                     $stockText = $stock <= 0 ? 'Out of Stock' : ($stock <= 10 ? 'Low Stock: ' : 'Stock: ') . $product->stockLabel($stock);
-                    // Serial-numbered products are added by scanning each piece's sticker.
                     $cardClick = $product->tracksSerialNumbers()
                         ? 'askToScanSerial(' . json_encode($product->ProductName) . ')'
                         : 'onProductCardClick(this)';
-                    // No selling price yet: it can't be sold for ₱0.00.
                     if ((float) $product->Price <= 0) {
                         $cardClick = 'warnNoPrice(' . json_encode($product->ProductName) . ')';
                     }
@@ -319,8 +304,6 @@
             </div>
         </div>
 
-        {{-- Custom percentage discount, above Salable Sales. It needs an
-             Administrator's password (CashierAuthController::approveCustomDiscount). --}}
         <div class="form-group custom-discount">
             <label for="custom-discount-input">Discount (%)</label>
             <div class="custom-discount-row">
@@ -351,8 +334,6 @@
             </div>
         </div>
 
-        {{-- How much of a measured product to sell (1.5 meters, or by the
-             box), in the same popup style as the approval above. --}}
         <div id="quantity-modal" class="approval-overlay" role="dialog" aria-modal="true" aria-labelledby="quantity-modal-title" aria-hidden="true">
             <div class="approval-box">
                 <div class="approval-header">
@@ -384,11 +365,6 @@
                 <span>Salable Sales</span>
                 <span id="subtotal">₱0.00</span>
             </div>
-            {{-- Hidden, not removed from the DOM: updateTotals() still writes
-                 the computed VAT amount into #vat every render — deleting the
-                 element would throw when that line runs and stop the rest of
-                 the totals (discount/total) from updating. The VAT
-                 calculation itself is unaffected either way. --}}
             <div class="summary-row" style="display:none;">
                 <span>VAT (12% included)</span>
                 <span id="vat">₱0.00</span>
@@ -443,8 +419,6 @@
             <input type="text" id="account-number" placeholder="Enter reference number...">
         </div>
 
-        {{-- Required photo for GCash / Bank Transfer / Cheque: the GCash
-             screenshot, transfer slip or the cheque itself. --}}
         <div class="form-group" id="payment-proof-group" style="display: none;">
             <label for="payment-proof">Proof of Payment <span class="payment-proof-required">*</span></label>
             <input type="file" id="payment-proof" accept="image/jpeg,image/png,image/webp" onchange="previewPaymentProof(this)">
@@ -527,8 +501,6 @@
         <div class="form-group">
             <label for="payment-amount">Payment Amount</label>
             <input type="text" id="payment-amount" placeholder="0.00">
-            {{-- Cash/GCash only: optional, off by default. Cheque/Bank Transfer
-                 always auto-fill (see syncPaymentAmountMode()). --}}
             <label class="verify-checkbox-label" id="auto-fill-payment-group">
                 <input type="checkbox" id="auto-fill-payment"> Auto-fill exact amount
             </label>
@@ -546,23 +518,15 @@
     </div>
 </div>
 
-{{-- Hidden frame the receipt is printed from after a sale when direct
-     thermal printing is off (the deployed site), or if a direct print
-     fails. Nothing is shown on screen and no browser window is opened. --}}
 <iframe id="receiptPrintFrame" title="Receipt" aria-hidden="true" tabindex="-1" style="position:fixed; width:0; height:0; border:0; visibility:hidden;"></iframe>
 
 @include('partials.print-bridge')
 
 <script>
-    // Capped at 7 whole-peso digits (₱9,999,999.99), matching processSale()'s
-    // own server-side limit. calculateChange is bound AFTER the formatter so
-    // it always reads the already-capped value.
     window.attachMoneyInput(document.getElementById('payment-amount'), { maxIntegerDigits: 7 });
     document.getElementById('payment-amount').addEventListener('input', function () { calculateChange(); });
     document.getElementById('auto-fill-payment').addEventListener('change', function () { syncPaymentAmountMode(); });
 
-    // Live clock — ticks every second so the header date/time never goes
-    // stale while the POS panel is left open, without needing a reload.
     (function () {
         const dateEl = document.getElementById('posCurrentDate');
         const timeEl = document.getElementById('posCurrentTime');
@@ -571,7 +535,6 @@
         function tick() {
             const now = new Date();
             if (dateEl) {
-                // Weekday, MM/DD/YYYY (e.g. Monday, 10/12/2026).
                 dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long' }) + ', '
                     + now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
             }
@@ -593,25 +556,12 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    // ProductID => { discount_id, code, name, description, type, rate } for
-    // every product that currently has an active promo — built server-side
-    // (CashierAuthController::buildProductPromoMap()), the same
-    // Discount/DiscountProduct data the admin's Discount Module manages, no
-    // separate cashier-side promo data anywhere. Apply Promo is fully
-    // automatic: a cart line for a product this map names is discounted
-    // immediately, with no button and nothing for the cashier to click.
-    // JSON-encodes object keys as strings, so items are looked up by
-    // String(item.id) below.
     let PRODUCT_PROMO_MAP = @json($productPromoMap);
 
     function getPromoFor(item) {
         return PRODUCT_PROMO_MAP[item.id] || null;
     }
 
-    // Mirrors Discount::discountedPriceFor() exactly (percentage: price *
-    // (1 - rate/100); fixed: price - rate, floored at 0) so the price shown
-    // here can never drift from what the admin's Discount Module or the
-    // backend checkout computes for the same promo.
     function discountedUnitPrice(price, promo) {
         if (!promo) return price;
         return promo.type === 'fixed'
@@ -623,15 +573,6 @@
         return promo.type === 'fixed' ? `${window.formatPeso(promo.rate)} OFF` : `${promo.rate}% OFF`;
     }
 
-    // The product catalog cards (left side of the POS Panel) show the same
-    // strikethrough-original / discounted-price / promo-name-and-value
-    // treatment as an already-added cart line — so a promo is visible
-    // before a cashier ever adds the product, not only after. Re-run on
-    // every refreshPromoMap() poll (not just once at page load) so a promo
-    // created/expired in the admin Discount Module while this tab is open
-    // updates the cards too.
-    // Each price is shown with its unit: "₱10.00/meter", and a second line
-    // ("₱500.00/box") for a product also sold by its purchase unit.
     function renderProductCardPricing() {
         document.querySelectorAll('.product-card[data-product-id]').forEach(function (card) {
             const productId = card.dataset.productId;
@@ -1380,10 +1321,6 @@
         updateTotals();
     }
 
-    // Scrolls only the cart list (never the panel or the page) just enough to
-    // show the given line, and flashes it so the cashier sees which line the
-    // scan/click changed -- a brand-new product lands at the bottom, a repeat
-    // scan bumps the qty on its existing line wherever that is.
     function scrollCartLineIntoView(container, itemId) {
         const row = container.querySelector('.cart-item[data-cart-item-id="' + itemId + '"]');
         if (!row) return;
@@ -1396,20 +1333,12 @@
         } else if (rowTop < container.scrollTop) {
             target = rowTop;
         }
-        // Instant, not smooth: every add re-renders the cart, which would cut
-        // a smooth animation off mid-way during rapid back-to-back scans.
         container.scrollTop = target;
 
         row.classList.add('cart-item-flash');
         setTimeout(function () { row.classList.remove('cart-item-flash'); }, 900);
     }
 
-    // Keeps an already-open POS tab in sync with the Discount Module
-    // without a page reload: a promo created/assigned there should show up
-    // here, and one that expires or gets unassigned should disappear —
-    // renderCart() re-derives every item's discount from PRODUCT_PROMO_MAP
-    // on every call, so refreshing this map and re-rendering is all that's
-    // needed to pick up the change.
     function refreshPromoMap() {
         fetch('{{ route('cashier.pos.promo-map') }}', {
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
@@ -1421,16 +1350,12 @@
                 renderCart();
                 renderProductCardPricing();
             })
-            .catch(() => { /* Next poll retries; no need to surface a transient network error. */ });
+            .catch(() => { });
     }
 
     renderProductCardPricing();
     setInterval(refreshPromoMap, 45000);
 
-    // Real time (partials/live-updates): stock or products changed elsewhere
-    // (another cashier's sale, receiving, an adjustment, a new product) --
-    // the grid was just swapped in, so redraw its prices, keep the search
-    // applied, and keep the cart's stock limits current.
     document.addEventListener('live-updates:applied', function (event) {
         if (event.detail.regions.indexOf('pos-products') === -1) return;
         renderProductCardPricing();
@@ -1444,7 +1369,6 @@
                 item.stock = stock;
                 cartChanged = true;
             }
-            // The batch prices move too once stock is sold or received.
             const sellingUnit = cardSellingUnits(card).find(unit => unit.unit === item.unit);
             if (sellingUnit) {
                 const tiers = Array.isArray(sellingUnit.tiers) ? sellingUnit.tiers : null;
@@ -1460,17 +1384,10 @@
     });
     window.liveUpdates.watch(['discounts'], refreshPromoMap);
 
-    // Holding down a qty +/- button repeats it instead of requiring one tap
-    // per unit. Delegated on the (stable) cart container rather than bound
-    // per-button, because renderCart() tears down and rebuilds every button
-    // on each quantity change — a listener on the button itself would be
-    // destroyed mid-press. The eventual "click" after a long-press release
-    // is swallowed so the button doesn't apply one extra step on top of
-    // whatever the repeat loop already did.
     (function setupQtyLongPress() {
         const container = document.getElementById('cart-items');
-        const LONG_PRESS_DELAY = 450; // ms held before repeating starts
-        const REPEAT_INTERVAL = 120;  // ms between repeats while held
+        const LONG_PRESS_DELAY = 450;
+        const REPEAT_INTERVAL = 120;
 
         let pressTimer = null;
         let repeatTimer = null;
@@ -1526,8 +1443,6 @@
             const btn = qtyBtnFrom(e.target);
             if (!btn) return;
             if (longPressActive) {
-                // Repeat loop already stepped this during the hold — the
-                // trailing click from mouseup/touchend must not step again.
                 longPressActive = false;
                 return;
             }
@@ -1543,33 +1458,15 @@
         });
     })();
 
-    // Rounds to the nearest cent — matches the server-side computation
-    // exactly, so a payment equal to what's displayed here is never rejected
-    // by the backend's own sufficiency check due to residual floating-point
-    // error further down the same formula.
     function roundMoney(value) {
         return Math.round((value + Number.EPSILON) * 100) / 100;
     }
 
     function updateTotals() {
-        // Salable Sales = the sum of every line's normal (pre-discount)
-        // price, exactly as "Subtotal" was computed before — only the label
-        // changed, not the math, matching processSale()'s own $subtotal.
         const subtotal = roundMoney(cart.reduce((sum, item) => sum + lineSubtotal(item), 0));
 
-        // Each item's own discount is looked up independently from
-        // PRODUCT_PROMO_MAP (never a single shared "applied promo") and
-        // summed — matches processSale() computing every line's discount
-        // the same way from the database at checkout time.
         const discountAmount = roundMoney(cart.reduce((sum, item) => sum + lineDiscount(item, getPromoFor(item)), 0));
 
-        // VAT is the part of the post-discount Total that is VAT (Total ×
-        // 12/112, prices are VAT-inclusive; not added on top of it — Total
-        // itself is untouched below). Matches processSale()'s own
-        // formula exactly so the live preview never disagrees with the
-        // receipt.
-        // The custom discount is a percent of what's left after promos,
-        // exactly as processSale() works it out.
         const afterPromos = roundMoney(subtotal - discountAmount);
         const customDiscountAmount = customDiscount ? roundMoney(afterPromos * customDiscount.percent / 100) : 0;
         currentTotal = roundMoney(afterPromos - customDiscountAmount);
@@ -1585,13 +1482,9 @@
         document.getElementById('discount-summary-row').style.display = discountAmount > 0 ? 'flex' : 'none';
         document.getElementById('total').textContent = window.formatPeso(currentTotal);
 
-        // Re-applies auto-fill (if active) against the new total, then
-        // recalculates Change.
         syncPaymentAmountMode();
     }
 
-    // ---- Custom % discount (Administrator's approval) ----
-    // null, or { percent, approvedBy } once an Administrator approved it.
     let customDiscount = null;
 
     function setCustomDiscount(value) {
@@ -1610,7 +1503,6 @@
         updateTotals();
     }
 
-    // Changing the number after approval cancels it: a new percent needs a new approval.
     function onCustomDiscountInput() {
         if (customDiscount) setCustomDiscount(null);
     }
@@ -1626,7 +1518,6 @@
             return;
         }
 
-        // Two digits: a whole number from 1 to 99.
         const percent = parseInt(input.value, 10);
         if (!(percent >= 1 && percent <= 99)) {
             toastWarning('Enter a discount from 1% to 99%.');
@@ -1720,7 +1611,6 @@
         document.getElementById('approval-error').textContent = '';
     });
 
-    // Proof of payment photo, required for these methods only.
     const PAYMENT_PROOF_METHODS = ['gcash', 'bank', 'cheque'];
     const PAYMENT_PROOF_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -1746,7 +1636,6 @@
         document.getElementById('payment-proof-preview').style.display = 'none';
     }
 
-    // Nested objects/arrays as form fields (items[0][id], items[0][serials][0]...).
     function appendFormData(formData, value, key) {
         if (value === null || value === undefined) return;
         if (Array.isArray(value)) {
@@ -1767,7 +1656,6 @@
         element.classList.add('selected');
         selectedPaymentMethod = method;
 
-        // Mirror the chosen option's icon + label onto the closed trigger.
         document.getElementById('paymentDropdownSelected').innerHTML = element.innerHTML;
         document.getElementById('paymentDropdown').classList.remove('open');
 
@@ -1777,8 +1665,6 @@
         document.getElementById('cheque-details-group').style.display = method === 'cheque' ? 'block' : 'none';
         document.getElementById('bank-details-group').style.display = method === 'bank' ? 'block' : 'none';
 
-        // Switching methods always invalidates any prior "details confirmed"
-        // state — the fields it referred to are no longer the active ones.
         resetPaymentDetailsConfirmation();
 
         const today = new Date().toISOString().slice(0, 10);
@@ -1883,13 +1769,6 @@
         document.getElementById('change-amount').textContent = window.formatPeso(change);
     }
 
-    // Payment Amount behavior per method:
-    //  - Cheque / Bank Transfer: always exactly the total, locked, and the
-    //    Change field is hidden (there's never change on these).
-    //  - Cash / GCash: cashier types the amount, unless "Auto-fill exact
-    //    amount" is ticked, in which case it tracks the total and locks.
-    //    The Change field shows for Cash only (also hidden for GCash).
-    // Called whenever the method, the checkbox, or the cart total changes.
     function syncPaymentAmountMode() {
         const input = document.getElementById('payment-amount');
         const checkbox = document.getElementById('auto-fill-payment');
@@ -1907,8 +1786,6 @@
             input.readOnly = true;
         } else {
             input.readOnly = false;
-            // Leaving auto-fill mode: clear the auto-filled figure so the
-            // cashier enters what was actually handed over.
             if (wasAutoFilled) input.value = '';
         }
         input.classList.toggle('auto-filled', autoFill);
@@ -1916,13 +1793,8 @@
         calculateChange();
     }
 
-    // Local-only direct printing to the 58mm thermal printer (see
-    // App\Services\ThermalReceiptPrinter); false unless POS_PRINTER_ENABLED
-    // is set in this machine's .env.
     const THERMAL_PRINTING = @json(\App\Services\ThermalReceiptPrinter::isEnabled());
 
-    // Resolves when the printer accepted the receipt; rejects with a
-    // human-readable message otherwise.
     function printReceiptToThermal(receiptNumber, isNewSale) {
         return fetch('{{ url('cashier/receipt') }}/' + encodeURIComponent(receiptNumber) + '/thermal', {
             method: 'POST',
@@ -1941,14 +1813,6 @@
             });
     }
 
-    // Prints the receipt from a hidden frame (no pop-up on screen), then
-    // starts a new sale. In Chrome opened with --kiosk-printing (the "CCTV
-    // Express POS" desktop shortcut) the print goes straight to the default
-    // printer, the thermal printer, with no print window; in a normal
-    // browser window the print window opens by itself. The page reloads
-    // only after printing has finished, so the job isn't cut off, and the
-    // product grid then shows the stock this sale just deducted. A receipt
-    // can still be reprinted from Transactions.
     function printReceiptInBackground(receiptUrl) {
         const frame = document.getElementById('receiptPrintFrame');
         window.receiptPrinting = true;
@@ -1968,8 +1832,7 @@
                 frame.contentWindow.addEventListener('afterprint', finish);
                 frame.contentWindow.focus();
                 frame.contentWindow.print();
-            } catch (e) { /* reload below either way */ }
-            // Fallback when the browser never reports the print as done.
+            } catch (e) { }
             setTimeout(finish, 1500);
         };
         frame.src = receiptUrl;
@@ -1978,10 +1841,6 @@
     function processCheckout() {
         const checkoutBtn = document.getElementById('checkout-btn');
 
-        // Guard against double-submit (double-click / double-tap): the disabled
-        // button catches the common case client-side; the server also holds a
-        // per-cashier Cache::lock for the rare cases this can't (a second
-        // browser tab, a fast double-tap before disable() takes effect).
         if (checkoutBtn.disabled) {
             return;
         }
@@ -1991,29 +1850,18 @@
             return;
         }
 
-        // Sufficiency applies to every payment method, not just cash — the
-        // Payment Amount field is always shown and always recorded as what
-        // was actually collected, so an under-amount GCash/bank/cheque entry
-        // is just as wrong as an under-amount cash one.
         const payment = window.parseMoney(document.getElementById('payment-amount').value);
-        // A 100% promo can bring the total to exactly ₱0.00 -- that sale
-        // needs no payment, so only demand one when something is owed.
         if (currentTotal > 0 && (!payment || payment < currentTotal)) {
             toastWarning('Please enter sufficient payment amount!');
             return;
         }
 
-        // Cheque/Bank Transfer must go through their own "Confirm Cheque
-        // Payment"/"Confirm Bank Transfer" step first — Cash/GCash have no
-        // such gate and proceed straight through, unchanged.
         if ((selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank') && !paymentDetailsConfirmed) {
             const label = selectedPaymentMethod === 'cheque' ? 'cheque' : 'bank transfer';
             toastWarning('Please confirm the ' + label + ' details first.');
             return;
         }
 
-        // GCash / Bank Transfer / Cheque can't complete without the proof
-        // of payment photo. ProcessSale enforces the same rule server-side.
         const proofInput = document.getElementById('payment-proof');
         if (PAYMENT_PROOF_METHODS.includes(selectedPaymentMethod) && !proofInput.files.length) {
             proofInput.classList.add('error');
@@ -2025,8 +1873,6 @@
         const data = {
             _token: '{{ csrf_token() }}',
             customer_name: document.getElementById('customer-name').value,
-            // Quantity in the line's unit; the server prices it and works
-            // out what it takes from stock.
             items: cart.map(item => ({ id: item.id, qty: item.qty, unit: item.unit, serials: item.serials })),
             custom_discount_percent: customDiscount ? customDiscount.percent : null,
             payment_method: selectedPaymentMethod,
@@ -2071,7 +1917,6 @@
                 return;
             }
 
-            // Sent as a form so the proof of payment photo can go with it.
             const formData = new FormData();
             appendFormData(formData, data, '');
             const proofFile = document.getElementById('payment-proof').files[0];
@@ -2097,16 +1942,10 @@
                                 });
                             })
                             .catch(function (message) {
-                                // The sale itself already went through -- only
-                                // the printout failed, so print it through the
-                                // browser instead.
                                 toastWarning(message || 'Receipt printer not reachable.');
                                 printReceiptInBackground(receiptUrl);
                             });
                     } else {
-                        // Deployed site: print through the cashier PC's
-                        // local app (exactly like a local sale); without it,
-                        // print through the browser.
                         window.printViaBridge(data.receipt_number, true)
                             .then(function () {
                                 toastSuccess('Sale complete. Receipt printed.').then(function () {
@@ -2121,10 +1960,6 @@
                 } else {
                     toastError(data.message, 'Error');
                     checkoutBtn.disabled = false;
-                    // Re-open the cheque/bank fields for editing — a failure
-                    // here (e.g. a duplicate reference number) usually means
-                    // something in those details needs to change before
-                    // retrying, and they were locked read-only on confirm.
                     if (selectedPaymentMethod === 'cheque' || selectedPaymentMethod === 'bank') {
                         resetPaymentDetailsConfirmation();
                     }

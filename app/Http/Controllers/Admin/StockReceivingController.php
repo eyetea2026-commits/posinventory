@@ -27,7 +27,6 @@ use App\Services\StockBatches;
 use App\Services\UnitOfMeasure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -47,12 +46,6 @@ class StockReceivingController extends Controller
         });
     }
 
-    // The legacy per-item StockReceiving list/search (a flat manual-entry
-    // audit log) no longer has a view to render it in — this page now shows
-    // only the Purchase Order Deliveries tabs below. The StockReceiving
-    // table, create()/store() (still reachable directly), and the "ad hoc"
-    // manual-entry business logic are all untouched; only this now-unused
-    // read query is gone.
     public function index()
     {
         $pendingBatches = StockReceivingBatch::with(['purchaseOrder.supplier', 'purchaseOrder.items.product'])
@@ -68,17 +61,10 @@ class StockReceivingController extends Controller
         return view('admin.stock-receivings.index', [
             'pendingBatches' => $pendingBatches,
             'completedBatches' => $completedBatches,
-            // Both tables render every batch up front (no pagination), so
-            // search/supplier filtering is applied client-side over this
-            // same data rather than round-tripping to the server — see the
-            // JS in the view for the actual filter logic.
             'suppliers' => Supplier::orderBy('SupplierName')->get(),
         ]);
     }
 
-    // AJAX View Details for a Pending/Completed batch — the PO's own items
-    // (Product, ordered Quantity read-only, ReceivedQuantity and
-    // ReceiptNumber editable) plus the "Add to Inventory" button's target.
     public function showBatch(StockReceivingBatch $stockReceivingBatch)
     {
         $stockReceivingBatch->load(['purchaseOrder.supplier', 'purchaseOrder.items.product']);
@@ -92,20 +78,11 @@ class StockReceivingController extends Controller
                 'canReorder' => $canReorder,
                 'reorderSuppliers' => $canReorder ? self::reorderSuppliersFor($stockReceivingBatch->purchaseOrder) : collect(),
             ])->render(),
-            // Lets the modal shell's own static "Add to Inventory" button
-            // (kept there, alongside Close, rather than rendered inside the
-            // fetched partial) know whether to show itself.
             'isPending' => $isPending,
             'canReorder' => $canReorder,
         ]);
     }
 
-    /**
-     * Active suppliers other than this order's, the ones already linked to
-     * its products first.
-     *
-     * @return Collection<int, array{supplier: Supplier, suppliesThese: bool}>
-     */
     private static function reorderSuppliersFor(PurchaseOrder $purchaseOrder)
     {
         $productIds = $purchaseOrder->items->pluck('ProductID');
@@ -120,13 +97,6 @@ class StockReceivingController extends Controller
             ->values();
     }
 
-    /**
-     * The supplier has no stock for some (or all) of what's still owed:
-     * that remainder is cancelled on this order and ordered from another
-     * supplier as a new Draft purchase order (reviewed and printed like any
-     * other). Once nothing is owed here the order leaves Stock Receiving:
-     * Cancelled if nothing at all arrived, Closed otherwise.
-     */
     public function reorderFromAnotherSupplier(Request $request, StockReceivingBatch $stockReceivingBatch)
     {
         $validator = validator($request->all(), [
@@ -185,8 +155,6 @@ class StockReceivingController extends Controller
                     }
                     $item->update(['CancelledQuantity' => (int) $item->CancelledQuantity + $remaining]);
 
-                    // The new supplier's own cost for the product when known,
-                    // else what it cost on this order; editable on the draft.
                     $supplierCost = $item->product->suppliers->firstWhere('SupplierID', $newSupplier->SupplierID)?->CostPrice;
                     $lines[] = [
                         'ProductID' => $item->ProductID,
@@ -222,7 +190,6 @@ class StockReceivingController extends Controller
                     'RemainderCancelledBy' => auth()->id(),
                     'RemainderCancelledAt' => now(),
                 ]);
-                // Nothing more is coming on this order: it leaves Pending.
                 if ($settled) {
                     $batch->update(['Status' => StockReceivingBatch::STATUS_COMPLETED, 'CompletedAt' => now()]);
                 }
@@ -244,38 +211,21 @@ class StockReceivingController extends Controller
         return redirect()->route('admin.stock-receivings.index')->with('success', "Draft purchase order {$newOrder->PONumber} created for {$newSupplier->SupplierName}. Review and print it in Purchase Orders to send it.");
     }
 
-    // The core of the Pending -> Completed workflow. Everything below runs
-    // in one transaction: if any line fails validation or any write throws,
-    // the whole thing rolls back — the batch stays exactly Pending, nothing
-    // in Inventory is partially updated, and the record stays visible in
-    // the Pending / Expected Delivery tab untouched. Only once every line
-    // has been written does the batch flip to Completed and the linked
-    // Purchase Order's own Status advance.
     public function addToInventory(Request $request, StockReceivingBatch $stockReceivingBatch)
     {
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:PurchaseOrderItem,PurchaseOrderItemID'],
             'items.*.quantity_received' => ['required', 'integer', 'min:0'],
-            // Arrived damaged: not added to stock, sent back to the supplier.
             'items.*.quantity_damaged' => ['nullable', 'integer', 'min:0'],
-            // For a line ordered by the roll/box: how many meters/pieces
-            // each one holds in this delivery (1 roll = 1,000 meters).
             'items.*.quantity_per_unit' => ['nullable', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
-            // One Receipt Number for the whole delivery (every product on
-            // this Purchase Order), not one per product line. Required.
             'receipt_number' => ['required', 'string', 'max:50'],
         ], [
             'receipt_number.required' => 'Enter the Receipt Number of this delivery.',
         ]);
 
-        // Must not match any other delivery. Checked up front so a duplicate
-        // is reported before anything is written.
         $receiptNumber = filled($data['receipt_number'] ?? null) ? trim($data['receipt_number']) : null;
 
-        // Pressed again for a delivery this order already has (the first
-        // click went through but the page was slow to answer): nothing is
-        // added twice, and the user is told it's already in.
         if ($receiptNumber !== null && StockReceivingDelivery::where('StockReceivingBatchID', $stockReceivingBatch->StockReceivingBatchID)->where('ReceiptNumber', $receiptNumber)->exists()) {
             return redirect()->route('admin.stock-receivings.index')
                 ->with('success', "This delivery (Receipt Number \"{$receiptNumber}\") was already added to Inventory.");
@@ -302,14 +252,6 @@ class StockReceivingController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                // A Purchase Order can be Cancelled after its batch was
-                // already created (the batch has no status of its own tied
-                // to the PO's) — re-verify under the same lock that the PO
-                // is still receivable, or a Cancelled order could be
-                // silently resurrected and stocked, mirroring the same
-                // guard store() already has for the legacy manual flow.
-                // Pending (nothing received yet) or Partially Received (an
-                // earlier delivery was short): both still expect stock.
                 if (! $purchaseOrder || ! in_array($purchaseOrder->Status, [PurchaseOrder::STATUS_PENDING, PurchaseOrder::STATUS_PARTIALLY_RECEIVED], true)) {
                     throw new \RuntimeException('This purchase order is no longer expecting a delivery — it may have been cancelled or closed.');
                 }
@@ -333,10 +275,6 @@ class StockReceivingController extends Controller
                         throw new \RuntimeException('That order line no longer belongs to this purchase order.');
                     }
 
-                    // What arrived in THIS delivery; added to what earlier
-                    // deliveries brought, never more than is still owed.
-                    // Damaged ones count as delivered (the supplier replaces
-                    // them through the Damage module) but never go to stock.
                     $quantityReceived = (int) $row['quantity_received'];
                     $quantityDamaged = (int) ($row['quantity_damaged'] ?? 0);
 
@@ -352,12 +290,8 @@ class StockReceivingController extends Controller
                         continue;
                     }
 
-                    // Ordered by the roll/box: its size is entered here, for
-                    // this delivery, and kept as the product's last roll size.
                     $product = $item->product;
                     if ($product && ($item->Unit ?: UnitOfMeasure::DEFAULT) !== $product->baseUnit()) {
-                        // Wire comes in exactly the meters per roll it was
-                        // ordered at; whatever was sent is ignored.
                         $size = $item->orderedMetersPerRoll() ?? Quantity::normalize($row['quantity_per_unit'] ?? 0);
                         $unitName = $item->Unit ?: UnitOfMeasure::DEFAULT;
                         if (! $size) {
@@ -375,7 +309,6 @@ class StockReceivingController extends Controller
 
                     $item->ReceivedQuantity += $quantityReceived + $quantityDamaged;
                     $item->save();
-                    // One stock batch: its cost and selling price as of today.
                     $deliveryItem = $delivery->items()->create([
                         'PurchaseOrderItemID' => $item->PurchaseOrderItemID,
                         'ProductID' => $item->ProductID,
@@ -397,7 +330,6 @@ class StockReceivingController extends Controller
                             'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                             'SupplierID' => $purchaseOrder->SupplierID,
                             'SourceModule' => DamagedProduct::SOURCE_STOCK_RECEIVING,
-                            // In the product's base unit: a damaged roll is its meters.
                             'Quantity' => $item->toBaseQuantity($quantityDamaged),
                             'Description' => "Damaged on arrival — PO {$purchaseOrder->PONumber}, Receipt ".($receiptNumber ?? 'N/A'),
                             'DateRecorded' => now(),
@@ -411,22 +343,14 @@ class StockReceivingController extends Controller
                         continue;
                     }
 
-                    // Locked, computed, and saved entirely inside the
-                    // transaction — the same TOCTOU-safe pattern already
-                    // used by the legacy store() below and Stock Adjustment.
                     $inventory = Inventory::where('ProductID', $item->ProductID)->lockForUpdate()->first();
                     if (! $inventory) {
                         Inventory::firstOrCreate(['ProductID' => $item->ProductID], ['Quantity' => 0, 'Status' => 'Out of Stock']);
                         $inventory = Inventory::where('ProductID', $item->ProductID)->lockForUpdate()->first();
                     }
 
-                    // Only the ACTUAL received amount is added to Inventory
-                    // — never the originally ordered Quantity, which stays
-                    // untouched on the PurchaseOrderItem as the reference —
-                    // converted to the base unit (2 rolls = 10,000 meters).
                     $inventory->Quantity = Quantity::normalize($inventory->Quantity + $item->toBaseQuantity($quantityReceived));
                     $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                    // A stock batch of its own, at this order's cost (FIFO).
                     StockBatches::receivingAs([
                         'Source' => StockBatch::SOURCE_PURCHASE_ORDER,
                         'SupplierID' => $purchaseOrder->SupplierID,
@@ -442,10 +366,6 @@ class StockReceivingController extends Controller
                     throw new \RuntimeException('Enter how many of each product arrived in this delivery.');
                 }
 
-                // The order stays open (Partially Received, still in the
-                // Pending / Expected Delivery list) until nothing more is
-                // owed: every line is in, or the owner cancelled what was
-                // left (PurchaseOrderController::cancelRemaining()).
                 $purchaseOrder->load('items');
                 $settled = $purchaseOrder->isSettled();
 
@@ -468,10 +388,6 @@ class StockReceivingController extends Controller
                 ActivityLog::record('stock_receiving_batch.completed', "Received {$receivedNow} item(s) for PO #{$purchaseOrder->PONumber}".($settled ? '' : ' — order stays open for the rest'));
             });
         } catch (QueryException $e) {
-            // DB-level backstop for the same duplicate-Receipt-Number case
-            // already checked above — catches a genuine race between two
-            // concurrent completions, not the normal path. Must be caught
-            // before \RuntimeException below, since QueryException extends it.
             if ($e->getCode() === '23000') {
                 return back()->with('error', 'That Receipt Number has already been used for another delivery.');
             }
@@ -493,15 +409,12 @@ class StockReceivingController extends Controller
             return back()->with('error', 'Failed to add received stock to Inventory. Please try again.');
         }
 
-        // The delivery is part of each product's lead time now.
         try {
             ReorderPoint::refresh(PurchaseOrderItem::where('PurchaseOrderID', $stockReceivingBatch->PurchaseOrderID)->pluck('ProductID'));
         } catch (Throwable $e) {
             Log::error('Re-Order Point refresh after a delivery failed: '.$e->getMessage());
         }
 
-        // Dispatched only after the transaction has committed — a
-        // notification failure must never roll back a completed delivery.
         try {
             $purchaseOrder = PurchaseOrder::with(['supplier', 'items'])->find($stockReceivingBatch->PurchaseOrderID);
             if ($purchaseOrder) {
@@ -523,13 +436,6 @@ class StockReceivingController extends Controller
             : 'Stock added to Inventory. This delivery is now marked Completed.');
     }
 
-    /**
-     * Sends a one-time "delivery due / overdue" notification for every
-     * pending delivery whose Expected Delivery Date is today or earlier.
-     * This hosting has no cron/scheduler, so it's triggered from admin page
-     * loads (throttled in AppServiceProvider) instead of a scheduled job —
-     * the same approach the automatic reorder drafts already use.
-     */
     public static function notifyDueDeliveries(): void
     {
         $dueBatches = StockReceivingBatch::with('purchaseOrder.supplier')
@@ -549,8 +455,6 @@ class StockReceivingController extends Controller
         $admins = User::admins();
 
         foreach ($dueBatches as $batch) {
-            // Claim the batch first (conditional update) so two overlapping
-            // page loads can't both send the same notice.
             $claimed = StockReceivingBatch::where('StockReceivingBatchID', $batch->StockReceivingBatchID)
                 ->whereNull('DueNotifiedAt')
                 ->update(['DueNotifiedAt' => now()]);
@@ -570,10 +474,6 @@ class StockReceivingController extends Controller
         }
     }
 
-    // Live "already used" check for both Receipt Number entry points: the
-    // manual "Record Receipt" form and the delivery's Receipt Number in
-    // "Add to Inventory". Pass exclude_batch_id so a delivery's own saved
-    // number isn't reported as a duplicate of itself.
     public function checkReceiptNumber(Request $request)
     {
         $receiptNumber = trim((string) $request->input('receipt_number', ''));
@@ -585,10 +485,6 @@ class StockReceivingController extends Controller
         ]);
     }
 
-    /**
-     * Whether a Receipt Number is already on record anywhere: another
-     * delivery, or the manual Record Receipt flow.
-     */
     private static function receiptNumberIsUsed(string $receiptNumber, ?int $excludeBatchId = null): bool
     {
         return StockReceivingBatch::where('ReceiptNumber', $receiptNumber)
@@ -649,12 +545,6 @@ class StockReceivingController extends Controller
                         throw new \RuntimeException('That order line no longer belongs to this purchase order.');
                     }
 
-                    // The picker only ever offers approved/partially-received
-                    // orders, but that was never re-checked server-side — a
-                    // PO cancelled after the form was opened (or edited
-                    // directly) could still be received against, silently
-                    // resurrecting it to partially/fully received and
-                    // violating "a cancelled order can never receive stock".
                     $purchaseOrder = PurchaseOrder::where('PurchaseOrderID', $data['purchase_order_id'])
                         ->lockForUpdate()
                         ->first();
@@ -681,20 +571,12 @@ class StockReceivingController extends Controller
                     'PurchaseOrderItemID' => $data['purchase_order_item_id'] ?? null,
                 ]);
 
-                // Locked, computed, and saved entirely inside the
-                // transaction — this used to read/write the Inventory row
-                // without a lock, leaving the same TOCTOU race fixed
-                // elsewhere in Stock Adjustment.
                 $inventory = Inventory::where('ProductID', $productId)->lockForUpdate()->first();
                 if (! $inventory) {
                     Inventory::firstOrCreate(['ProductID' => $productId], ['Quantity' => 0, 'Status' => 'Out of Stock']);
                     $inventory = Inventory::where('ProductID', $productId)->lockForUpdate()->first();
                 }
 
-                // Received in the order line's unit (or, without an order,
-                // the product's purchase unit), stocked in the base unit.
-                // (Without an order the product's last roll size is used; a
-                // roll whose size was never received has to come in on a PO.)
                 $receivedProduct = Product::find($productId);
                 if (! $purchaseOrderItem && $receivedProduct->hasPurchaseUnit() && $receivedProduct->purchaseUnitSize() === null) {
                     throw new \RuntimeException("Receive \"{$receivedProduct->ProductName}\" through its Purchase Order, where the size of each {$receivedProduct->PurchaseUnit} is entered.");
@@ -716,8 +598,6 @@ class StockReceivingController extends Controller
                 if ($purchaseOrderItem) {
                     $purchaseOrderItem->increment('ReceivedQuantity', $data['Quantity']);
 
-                    // Reuse the same locked $purchaseOrder from the status
-                    // guard above rather than re-querying it.
                     $purchaseOrder->load('items');
                     $purchaseOrder->update([
                         'Status' => $purchaseOrder->isFullyReceived() ? PurchaseOrder::STATUS_FULLY_RECEIVED : PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
@@ -742,9 +622,6 @@ class StockReceivingController extends Controller
         }
         ActivityLog::record('stock.received', "Received {$data['Quantity']} x \"{$productName}\" from \"{$supplierName}\"{$poSuffix}");
 
-        // The receiving record itself already committed above — a
-        // notification failure (broken mail transport, queue connection
-        // down) must not turn a successful receipt into a 500 response.
         if ($product && $supplier) {
             try {
                 Notification::send(User::admins(), new ProductReceived($product, $supplier, $receivedBaseQuantity));
@@ -759,15 +636,9 @@ class StockReceivingController extends Controller
         return redirect()->route('admin.stock-receivings.index')->with('success', 'Stock receiving recorded successfully.');
     }
 
-    /**
-     * The delivering supplier's current price for the product becomes what
-     * it was ordered at (per base unit); a supplier not yet on the product
-     * is added to it. The change is kept in the cost history.
-     */
     private static function recordSupplierPrice(Product $product, PurchaseOrder $purchaseOrder, PurchaseOrderItem $item): void
     {
         $unitCost = $item->costPerBaseUnit();
-        // An order line without a real price (₱0) says nothing about it.
         if ($unitCost === null || $unitCost <= 0 || ! $purchaseOrder->SupplierID) {
             return;
         }

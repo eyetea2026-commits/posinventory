@@ -22,7 +22,6 @@
                     <input type="text" name="search" value="{{ $search }}" class="search-input" placeholder="Search adjustments..." />
                 </form>
             </div>
-            <!-- REQ041: Adjust product for adjustment -->
             <a href="{{ route('admin.stock-adjustments.create') }}" class="btn btn-primary" onclick="openAdjustmentModal(event)">
                 <i class="fas fa-plus"></i> New Adjustment
             </a>
@@ -47,8 +46,6 @@
                     <tr>
                         <th>Date</th>
                         <th>Product</th>
-                        <!-- REQ042: Select existing product for adjustment -->
-                        <!-- REQ043: Increase or decrease quantity -->
                         <th>Adjustment</th>
                         <th>Reason</th>
                     </tr>
@@ -112,7 +109,6 @@
         </div>
     </div>
 
-    <!-- New Stock Adjustment Modal -->
     <div id="addAdjustmentModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="addAdjustmentModalTitle" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
@@ -140,7 +136,6 @@
     @include('admin.partials.ajax-modal-form')
 
     <script>
-        // Auto-show session messages
         @if(session('success'))
             Swal.fire({
                 title: 'Success',
@@ -160,7 +155,6 @@
             });
         @endif
 
-        // ---- New Stock Adjustment modal ----
         const ADD_ADJUSTMENT_FIELD_IDS = ['ProductID', 'SerialNumbers', 'QuantityAdjust', 'Date', 'Reason'];
         let addAdjustmentLastFocused = null;
 
@@ -169,7 +163,6 @@
             return btn ? btn.disabled : false;
         }
 
-        // Recorded serials are hidden inputs; their errors go on the serial dropdown.
         function addAdjustmentFieldInput(form, field) {
             return field === 'SerialNumbers' ? document.getElementById('SerialNumberSelect') : form.querySelector('[name="' + field + '"]');
         }
@@ -221,8 +214,6 @@
                 currentTbody.innerHTML = newTbody.innerHTML;
             }
 
-            // The Product list too: stock left and in-stock serials changed,
-            // so the next adjustment can't pick a serial already taken out.
             const newProducts = parsed.querySelector('#ProductID');
             const currentProducts = document.getElementById('ProductID');
             if (newProducts && currentProducts) {

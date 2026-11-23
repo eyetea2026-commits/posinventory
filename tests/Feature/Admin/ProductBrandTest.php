@@ -40,9 +40,6 @@ class ProductBrandTest extends TestCase
         $response->assertOk();
         $response->assertSee('name="BrandID"', false);
         $response->assertSee('Hikvision');
-        // The Brand <option> carries its own Category so client-side JS can
-        // filter it — this is the one thing the create page must render
-        // correctly for that filtering to be possible at all.
         $response->assertSee('data-category="'.$this->category->CategoryID.'"', false);
     }
 
@@ -69,7 +66,6 @@ class ProductBrandTest extends TestCase
 
     public function test_storing_a_product_rejects_a_brand_that_belongs_to_a_different_category(): void
     {
-        // $this->brand belongs to $this->category, not $this->otherCategory.
         $response = $this->actingAs($this->admin)->post(route('admin.products.store'), [
             'ProductName' => 'Mismatched Camera', 'Model' => 'MC-001', 'Barcode' => 'BARCODE-MC-001',
             'CostPrice' => 500, 'CategoryID' => $this->otherCategory->CategoryID, 'BrandID' => $this->brand->BrandID,
@@ -110,8 +106,6 @@ class ProductBrandTest extends TestCase
             'CostPrice' => 500, 'Price' => 700, 'CategoryID' => $this->otherCategory->CategoryID,
         ]);
 
-        // $this->brand belongs to $this->category, but the product stays in
-        // $this->otherCategory -- the mismatch must be rejected.
         $response = $this->actingAs($this->admin)->put(route('admin.products.update', $product), [
             'ProductName' => 'Rebrand Me', 'Model' => 'RM-001', 'Barcode' => 'BARCODE-RM-001',
             'CostPrice' => 500, 'Price' => 700, 'CategoryID' => $this->otherCategory->CategoryID, 'BrandID' => $this->brand->BrandID,

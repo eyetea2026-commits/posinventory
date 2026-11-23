@@ -32,10 +32,6 @@ class ProductSupplierController extends Controller
 
     public function store(Request $request, Product $product)
     {
-        // Only the supplier is chosen; a cost price is optional. A link
-        // without one uses the product's own Cost Price (purchase orders
-        // fall back to it), and re-adding a supplier keeps any price it
-        // already has.
         $data = $request->validate([
             'SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
             'CostPrice' => ['nullable', 'numeric', 'min:0', 'max:'.Product::MAX_PRICE],

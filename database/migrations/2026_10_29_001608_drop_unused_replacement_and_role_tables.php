@@ -7,13 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Two tables nothing uses any more. Replacement held the item given
-     * back for a return, but returns have been refund-only since
-     * 2026-07-19. Role was the first roles table; the app has always read
-     * Laravel's `roles` table instead. A table that still holds rows is
-     * left in place rather than dropped with its data.
-     */
     public function up(): void
     {
         foreach (['Replacement', 'Role'] as $table) {

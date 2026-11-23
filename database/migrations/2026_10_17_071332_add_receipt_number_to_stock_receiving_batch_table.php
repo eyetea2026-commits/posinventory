@@ -7,11 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * One Receipt Number per delivery (the whole Purchase Order), instead of
-     * one per product line. Deliveries already recorded keep the first
-     * Receipt Number entered on any of their lines.
-     */
     public function up(): void
     {
         Schema::table('StockReceivingBatch', function (Blueprint $table) {

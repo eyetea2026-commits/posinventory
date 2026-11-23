@@ -160,8 +160,6 @@
         input.addEventListener('input', () => formChanged = true);
     });
 
-    // Live "already used" check for Receipt Number — debounced so it fires
-    // once typing pauses, not on every keystroke.
     const receiptNumberInput = document.getElementById('ReceiptNumber');
     const receiptNumberError = document.getElementById('error-ReceiptNumber');
     let receiptNumberUsed = false;
@@ -198,8 +196,6 @@
                     setReceiptNumberError(receiptNumberUsed ? 'This Receipt Number has already been used for another delivery.' : '');
                 })
                 .catch(function () {
-                    // Non-fatal — the server-side unique validation still
-                    // catches it on submit.
                 });
         }, 350);
     });

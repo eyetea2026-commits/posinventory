@@ -8,8 +8,6 @@
     <tr>
         <td><span class="receipt-number">RCT-{{ str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT) }}</span></td>
         <td>{{ \Carbon\Carbon::parse($transaction->SalesTransactionDate)->format('m/d/Y h:i A') }}</td>
-        {{-- No name given is saved as "N/A"; older sales saved
-             "Walk-in Customer", which shows as N/A too. --}}
         <td>{{ in_array($transaction->CustomerName, [null, '', 'Walk-in Customer'], true) ? 'N/A' : $transaction->CustomerName }}</td>
         <td>
             {{ $cashierName }}
@@ -17,13 +15,9 @@
                 <span class="cashier-you">You</span>
             @endif
         </td>
-        {{-- Pieces as a count ("3 items"); other units by unit ("1.5 meters, 2 items"). --}}
         @php($quantitiesByUnit = $transaction->items->groupBy(fn ($line) => $line->Unit ?: 'piece')->map(fn ($lines) => $lines->sum('Quantity')))
         <td>{{ $quantitiesByUnit->isEmpty() ? '0 items' : $quantitiesByUnit->map(fn ($quantity, $unit) => $unit === 'piece' ? \App\Services\UnitOfMeasure::number($quantity).' items' : \App\Services\UnitOfMeasure::format($quantity, $unit))->implode(', ') }}</td>
         <td>
-            {{-- Reprinting is only offered on the cashier's own sales;
-                 CashierAuthController::viewReceipt() enforces the same rule
-                 server-side. --}}
             @if($isOwnSale)
                 @php($receiptNo = 'RCT-' . str_pad($transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT))
                 <a href="{{ route('cashier.receipt', $receiptNo) }}" class="btn btn-primary btn-sm" target="_blank"

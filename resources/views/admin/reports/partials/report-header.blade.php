@@ -1,13 +1,3 @@
-{{-- Shared report header — company branding, title, period, generator, and
-     a Filters block. Included by both admin/reports/pdf.blade.php and
-     admin/reports/print.blade.php so the two surfaces never drift out of
-     sync with each other. Expects: $type, $dateFrom, $dateTo.
-     Branch is a hardcoded label since no multi-branch concept exists in
-     the schema, matching how every other printed document in this app
-     handles it. The Filters block only lists Date Range because that's
-     the only real filter this report module has today; listing
-     Category/Supplier/Payment Method/Cashier as "All" would misrepresent
-     the document since none of them actually filter anything yet. --}}
 @include('admin.reports.partials.company-header')
 
 <h2 class="report-title">{{ \App\Http\Controllers\Admin\ReportController::typeLabel($type) }} Report</h2>

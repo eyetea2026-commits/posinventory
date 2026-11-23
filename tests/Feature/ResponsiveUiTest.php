@@ -10,9 +10,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Every page (Administrator, Cashier, sign-in, error) loads the shared
-// responsive layer (partials/responsive-ui): fluid type, phone spacing, and
-// pop-ups that fit every screen and close on Esc / a click on the backdrop.
 class ResponsiveUiTest extends TestCase
 {
     use RefreshDatabase;
@@ -46,23 +43,15 @@ class ResponsiveUiTest extends TestCase
     {
         $html = $this->get(route('welcome'))->getContent();
 
-        // Never taller than the screen minus the backdrop padding; content scrolls inside.
         $this->assertStringContainsString('max-height: min(90dvh, calc(100dvh - 2 * var(--modal-gutter) - var(--safe-top) - var(--safe-bottom))) !important;', $html);
-        // Phones: buttons full width, main action on top; 44px tap targets on touch screens.
         $this->assertStringContainsString('flex-direction: column-reverse;', $html);
         $this->assertStringContainsString('--tap-size: 44px;', $html);
-        // Extra-small screens (JioPhone 2, folded Galaxy Z Fold).
         $this->assertStringContainsString('@media (max-width: 359px) {', $html);
-        // Every pop-up window is the User Management width (860px), or the
-        // screen width minus the gutters on smaller screens.
         $this->assertStringContainsString('--modal-width: 860px;', $html);
         $this->assertStringContainsString("width: var(--modal-width) !important;\n        max-width: calc(100vw - 2 * var(--modal-gutter)) !important;", str_replace("\r\n", "\n", $html));
-        // Details inside pop-ups: label above value, four cards per row.
         $this->assertStringContainsString('grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));', $html);
     }
 
-    // Pop-ups use their 860px width: forms three fields per row, details as
-    // label-above-value cards instead of one long row per value.
     public function test_pop_up_contents_fill_the_width(): void
     {
         $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
@@ -71,12 +60,10 @@ class ResponsiveUiTest extends TestCase
         Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 3, 'ReorderThreshold' => 5, 'Status' => 'Low Stock']);
         $ajax = ['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'];
 
-        // Details: Product, Inventory.
         $this->assertStringContainsString('<div class="ui-kv-grid">', $this->actingAs($admin)->getJson(route('admin.products.show', $product), $ajax)->json('html'));
         $this->assertStringContainsString('<div class="ui-kv-photo">', $this->actingAs($admin)->getJson(route('admin.products.show', $product), $ajax)->json('html'));
         $this->assertStringContainsString('class="ui-kv-grid"', $this->actingAs($admin)->getJson(route('admin.inventory.show', $product), $ajax)->json('html'));
 
-        // Forms: Product (Name / Model / Category first), Promo, Stock Adjustment, Category.
         $products = $this->actingAs($admin)->get(route('admin.products.index'))->assertOk()->getContent();
         $this->assertStringContainsString('<div class="form-grid product-form-grid">', $products);
         $form = substr($products, strpos($products, 'product-form-grid">'));
@@ -87,9 +74,6 @@ class ResponsiveUiTest extends TestCase
         $this->assertStringContainsString('<div class="form-grid supplier-form-grid">', $this->actingAs($admin)->getJson(route('admin.suppliers.create'), $ajax)->json('html'));
     }
 
-    // A misplaced </div> in the pagination block left the user list's
-    // card open whenever there was a single page, so the pop-ups ended up
-    // inside its blurred card and opened far down the page on phones.
     public function test_user_pop_ups_sit_outside_the_user_list_card(): void
     {
         $admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);

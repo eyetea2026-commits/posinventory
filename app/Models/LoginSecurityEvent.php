@@ -12,6 +12,7 @@ class LoginSecurityEvent extends Model
     public $timestamps = false;
 
     protected $table = 'LoginSecurityEvent';
+
     protected $primaryKey = 'LoginSecurityEventID';
 
     protected $fillable = [
@@ -31,7 +32,9 @@ class LoginSecurityEvent extends Model
     ];
 
     const STATUS_PENDING = 'pending';
+
     const STATUS_CONFIRMED = 'confirmed';
+
     const STATUS_NOT_RECOGNIZED = 'not_recognized';
 
     public function user()
@@ -44,9 +47,6 @@ class LoginSecurityEvent extends Model
         return $this->ConfirmationStatus === self::STATUS_PENDING;
     }
 
-    // Good-enough human summary ("Chrome on Windows") without a UA-parsing
-    // dependency -- this app installs none, and a full parser is overkill
-    // for a display-only field in a security notification.
     public static function summarizeUserAgent(?string $userAgent): ?string
     {
         if (! $userAgent) {

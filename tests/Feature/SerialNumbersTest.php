@@ -16,10 +16,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
-// One serial number (SN00001, one count across all products) per piece in
-// stock, except categories that don't track them (consumables, wires). The
-// serial sticker is that piece's barcode at the POS, and the stickers print
-// from the product's View Details as an A4 4 x 10 PDF.
 class SerialNumbersTest extends TestCase
 {
     use RefreshDatabase;
@@ -50,9 +46,6 @@ class SerialNumbersTest extends TestCase
         return Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => $quantity, 'ReorderThreshold' => 5, 'Status' => 'Available']);
     }
 
-    /**
-     * @return list<string>
-     */
     private function inStockSerials(Product $product): array
     {
         return ProductSerial::where('ProductID', $product->ProductID)->where('Status', ProductSerial::STATUS_IN_STOCK)
@@ -67,16 +60,12 @@ class SerialNumbersTest extends TestCase
         $this->assertSame(['SN00001', 'SN00002', 'SN00003', 'SN00004', 'SN00005', 'SN00006', 'SN00007', 'SN00008', 'SN00009', 'SN00010'], $this->inStockSerials($this->camera));
         $this->assertSame([], $this->inStockSerials($this->cable));
 
-        // More stock continues the one shared count.
         $inventory = Inventory::where('ProductID', $this->camera->ProductID)->first();
         $inventory->Quantity += 2;
         $inventory->save();
         $this->assertSame(['SN00011', 'SN00012'], array_slice($this->inStockSerials($this->camera), -2));
     }
 
-    /**
-     * @param  list<string>  $serialNumbers
-     */
     private function adjust(Product $product, int $quantity, string $reason, array $serialNumbers = []): TestResponse
     {
         return $this->actingAs($this->admin)->post(route('admin.stock-adjustments.store'), [
@@ -146,16 +135,12 @@ class SerialNumbersTest extends TestCase
         $this->actingAs($this->admin)->get(route('admin.stock-adjustments.index'))->assertOk()
             ->assertSee('data-serials="'.e(json_encode(['SN00001', 'SN00003'])).'"', false)
             ->assertSee('data-serials=""', false)
-            // Recorded one row each: the searchable dropdown, then Add Serial.
             ->assertSee('<tbody id="adjustment-serial-rows"></tbody>', false)
             ->assertSee('<select id="SerialNumberSelect" class="form-select" aria-label="Serial Number">', false)
             ->assertSee('id="addSerialNumberBtn"', false)
             ->assertDontSee('id="SerialSearch"', false);
     }
 
-    // Saving from the modal re-renders the page in the background; the
-    // modal takes its Product list (stock and serials) from that page, so a
-    // serial just taken out isn't offered again.
     public function test_after_an_adjustment_the_form_no_longer_offers_that_serial(): void
     {
         $this->stock($this->camera, 3);
@@ -178,10 +163,8 @@ class SerialNumbersTest extends TestCase
             ->assertJsonPath('product.ProductID', $this->camera->ProductID)
             ->assertJsonPath('serial', 'SN00002');
 
-        // Serial-numbered products sell by their stickers, not the product barcode.
         $this->actingAs($this->cashier)->getJson('/api/products/barcode/CCTVEX-000001')->assertNotFound()
             ->assertJsonPath('message', 'Scan the serial number sticker on the "Dome Camera" instead.');
-        // Consumables and wires keep their product barcode.
         $this->actingAs($this->cashier)->getJson('/api/products/barcode/CCTVEX-000002')->assertOk()
             ->assertJsonPath('product.ProductID', $this->cable->ProductID);
 
@@ -240,7 +223,6 @@ class SerialNumbersTest extends TestCase
         $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
         $this->assertStringStartsWith('%PDF', $response->getContent());
 
-        // Products without serial numbers have no stickers to print.
         $this->stock($this->cable, 5);
         $html = $this->actingAs($this->admin)->getJson(route('admin.products.show', $this->cable), ['X-Requested-With' => 'XMLHttpRequest'])->json('html');
         $this->assertStringNotContainsString('Print Stickers (PDF)', $html);
@@ -265,8 +247,6 @@ class SerialNumbersTest extends TestCase
 
     public function test_missing_serials_are_generated_for_stock_saved_without_them(): void
     {
-        // The camera already has its serials; a second camera's stock was
-        // copied straight into the table (no observer), like the live copy.
         $this->stock($this->camera, 2);
         $nvr = Product::create(['ProductName' => 'NVR 8CH', 'Model' => 'NVR-8', 'Price' => 5000, 'CategoryID' => $this->camera->CategoryID]);
         DB::table('Inventory')->insert(['ProductID' => $nvr->ProductID, 'Quantity' => 3, 'ReorderThreshold' => 1, 'Status' => 'Available']);
@@ -282,11 +262,9 @@ class SerialNumbersTest extends TestCase
             ->expectsOutputToContain('Made 3 serial number(s) for 1 product(s)')
             ->assertSuccessful();
         $this->assertSame(['SN00003', 'SN00004', 'SN00005'], $this->inStockSerials($nvr));
-        // Existing serials untouched; wires never get any.
         $this->assertSame(['SN00001', 'SN00002'], $this->inStockSerials($this->camera));
         $this->assertSame([], $this->inStockSerials($this->cable));
 
-        // Running it again makes nothing.
         $this->artisan('serials:generate')->expectsOutputToContain('Made 0 serial number(s) for 0 product(s)')->assertSuccessful();
     }
 
@@ -300,7 +278,6 @@ class SerialNumbersTest extends TestCase
         $output = storage_path('framework/testing/All-Serial-Stickers.pdf');
         @unlink($output);
 
-        // 41 cameras = 2 pages, 1 in-stock NVR = 1 page; sold pieces and wires print nothing.
         $this->artisan('serials:stickers', ['--output' => $output])
             ->expectsOutputToContain('Saved 42 sticker(s) for 2 product(s) on 3 page(s)')
             ->assertSuccessful();
@@ -332,10 +309,8 @@ class SerialNumbersTest extends TestCase
     {
         $widths = Code128Barcode::widths('SN00001');
 
-        // Start B + 7 characters + check + stop = 112 modules.
         $this->assertSame(112, array_sum($widths));
         $this->assertSame([2, 1, 1, 2, 1, 4], array_slice($widths, 0, 6));
-        // Check value 36 (104 + S*1 + N*2 + 0*3 + 0*4 + 0*5 + 0*6 + 1*7 = 654 mod 103).
         $this->assertSame([1, 1, 2, 3, 1, 3], array_slice($widths, 6 + 7 * 6, 6));
     }
 }

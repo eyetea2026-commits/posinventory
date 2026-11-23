@@ -7,9 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Only the admin pages get the bigger base text size (partials/font-scale,
-// fluid: 16px on phones up to 18px on large screens);
-// the cashier side and the login pages keep the original size.
 class FontScaleTest extends TestCase
 {
     use RefreshDatabase;

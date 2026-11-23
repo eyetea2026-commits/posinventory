@@ -1,6 +1,5 @@
 @forelse($products as $product)
     @php
-        // In the product's base unit (meters, pieces).
         $quantity = $product->inventory?->Quantity ?? 0;
         $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
         $stock = \App\Http\Controllers\Admin\InventoryController::resolveStockStatus($quantity, $threshold);
@@ -62,7 +61,6 @@
                 >
                     <i class="fas fa-eye"></i>
                 </a>
-                {{-- Only for products that can still be ordered (inactive ones are refused). --}}
                 @if($stock['label'] !== 'In Stock' && $product->IsActive)
                     <button
                         type="button"

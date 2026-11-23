@@ -1,7 +1,3 @@
-{{-- FIFO stock batches: every lot of this product that came in, oldest
-     first (the order sales take from them), with its own unit cost,
-     selling price, margin, what is left of it and what its sold pieces
-     made. Expects $product. --}}
 @php
     $batches = \App\Models\StockBatch::with(['supplier', 'purchaseOrder', 'deliveryItem.purchaseOrderItem', 'allocations.salesItem'])
         ->where('ProductID', $product->ProductID)

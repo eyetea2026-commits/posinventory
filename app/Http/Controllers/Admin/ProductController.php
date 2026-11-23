@@ -28,7 +28,6 @@ use Throwable;
 
 class ProductController extends Controller
 {
-    /** Percent; Selling Price = Cost / (1 - Profit Margin). */
     public const MAX_PROFIT_MARGIN = 95;
 
     public function __construct()
@@ -67,7 +66,6 @@ class ProductController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // AJAX request — return just the table rows + pagination as partials
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'rows' => view('admin.products.partials.rows', ['products' => $products])->render(),
@@ -84,10 +82,6 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * Resolve stock status label and Bootstrap badge class based on
-     * current quantity and reorder threshold.
-     */
     public static function resolveStockStatus(int|float|null $quantity, ?int $reorderThreshold = null): array
     {
         $quantity = $quantity ?? 0;
@@ -128,8 +122,6 @@ class ProductController extends Controller
             'status' => $status,
         ];
 
-        // View Details modal: return just the rendered detail rows instead
-        // of a full page, so the modal can inject it without navigating.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.products.partials.product-details', $viewData)->render(),
@@ -140,10 +132,6 @@ class ProductController extends Controller
         return view('admin.products.show', $viewData);
     }
 
-    /**
-     * Serial number stickers for A4 sticker paper, 4 x 10 per page (52.5 x
-     * 29.7 mm each): the ticked serials, or every piece in stock.
-     */
     public function serialStickers(Request $request, Product $product)
     {
         $data = $request->validate([
@@ -177,17 +165,11 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * AJAX endpoint: check whether a product name, model number, and/or
-     * barcode already exists. Returns { name: bool, model: bool, barcode: bool }.
-     */
     public function checkName(Request $request)
     {
         $name = trim((string) $request->input('ProductName', ''));
         $model = trim((string) $request->input('Model', ''));
         $barcode = trim((string) $request->input('Barcode', ''));
-        // When editing, the product's own unchanged name/model/barcode must
-        // not be flagged as a duplicate of itself.
         $excludeId = $request->input('exclude_id');
 
         $normalize = function (string $value): string {
@@ -238,18 +220,8 @@ class ProductController extends Controller
             ...self::priceRules(),
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
-            // Ticked: "Not returnable / refundable" (Product.IsReturnable = false).
             'NonReturnable' => ['nullable', 'boolean'],
-            // Any size up to 5 MB is accepted; it's stored shrunk (ProductImage).
             'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
-            // A supplier can't be linked before the Product exists, so the
-            // Add Product form's "Suppliers for this Product" panel just
-            // collects the chosen suppliers client-side and submits them
-            // alongside the product — linked here in the same request
-            // instead of the immediate per-supplier AJAX calls the Edit form
-            // uses (ProductSupplierController::store()). No per-supplier
-            // cost is asked for: a link without one uses the product's own
-            // Cost Price.
             'Suppliers' => ['nullable', 'array'],
             'Suppliers.*.SupplierID' => ['required', 'integer', 'exists:Supplier,SupplierID'],
             'Suppliers.*.CostPrice' => ['nullable', 'numeric', 'min:0', 'max:'.Product::MAX_PRICE],
@@ -263,11 +235,6 @@ class ProductController extends Controller
         $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']));
         $data['ProfitMargin'] = self::profitMarginFrom($data);
 
-        // Brand is managed via Brand Management (Category module) and is
-        // always scoped to one Category — the Add Product form's Brand
-        // dropdown only ever offers brands belonging to the selected
-        // Category, but a crafted request could still send a mismatched
-        // pair, so re-verify server-side rather than trusting the client.
         $brandId = $data['BrandID'] ?? null;
         if ($brandId !== null && ! Brand::where('BrandID', $brandId)->where('CategoryID', $data['CategoryID'])->exists()) {
             throw ValidationException::withMessages([
@@ -275,17 +242,12 @@ class ProductController extends Controller
             ]);
         }
 
-        // A deactivated category is no longer offered for new products.
         if (! Category::whereKey($data['CategoryID'])->value('IsActive')) {
             throw ValidationException::withMessages([
                 'CategoryID' => 'This category is deactivated. Choose an active category.',
             ]);
         }
 
-        // Block duplicate Product Name and Model (case-insensitive, whitespace-normalized).
-        // Barcode is already covered by the `unique` validation rule above.
-        // This is the authoritative server-side check — anything the client-side
-        // duplicate-name AJAX misses is caught here before a product is created.
         $normalize = function (string $value): string {
             return preg_replace('/\s+/', ' ', strtolower($value));
         };
@@ -307,14 +269,9 @@ class ProductController extends Controller
                 $messages['Model'] = 'A product with this model number already exists. Duplicate model numbers are not allowed.';
             }
 
-            // A 422 for the Add Product modal's AJAX submit; a normal form
-            // post is still redirected back with these errors and its input.
             throw ValidationException::withMessages($messages);
         }
 
-        // New products always start with zero stock — quantity is only ever
-        // added afterward through Stock Receiving.
-        // No sales yet: it starts at the minimum Re-Order Point.
         $status = self::resolveStockStatus(0, ReorderPoint::MINIMUM)['label'];
 
         $imagePath = $request->hasFile('Image') ? ProductImage::store($request->file('Image')) : null;
@@ -338,8 +295,6 @@ class ProductController extends Controller
             ]);
         }
 
-        // The Add Product modal needs a plain "created" answer — following the
-        // redirect would hand it the index's AJAX rows instead.
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
@@ -351,26 +306,15 @@ class ProductController extends Controller
         return redirect()->route('admin.products.index')->with('status', 'Product added successfully.');
     }
 
-    /**
-     * Prices of the Add/Edit Product form: up to 5 whole-peso digits
-     * (99,999.99). (The Re-Order Point is computed: ReorderPoint.)
-     *
-     * @return array<string, array<int, mixed>>
-     */
     private static function priceRules(): array
     {
         return [
             'CostPrice' => ['required', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
-            // The Selling Price is worked out from the Profit Margin; a
-            // Selling Price sent instead sets the margin it gives.
             'ProfitMargin' => ['nullable', 'numeric', 'min:0', 'max:'.self::MAX_PROFIT_MARGIN],
             'Price' => ['nullable', 'numeric', 'min:0.01', 'max:'.Product::MAX_PRICE],
         ];
     }
 
-    /**
-     * @return array<string, string>
-     */
     private static function priceMessages(): array
     {
         return [
@@ -381,13 +325,6 @@ class ProductController extends Controller
         ];
     }
 
-    /**
-     * The Profit Margin to save (percent): the one entered, else the one a
-     * Selling Price sent instead gives, else the store default. The Selling
-     * Price it makes from the Cost Price has to stay within 5 digits.
-     *
-     * @param  array<string, mixed>  $data
-     */
     private static function profitMarginFrom(array $data): float
     {
         $margin = isset($data['ProfitMargin'])
@@ -401,29 +338,17 @@ class ProductController extends Controller
         return $margin;
     }
 
-    /**
-     * Unit of Measurement fields of the Add/Edit Product form.
-     *
-     * @return array<string, array<int, mixed>>
-     */
     private static function unitOfMeasureRules(): array
     {
         return [
-            // Left out entirely (a request without the Unit of Measurement
-            // section): the product keeps its units, a new one is a piece.
             'UnitOfMeasure' => ['sometimes', 'required', Rule::in([...UnitOfMeasure::UNITS, UnitOfMeasure::METER_AND_ROLL])],
             'PurchaseUnit' => ['nullable', Rule::in(UnitOfMeasure::UNITS), 'different:UnitOfMeasure'],
-            // Normally not sent: the roll/box size is entered at Stock
-            // Receiving (the last one received is kept on the product).
             'QuantityPerPurchaseUnit' => ['nullable', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             'SellsByPurchaseUnit' => ['nullable', 'boolean'],
             'AllowsFractionalQuantity' => ['nullable', 'boolean'],
         ];
     }
 
-    /**
-     * @return array<string, string>
-     */
     private static function unitOfMeasureMessages(): array
     {
         return [
@@ -435,14 +360,6 @@ class ProductController extends Controller
         ];
     }
 
-    /**
-     * The checked unit settings to save: units fit the category, serial-
-     * numbered products stay whole pieces, and a product's base unit can't
-     * change while it has stock counted in the old one.
-     *
-     * @param  array<string, mixed>  $data
-     * @return array{UnitOfMeasure: string, PurchaseUnit: ?string, QuantityPerPurchaseUnit: int|float, SellsByPurchaseUnit: bool, AllowsFractionalQuantity: bool}
-     */
     private static function validatedUnitsOfMeasure(array $data, ?Category $category, ?Product $product = null): array
     {
         if (! array_key_exists('UnitOfMeasure', $data)) {
@@ -457,19 +374,13 @@ class ProductController extends Controller
 
         $baseUnit = $data['UnitOfMeasure'];
         $purchaseUnit = filled($data['PurchaseUnit'] ?? null) ? $data['PurchaseUnit'] : null;
-        // "Meter & Roll": counted and sold by the meter, bought by the roll.
         if ($baseUnit === UnitOfMeasure::METER_AND_ROLL) {
             $baseUnit = 'meter';
             $purchaseUnit = 'roll';
         }
-        // The product form no longer offers "Allow decimal quantities": a
-        // product keeps what it has (the wires sold by the meter), and a new
-        // one is counted in whole units.
         $allowsFractions = array_key_exists('AllowsFractionalQuantity', $data)
             ? (bool) $data['AllowsFractionalQuantity']
             : (bool) ($product?->AllowsFractionalQuantity ?? false);
-        // The roll/box size comes from Stock Receiving: keep the last one
-        // received while the purchase unit stays the same (1 = not known yet).
         $keptSize = $product && $product->PurchaseUnit === $purchaseUnit && $product->baseUnit() === $baseUnit ? (float) $product->QuantityPerPurchaseUnit : 1;
         $perPurchaseUnit = ! $purchaseUnit ? 1 : (filled($data['QuantityPerPurchaseUnit'] ?? null) ? (float) $data['QuantityPerPurchaseUnit'] : $keptSize);
         $sellsByPurchaseUnit = $purchaseUnit && ! empty($data['SellsByPurchaseUnit']);
@@ -506,18 +417,11 @@ class ProductController extends Controller
             'UnitOfMeasure' => $baseUnit,
             'PurchaseUnit' => $purchaseUnit,
             'QuantityPerPurchaseUnit' => Quantity::normalize($perPurchaseUnit),
-            // Its price is worked out (price per meter x meters per roll).
             'SellsByPurchaseUnit' => (bool) $sellsByPurchaseUnit,
             'AllowsFractionalQuantity' => $allowsFractions,
         ];
     }
 
-    /**
-     * Inserts the product, its SKU, its Inventory row and its supplier links
-     * in one transaction.
-     *
-     * @param  array<string, mixed>  $data
-     */
     private function createProduct(array $data, ?int $brandId, string $status, ?string $imagePath): Product
     {
         return DB::transaction(function () use ($data, $brandId, $status, $imagePath) {
@@ -540,9 +444,6 @@ class ProductController extends Controller
                 'AllowsFractionalQuantity' => $data['AllowsFractionalQuantity'],
             ]);
 
-            // SKU is derived from the product's own ProductID, which only
-            // exists after the row above is inserted — set it in a follow-up
-            // update rather than the create() call.
             $product->update(['SKU' => Product::generateSku($product->ProductID)]);
 
             Inventory::create([
@@ -552,10 +453,6 @@ class ProductController extends Controller
                 'Status' => $status,
             ]);
 
-            // De-duplicate by SupplierID — the client already blocks adding
-            // the same supplier twice, but never trust that alone, and the
-            // (ProductID, SupplierID) unique index would otherwise reject a
-            // crafted duplicate mid-loop.
             $seenSuppliers = [];
             foreach ($data['Suppliers'] ?? [] as $supplierEntry) {
                 $supplierId = $supplierEntry['SupplierID'];
@@ -587,8 +484,6 @@ class ProductController extends Controller
         $categories = Category::orderBy('CategoryName')->get();
         $brands = Brand::orderBy('BrandName')->get();
 
-        // Edit Product modal: return just the rendered form fields instead
-        // of a full page, so the modal can inject it without navigating.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.products.partials.product-form-fields', [
@@ -616,7 +511,6 @@ class ProductController extends Controller
             ...self::priceRules(),
             'BrandID' => ['nullable', 'integer', 'exists:Brand,BrandID'],
             'CategoryID' => ['required', 'integer', 'exists:Category,CategoryID'],
-            // Ticked: "Not returnable / refundable" (Product.IsReturnable = false).
             'NonReturnable' => ['nullable', 'boolean'],
             'Image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
             'RemoveImage' => ['nullable', 'boolean'],
@@ -630,8 +524,6 @@ class ProductController extends Controller
         $units = self::validatedUnitsOfMeasure($data, Category::find($data['CategoryID']), $product);
         $data['ProfitMargin'] = self::profitMarginFrom($data);
 
-        // See store() — re-verify the selected Brand actually belongs to the
-        // selected Category rather than trusting the client.
         $brandId = $data['BrandID'] ?? null;
         if ($brandId !== null && ! Brand::where('BrandID', $brandId)->where('CategoryID', $data['CategoryID'])->exists()) {
             throw ValidationException::withMessages([
@@ -639,21 +531,12 @@ class ProductController extends Controller
             ]);
         }
 
-        // Moving a product into a deactivated category isn't allowed; a product
-        // already in one can keep it.
         if ((int) $data['CategoryID'] !== (int) $product->CategoryID && ! Category::whereKey($data['CategoryID'])->value('IsActive')) {
             throw ValidationException::withMessages([
                 'CategoryID' => 'This category is deactivated. Choose an active category.',
             ]);
         }
 
-        // Block duplicate Model against every OTHER product (case-insensitive,
-        // whitespace-normalized) — the authoritative server-side check
-        // backing the live AJAX one in the edit form/modal. Product Name is
-        // deliberately NOT enforced unique here (unlike store()): the
-        // Hikvision catalog import legitimately has multiple products
-        // sharing a short name (e.g. three separate "Bullet 2MP" models),
-        // and this endpoint has to remain editable for those rows.
         $normalize = function (string $value): string {
             return preg_replace('/\s+/', ' ', strtolower($value));
         };
@@ -665,11 +548,6 @@ class ProductController extends Controller
         });
 
         if ($modelTaken) {
-            // Throwing (rather than back()->withErrors()) lets Laravel's own
-            // exception handler decide the response shape — a normal redirect
-            // for a plain form post, or 422 JSON for the Edit modal's AJAX
-            // submission — instead of always producing a redirect that an
-            // AJAX caller can't distinguish from success.
             throw ValidationException::withMessages([
                 'Model' => ['A product with this model number already exists. Duplicate model numbers are not allowed.'],
             ]);
@@ -677,8 +555,6 @@ class ProductController extends Controller
 
         $oldCostPrice = $product->CostPrice;
 
-        // A new photo replaces the old one; "Remove photo" clears it. The old
-        // file is deleted only after the product row is saved.
         $oldImagePath = $product->ImagePath;
         $imagePath = $oldImagePath;
         if ($request->hasFile('Image')) {
@@ -697,7 +573,6 @@ class ProductController extends Controller
             'ProfitMargin' => $data['ProfitMargin'],
             'BrandID' => $brandId,
             'CategoryID' => $data['CategoryID'],
-            // Left as-is when a request doesn't carry the box at all.
             ...(array_key_exists('NonReturnable', $data) ? ['IsReturnable' => ! $data['NonReturnable']] : []),
             ...$units,
         ]);
@@ -708,15 +583,8 @@ class ProductController extends Controller
 
         ProductCostHistory::log($product, null, $oldCostPrice, (float) $data['CostPrice'], ProductCostHistory::SOURCE_PRODUCT_UPDATE);
 
-        // The stock still on hand is priced again at the margin, each batch
-        // from its own cost; the Selling Price follows the batch that sells next.
         $product->repriceStockBatches();
 
-        // Stock quantity is managed through the Inventory module, not here:
-        // only the Re-Order Point (computed, ReorderPoint) and the status it
-        // decides are saved, against
-        // the row locked as it is now, so a sale made while this form was
-        // open is never written over with the quantity it was opened with.
         DB::transaction(function () use ($product) {
             $inventory = Inventory::where('ProductID', $product->ProductID)->lockForUpdate()->first()
                 ?? Inventory::create(['ProductID' => $product->ProductID, 'Quantity' => 0, 'Status' => 'Out of Stock']);

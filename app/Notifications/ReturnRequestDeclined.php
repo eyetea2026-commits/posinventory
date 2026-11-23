@@ -8,10 +8,6 @@ use App\Notifications\Concerns\FormatsReturnItemsTable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-// Not ShouldQueue: this app has no reliable persistent queue worker
-// (Hostinger shared hosting has no crontab access), so dispatch inline. The
-// caller already wraps ->notify() in a try/catch so a mail hiccup here
-// can't break the approve/decline response.
 class ReturnRequestDeclined extends Notification
 {
     use FormatsMailBadge, FormatsReturnItemsTable;

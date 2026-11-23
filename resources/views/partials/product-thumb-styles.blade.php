@@ -1,4 +1,3 @@
-{{-- Sizes for partials/product-thumb.blade.php. Include once per page. --}}
 <style>
     .product-thumb {
         display: inline-flex;

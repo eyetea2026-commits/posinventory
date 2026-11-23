@@ -8,12 +8,6 @@ use App\Services\SerialNumbers;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Gives every in-stock piece of a serial-numbered product its serial
- * number. Serials are normally made when stock goes up (InventoryObserver),
- * but stock copied straight into the database never got them. Only adds
- * what's missing; never retires or renumbers an existing serial.
- */
 class GenerateMissingSerials extends Command
 {
     protected $signature = 'serials:generate {--dry-run : Only list what would be made}';

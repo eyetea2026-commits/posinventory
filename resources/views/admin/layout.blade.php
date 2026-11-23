@@ -22,15 +22,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    {{-- Tailwind + Alpine.js power the sidebar component only; every other
-         admin page keeps its existing plain-CSS styling untouched. --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
     <style>
-        /* Sidebar + content are a flex row: the sidebar (fixed on mobile,
-           sticky/h-screen on desktop) never grows with page content, and
-           main-content fills the remaining width instead of using a
-           margin-left offset. */
         .dashboard-container {
             display: flex;
             min-height: 100vh;
@@ -39,7 +33,6 @@
             flex: 1 1 0%;
             min-width: 0;
         }
-        /* Header controls: notifications, profile */
         .dashboard-header {
             flex-wrap: wrap;
             row-gap: 12px;
@@ -111,11 +104,6 @@
             color: #94a3b8;
             border-bottom: 1px solid rgba(148, 163, 184, 0.1);
         }
-        {{-- Only the notification list itself scrolls -- the header
-             ("Notifications" / "Mark all read") and the "View all
-             notifications" footer link stay pinned in view, and the list
-             never grows the dropdown past a fixed height no matter how
-             many unread notifications there are. --}}
         .header-dropdown-items {
             max-height: 320px;
             overflow-y: auto;
@@ -197,15 +185,7 @@
             .header-controls { gap: 8px; }
             .header-profile-name { display: none; }
         }
-        /* SweetAlert2 dialog styling lives in partials/swal-helpers.blade.php
-           (included above, shared with cashier.layout) — a duplicate
-           .swal2-popup override used to live here too and, being later in
-           source order with matching !important + specificity, silently
-           won every tie and made the shared partial's sizing a no-op on
-           every admin page. Removed in favor of that single source of
-           truth instead of maintaining two competing definitions. */
 
-        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -222,11 +202,9 @@
         }
     </style>
     @include('partials.responsive-ui')
-    {{-- Last in <head>: Light / Dark Mode reads every stylesheet above. --}}
     @include('partials.theme')
 </head>
 <body x-data="{ sidebarOpen: false }">
-    {{-- Mobile/tablet top bar: hamburger button to open the sidebar drawer --}}
     <div class="hidden items-center gap-3 border-b border-white/5 bg-[#0F172A] px-4 py-3 max-lg:flex">
         <button type="button" @click="sidebarOpen = true" class="text-gray-300 hover:text-white">
             <x-icon name="menu" class="h-6 w-6" />
@@ -235,7 +213,6 @@
         <span class="text-sm font-semibold text-white">CCTV Express Solution Tacurong</span>
     </div>
 
-    {{-- Overlay behind the drawer on mobile/tablet --}}
     <div
         x-cloak
         x-show="sidebarOpen"
@@ -264,7 +241,6 @@
                 @endif
 
                 <div class="header-controls" x-data="{ notifOpen: false, profileOpen: false }">
-                    {{-- Light / Dark Mode: shows the mode it switches to. --}}
                     <button type="button" class="header-icon-btn" data-theme-toggle title="Switch between Light Mode and Dark Mode" aria-label="Switch between Light Mode and Dark Mode">
                         <span class="theme-label-light" title="Light Mode"><i class="fas fa-sun"></i></span>
                         <span class="theme-label-dark" title="Dark Mode"><i class="fas fa-moon"></i></span>
@@ -353,7 +329,6 @@
     </div>
 
     <script>
-        // Toast notifications
         function showToast(message, type = 'success') {
             const toast = document.createElement('div');
             toast.className = `toast toast-${type}`;
@@ -369,7 +344,6 @@
             }, 3000);
         }
 
-        // Auto-show session messages as toasts
         @if(session('status'))
             showToast('{{ session('status') }}', 'success');
         @endif

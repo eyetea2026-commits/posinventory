@@ -1,5 +1,3 @@
-{{-- Damage table rows, shared by the initial page load and the live-search
-     AJAX response (admin.damages.index re-rendered into #damagesTbody). --}}
 @forelse($damagedProducts as $damage)
     <tr>
         <td>{{ $damage->DamageID }}</td>

@@ -21,7 +21,6 @@ use App\Services\UnitOfMeasure;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -49,19 +48,11 @@ class PurchaseOrderController extends Controller
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
         $supplierId = $request->query('supplier_id');
-        // "history" = every PO that has been printed (sent to Stock
-        // Receiving), kept here read-only so it can still be viewed and
-        // reprinted. Anything else is the normal active list.
         $isHistory = $request->query('view') === 'history';
 
         $purchaseOrders = PurchaseOrder::with(['supplier', 'items.product', 'stockReceivingBatch'])
-            // Once a PO has been printed it's been sent into the Stock
-            // Receiving queue (see printPreview()) and leaves the active
-            // list for the History tab.
             ->when($isHistory, fn ($q) => $q->whereHas('stockReceivingBatch'), fn ($q) => $q->whereDoesntHave('stockReceivingBatch'))
             ->when($search, function ($query, $search) {
-                // Grouped so the OR conditions can't escape the active/history
-                // scope above.
                 $query->where(function ($inner) use ($search) {
                     $inner->where('PONumber', 'like', "%{$search}%")
                         ->orWhere('Status', 'like', "%{$search}%")
@@ -73,10 +64,6 @@ class PurchaseOrderController extends Controller
             ->when($dateFrom, fn ($q) => $q->whereDate('PurchaseDate', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('PurchaseDate', '<=', $dateTo))
             ->when($supplierId, fn ($q) => $q->where('SupplierID', $supplierId))
-            // PurchaseDate is a plain date the admin can freely edit as the
-            // order's business date, so two orders placed the same day (or
-            // deliberately backdated) can't be told apart by it — sorted by
-            // the actual row creation timestamp instead, newest first.
             ->orderByDesc('created_at')
             ->paginate(15)
             ->withQueryString();
@@ -99,9 +86,6 @@ class PurchaseOrderController extends Controller
     {
         $purchaseOrder->load(['supplier', 'items.product', 'stockReceivings']);
 
-        // View Details modal: return just the rendered detail rows (no
-        // Status badge, no Approve/Cancel/Submit/Export PDF) instead of a
-        // full page, so the index page can inject it without navigating.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.purchase-orders.partials.purchase-order-details', [
@@ -125,15 +109,6 @@ class PurchaseOrderController extends Controller
         ]);
     }
 
-    // Dedicated "Create Purchase Order" entry point reached only from a
-    // low-stock Inventory row. Unlike the general create() form, the
-    // product is fixed by the URL (no re-searching it) and every product
-    // field is read-only. Supplier resolution has three states the view
-    // renders differently: a single known/preferred supplier is shown
-    // read-only, multiple known suppliers with none preferred force a
-    // dropdown scoped to just this product's own suppliers, and zero known
-    // suppliers force a dropdown of every supplier system-wide (picking one
-    // assigns it to the product as a side effect of submitting).
     public function createFromReorder(Request $request, Product $product)
     {
         if (! $product->IsActive) {
@@ -149,7 +124,6 @@ class PurchaseOrderController extends Controller
         $quantity = $product->inventory?->Quantity ?? 0;
         $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
 
-        // Ordered in the purchase unit (rolls, boxes).
         $suggestedQuantity = self::suggestedOrderQuantity($product, $quantity, $threshold);
 
         $knownSuppliers = $product->suppliers;
@@ -174,10 +148,6 @@ class PurchaseOrderController extends Controller
             'allSuppliers' => $supplierState === 'none' ? Supplier::orderBy('SupplierName')->get() : collect(),
         ];
 
-        // The Inventory module's "Create Purchase Order" button opens a
-        // glassmorphism modal instead of navigating here — it fetches just
-        // the field markup over AJAX. Direct navigation to this URL (a
-        // bookmark, a typed address) still gets the full standalone page.
         if ($request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
             return response()->json([
                 'html' => view('admin.purchase-orders.partials.reorder-form-fields', $viewData)->render(),
@@ -188,15 +158,6 @@ class PurchaseOrderController extends Controller
         return view('admin.purchase-orders.create-from-reorder', $viewData);
     }
 
-    /**
-     * Rows for the Create Purchase Order "Order Items" table: every active
-     * product, low-stock ones first (at or below their threshold, ticked by
-     * default), each with its threshold, previous price, a starting current
-     * price and quantity, and a Supplier dropdown with the preferred (or
-     * only) supplier already picked; it can be changed for this order.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
     public static function orderItemCandidates()
     {
         $activeSuppliers = Supplier::where('Status', Supplier::STATUS_ACTIVE)->orderBy('SupplierName')->get();
@@ -205,7 +166,6 @@ class PurchaseOrderController extends Controller
             ->with(['inventory', 'suppliers.supplier'])
             ->orderBy('ProductName')
             ->get();
-        // Each row's supplier is the one that delivered it last.
         Product::preloadLastDeliveredSuppliers($products);
 
         return $products
@@ -213,8 +173,6 @@ class PurchaseOrderController extends Controller
                 $quantity = $product->inventory?->Quantity ?? 0;
                 $threshold = (int) ($product->inventory?->ReorderThreshold ?? 50);
                 $link = $product->resolveReorderSupplier();
-                // Prices and quantity are per purchase unit (a roll's price,
-                // how many rolls); stock and threshold are in the base unit.
                 $previousPrice = self::costPerPurchaseUnit($product, $product->CostPrice);
                 $currentPrice = $link && $link->CostPrice !== null ? self::costPerPurchaseUnit($product, $link->CostPrice) : $previousPrice;
 
@@ -231,19 +189,12 @@ class PurchaseOrderController extends Controller
                     'unitPlural' => UnitOfMeasure::plural($product->orderUnit()),
                     'unitHolds' => $product->purchaseUnitSize() ? $product->formatQuantity($product->purchaseUnitSize()) : null,
                     'suggestedQuantity' => max(1, self::suggestedOrderQuantity($product, $quantity, $threshold)),
-                    // The Meter column: how long each roll of this order is,
-                    // typed in (rolls come 100, 250, 1,000 meters...); starts
-                    // at the last roll received. Only for wire ordered by the roll.
                     'ordersRollMeters' => self::ordersRollMeters($product),
                     'metersPerRoll' => $product->purchaseUnitSize(),
-                    // Picked by default: the supplier with the lowest current price.
                     'supplier' => $link?->supplier,
-                    // The Supplier dropdown: this product's own suppliers
-                    // first (preferred marked), then every other active one.
                     'ownSuppliers' => $product->suppliers
                         ->filter(fn ($ps) => $ps->supplier)
                         ->sortBy(fn ($ps) => [$ps->IsPreferred ? 0 : 1, $ps->supplier->SupplierName])
-                        // Each with its current price (per purchase unit), shown in the dropdown.
                         ->map(fn ($ps) => ['supplier' => $ps->supplier, 'preferred' => (bool) $ps->IsPreferred, 'price' => self::costPerPurchaseUnit($product, $product->supplierPrice($ps))])
                         ->values(),
                     'otherSuppliers' => $activeSuppliers->whereNotIn('SupplierID', $product->suppliers->pluck('SupplierID'))->values(),
@@ -253,10 +204,6 @@ class PurchaseOrderController extends Controller
             ->values();
     }
 
-    /**
-     * Saves the ticked products as Draft Purchase Orders, one per supplier:
-     * products from the same supplier go on the same order.
-     */
     public function store(Request $request)
     {
         $this->stripPriceCommas($request);
@@ -287,8 +234,6 @@ class PurchaseOrderController extends Controller
             'items.*.meters_per_roll.max' => 'Meter can be at most 4 digits ('.number_format(PurchaseOrderItem::MAX_METERS_PER_ROLL).' meters per roll).',
         ]);
 
-        // The supplier picked in the row is used; a row sent without one
-        // falls back to the product's preferred (or only) supplier.
         $products = Product::with('suppliers')->whereIn('ProductID', collect($data['items'])->pluck('product_id'))->get()->keyBy('ProductID');
         $groups = [];
         foreach ($data['items'] as $item) {
@@ -305,8 +250,6 @@ class PurchaseOrderController extends Controller
         $purchaseOrders = DB::transaction(function () use ($data, $groups, $products) {
             $created = [];
             foreach ($groups as $supplierId => $items) {
-                // Status is never taken from the request: every new Purchase
-                // Order starts as a Draft.
                 $purchaseOrder = PurchaseOrder::create([
                     'PurchaseDate' => $data['PurchaseDate'],
                     'Notes' => $data['Notes'] ?? null,
@@ -315,8 +258,6 @@ class PurchaseOrderController extends Controller
                     'CreatedBy' => auth()->id(),
                 ]);
 
-                // The PO number is derived from the auto-increment key, which
-                // is already unique under concurrency.
                 $year = Carbon::parse($data['PurchaseDate'])->format('Y');
                 $purchaseOrder->update([
                     'PONumber' => "PO-{$year}-".str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
@@ -325,8 +266,6 @@ class PurchaseOrderController extends Controller
                 foreach ($items as $item) {
                     $product = $products->get($item['product_id']);
                     $unit = PurchaseOrderItem::unitFor($product);
-                    // A wire roll's length as typed in the Meter column;
-                    // Stock Receiving starts from it.
                     if (self::ordersRollMeters($product) && ! empty($item['meters_per_roll'])) {
                         $unit['QuantityPerUnit'] = (int) $item['meters_per_roll'];
                     }
@@ -335,7 +274,6 @@ class PurchaseOrderController extends Controller
                         'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                         'ProductID' => $item['product_id'],
                         'Quantity' => $item['quantity'],
-                        // In the product's purchase unit (rolls, boxes).
                         ...$unit,
                         'CostPriceAtOrder' => $item['cost_price'],
                     ]);
@@ -357,9 +295,6 @@ class PurchaseOrderController extends Controller
             ? "Purchase order {$numbers} created successfully."
             : count($purchaseOrders)." purchase orders created, one per supplier: {$numbers}.";
 
-        // The Create Purchase Order popup's fetch() sends Accept:
-        // application/json and gets just the new rows back; the standalone
-        // create page's plain form POST is redirected.
         if ($request->wantsJson()) {
             $listed = PurchaseOrder::with(['supplier', 'items.product'])
                 ->whereDoesntHave('stockReceivingBatch')
@@ -379,10 +314,6 @@ class PurchaseOrderController extends Controller
         return redirect()->route('admin.purchase-orders.index')->with('success', $message);
     }
 
-    // Submission for the dedicated reorder form: only Order Quantity and
-    // Remarks are administrator input, everything else (product, supplier,
-    // cost) is re-derived server-side from what the create-from-reorder
-    // page had already resolved — never trusted from hidden form fields.
     public function storeFromReorder(Request $request, Product $product)
     {
         if (! $product->IsActive) {
@@ -391,9 +322,6 @@ class PurchaseOrderController extends Controller
             ]);
         }
 
-        // A product with known suppliers must order from one of them; a
-        // product with none can be assigned any supplier system-wide, which
-        // also creates the missing ProductSupplier link below.
         $knownSupplierIds = $product->suppliers()->pluck('SupplierID')->all();
 
         $this->stripPriceCommas($request);
@@ -429,9 +357,6 @@ class PurchaseOrderController extends Controller
                 ActivityLog::record('product_supplier.assigned', "Assigned supplier for \"{$product->ProductName}\" while creating a purchase order");
             }
 
-            // Every new Purchase Order starts as a Draft, no matter how it
-            // was created — this one used to jump straight to Pending,
-            // which skipped the review step the Draft status exists for.
             $purchaseOrder = PurchaseOrder::create([
                 'PurchaseDate' => now()->toDateString(),
                 'Notes' => $data['Remarks'] ?? null,
@@ -444,10 +369,6 @@ class PurchaseOrderController extends Controller
                 'PONumber' => 'PO-'.now()->format('Y').'-'.str_pad((string) $purchaseOrder->PurchaseOrderID, 6, '0', STR_PAD_LEFT),
             ]);
 
-            // The admin's entered Current Price — never re-derived from the
-            // product/supplier's own stored cost, which is shown here only
-            // as the read-only "Previous Price" for reference. Existing POs
-            // are untouched; this only sets THIS item's own frozen cost.
             PurchaseOrderItem::create([
                 'PurchaseOrderID' => $purchaseOrder->PurchaseOrderID,
                 'ProductID' => $product->ProductID,
@@ -466,49 +387,28 @@ class PurchaseOrderController extends Controller
         return redirect()->route('admin.purchase-orders.index')->with('success', "Purchase order {$purchaseOrder->PONumber} created successfully.");
     }
 
-    // Suggested reorder quantity shared by the manual reorder form above and
-    // the automatic low-stock draft below: brings stock up to 2x the reorder
-    // threshold — replenish whatever deficit exists below the threshold,
-    // then add one more threshold's worth as a buffer so the item doesn't
-    // immediately re-enter "Replenish" the moment this order arrives.
     public static function suggestedReorderQuantity(int|float $quantity, int $threshold): int|float
     {
         return Quantity::normalize(max($threshold - $quantity, 0) + $threshold);
     }
 
-    /**
-     * Counted in meters and ordered by the roll (wire): the order says how
-     * many meters each roll is.
-     */
     public static function ordersRollMeters(Product $product): bool
     {
         return $product->baseUnit() === 'meter' && $product->hasPurchaseUnit();
     }
 
-    /**
-     * The same suggestion in whole purchase units: 7,000 meters short of
-     * 5,000-meter rolls is 2 rolls.
-     */
     public static function suggestedOrderQuantity(Product $product, int|float $quantity, int $threshold): int
     {
-        // No roll/box received yet, so its size isn't known: suggest one.
         if ($product->hasPurchaseUnit() && $product->purchaseUnitSize() === null) {
             return 1;
         }
 
-        // Capped at what the Quantity box accepts (3 digits).
         return min(
             (int) ceil(round(self::suggestedReorderQuantity($quantity, $threshold) / (float) $product->quantityPerOrderUnit(), 4)),
             PurchaseOrderItem::MAX_QUANTITY
         );
     }
 
-    /**
-     * A per-base-unit cost (Product/ProductSupplier CostPrice, per meter or
-     * piece) as the price of one purchase unit (a roll, a box). Before the
-     * first roll is received its size isn't known: the last price it was
-     * ordered at per roll, or 0 (the admin types it in).
-     */
     public static function costPerPurchaseUnit(Product $product, $costPrice): float
     {
         if ($product->hasPurchaseUnit() && $product->purchaseUnitSize() === null) {
@@ -521,10 +421,6 @@ class PurchaseOrderController extends Controller
         return round((float) ($costPrice ?? 0) * (float) $product->quantityPerOrderUnit(), 2);
     }
 
-    /**
-     * The Current Price boxes show thousands separators (99,999.99); the
-     * commas are dropped before the price is validated and saved.
-     */
     private function stripPriceCommas(Request $request): void
     {
         $withoutCommas = fn ($price) => is_string($price) ? str_replace(',', '', trim($price)) : $price;
@@ -544,24 +440,6 @@ class PurchaseOrderController extends Controller
         }
     }
 
-    // Scans every product and drafts exactly one automatic Purchase Order
-    // (Status = draft) per low-stock CYCLE — never more than one for the
-    // same unresolved drop, and never a second one until the product is
-    // restocked above its threshold first. Reuses the same stock-status
-    // detection, reorder-quantity formula and supplier-resolution logic as
-    // the existing manual "Create Purchase Order" reorder flow above; it
-    // only ever creates DRAFT orders, so an admin must still review and
-    // approve/send them like any other draft — nothing is auto-approved,
-    // auto-sent, or auto-purchased.
-    //
-    // Called from InventoryController::index() — this hosting has no
-    // cron/task scheduler available, so this piggybacks on real
-    // Inventory-page traffic (including its existing live poll) instead of
-    // a scheduled job. Inventory.AutoReorderTriggered is the per-product
-    // cycle flag: it's set once a cycle is handled (a PO was auto-drafted,
-    // or one already existed) and cleared again the moment the product is
-    // back "In Stock", so a later drop can trigger exactly one new
-    // automatic draft.
     public static function autoGenerateDraftPurchaseOrders(): void
     {
         $inventories = Inventory::with('product.suppliers.supplier')->get();
@@ -569,8 +447,6 @@ class PurchaseOrderController extends Controller
 
         foreach ($inventories as $inventory) {
             $product = $inventory->product;
-            // An inactive product is never auto-reordered, however low its
-            // stock gets.
             if (! $product || ! $product->IsActive) {
                 continue;
             }
@@ -579,12 +455,6 @@ class PurchaseOrderController extends Controller
 
             if ($status['label'] === 'In Stock') {
                 if ($inventory->AutoReorderTriggered) {
-                    // Closes out this cycle and watermarks the highest PO
-                    // ID that exists right now, so a later drop's duplicate
-                    // check (below) only looks at POs from the NEW cycle,
-                    // not a stale one left over from before this restock. An
-                    // ID watermark (not a timestamp) avoids any same-second
-                    // ordering ambiguity between the restock and a PO row.
                     $inventory->update([
                         'AutoReorderTriggered' => false,
                         'LastRestockPurchaseOrderId' => PurchaseOrder::max('PurchaseOrderID') ?? 0,
@@ -598,17 +468,6 @@ class PurchaseOrderController extends Controller
                 continue;
             }
 
-            // Everything from here through the PO insert and the
-            // AutoReorderTriggered flag runs under one lock on THIS
-            // product's Inventory row. Without it, two overlapping calls
-            // to this method — plausible since it's triggered by ordinary
-            // Inventory-page traffic/polling rather than a single scheduled
-            // job — could both read AutoReorderTriggered=false and "no open
-            // PO" before either commits, and both draft a duplicate PO for
-            // the same low-stock cycle. Re-fetching under lockForUpdate()
-            // and re-checking the flag closes that race: the second call
-            // blocks until the first commits, then sees the flag already
-            // set and does nothing.
             $purchaseOrder = DB::transaction(function () use ($inventory, $product, $status) {
                 $locked = Inventory::where('InventoryID', $inventory->InventoryID)->lockForUpdate()->first();
 
@@ -616,13 +475,6 @@ class PurchaseOrderController extends Controller
                     return null;
                 }
 
-                // An open PO (not yet fully received or cancelled) created
-                // during THIS cycle already covers this product — whether
-                // auto- or manually-created — so this cycle is already
-                // handled; don't create a duplicate. Scoped to IDs above
-                // the last-restock watermark (if any) so an old,
-                // unactioned PO from a cycle already closed out by a
-                // restock can't block a brand new automatic draft here.
                 $hasOpenPurchaseOrder = PurchaseOrderItem::where('ProductID', $product->ProductID)
                     ->where('PurchaseOrderID', '>', $locked->LastRestockPurchaseOrderId ?? 0)
                     ->whereHas('purchaseOrder', function ($query) {
@@ -638,13 +490,9 @@ class PurchaseOrderController extends Controller
 
                 $resolvedSupplier = $product->resolveReorderSupplier();
                 if (! $resolvedSupplier) {
-                    // Ambiguous or unknown supplier — can't fabricate one, so
-                    // leave the flag false and retry on the next check (e.g.
-                    // once an admin assigns a supplier to the product).
                     return null;
                 }
 
-                // In the purchase unit, priced per that unit.
                 $suggestedQuantity = self::suggestedOrderQuantity($product, $locked->Quantity, (int) ($locked->ReorderThreshold ?? 50));
                 $costPrice = self::costPerPurchaseUnit($product, $resolvedSupplier->CostPrice ?? $product->CostPrice);
 
@@ -723,9 +571,6 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Only draft purchase orders can be submitted.');
         }
 
-        // Locked and re-checked the same way cancel() already is, so this
-        // can't race a concurrent approve()/cancel() on the same PO from
-        // another tab and leave a lost update on Status.
         try {
             DB::transaction(function () use ($purchaseOrder) {
                 $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
@@ -758,9 +603,6 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'Only draft or pending purchase orders can be approved.');
         }
 
-        // Locked and re-checked the same way cancel() already is, so this
-        // can't race a concurrent submit()/cancel() on the same PO from
-        // another tab and leave a lost update on Status.
         try {
             DB::transaction(function () use ($purchaseOrder) {
                 $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
@@ -801,13 +643,6 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'This purchase order can no longer be cancelled.');
         }
 
-        // Both the status check and the "has anything been received yet"
-        // check used to read unlocked, outside any transaction — a Stock
-        // Receiving submission racing this request could commit in between,
-        // leaving the order cancelled while its lines already show received
-        // stock (exactly the state this guard exists to prevent). Locking
-        // the order and its items here mirrors the lock StockReceiving
-        // already takes when it receives against a line.
         try {
             DB::transaction(function () use ($purchaseOrder) {
                 $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
@@ -845,12 +680,6 @@ class PurchaseOrderController extends Controller
         return back()->with('success', 'Purchase order cancelled.');
     }
 
-    /**
-     * The supplier won't deliver the rest of a short-delivered order: the
-     * owner cancels what's still owed on the chosen lines, with a reason.
-     * Once nothing is owed the order is Closed and leaves the receiving
-     * queue; until then it stays open for the other lines.
-     */
     public function cancelRemaining(Request $request, PurchaseOrder $purchaseOrder)
     {
         $data = $request->validate([
@@ -904,8 +733,6 @@ class PurchaseOrderController extends Controller
                     'RemainderCancelledAt' => now(),
                 ]);
 
-                // Nothing more to receive: the delivery leaves Pending /
-                // Expected Delivery.
                 if ($closed) {
                     StockReceivingBatch::where('PurchaseOrderID', $locked->PurchaseOrderID)
                         ->update(['Status' => StockReceivingBatch::STATUS_COMPLETED, 'CompletedAt' => now()]);
@@ -938,30 +765,10 @@ class PurchaseOrderController extends Controller
             ->download("{$purchaseOrder->PONumber}.pdf");
     }
 
-    // In-browser Print Preview (window.print()), as distinct from export()'s
-    // dompdf download — reviewed on-screen before printing, matching the
-    // admin.damages.print / cashier receipt convention already used
-    // elsewhere for printable documents.
-    // Clicking Print inside View Details is what actually sends a Draft PO
-    // into the receiving queue: Draft -> Pending, plus a StockReceivingBatch
-    // is created so it shows up in Stock Receiving -> Pending/Expected
-    // Delivery. This route is a GET (opens in a new tab), so it isn't
-    // idempotent by default — the transition is guarded to only fire when
-    // the PO is still Draft, locked the same way submit()/approve()/
-    // cancel() already guard their own transitions above, and the batch's
-    // PurchaseOrderID column is UNIQUE as a hard backstop against ever
-    // creating two batches for the same PO even under a race. Printing an
-    // already-Pending (or later-stage) PO just re-renders the print view.
     public function printPreview(PurchaseOrder $purchaseOrder)
     {
         try {
             DB::transaction(function () use ($purchaseOrder) {
-                // Only a still-Draft PO can start this transition — once it's
-                // Pending (already sent to receiving), Approved/Partially/
-                // Fully Received (progressed via the legacy path), or
-                // Cancelled, this lock simply matches nothing and the method
-                // falls through to just rendering the print view, no matter
-                // how many times Print is clicked.
                 $locked = PurchaseOrder::where('PurchaseOrderID', $purchaseOrder->PurchaseOrderID)
                     ->where('Status', PurchaseOrder::STATUS_DRAFT)
                     ->lockForUpdate()
@@ -971,14 +778,6 @@ class PurchaseOrderController extends Controller
                     return;
                 }
 
-                // Belt-and-suspenders: even though a batch can only exist
-                // once this PO has already left Draft, explicitly re-check
-                // for one under the same lock before creating anything —
-                // this is the "always check before creating" guarantee,
-                // made explicit rather than left implicit in firstOrCreate()
-                // below, and it's what makes a future edge case (e.g. a
-                // Draft status somehow restored on a PO that already has a
-                // batch) fail safe instead of silently duplicating.
                 $existingBatch = StockReceivingBatch::where('PurchaseOrderID', $locked->PurchaseOrderID)->first();
                 if ($existingBatch) {
                     ActivityLog::record('purchase_order.print_duplicate_prevented', "Print re-triggered for PO #{$locked->PONumber} but a Stock Receiving record already exists — skipped.");
@@ -988,10 +787,6 @@ class PurchaseOrderController extends Controller
 
                 $locked->update(['Status' => PurchaseOrder::STATUS_PENDING]);
 
-                // The StockReceivingBatch.PurchaseOrderID UNIQUE constraint
-                // is the hard backstop underneath this: even if two requests
-                // somehow got past the checks above at the same time, only
-                // one insert can ever succeed.
                 StockReceivingBatch::create([
                     'PurchaseOrderID' => $locked->PurchaseOrderID,
                     'Status' => StockReceivingBatch::STATUS_PENDING,
@@ -1004,8 +799,6 @@ class PurchaseOrderController extends Controller
                 'purchase_order_id' => $purchaseOrder->PurchaseOrderID,
                 'exception' => $e->getMessage(),
             ]);
-            // Printing must still work even if the status transition fails
-            // for some reason — the admin still needs the document.
         }
 
         $purchaseOrder->refresh()->load(['supplier', 'items.product', 'createdByUser']);

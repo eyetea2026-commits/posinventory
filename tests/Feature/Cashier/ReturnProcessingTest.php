@@ -79,9 +79,6 @@ class ReturnProcessingTest extends TestCase
         ]);
     }
 
-    // A second, unrelated cashier -- used only by the ownership-scoping
-    // tests below (audit finding F1) to prove one cashier can't reach
-    // another's refund records.
     private function makeOtherCashier(): Staff
     {
         $otherUser = User::factory()->create(['role_id' => $this->cashierUser->role_id]);
@@ -108,9 +105,6 @@ class ReturnProcessingTest extends TestCase
 
         $return = SalesReturn::create($fields);
 
-        // Mirrors the backfill migration: every SalesReturn row has a
-        // matching SalesReturnItem line that processing/approval now reads
-        // from instead of the legacy header ProductID/Quantity/Reason.
         SalesReturnItem::create([
             'SalesReturnID' => $return->SalesReturnID,
             'ProductID' => $fields['ProductID'],
@@ -174,7 +168,6 @@ class ReturnProcessingTest extends TestCase
 
     public function test_process_refund_restores_inventory_and_marks_processed(): void
     {
-        // Salable reason — the only case that should ever restore stock.
         $return = $this->makeReturn(['Status' => 'approved', 'Quantity' => 2, 'Reason' => 'Other']);
 
         $response = $this->actingAs($this->cashierUser)->postJson(
@@ -190,16 +183,11 @@ class ReturnProcessingTest extends TestCase
         $this->assertTrue(ActivityLog::where('Action', 'return.refund_processed')->exists());
     }
 
-    // A promo-discounted item must be refunded for what was actually paid,
-    // not its full undiscounted price — otherwise the refund overpays the
-    // customer by exactly the amount the original discount was worth.
     public function test_process_refund_prorates_by_the_original_sale_discount(): void
     {
         $transaction = SalesTransaction::create([
             'CustomerName' => 'Walk-in Customer', 'SalesTransactionDate' => now(), 'StaffID' => $this->staff->StaffID,
         ]);
-        // 2 units @ 1000, with a 400 total discount (200/unit) — customer
-        // actually paid 800/unit.
         SalesItem::create([
             'Quantity' => 2, 'UnitPrice' => 1000, 'DiscountAmount' => 400,
             'ProductID' => $this->product->ProductID, 'SalesTransactionID' => $transaction->SalesTransactionID,
@@ -233,7 +221,6 @@ class ReturnProcessingTest extends TestCase
 
         $response->assertJson(['success' => true]);
         $return->refresh();
-        // 1 unit returned x (1000 - 200 discount/unit) = 800, not 1000.
         $this->assertEquals(800, $return->RefundAmount);
     }
 
@@ -252,14 +239,10 @@ class ReturnProcessingTest extends TestCase
             $return->refresh();
             $this->assertSame('processed', $return->Status, "Reason: {$reason}");
             $this->assertEquals(2000, $return->RefundAmount, "Reason: {$reason}");
-            // Inventory must stay untouched — the unit was diverted to the
-            // Damage module at approval time and must never come back.
             $this->assertSame(5, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity, "Reason: {$reason}");
         }
     }
 
-    // Returns are refund-only: the replacement screens, routes, and slip
-    // were removed together with the Replacement table.
     public function test_replacement_processing_is_gone_from_the_cashier_returns_page(): void
     {
         foreach (['cashier.refunds.process-replacement', 'cashier.refunds.slip', 'cashier.replacement-inventory.search'] as $name) {
@@ -296,8 +279,6 @@ class ReturnProcessingTest extends TestCase
         $byBarcode->assertStatus(404);
     }
 
-    // The QR code at the bottom of a receipt holds its receipt number;
-    // scanning it in the SKU / Barcode search opens that receipt.
     public function test_scanning_a_receipt_qr_in_the_barcode_search_finds_the_receipt(): void
     {
         $receipt = 'RCT-'.str_pad($this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
@@ -373,9 +354,6 @@ class ReturnProcessingTest extends TestCase
         $this->assertDatabaseHas('SalesReturn', ['SalesTransactionID' => $this->transaction->SalesTransactionID]);
     }
 
-    // ---- A later request can't push the total requested for one sale/
-    // product past what was actually sold (2 units, per setUp) ----
-
     public function test_create_refund_rejects_a_request_that_would_exceed_the_quantity_sold(): void
     {
         $first = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
@@ -387,9 +365,6 @@ class ReturnProcessingTest extends TestCase
         ]);
         $first->assertJson(['success' => true]);
 
-        // Only 2 units were ever sold, and both are already covered by the
-        // still-pending request above — a second request for even 1 more
-        // unit must be rejected, not silently allowed to double-count.
         $second = $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [
@@ -402,10 +377,6 @@ class ReturnProcessingTest extends TestCase
         $second->assertJsonPath('success', false);
         $this->assertSame(1, SalesReturn::where('SalesTransactionID', $this->transaction->SalesTransactionID)->count());
     }
-
-    // ---- A second return request for the same cashier while the first is
-    // still in flight is rejected (409), not recorded twice — even when
-    // there's enough sold quantity left for both to pass on their own ----
 
     public function test_a_second_return_request_for_the_same_cashier_while_one_is_in_flight_is_rejected(): void
     {
@@ -426,14 +397,12 @@ class ReturnProcessingTest extends TestCase
 
     public function test_every_return_is_a_factory_defect_set_automatically(): void
     {
-        // "Damaged Product" is no longer a reason.
         $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [['product_id' => $this->product->ProductID, 'quantity' => 1, 'reason_code' => 'damaged_product']],
             'return_type' => 'refund',
         ])->assertStatus(422)->assertJsonValidationErrors('items.0.reason_code');
 
-        // No reason sent: it's a Factory Defect.
         $this->actingAs($this->cashierUser)->postJson(route('cashier.refunds.create'), [
             'transaction_id' => $this->transaction->SalesTransactionID,
             'items' => [['product_id' => $this->product->ProductID, 'quantity' => 1]],
@@ -441,7 +410,6 @@ class ReturnProcessingTest extends TestCase
         ])->assertOk()->assertJson(['success' => true]);
         $this->assertSame('Factory Defect', SalesReturnItem::latest('SalesReturnItemID')->value('Reason'));
 
-        // The form shows the reason, fixed, with no Damaged Product choice.
         $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))->assertOk()
             ->assertSee('value="Factory Defect" readonly', false)
             ->assertDontSee('<option value="damaged_product">', false);
@@ -467,10 +435,6 @@ class ReturnProcessingTest extends TestCase
         ]);
         $second->assertJson(['success' => true]);
     }
-
-    // ---- Ownership scoping on the read/process endpoints (audit finding
-    // F1): a Cashier may only reach their OWN refund records,
-    // never another Cashier's, even by ID directly. ----
 
     public function test_print_refund_receipt_is_denied_for_a_different_cashiers_return(): void
     {
@@ -502,7 +466,6 @@ class ReturnProcessingTest extends TestCase
         $refundNumber = 'RFD-'.str_pad((string) $return->SalesReturnID, 6, '0', STR_PAD_LEFT);
         $saleReceipt = 'RCT-'.str_pad((string) $this->transaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
-        // Its printer lines: the sales receipt's header and 32 columns.
         $lines = $this->actingAs($this->cashierUser)->getJson(route('cashier.refunds.receipt.print-lines', $return->SalesReturnID))
             ->assertOk()->json('lines');
         $text = implode('', array_column($lines, 'text'));
@@ -518,14 +481,12 @@ class ReturnProcessingTest extends TestCase
             $this->assertLessThanOrEqual(32, strlen($line), $line);
         }
 
-        // The page prints those same lines (the thermal copy) and shows the slip.
         $this->actingAs($this->cashierUser)->get(route('cashier.refunds.receipt', $return->SalesReturnID))->assertOk()
             ->assertSee('<div class="print-text">', false)
             ->assertSee('REFUND RECEIPT')
             ->assertSee('Original Receipt:')
             ->assertSee('₱1,000.00');
 
-        // The Refund Requests page prints it like a sale, with no pop-up window.
         $this->actingAs($this->cashierUser)->get(route('cashier.refunds'))->assertOk()
             ->assertSee('printRefundReceipt(refundId, data.receipt_number);', false)
             ->assertSee('id="refundReceiptPrintFrame"', false)
@@ -566,7 +527,6 @@ class ReturnProcessingTest extends TestCase
         $this->assertStringContainsString('REFUND RECEIPT', $capture->bytes);
         $this->assertStringContainsString('P1,000.00', $capture->bytes);
 
-        // Another cashier's refund isn't printable.
         $other = $this->makeOtherCashier()->user;
         $this->actingAs($other)->postJson(route('cashier.refunds.receipt.thermal', $return->SalesReturnID))->assertNotFound();
         $this->actingAs($other)->getJson(route('cashier.refunds.receipt.print-lines', $return->SalesReturnID))->assertNotFound();

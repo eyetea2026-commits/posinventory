@@ -33,20 +33,12 @@ class AdminForgotPasswordTest extends TestCase
         $response = $this->get(route('admin.forgot'));
 
         $response->assertOk();
-        // The masked value only ever shows 3 asterisks, keeping at most the
-        // first 2 characters of the local part — never the real address.
         $response->assertSee('ad***@cctvexpress.local', false);
-        // The visible/disabled display input must show only the masked
-        // form, never the real address.
         $response->assertDontSee('value="administrator@cctvexpress.local" disabled', false);
-        // The real address still travels via a hidden field so submitting
-        // the form without touching anything works.
         $response->assertSee('type="hidden" id="email_hidden" name="email" value="administrator@cctvexpress.local"', false);
         $response->assertSee('Not you? Enter a different email');
     }
 
-    // The Forgot Password, OTP and Reset Password screens share the login
-    // page's look: solid system blue, not the old blue-to-green gradient.
     public function test_password_reset_screens_use_the_system_colors(): void
     {
         $this->get(route('admin.forgot'))->assertOk()
@@ -110,9 +102,6 @@ class AdminForgotPasswordTest extends TestCase
             'email' => 'administrator@cctvexpress.local',
         ]);
 
-        // Step 1: submit the forgot form — the masked field's hidden input
-        // is what actually gets posted, so this simulates a click on
-        // "Send OTP Code" without the admin typing anything.
         $forgotResponse = $this->post(route('admin.forgot.post'), ['email' => $admin->email]);
         $forgotResponse->assertRedirect(route('admin.otp.form'));
         Mail::assertSent(OtpMail::class);
@@ -120,11 +109,9 @@ class AdminForgotPasswordTest extends TestCase
         $otp = DB::table('password_reset_tokens')->where('email', $admin->email)->value('token');
         $this->assertNotNull($otp);
 
-        // Step 2: verify the OTP.
         $verifyResponse = $this->post(route('admin.otp.verify'), ['email' => $admin->email, 'otp' => $otp]);
         $verifyResponse->assertRedirect(route('admin.password.reset.form', ['email' => $admin->email]));
 
-        // Step 3: set the new password.
         $resetResponse = $this->post(route('admin.password.reset'), [
             'email' => $admin->email,
             'password' => 'NewPass1234!',
@@ -147,8 +134,6 @@ class AdminForgotPasswordTest extends TestCase
         $otp = DB::table('password_reset_tokens')->where('email', $admin->email)->value('token');
         $this->post(route('admin.otp.verify'), ['email' => $admin->email, 'otp' => $otp]);
 
-        // Attempting to reset a DIFFERENT admin's password using the OTP
-        // session verified for $admin must be rejected.
         $response = $this->post(route('admin.password.reset'), [
             'email' => $otherAdmin->email,
             'password' => 'NewPass1234!',
@@ -160,15 +145,8 @@ class AdminForgotPasswordTest extends TestCase
         $this->assertFalse(Hash::check('NewPass1234!', $otherAdmin->password));
     }
 
-    // ---- A completed reset must force out whatever session was already
-    // active for the account (audit finding F3) — otherwise the reset
-    // doesn't actually help if that session was the compromised one. ----
-
     public function test_completing_a_reset_invalidates_the_accounts_active_session(): void
     {
-        // The feature under test relies on the real `sessions` DB table --
-        // phpunit.xml defaults to the in-memory "array" driver, which never
-        // writes there at all (same reasoning as SingleSessionTest).
         config(['session.driver' => 'database']);
         Mail::fake();
 
@@ -177,9 +155,6 @@ class AdminForgotPasswordTest extends TestCase
             'email' => 'administrator@cctvexpress.local',
         ]);
 
-        // A real login naturally registers current_session_id and a genuine
-        // row in the sessions table -- exactly the state a since-compromised
-        // session would be in.
         $this->post(route('login.post'), ['username' => 'administrator', 'password' => 'password']);
         $admin->refresh();
         $sessionId = $admin->current_session_id;
@@ -206,9 +181,6 @@ class AdminForgotPasswordTest extends TestCase
         config(['session.driver' => 'database']);
         Mail::fake();
 
-        // No login ever happened for this admin, so current_session_id is
-        // null from creation -- the reset must still complete cleanly
-        // rather than assuming a session always exists to clear.
         $admin = User::factory()->create(['role_id' => $this->adminRole->id, 'email' => 'administrator@cctvexpress.local']);
         $this->assertNull($admin->current_session_id);
 
@@ -242,7 +214,6 @@ class AdminForgotPasswordTest extends TestCase
         Mail::assertNothingSent();
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => $cashier->email]);
 
-        // Even with a forged "verified" session, the password can't change.
         $this->withSession(['otp_verified' => true, 'otp_verified_email' => $cashier->email])
             ->from(route('admin.password.reset.form'))
             ->post(route('admin.password.reset'), [

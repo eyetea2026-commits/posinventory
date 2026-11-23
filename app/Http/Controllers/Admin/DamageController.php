@@ -33,7 +33,6 @@ class DamageController extends Controller
         });
     }
 
-    // Display damaged products list + dashboard KPIs
     public function index(Request $request)
     {
         $search = $request->get('search');
@@ -52,14 +51,6 @@ class DamageController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Live search (explicit ?ajax=1, not just an XHR header) — return
-        // just the table rows + pagination as rendered partials. Deliberately
-        // NOT keyed off $request->ajax()/wantsJson()/X-Requested-With alone:
-        // the Edit Damage modal's own AJAX POSTs (mark-supplier-return,
-        // update, ...) carry those same headers, and fetch() follows their
-        // redirect back to this same index route — if that redirect-follow
-        // also matched here, it would return this JSON instead of the full
-        // HTML page that modal's shared submit helper expects to parse.
         if ($request->boolean('ajax')) {
             return response()->json([
                 'rows' => view('admin.damages.partials.rows', ['damagedProducts' => $damagedProducts])->render(),
@@ -79,9 +70,6 @@ class DamageController extends Controller
         return view('admin.damages.index', compact('damagedProducts', 'search', 'supplierId', 'kpis', 'suppliers'));
     }
 
-    // View Details modal — full picture of one damage record: product,
-    // inventory, supplier, the originating return or stock adjustment (if
-    // any), and a best-effort audit history from ActivityLog.
     public function show(DamagedProduct $damage)
     {
         $damage->load([
@@ -102,18 +90,12 @@ class DamageController extends Controller
             ->orWhere('Description', 'like', "%damage record #{$damage->DamageID}%")
             ->orderByDesc('DateRecorded')
             ->get(['Action', 'Description', 'DateRecorded'])
-            // Shown as-is in the details modal, so send a readable MM/DD/YYYY time.
             ->map(fn (ActivityLog $log) => [
                 'Action' => $log->Action,
                 'Description' => $log->Description,
                 'DateRecorded' => $log->DateRecorded?->format('m/d/Y h:i A'),
             ]);
 
-        // Who actually submitted the return request this damage originated
-        // from — resolved via SalesReturn.StaffID -> Staff -> User rather
-        // than hardcoded, so it correctly shows whichever real account (any
-        // role) created the request, or "Unknown User" if that chain is
-        // broken (e.g. the staff record was later deleted).
         if ($damage->salesReturn) {
             $staff = $damage->salesReturn->staff;
             $user = $staff?->user;
@@ -125,10 +107,6 @@ class DamageController extends Controller
                 'RequestDate' => optional($damage->salesReturn->created_at)->format('m/d/Y g:i A'),
             ];
         } else {
-            // Manually recorded damage (no originating return) has no
-            // CreatedBy column of its own — best-effort resolve who
-            // recorded it from its own creation ActivityLog entry instead,
-            // the same technique used for its Audit History below.
             $created = ActivityLog::with('user.role')
                 ->where('Description', 'like', '%as damaged%')
                 ->where('Description', 'like', "%\"{$damage->product?->ProductName}\"%")
@@ -143,14 +121,6 @@ class DamageController extends Controller
             ];
         }
 
-        // The record's overall Status already doubles as its supplier-return
-        // progress once it enters that path — label that explicitly here.
-        // Gated on the STATUS value itself (not SupplierID presence): a
-        // return-originated damage record often has no SupplierID of its
-        // own yet still genuinely went through for_supplier_return ->
-        // returned_to_supplier -> replacement_received. "Not Applicable"
-        // means the record simply never engaged that path (still pending,
-        // or disposed straight from pending).
         $supplierReturnStatus = in_array($damage->Status, [
             DamagedProduct::STATUS_FOR_SUPPLIER_RETURN,
             DamagedProduct::STATUS_RETURNED_TO_SUPPLIER,
@@ -228,7 +198,6 @@ class DamageController extends Controller
         return view('admin.damages.print', ['damage' => $damage]);
     }
 
-    // Show edit form
     public function edit(Request $request, DamagedProduct $damage)
     {
         $isAjax = $request->ajax() || $request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest';
@@ -245,8 +214,6 @@ class DamageController extends Controller
         $suppliers = Supplier::orderBy('SupplierName')->get();
         $purchaseOrders = PurchaseOrder::with('supplier')->orderByDesc('PurchaseOrderID')->get();
 
-        // Edit Damage modal: return just the rendered form fields instead of
-        // a full page, so the modal can inject it without navigating.
         if ($isAjax) {
             return response()->json([
                 'html' => view('admin.damages.partials.damage-form-fields', compact('damage', 'products', 'suppliers', 'purchaseOrders'))->render(),
@@ -256,7 +223,6 @@ class DamageController extends Controller
         return view('admin.damages.edit', compact('damage', 'products', 'suppliers', 'purchaseOrders'));
     }
 
-    // Update damaged product record
     public function update(Request $request, DamagedProduct $damage)
     {
         if ($damage->Status !== DamagedProduct::STATUS_PENDING) {
@@ -267,7 +233,6 @@ class DamageController extends Controller
             'ProductID' => 'required|exists:Product,ProductID',
             'SupplierID' => 'required|exists:Supplier,SupplierID',
             'PurchaseOrderID' => 'nullable|integer|exists:PurchaseOrder,PurchaseOrderID',
-            // In the product's base unit (0.5 meters where decimals are allowed).
             'Quantity' => ['required', 'numeric', 'gt:0', 'max:9999999', 'decimal:0,2'],
             'Description' => 'required|string|max:500',
             'DateRecorded' => 'required|date',
@@ -289,18 +254,9 @@ class DamageController extends Controller
         $newImagePath = $request->hasFile('Image') ? $request->file('Image')->store('damages', 'public') : null;
         $sameProduct = (int) $data['ProductID'] === (int) $damage->ProductID;
 
-        // Availability is checked against a locked snapshot inside the same
-        // transaction that then mutates it — the previous version read
-        // Inventory unlocked before the transaction even opened, so a
-        // concurrent request could interleave between the check and the
-        // restore/decrease below.
         try {
             DB::transaction(function () use ($data, $damage, $newImagePath, $sameProduct) {
                 if ($sameProduct) {
-                    // One row, locked once — restoring the old quantity and
-                    // subtracting the new quantity net against the same
-                    // locked snapshot, so nothing can interleave between
-                    // the "restore" and "decrease" halves of this edit.
                     $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
                     $available = ($inventory->Quantity ?? 0) + $damage->Quantity;
 
@@ -364,7 +320,6 @@ class DamageController extends Controller
         return redirect()->route('admin.damages.index')->with('success', 'Damaged product record updated successfully.');
     }
 
-    // Delete damaged product record
     public function destroy(DamagedProduct $damage)
     {
         if ($damage->Status !== DamagedProduct::STATUS_PENDING) {
@@ -375,7 +330,6 @@ class DamageController extends Controller
         $productName = $damage->product?->ProductName ?? 'Unknown Product';
 
         DB::transaction(function () use ($damage) {
-            // Restore quantity to inventory
             $inventory = Inventory::where('ProductID', $damage->ProductID)->lockForUpdate()->first();
             if ($inventory) {
                 $inventory->Quantity += $damage->Quantity;
@@ -439,8 +393,6 @@ class DamageController extends Controller
         return back()->with('success', 'Damage record marked as disposed.');
     }
 
-    // Multiple "Pending Supplier Return" records selected together and sent
-    // to the supplier as one transaction.
     public function bulkConfirmSupplierReturn(Request $request)
     {
         $data = $request->validate([
@@ -481,9 +433,6 @@ class DamageController extends Controller
         return back()->with('success', "{$count} damage record(s) confirmed returned to supplier.");
     }
 
-    // Supplier sent a replacement unit — this is the only point where
-    // inventory increases in the defective-return flow. The original
-    // defective unit never re-enters Inventory.
     public function receiveReplacement(Request $request, DamagedProduct $damage)
     {
         if ($damage->Status !== DamagedProduct::STATUS_RETURNED_TO_SUPPLIER) {
@@ -498,11 +447,6 @@ class DamageController extends Controller
 
         try {
             DB::transaction(function () use ($damage, $qty) {
-                // Re-fetch and lock the damage record itself, re-verifying
-                // its status under the lock — the check above ran before
-                // this transaction opened, so a second rapid submission
-                // (double-click, replayed request) could otherwise also
-                // pass it and double-increment inventory.
                 $locked = DamagedProduct::where('DamageID', $damage->DamageID)
                     ->where('Status', DamagedProduct::STATUS_RETURNED_TO_SUPPLIER)
                     ->lockForUpdate()
@@ -522,7 +466,6 @@ class DamageController extends Controller
 
                 $inventory->Quantity += $qty;
                 $inventory->Status = Inventory::resolveStatus($inventory->Quantity, $inventory->ReorderThreshold);
-                // A stock batch of its own, at what the replaced piece cost.
                 StockBatches::receivingAs([
                     'Source' => StockBatch::SOURCE_SUPPLIER_REPLACEMENT,
                     'SupplierID' => $locked->SupplierID,
@@ -550,8 +493,6 @@ class DamageController extends Controller
         return back()->with('success', 'Replacement received and inventory updated.');
     }
 
-    // Admin decided the item is salable after all / the supplier return was
-    // a mistake — only allowed before it physically leaves the building.
     public function cancel(DamagedProduct $damage)
     {
         if ($damage->Status !== DamagedProduct::STATUS_FOR_SUPPLIER_RETURN) {
@@ -560,11 +501,6 @@ class DamageController extends Controller
 
         try {
             DB::transaction(function () use ($damage) {
-                // Same re-check-under-lock as receiveReplacement() above —
-                // without it, a rapid double cancel (or a cancel racing a
-                // receiveReplacement on the same record) could double-credit
-                // inventory while only the status field visibly "loses" the
-                // race, masking the double-count entirely.
                 $locked = DamagedProduct::where('DamageID', $damage->DamageID)
                     ->where('Status', DamagedProduct::STATUS_FOR_SUPPLIER_RETURN)
                     ->lockForUpdate()

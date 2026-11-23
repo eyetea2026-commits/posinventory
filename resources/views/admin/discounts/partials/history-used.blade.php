@@ -1,8 +1,3 @@
-{{-- Used promos — sales referencing a Discount. A sale stores one
-     aggregate DiscountAmount per sale, not a per-line breakdown, so
-     "Products" here is a labelled best-effort showing the promo's current
-     assignment rather than a precise historical per-product figure the
-     schema doesn't track. --}}
 <div style="overflow-x:auto;">
     <table class="table">
         <thead>
@@ -21,9 +16,6 @@
                 @php $discount = $sale->discount; @endphp
                 <tr>
                     <td>{{ $discount->Name ?? '—' }}</td>
-                    {{-- PromoCode is frozen on the sale at sale time, so it
-                         still reads correctly even if the Discount was later
-                         renamed/edited/soft-deleted. --}}
                     <td><code>{{ $sale->PromoCode ?? '—' }}</code></td>
                     <td>{{ $discount && $discount->products->isNotEmpty() ? $discount->products->pluck('ProductName')->implode(', ') : '—' }}</td>
                     <td>₱{{ number_format($sale->DiscountAmount, 2) }}</td>

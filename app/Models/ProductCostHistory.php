@@ -43,11 +43,6 @@ class ProductCostHistory extends Model
         return $this->belongsTo(Supplier::class, 'SupplierID', 'SupplierID');
     }
 
-    // Central write path for every cost change, regardless of which of the
-    // three independent code paths (Product edit, ProductSupplier pivot
-    // edit, PO creation) triggered it — only logs when the value actually
-    // changed, so re-saving a form with an unchanged cost doesn't spam
-    // history with no-op entries.
     public static function log(Product $product, ?Supplier $supplier, ?float $old, float $new, string $source): void
     {
         if ($old !== null && (float) $old === (float) $new) {

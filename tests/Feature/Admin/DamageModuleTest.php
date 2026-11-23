@@ -54,8 +54,6 @@ class DamageModuleTest extends TestCase
         ], $overrides);
     }
 
-    // Damage records can no longer be created manually — the create/store
-    // routes are gone entirely (see test_create_and_store_routes_no_longer_exist).
     public function test_edit_and_delete_are_blocked_once_not_pending(): void
     {
         $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
@@ -77,7 +75,6 @@ class DamageModuleTest extends TestCase
         $this->actingAs($this->admin)->delete(route('admin.damages.destroy', $damage));
 
         $this->assertSame(10, Inventory::where('ProductID', $this->product->ProductID)->first()->Quantity);
-        // Soft delete: the row stays in the table (recoverable) but drops out of default queries.
         $this->assertDatabaseHas('DamagedProduct', ['DamageID' => $damage->DamageID]);
         $this->assertNotNull($damage->fresh()->deleted_at);
         $this->assertNull(DamagedProduct::find($damage->DamageID));
@@ -210,15 +207,9 @@ class DamageModuleTest extends TestCase
         $this->assertSame(2, ActivityLog::where('Action', 'damage.returned_to_supplier')->count());
     }
 
-    // Damage records are only ever created automatically (see
-    // SalesReturnController::createDamageRecordForItem()) — these routes
-    // must not exist at all.
     public function test_create_and_store_routes_no_longer_exist(): void
     {
         $this->actingAs($this->admin)->get('/admin/damages/create')->assertStatus(404);
-        // POST /admin/damages: the URI itself still matches (GET damages ==
-        // the index route), just not this verb — Laravel reports that as
-        // 405, not 404.
         $this->actingAs($this->admin)->post('/admin/damages', $this->baseDamagePayload())->assertStatus(405);
     }
 
@@ -258,13 +249,9 @@ class DamageModuleTest extends TestCase
         $response->assertDontSee('>PDF<', false);
         $response->assertDontSee('>Excel<', false);
         $response->assertDontSee('window.print()', false);
-        // View Details no longer repeats the status as two cards (the list shows it).
         $response->assertDontSee("kv('Current Status'", false);
         $response->assertDontSee("kv('Supplier Return Status'", false);
-        // There is no manual "Add Damage Record" function — records are only
-        // ever created automatically from an approved customer return.
         $response->assertDontSee('Record Damage');
-        // Supplier filter stays — only the date/status filters were removed.
         $response->assertSee('All Suppliers');
     }
 
@@ -282,16 +269,6 @@ class DamageModuleTest extends TestCase
         $this->actingAs($this->admin)->get('/admin/damages/export')->assertNotFound();
     }
 
-    // Regression guard: fetch() follows a POST's redirect while preserving
-    // custom headers, so the Edit Damage modal's XHR-flagged submit to
-    // update()/mark-supplier-return/etc. lands back on this same
-    // index route carrying the exact same X-Requested-With/Accept headers
-    // a deliberate live-search request would send. If index() keyed off
-    // those headers alone, that redirect-follow would get JSON instead of
-    // the full HTML page the modal's shared submit helper expects to parse
-    // for its success/error message — silently breaking every Edit Damage
-    // save. Only the explicit ?ajax=1 the live-search JS sends may trigger
-    // the JSON branch.
     public function test_xhr_headers_alone_without_ajax_flag_still_return_the_full_page(): void
     {
         $response = $this->actingAs($this->admin)->getJson(route('admin.damages.index'));
@@ -335,11 +312,6 @@ class DamageModuleTest extends TestCase
 
     public function test_supplier_return_status_is_not_applicable_for_a_record_that_never_entered_that_path(): void
     {
-        // No SupplierID, and a status that never went through the supplier
-        // return workflow — this is the case that must NOT be gated on
-        // SupplierID presence (a return-originated record can legitimately
-        // reach "replacement_received" without ever having its own
-        // SupplierID set).
         $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), [
             'Status' => DamagedProduct::STATUS_PENDING,
         ]));
@@ -350,10 +322,6 @@ class DamageModuleTest extends TestCase
         $response->assertJsonPath('supplierReturnStatus', 'Not Applicable');
     }
 
-    // Legacy rows created before manual entry was removed (SourceModule =
-    // manual) can still be viewed/edited — show() falls back to resolving
-    // "requested by" from the record's own creation ActivityLog entry since
-    // it has no CreatedBy column of its own.
     public function test_show_resolves_requested_by_for_a_manually_created_damage_record(): void
     {
         $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['SourceModule' => DamagedProduct::SOURCE_MANUAL]));
@@ -365,9 +333,6 @@ class DamageModuleTest extends TestCase
         $response->assertJsonPath('requestedBy.Name', $this->admin->full_name);
     }
 
-    // The Damage list has no Status or PO# column, and a record waiting for its
-    // supplier return no longer shows the Confirm Returned (truck), Cancel
-    // Supplier Return (undo) and Dispose (trash) buttons -- just View.
     public function test_list_has_no_status_column_or_supplier_return_buttons(): void
     {
         $damage = DamagedProduct::create(array_merge($this->baseDamagePayload(), ['Status' => DamagedProduct::STATUS_FOR_SUPPLIER_RETURN]));
@@ -379,7 +344,6 @@ class DamageModuleTest extends TestCase
         $this->assertStringContainsString('<th>Reason</th>', $head[1]);
         $this->assertStringNotContainsString('<th>Status</th>', $head[1]);
         $this->assertStringNotContainsString('<th>PO#</th>', $head[1]);
-        // ...and no "Returned to Supplier" card above the list.
         $this->assertStringContainsString('Total Damage Records', $html);
         $this->assertStringContainsString('Total Damage Cost', $html);
         $this->assertStringNotContainsString('<div class="kpi-label">Returned to Supplier</div>', $html);

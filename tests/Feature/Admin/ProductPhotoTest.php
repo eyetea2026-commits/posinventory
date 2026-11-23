@@ -89,7 +89,6 @@ class ProductPhotoTest extends TestCase
         Storage::disk('public')->assertMissing($first);
         Storage::disk('public')->assertExists($second);
 
-        // Saving without a new photo keeps it.
         $this->actingAs($this->admin)->post(route('admin.products.update', $product), $this->updateFields($product));
         $this->assertSame($second, $product->fresh()->ImagePath);
 
@@ -152,7 +151,6 @@ class ProductPhotoTest extends TestCase
             Storage::disk('public')->assertExists($product->fresh()->ImagePath);
         }
 
-        // Existing photos are kept unless --replace is given.
         $kept = $bySku->fresh()->ImagePath;
         $this->artisan('products:import-photos', ['folder' => $folder])->expectsOutputToContain('0 photo(s) attached.')->assertSuccessful();
         $this->assertSame($kept, $bySku->fresh()->ImagePath);

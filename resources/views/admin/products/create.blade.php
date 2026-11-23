@@ -113,7 +113,6 @@
         font-size: 0.85rem;
     }
 
-    /* Barcode scan row */
     .barcode-input-row {
         display: flex;
         gap: 10px;
@@ -156,7 +155,6 @@
         .btn-scan-barcode { padding: 12px 20px; justify-content: center; }
     }
 
-    /* Inline "+Add Brand" */
     .brand-select-row { display: flex; gap: 10px; align-items: stretch; }
     .brand-select-row .form-select { flex: 1; min-width: 0; }
     .btn-add-brand {
@@ -193,7 +191,6 @@
         white-space: nowrap;
     }
 
-    /* Computed Fields */
     .computed-fields {
         display: grid;
         grid-template-columns: repeat(3, 1fr);

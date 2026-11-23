@@ -1,7 +1,3 @@
-{{-- Shared "Inventory Details" content — included by both the standalone
-     full-page view (admin/inventory/show.blade.php, kept for direct
-     navigation) and the View Details modal opened from the Inventory list.
-     Expects $product, $velocity, $velocityLabel, $stock. --}}
 <style>
     .product-detail-card {
         background: rgba(15, 23, 42, 0.75);
@@ -89,8 +85,6 @@
     .velocity-tag.normal { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
 </style>
 
-{{-- No outer card wrapper here — the standalone page and the modal each
-     provide their own container styling around this same content. --}}
 <div>
     <h2 class="section-title">Product Information</h2>
     <div class="ui-kv-grid">

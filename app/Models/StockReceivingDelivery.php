@@ -4,11 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * One delivery received against a purchase order (an order can arrive in
- * several deliveries): its receipt number, who received it, when, and the
- * quantities (items).
- */
 class StockReceivingDelivery extends Model
 {
     protected $table = 'StockReceivingDelivery';

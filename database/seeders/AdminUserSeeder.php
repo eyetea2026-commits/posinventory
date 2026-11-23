@@ -11,25 +11,19 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        // Ensure roles exist
         $adminRoleId = DB::table('roles')->where('role_name', 'admin')->value('id');
-        if (!$adminRoleId) {
+        if (! $adminRoleId) {
             $adminRoleId = DB::table('roles')->insertGetId(['role_name' => 'admin', 'created_at' => now(), 'updated_at' => now()]);
         }
 
         $cashierRoleId = DB::table('roles')->where('role_name', 'cashier')->value('id');
-        if (!$cashierRoleId) {
+        if (! $cashierRoleId) {
             $cashierRoleId = DB::table('roles')->insertGetId(['role_name' => 'cashier', 'created_at' => now(), 'updated_at' => now()]);
         }
 
-        // No hardcoded default password: read one from the environment for a
-        // scripted/CI setup, or generate a random one and print it once so
-        // whoever ran the seeder can retrieve it. Either way, re-running this
-        // seeder (or a future fresh install) never restores a known,
-        // committed-to-source password.
         $adminEmail = 'admin@cctvexpress.local';
         $adminExists = DB::table('users')->where('email', $adminEmail)->exists();
-        if (!$adminExists) {
+        if (! $adminExists) {
             $adminPassword = env('DEFAULT_ADMIN_PASSWORD') ?: Str::password(16);
 
             DB::table('users')->insert([
@@ -49,10 +43,9 @@ class AdminUserSeeder extends Seeder
             echo "Admin user already exists.\n";
         }
 
-        // Create cashier user if not exists
         $cashierEmail = 'cashier@cctvexpress.local';
         $cashierExists = DB::table('users')->where('email', $cashierEmail)->exists();
-        if (!$cashierExists) {
+        if (! $cashierExists) {
             $cashierPassword = env('DEFAULT_CASHIER_PASSWORD') ?: Str::password(16);
 
             DB::table('users')->insert([

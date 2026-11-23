@@ -1,16 +1,9 @@
-{{-- Shared Promo Code field markup. Included by the standalone create/edit
-     pages and the Add/Edit Promo modals. Pass an optional $discount to
-     pre-fill for editing (its absence means "Add" mode). Creating/editing a
-     promo never selects a product here — that's a separate step in the
-     "Apply Discount/Promo" tab, decided after the promo itself exists. --}}
 <style>
     .form-grid-2.promo-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .promo-form-grid .promo-span-all { grid-column: 1 / -1; }
     @media (max-width: 899px) { .form-grid-2.promo-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 600px) { .form-grid-2.promo-form-grid { grid-template-columns: 1fr; } }
 </style>
-{{-- Three per row: Value / Type / Promo Code; Promo Name / Start / End;
-     Description across the full width. --}}
 <div class="form-grid-2 promo-form-grid">
     <div class="form-group">
         <label for="DiscountRate">Discount Value <span class="required">*</span></label>
@@ -45,8 +38,6 @@
 
     <div class="form-group">
         <label for="StartDate">Start Date <span class="required">*</span></label>
-        {{-- No past days. An existing promo that already started keeps its
-             own Start Date selectable (see DiscountController::validatePromo()). --}}
         @php($earliestStartDate = isset($discount) && $discount->StartDate && $discount->StartDate->lt(today()) ? $discount->StartDate->format('Y-m-d') : now()->toDateString())
         <input type="date" id="StartDate" name="StartDate" class="form-control"
                value="{{ old('StartDate', isset($discount) && $discount->StartDate ? $discount->StartDate->format('Y-m-d') : null) }}"
@@ -68,16 +59,6 @@
     </div>
 </div>
 
-{{-- No manual Status field — a promo's Active / Inactive / Expired state is
-     always computed from Start Date / End Date against today
-     (Discount::getEffectiveStatusAttribute()), never admin-set. Products are
-     assigned separately, in the "Apply Discount/Promo" tab. --}}
-
-{{-- A 100% promo makes the item free, which is allowed but must be a
-     deliberate choice -- every save button (both modals and both standalone
-     pages) builds its confirm dialog through this so the warning is the same
-     everywhere. Guarded because this partial can be included twice on one
-     page (the Add and Edit modals). --}}
 <script>
     if (!window.promoSaveConfirmOptions) {
         window.promoSaveConfirmOptions = function (form, baseOptions) {
@@ -97,12 +78,6 @@
         };
     }
 
-    // Live "already in use" check for Promo Name and Promo Code while
-    // typing. Purely a heads-up: DiscountController::validatePromo() is the
-    // real enforcement on save. Call once per form after its fields exist
-    // (the Edit modal's fields arrive by AJAX, so it calls this after
-    // injecting them); pass the promo's own ID when editing so it doesn't
-    // flag itself.
     if (!window.attachPromoDuplicateCheck) {
         window.attachPromoDuplicateCheck = function (form, excludeId) {
             if (!form) return;
@@ -120,8 +95,6 @@
                 input.addEventListener('input', function () {
                     clearTimeout(timer);
                     var value = input.value.trim();
-                    // Only ever clear a message this check set itself, never
-                    // a server validation error shown after a save attempt.
                     if (errorEl.dataset.liveDuplicate === '1') {
                         errorEl.textContent = '';
                         errorEl.dataset.liveDuplicate = '';
@@ -140,14 +113,13 @@
                         })
                             .then(function (r) { return r.json(); })
                             .then(function (data) {
-                                // Ignore a stale reply if the field changed meanwhile.
                                 if (input.value.trim() !== value) return;
                                 if (data[check.key]) {
                                     errorEl.textContent = check.message;
                                     errorEl.dataset.liveDuplicate = '1';
                                 }
                             })
-                            .catch(function () { /* non-fatal: save-time validation still applies */ });
+                            .catch(function () { });
                     }, 350);
                 });
             });

@@ -22,7 +22,6 @@ class PrintBridgeTest extends TestCase
 
     private Category $category;
 
-    /** Captures what would have been sent to the printer. */
     private object $capture;
 
     protected function setUp(): void
@@ -80,9 +79,6 @@ class PrintBridgeTest extends TestCase
         ])->assertOk()->json('receipt_number');
     }
 
-    /**
-     * @return list<array{text: string, center: bool, bold: bool, tall: bool}>
-     */
     private function sampleLines(): array
     {
         return [
@@ -102,12 +98,10 @@ class PrintBridgeTest extends TestCase
     {
         $receipt = $this->sell();
 
-        // What the local POS prints directly...
         $this->actingAs($this->cashier)->postJson(route('cashier.receipt.thermal', $receipt))->assertOk();
         $local = $this->capture->bytes;
         $this->capture->bytes = '';
 
-        // ...and what the deployed POS sends through the bridge.
         $lines = $this->actingAs($this->cashier)->getJson(route('cashier.receipt.print-lines', $receipt))
             ->assertOk()
             ->assertJsonPath('payment_method', 'cash')
@@ -120,7 +114,6 @@ class PrintBridgeTest extends TestCase
 
         $this->assertNotSame('', $local);
         $this->assertSame($local, $this->capture->bytes);
-        // Including the receipt-number QR code at the bottom.
         $this->assertStringContainsString('(k', $this->capture->bytes);
         $this->assertStringContainsString($receipt, $this->capture->bytes);
     }
@@ -234,15 +227,12 @@ class PrintBridgeTest extends TestCase
         $this->actingAs($this->cashier)->get(route('cashier.pos'))
             ->assertSee('window.PRINT_BRIDGE_URL = "http:\/\/127.0.0.1:8000\/print-bridge";', false)
             ->assertSee('window.printViaBridge(data.receipt_number, true)', false)
-            // Never silent while waiting: a "Printing receipt..." notice, then a
-            // hint to allow Chrome's local network prompt.
             ->assertSee("title: 'Printing receipt...'", false)
             ->assertSee('click Allow (top left, by the address bar)', false);
         $this->actingAs($this->cashier)->get(route('cashier.transactions'))
             ->assertSee('window.PRINT_BRIDGE_URL = "http:\/\/127.0.0.1:8000\/print-bridge";', false)
             ->assertSee('window.printViaBridge(receiptNumber, false)', false);
 
-        // Locally the POS prints directly, so the bridge stays unused.
         config(['services.receipt_printer.enabled' => true]);
         $this->actingAs($this->cashier)->get(route('cashier.pos'))->assertSee('window.PRINT_BRIDGE_URL = "";', false);
     }

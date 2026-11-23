@@ -9,11 +9,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Cashier "Recent Transactions" must be a same-day, own-sales-only audit
-// view -- see TASK: FIX TRANSACTION HISTORY ACCESS AND CASHIER DAILY AUDIT
-// VIEW. Enforcement lives entirely in CashierAuthController::transactions()
-// and ::viewReceipt(), not the frontend, so every check here goes straight
-// at the route/response rather than trusting what the page would render.
 class TransactionHistoryDailyScopeTest extends TestCase
 {
     use RefreshDatabase;
@@ -55,8 +50,6 @@ class TransactionHistoryDailyScopeTest extends TestCase
         ]);
     }
 
-    // --- Test 2 / Test 4: today only ------------------------------------
-
     public function test_cashier_sees_todays_transaction_but_not_yesterdays(): void
     {
         $today = $this->makeTransactionFor($this->staff1, now(), 'Today Customer');
@@ -72,7 +65,6 @@ class TransactionHistoryDailyScopeTest extends TestCase
 
     public function test_transaction_from_a_moment_before_midnight_does_not_leak_into_today(): void
     {
-        // 11:59:59 PM yesterday must land in yesterday's bucket, not today's.
         $this->makeTransactionFor($this->staff1, now()->subDay()->endOfDay(), 'Late Night Customer');
 
         $response = $this->actingAs($this->cashier1)->get(route('cashier.transactions'));
@@ -89,9 +81,6 @@ class TransactionHistoryDailyScopeTest extends TestCase
         $this->assertSame(1, $response->viewData('transactions')->total());
     }
 
-    // --- Test 3: other cashiers' sales are visible (view-only), but the
-    // today-only date rule still applies to them too ---
-
     public function test_cashier_sees_another_cashiers_transaction_from_today_but_not_older(): void
     {
         $this->makeTransactionFor($this->staff2, now(), 'Other Cashier Customer');
@@ -104,8 +93,6 @@ class TransactionHistoryDailyScopeTest extends TestCase
         $response->assertDontSee('Other Cashier Yesterday');
         $response->assertSee('View only');
     }
-
-    // --- Test 5 / §5-6: backend can't be bypassed via request params ----
 
     public function test_date_from_and_date_to_query_params_cannot_widen_the_visible_range(): void
     {
@@ -133,11 +120,6 @@ class TransactionHistoryDailyScopeTest extends TestCase
 
     public function test_direct_receipt_url_for_an_old_transaction_of_ones_own_still_works(): void
     {
-        // The date restriction is a Transaction-History *listing* rule, not
-        // a permanent lockout on a receipt the cashier legitimately owns --
-        // e.g. reprinting a receipt for a customer a day or two later must
-        // still work even though it no longer shows up in "Recent
-        // Transactions". Only ownership is enforced on the receipt itself.
         $ownOldTransaction = $this->makeTransactionFor($this->staff1, now()->subDays(3), 'Loyal Customer');
         $receiptNumber = 'RCT-'.str_pad($ownOldTransaction->SalesTransactionID, 6, '0', STR_PAD_LEFT);
 
@@ -145,8 +127,6 @@ class TransactionHistoryDailyScopeTest extends TestCase
 
         $response->assertOk();
     }
-
-    // --- Test 6: search stays inside the today+ownership scope ----------
 
     public function test_search_does_not_surface_yesterdays_matching_transaction(): void
     {
@@ -159,8 +139,6 @@ class TransactionHistoryDailyScopeTest extends TestCase
         $response->assertOk();
         $this->assertStringNotContainsString('Juan Dela Cruz', $response->json('rows'));
     }
-
-    // --- Test 10: empty state -------------------------------------------
 
     public function test_empty_state_says_today_not_a_generic_message(): void
     {

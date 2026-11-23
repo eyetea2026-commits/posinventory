@@ -19,12 +19,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// Panel suggestions:
-// - a product has several suppliers, each with its own price, and a new
-//   purchase order goes to the one with the lowest current price;
-// - Stock Receiving says how many arrived damaged (sent back to the
-//   supplier, never added to stock);
-// - each delivery is a stock batch with its cost, selling price and margin.
 class SupplierPricesAndBatchesTest extends TestCase
 {
     use RefreshDatabase;
@@ -52,9 +46,6 @@ class SupplierPricesAndBatchesTest extends TestCase
         Inventory::create(['ProductID' => $this->camera->ProductID, 'Quantity' => 0, 'Status' => 'Out of Stock']);
     }
 
-    /**
-     * @param  array{good: int, damaged?: int}  $quantities
-     */
     private function receive(Supplier $supplier, float $price, array $quantities, int $ordered = 10)
     {
         $order = PurchaseOrder::create([
@@ -91,7 +82,6 @@ class SupplierPricesAndBatchesTest extends TestCase
         $product = Product::where('ProductName', 'Bullet Camera')->firstOrFail();
         $this->assertSame(650.0, (float) ProductSupplier::where('ProductID', $product->ProductID)->where('SupplierID', $this->acme->SupplierID)->value('CostPrice'));
         $this->assertNull(ProductSupplier::where('ProductID', $product->ProductID)->where('SupplierID', $this->bravo->SupplierID)->value('CostPrice'));
-        // Acme at 650 is cheaper than Bravo at the product's 700.
         $this->assertSame($this->acme->SupplierID, $product->resolveReorderSupplier()->SupplierID);
     }
 
@@ -126,7 +116,6 @@ class SupplierPricesAndBatchesTest extends TestCase
     {
         $this->receive($this->acme, 580, ['good' => 8, 'damaged' => 2])->assertSessionMissing('error');
 
-        // Only the good ones are stocked; the damaged ones still count as delivered.
         $this->assertSame(8, $this->stock());
         $line = PurchaseOrderItem::firstOrFail();
         $this->assertSame(10, (int) $line->ReceivedQuantity);
@@ -169,21 +158,18 @@ class SupplierPricesAndBatchesTest extends TestCase
 
         [$first, $second] = StockReceivingDeliveryItem::orderBy('StockReceivingDeliveryItemID')->get()->all();
         $this->assertSame('580.00', (string) $first->UnitCost);
-        // Selling Price = the batch's own cost / (1 - the product's margin).
         $this->assertSame('966.67', (string) $first->SellingPrice);
         $this->assertSame(40.0, $first->marginPercent());
         $this->assertSame('620.00', (string) $second->UnitCost);
         $this->assertSame('1127.27', (string) $second->SellingPrice);
         $this->assertSame(45.0, $second->marginPercent());
 
-        // The delivering supplier's price follows what it was ordered at.
         $this->assertSame(580.0, (float) ProductSupplier::where('SupplierID', $this->acme->SupplierID)->value('CostPrice'));
         $this->assertSame(620.0, (float) ProductSupplier::where('SupplierID', $this->bravo->SupplierID)->value('CostPrice'));
         $this->assertSame(2, ProductCostHistory::where('Source', ProductCostHistory::SOURCE_PO_RECEIVING)->count());
 
         $html = $this->actingAs($this->admin)->getJson(route('admin.inventory.show', $this->camera))->assertOk()->json('html');
         $this->assertStringContainsString('Stock Batches', $html);
-        // Received, Damaged, Sold, Remaining, Unit Cost, Selling Price, Margin.
         $this->assertMatchesRegularExpression('/Bravo Trading<\/td>\s*<td>4 pieces<\/td>\s*<td>1 piece<\/td>\s*<td>0 pieces<\/td>\s*<td><strong>4 pieces<\/strong><\/td>\s*<td[^>]*>₱620\.00<\/td>\s*<td[^>]*>₱1,127\.27<\/td>\s*<td>45\.0%<\/td>/u', $html);
         $this->assertStringContainsString('Margin = (Selling Price − Unit Cost) ÷ Selling Price.', $html);
     }

@@ -1,26 +1,4 @@
-{{-- Shared responsive layer for every page: Administrator, Cashier, the
-     sign-in / password pages and the error pages. Included at the END of
-     each page's <head>, after the page's own stylesheets.
-
-     1. Design tokens: a fluid type scale (clamp) and a 4px spacing scale.
-     2. Typography: readable sizes on 280px phones up to 1440px+ screens.
-     3. Space: tighter page gutters and card padding on small screens; no
-        whole-page sideways scrolling; wide tables scroll inside their box.
-     4. Pop-ups: every pop-up (.modal-overlay > .modal / .modal-content, the
-        Cashier .modal > .modal-content, the POS approval box) fits every
-        screen: width min(92vw, its own max), height up to 90dvh with the
-        content scrolling and the title + buttons kept in view, safe areas
-        on notched phones, stacked full-width buttons on phones, 44px tap
-        targets. The script at the bottom adds the shared behaviour: close
-        on Esc or a click on the dimmed background, background scroll lock,
-        and keeping a focused field visible above the on-screen keyboard.
-
-     Breakpoints (mobile-first): <360 extra small (JioPhone 2, folded Z
-     Fold), 360-399 small phones, 400-599 large phones, 600-899 foldables /
-     small tablets, 900-1199 tablets, 1200+ desktops / smart displays, plus
-     short-landscape rules (max-height: 500px / 600px). --}}
 <style>
-    /* ---------- 1. Tokens ---------- */
     :root {
         --space-1: 4px;
         --space-2: 8px;
@@ -39,7 +17,6 @@
         --tap-size: 44px;
         --page-gutter: clamp(12px, 3.2vw, 40px);
         --modal-gutter: clamp(8px, 3vw, 24px);
-        /* Every pop-up window is this wide (the User Management size). */
         --modal-width: 860px;
 
         --safe-top: env(safe-area-inset-top, 0px);
@@ -48,7 +25,6 @@
         --safe-left: env(safe-area-inset-left, 0px);
     }
 
-    /* ---------- 2. Typography ---------- */
     html {
         -webkit-text-size-adjust: 100%;
         text-size-adjust: 100%;
@@ -61,7 +37,6 @@
         line-height: 1.25;
         overflow-wrap: break-word;
     }
-    /* Page titles ("Product Management") scale with the screen. */
     html body .header-title h1 {
         font-size: var(--text-title);
     }
@@ -71,11 +46,9 @@
     html body :is(.modal-header h2, .modal-header h3, .modal-title) {
         font-size: var(--text-heading);
     }
-    /* Long names, emails and codes wrap instead of pushing the layout. */
     html body :is(td, .detail-item span, .modal-content p) {
         overflow-wrap: anywhere;
     }
-    /* Column headings wrap between words only ("Ordered", not "Order|ed"). */
     html body th {
         overflow-wrap: normal;
         word-break: normal;
@@ -84,10 +57,9 @@
         max-width: 100%;
     }
 
-    /* ---------- 3. Space ---------- */
     html, html body {
         max-width: 100%;
-        overflow-x: clip;   /* last-resort guard against sideways page scroll */
+        overflow-x: clip;
     }
     html body .main-content {
         padding: var(--space-6) var(--page-gutter);
@@ -102,17 +74,14 @@
     html body .header-title h1 {
         margin-bottom: var(--space-1);
     }
-    /* Wide tables scroll sideways inside their own box. */
     html body :is(.table-container, .table-wrapper, .table-responsive, .card-body) {
         max-width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
-    /* A dropdown is never wider than its box (long supplier names). */
     html body :is(select, input, textarea) {
         max-width: 100%;
     }
-    /* Search boxes, chart period buttons and filters may shrink and wrap. */
     html body :is(.search-box, .search-box-wrapper, .search-input, .search-form) {
         min-width: 0;
         max-width: 100%;
@@ -128,7 +97,6 @@
         min-width: 0;
     }
 
-    /* Phones: tighter cards so content gets the room. */
     @media (max-width: 599px) {
         html body :is(.card, .content-card, .table-card, .filter-card, .section-card, .chart-card, .stat-card, .kpi-card, .welcome-section) {
             border-radius: 14px;
@@ -137,8 +105,6 @@
             padding-left: var(--space-3);
             padding-right: var(--space-3);
         }
-        /* Cards and their toolbars each added 18-24px; nested, that left
-           phones with half the width for the actual content. */
         html body :is(.card, .toolbar, .stat-card, .kpi-card, .ops-tab-panel) {
             padding: var(--space-3);
         }
@@ -146,7 +112,6 @@
             padding-left: 0;
             padding-right: 0;
         }
-        /* Page header: title and the bell / profile share one row. */
         html body .dashboard-header {
             flex-direction: row;
             align-items: center;
@@ -157,7 +122,6 @@
             min-width: 0;
         }
     }
-    /* Summary cards two per row on phones (one per row below 360px). */
     @media (min-width: 360px) and (max-width: 599px) {
         html body :is(.stats-grid, .kpi-grid) {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -182,7 +146,6 @@
             padding-top: var(--space-4);
             padding-bottom: calc(var(--space-6) + var(--safe-bottom));
         }
-        /* 16px stops iPhones zooming the page when a field is tapped. */
         html body :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
             font-size: max(16px, 1em);
         }
@@ -194,7 +157,6 @@
         }
     }
 
-    /* Touch screens: every button and field is at least 44px tall. */
     @media (pointer: coarse) {
         html body :is(button, .btn, [role=button], select, input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range])) {
             min-height: var(--tap-size);
@@ -209,35 +171,24 @@
         }
     }
 
-    /* ---------- 4. Pop-ups ---------- */
-    /* The dimmed background: room for notches, scrolls if the box is taller. */
     html body :is(.modal-overlay, .modal:has(> .modal-content), .approval-overlay) {
         padding: max(var(--modal-gutter), var(--safe-top)) max(var(--modal-gutter), var(--safe-right)) max(var(--modal-gutter), var(--safe-bottom)) max(var(--modal-gutter), var(--safe-left));
         overflow-y: auto;
         overscroll-behavior: contain;
         box-sizing: border-box;
     }
-    /* The pop-up box itself: never taller than 90% of the screen, with the
-       content scrolling inside. Each box keeps its own width and max width
-       (e.g. 560px, 760px); the script trims any box that would still be
-       wider than the screen. */
-    /* One size for every pop-up window: 860px (the User Management pop-up),
-       or the whole screen width minus the gutters on smaller screens. */
     html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {
         width: var(--modal-width) !important;
         max-width: calc(100vw - 2 * var(--modal-gutter)) !important;
     }
     html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > .approval-box) {
         box-sizing: border-box;
-        /* 90% of the screen, minus the backdrop's padding and notch areas. */
         max-height: min(90vh, calc(100vh - 2 * var(--modal-gutter) - var(--safe-top) - var(--safe-bottom))) !important;
         max-height: min(90dvh, calc(100dvh - 2 * var(--modal-gutter) - var(--safe-top) - var(--safe-bottom))) !important;
         overflow-y: auto !important;
         overscroll-behavior: contain;
-        /* auto margins keep the top reachable if the box is still taller. */
         margin: auto !important;
     }
-    /* Opening animation (fade + scale). */
     @keyframes ui-modal-in {
         from { opacity: 0; transform: translateY(10px) scale(0.97); }
         to { opacity: 1; transform: none; }
@@ -245,8 +196,6 @@
     html body :is(.modal-overlay.active > .modal, .modal-overlay.active > .modal-content, .modal.active > .modal-content, .approval-overlay.active > *) {
         animation: ui-modal-in 0.18s ease-out;
     }
-    /* Header and buttons stay in view while a long pop-up scrolls (the
-       script adds .ui-modal-scrolls and the box's own colour/padding). */
     html body .ui-modal-scrolls .modal-header {
         position: sticky;
         top: calc(-1 * var(--ui-pad-top, 0px));
@@ -273,12 +222,10 @@
         flex-wrap: wrap;
         gap: var(--space-2) var(--space-3);
     }
-    /* A scrolled-to field stays clear of the sticky header/buttons. */
     html body .ui-modal-scrolls :is(input, select, textarea) {
         scroll-margin: 72px 0 88px;
     }
 
-    /* Phones: buttons stacked and full width (main action on top). */
     @media (max-width: 479px) {
         html body :is(.modal-actions, .modal-footer) {
             flex-direction: column-reverse;
@@ -296,8 +243,6 @@
             grid-template-columns: 1fr;
         }
     }
-    /* Extra-small screens (JioPhone 2, folded Galaxy Z Fold): nearly full
-       screen with reduced padding. */
     @media (max-width: 359px) {
         :root { --modal-gutter: 4px; }
         html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > *) {
@@ -310,8 +255,6 @@
             border-radius: 12px;
         }
     }
-    /* Short landscape screens (phones sideways, Nest Hub Max, folded
-       foldables): use almost all of the height, smaller header gaps. */
     @media (max-height: 500px) {
         :root { --modal-gutter: 6px; }
         html body :is(.modal-overlay > .modal, .modal-overlay > .modal-content, .modal > .modal-content, .approval-overlay > *) {
@@ -330,12 +273,6 @@
         }
     }
 
-    /* Details in pop-ups (Product, Inventory, Delivery, Purchase Order,
-       Damage, Report): each label/value pair is a small card with the label
-       above the value, as many columns as fit - four in an 860px pop-up,
-       one on phones - instead of one long row per value with the label far
-       left and the value far right. Markup: .ui-kv-grid > item > label, value
-       (an item can be a div, or a table row with th + td). */
     html body .ui-kv-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
@@ -366,7 +303,6 @@
     html body .ui-kv-grid > .ui-kv-wide {
         grid-column: 1 / -1;
     }
-    /* A product photo takes the first cell of the first two rows. */
     html body .ui-kv-grid > .ui-kv-photo {
         grid-row: span 2;
         align-items: center;
@@ -379,7 +315,7 @@
         aspect-ratio: 1 / 1;
     }
     html body .ui-kv-grid > :not(.ui-kv-photo) > * {
-        flex: 0 0 auto;   /* old row layouts gave labels a fixed width (180px) */
+        flex: 0 0 auto;
         width: auto;
         margin: 0;
         padding: 0;
@@ -411,7 +347,6 @@
     html body .ui-kv-title:first-child {
         margin-top: 0;
     }
-    /* Phones: two detail cards per row (one below 360px). */
     @media (min-width: 360px) and (max-width: 599px) {
         html body .ui-kv-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -427,13 +362,11 @@
         }
     }
 
-    /* While a pop-up is open the page behind it doesn't scroll. */
     html.ui-modal-open,
     html.ui-modal-open body {
         overflow: hidden !important;
     }
 
-    /* SweetAlert pop-ups (confirmations, success, errors) follow the same rules. */
     html body .swal2-container {
         padding: max(var(--modal-gutter), var(--safe-top)) max(var(--modal-gutter), var(--safe-right)) max(var(--modal-gutter), var(--safe-bottom)) max(var(--modal-gutter), var(--safe-left)) !important;
     }
@@ -455,14 +388,6 @@
     }
 </style>
 <script>
-    /**
-     * Shared pop-up behaviour (all pop-up styles, Administrator and Cashier):
-     * - Esc or a click on the dimmed background closes the top pop-up, by
-     *   clicking its own close (X) button so its normal clean-up still runs.
-     * - The page behind an open pop-up is locked from scrolling.
-     * - A long pop-up keeps its header and buttons in view while scrolling.
-     * - A field focused while the on-screen keyboard opens is scrolled into view.
-     */
     (function () {
         if (window.__responsiveUi) return;
         window.__responsiveUi = true;
@@ -472,14 +397,12 @@
 
         function isOverlay(el) {
             if (!el.matches(OVERLAYS)) return false;
-            // A .modal inside a .modal-overlay is the box, not a backdrop.
             return !(el.classList.contains('modal') && el.parentElement && el.parentElement.closest('.modal-overlay'));
         }
 
         function isOpen(el) {
             const style = getComputedStyle(el);
             if (style.display === 'none' || el.getClientRects().length === 0) return false;
-            // Marked open (still fading in counts as open).
             if (el.classList.contains('active') || el.classList.contains('show')) return true;
             return style.visibility !== 'hidden' && Number(style.opacity) > 0.01;
         }
@@ -511,7 +434,6 @@
             return !!(window.Swal && window.Swal.isVisible && window.Swal.isVisible());
         }
 
-        // Esc: SweetAlert handles its own; otherwise close the top pop-up.
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Escape' || sweetAlertOpen()) return;
             const overlay = topOverlay();
@@ -521,8 +443,6 @@
             }
         });
 
-        // A click that starts and ends on the dimmed background closes it
-        // (not a text selection dragged out of the box).
         let pressedOn = null;
         document.addEventListener('mousedown', function (e) { pressedOn = e.target; }, true);
         document.addEventListener('click', function (e) {
@@ -532,8 +452,6 @@
             closeOverlay(target);
         });
 
-        // Scroll lock + sticky header/buttons, re-checked whenever a pop-up
-        // opens, closes or changes size.
         function boxOf(overlay) {
             return overlay.querySelector(BOXES);
         }
@@ -544,7 +462,6 @@
             open.forEach(function (overlay) {
                 const box = boxOf(overlay);
                 if (!box) return;
-                // Never wider than the screen, whatever the box's own width.
                 const room = document.documentElement.clientWidth - 2 * (parseFloat(getComputedStyle(overlay).paddingLeft) || 8);
                 if (box.getBoundingClientRect().width > room + 1) {
                     box.style.maxWidth = room + 'px';
@@ -567,7 +484,6 @@
 
         let queued = false;
         let settleTimer = null;
-        // Checked now, and once more after a pop-up's opening animation.
         function queueRefreshAndSettle() {
             queueRefresh();
             clearTimeout(settleTimer);
@@ -587,13 +503,11 @@
                 subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'],
             });
             window.addEventListener('resize', queueRefresh);
-            // Pop-ups that fade in are only "open" once the fade finishes.
             document.addEventListener('transitionend', queueRefresh, true);
             document.addEventListener('animationend', queueRefresh, true);
             queueRefresh();
         });
 
-        // On-screen keyboard: keep the focused field visible inside a pop-up.
         document.addEventListener('focusin', function (e) {
             const field = e.target;
             if (!(field instanceof HTMLElement) || !field.matches('input, select, textarea')) return;
