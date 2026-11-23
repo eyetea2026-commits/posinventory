@@ -1,6 +1,3 @@
-/* Forgot Password / OTP / Reset Password pages. Same look as the login
-   page (welcome.blade.php) and the rest of the system: dark navy page,
-   a #1a1d2d card, #2d3748 fields and solid blue (#3b82f6) actions. */
 :root {
     color-scheme: dark;
     font-family: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
@@ -152,8 +149,6 @@ body {
     color: #cbd5e1;
     cursor: default;
 }
-/* Chrome/Edge paint autofilled fields pale, ignoring the dark background
-   (same override as the login page). */
 .form-field input:-webkit-autofill,
 .form-field input:-webkit-autofill:hover,
 .form-field input:-webkit-autofill:focus {
@@ -163,10 +158,6 @@ body {
     caret-color: #e2e8f0;
     transition: background-color 9999s ease-in-out 0s;
 }
-/* .forgot-disabled / .login-footer a below each set an explicit `display`,
-   which outranks the UA stylesheet's `[hidden] { display: none }` rule on
-   specificity alone — so the hidden attribute was silently losing. These
-   ID-scoped overrides win instead. */
 #forgot-link[hidden],
 #cashier-note[hidden] {
     display: none;

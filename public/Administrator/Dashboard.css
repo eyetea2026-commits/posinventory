@@ -18,7 +18,6 @@ body {
     background: linear-gradient(180deg, #020617 0%, #090f1e 100%);
 }
 
-/* MAIN CONTENT */
 .main-content {
     padding: 32px 40px;
     display: flex;
@@ -86,7 +85,6 @@ body {
     line-height: 1.7;
 }
 
-/* RESPONSIVE */
 @media (max-width: 1024px) {
     .main-content {
         padding: 24px 28px;

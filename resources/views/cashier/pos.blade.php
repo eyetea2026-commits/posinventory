@@ -600,62 +600,36 @@
         });
     }
 
-    // The units a product card is sold in (Product::sellingUnits()): its
-    // base unit first, then e.g. its box. Falls back to one piece.
     function cardSellingUnits(card) {
         try {
             const units = JSON.parse(card.dataset.units || '[]');
             if (units.length) return units;
-        } catch (e) { /* fall through */ }
+        } catch (e) { }
         return [{ unit: 'piece', plural: 'pieces', quantity_per_unit: 1, price: parseFloat(card.dataset.price) || 0, fractional: false }];
     }
 
     let cart = [];
     let selectedPaymentMethod = 'cash';
     let currentTotal = 0;
-    // Cheque/Bank Transfer require the cashier to explicitly confirm their
-    // payment details (a separate step from the final Complete Sale
-    // confirm) before Complete Sale is allowed to proceed. Cash/GCash have
-    // no such gate — this stays true/irrelevant for them.
     let paymentDetailsConfirmed = false;
 
-    // HID barcode scanner support (Bluetooth, USB wired, or USB/2.4GHz
-    // dongle — all three present to the browser as a plain keyboard, so no
-    // scanner-specific API is needed: the device "types" the barcode into
-    // whichever field has focus, then sends a trailing Enter).
     let lastScannedBarcode = '';
     let lastScanTime = 0;
-    // Catches only a single physical scan firing twice almost
-    // instantaneously (a known quirk of some scanners/triggers, or a
-    // double-tapped Enter) — this is NOT a cooldown on intentionally
-    // rescanning the same product. Scanning the same barcode again after
-    // this window must increase its quantity again (each scan = +1), and
-    // a different barcode scanned in the meantime is never affected by
-    // this check at all — there is deliberately no "request in flight"
-    // lock here, since that would incorrectly delay two different items
-    // scanned back-to-back.
     const SCAN_DUPLICATE_WINDOW_MS = 400;
 
     function handleBarcode(event) {
-        // Most scanners send a plain Enter as their trailing terminator,
-        // but some configurations send the numeric-keypad Enter instead —
-        // handle both so a scan is never silently dropped. preventDefault
-        // stops that Enter from doing anything else (e.g. submitting an
-        // enclosing form) besides triggering the lookup.
         if (event.key === 'Enter' || event.key === 'NumpadEnter') {
             event.preventDefault();
             scanBarcode();
         }
     }
 
-    // Enter pressed after typing a barcode by hand in the barcode field.
     function scanBarcode() {
         const barcode = document.getElementById('barcode-input').value.trim();
         if (!barcode) return;
         lookupAndAddBarcode(barcode);
     }
 
-    // Shared by manual entry and the automatic scanner detection below.
     function lookupAndAddBarcode(barcode) {
         const input = document.getElementById('barcode-input');
         const now = Date.now();
@@ -672,18 +646,11 @@
                     const stock = parseFloat(data.product.inventory?.Quantity) || 0;
                     const units = data.selling_units || null;
                     if (stock > 0 && !data.serial && units && isMeasured(units)) {
-                        // Sold by measurement (meters, or by the box too):
-                        // ask how much instead of adding 1.
                         input.value = '';
                         openQuantityModal({ id: data.product.ProductID, name: data.product.ProductName, stock, stockLabel: data.stock_label, units });
                         return;
                     }
                     if (stock > 0) {
-                        // Found and in stock: addToCart() already finds the
-                        // existing cart line for this product and increments
-                        // its qty instead of pushing a new one, so repeated
-                        // scans of the same item just keep adding +1 — clear
-                        // the field so it's ready for the next scan.
                         addToCart(data.product.ProductID, data.product.ProductName, data.product.Price, stock, data.serial || null, units);
                         input.value = '';
                     } else {
@@ -692,10 +659,6 @@
                         input.select();
                     }
                 } else {
-                    // Nothing is added to the cart. Leave the scanned value
-                    // in the field (selected, not cleared) so the cashier
-                    // can read/correct it — the next scan's keystrokes
-                    // replace the selected text automatically.
                     toastError((data && data.message) || 'Product Not Found. This barcode is not registered in the system.');
                     input.value = barcode;
                     input.select();
@@ -706,31 +669,14 @@
                 input.select();
             })
             .finally(() => {
-                // Return focus to the scan field so the next scan (manual
-                // click-away aside) is picked up immediately — matters most
-                // for scanning several items back-to-back. The quantity
-                // popup keeps it while it's open.
                 if (!document.getElementById('quantity-modal').classList.contains('active')) input.focus();
             });
     }
 
-    // Hands-free scanning: a scan adds the item to Current Sale wherever the
-    // cursor is -- no clicking the scan field, no Scan button. A HID scanner
-    // "types" a whole barcode within a few milliseconds per character, far
-    // faster than a person, so a burst of SCAN_MIN_LENGTH+ characters with
-    // every gap under SCAN_MAX_KEY_GAP_MS is treated as a scan. It ends on
-    // the scanner's Enter/Tab suffix, or on a pause for scanners configured
-    // without one. Once a burst has started, a longer gap (up to
-    // SCAN_IDLE_SUBMIT_MS) still belongs to the same scan: wireless
-    // (Bluetooth/2.4GHz) scanners sometimes stall briefly mid-code, and
-    // ending the scan there cut off its last characters (CCTVEX-000031
-    // arriving as CCTVEX-00003). Any characters the burst typed into another
-    // field (customer name, search, payment, a qty box) are put back.
-    // Ordinary typing never forms such a burst, so it behaves as before.
     (function () {
-        const SCAN_MIN_LENGTH = 6;        // shortest product barcode is 8
-        const SCAN_MAX_KEY_GAP_MS = 60;   // scanners: ~2-30ms; people: 100ms+
-        const SCAN_IDLE_SUBMIT_MS = 500;  // longest mid-scan stall; also ends scans that send no Enter
+        const SCAN_MIN_LENGTH = 6;
+        const SCAN_MAX_KEY_GAP_MS = 60;
+        const SCAN_IDLE_SUBMIT_MS = 500;
 
         let buffer = '';
         let lastKeyAt = 0;
@@ -744,9 +690,6 @@
             return el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'date', 'time'].includes(el.type);
         }
 
-        // While a confirmation/alert is open a scan is swallowed, never
-        // processed: the scanner's Enter would otherwise click its
-        // confirm button (e.g. "Yes, Complete Sale").
         function scanningBlocked() {
             return (window.Swal && Swal.isVisible()) || window.receiptPrinting === true
                 || document.getElementById('approval-modal').classList.contains('active')
@@ -768,8 +711,6 @@
 
             if (code.length < SCAN_MIN_LENGTH || scanningBlocked()) return;
 
-            // Undo whatever the scanner typed into a field that wasn't the
-            // barcode box, and let that field's own handlers resync.
             const barcodeInput = document.getElementById('barcode-input');
             if (field && field !== barcodeInput && originalValue !== null) {
                 field.value = originalValue;
@@ -781,17 +722,14 @@
         }
 
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Shift') return; // part of typing capital letters
+            if (e.key === 'Shift') return;
 
             const now = performance.now();
             const gap = now - lastKeyAt;
-            // A scan already under way tolerates a wireless stall.
             const isBurst = buffer.length >= SCAN_MIN_LENGTH && gap <= SCAN_IDLE_SUBMIT_MS;
 
             if (e.key === 'Enter' || e.key === 'NumpadEnter' || e.key === 'Tab') {
                 if (isBurst) {
-                    // Captured before any field/dialog sees it, so the scanner's
-                    // Enter never submits, blurs, or confirms anything else.
                     e.preventDefault();
                     e.stopImmediatePropagation();
                     completeScan();
@@ -809,8 +747,6 @@
             }
 
             if (gap > SCAN_MAX_KEY_GAP_MS && !isBurst) {
-                // Possible start of a new burst: remember the field's value
-                // BEFORE this first character lands in it (keydown runs first).
                 buffer = '';
                 burstField = isTextField(e.target) ? e.target : null;
                 burstFieldValue = burstField ? burstField.value : null;
@@ -838,7 +774,6 @@
         });
     }
 
-    // Clicking a serial-numbered product: each piece is added by its sticker.
     function warnNoPrice(name) {
         toastWarning('"' + name + '" has no selling price yet. Ask the admin to set its price in Products.');
     }
@@ -848,11 +783,6 @@
         document.getElementById('barcode-input').focus();
     }
 
-    // ---- Units of measurement ----
-    // A cart line is one product in one of its selling units (its base unit
-    // like meter/piece, or e.g. its box): price is per that unit, qty is in
-    // it, and perUnit is how many base units (stock) one of it takes. Stock
-    // is always in the base unit.
     function roundQty(value) {
         return Math.round((value + Number.EPSILON) * 100) / 100;
     }
@@ -865,14 +795,10 @@
         return Math.abs(qty) === 1 ? unit.unit : unit.plural;
     }
 
-    // Sold by more than one unit, or by part of a unit (1.5 meters): the
-    // cashier enters the quantity in a popup instead of adding 1 per click.
     function isMeasured(units) {
         return units.length > 1 || !!units[0].fractional;
     }
 
-    // The most of this line's unit the stock allows (whole units unless
-    // decimals are allowed).
     function maxQtyFor(line) {
         const max = line.stock / (line.perUnit || 1);
         return line.fractional ? Math.floor(roundQty(max) * 100 + 1e-6) / 100 : Math.floor(max + 1e-9);
@@ -890,16 +816,11 @@
             unitPlural: sellingUnit.plural,
             perUnit: parseFloat(sellingUnit.quantity_per_unit) || 1,
             price: parseFloat(sellingUnit.price) || 0,
-            // Base unit only: what each stock batch sells for, oldest first.
             tiers: Array.isArray(sellingUnit.tiers) ? sellingUnit.tiers : null,
             fractional: !!sellingUnit.fractional,
         };
     }
 
-    // Each piece sells at the price of the stock batch it comes out of
-    // (FIFO), exactly as processSale() charges it: [{ qty, price }], one
-    // per price. A line sold by the roll/box, or with no batch prices
-    // known, is one price.
     function lineSlices(item) {
         if (item.perUnit !== 1 || !item.tiers || !item.tiers.length) {
             return [{ qty: item.qty, price: item.price }];
@@ -935,8 +856,6 @@
         return lineSlices(item).reduce((sum, slice) => sum + (slice.price - discountedUnitPrice(slice.price, promo)) * slice.qty, 0);
     }
 
-    // Clicking a (non-serial) product card: a measured product asks how
-    // much; anything else is added one piece at a time, as before.
     function onProductCardClick(card) {
         const id = parseInt(card.dataset.productId, 10);
         const stock = parseFloat(card.dataset.stock) || 0;
@@ -980,8 +899,6 @@
         } else {
             cart.push(newCartLine(id, name, stock, sellingUnit, units, 1));
         }
-        // Bring this line into view once the cart re-renders -- matters once
-        // the cart holds more than the ~7 lines visible at a time.
         cartFocusItemId = id;
         renderCart();
     }
@@ -999,11 +916,6 @@
         }
     }
 
-    // Typed directly into the quantity box — clamp to the stock rather than
-    // rejecting out-of-range input outright, so a typo like "500" against 20
-    // in stock still lands somewhere useful instead of just bouncing back to
-    // whatever the field held before. Zero, negative or unreadable input
-    // goes back to 1 (or, for decimals, to what it was).
     function setQty(id, rawValue) {
         const item = cart.find(item => item.id === id);
         if (!item) return;
@@ -1023,7 +935,6 @@
         renderCart();
     }
 
-    // ---- Quantity popup (measured products) ----
     let quantityModalProduct = null;
 
     function openQuantityModal(product) {
@@ -1070,7 +981,6 @@
         updateQuantityModalTotal();
     }
 
-    // Why this quantity can't be sold, or '' when it can.
     function quantityModalError(qty, unit) {
         const product = quantityModalProduct;
         if (isNaN(qty) || qty <= 0) return 'Enter a quantity greater than 0.';
@@ -1111,7 +1021,6 @@
             return;
         }
 
-        // One line per product: entering it again replaces its quantity/unit.
         const line = newCartLine(product.id, product.name, product.stock, unit, product.units, qty);
         const index = cart.findIndex(item => item.id === product.id);
         if (index === -1) {
@@ -1124,7 +1033,6 @@
         renderCart();
     }
 
-    // The unit button on a measured cart line reopens its popup.
     function editCartLine(id) {
         const item = cart.find(line => line.id === id);
         if (!item) return;
@@ -1137,7 +1045,6 @@
         renderCart();
     }
 
-    // The x on a serial number chip: takes that one piece out of the sale.
     function confirmRemoveSerial(id, serial) {
         const item = cart.find(line => line.id === id);
         if (!item) return;
@@ -1161,8 +1068,6 @@
         });
     }
 
-    // Trash icon on a cart line: asks first, naming the product, so a
-    // mis-tap doesn't silently drop an item from the sale.
     function confirmRemoveFromCart(id) {
         const item = cart.find(line => line.id === id);
         if (!item) return;
@@ -1198,14 +1103,10 @@
         });
     }
 
-    // Set by addToCart(): the line to scroll to after the next render.
     let cartFocusItemId = null;
 
     function renderCart() {
         const container = document.getElementById('cart-items');
-        // Rebuilding innerHTML resets the scroll to the top, which would
-        // jump the list away from whatever line the cashier was working on
-        // (e.g. pressing + on the 9th item).
         const previousScrollTop = container.scrollTop;
         const focusItemId = cartFocusItemId;
         cartFocusItemId = null;
@@ -1227,25 +1128,17 @@
         container.innerHTML = '';
 
         cart.forEach(item => {
-            // Apply Promo is fully automatic — no button, nothing for the
-            // cashier to click. A product PRODUCT_PROMO_MAP names is
-            // discounted the instant it's in the cart; one it doesn't name
-            // just sells at its normal price. The backend independently
-            // recomputes this same thing from the database at checkout, so
-            // this is a live preview, never the thing actually trusted.
             const promo = getPromoFor(item);
             let priceLineHtml;
             let promoRowHtml = '';
             let lineTotal;
 
-            // The price with its unit: "₱10.00/meter".
             const perUnitHtml = `<span class="cart-price-unit">/${escapeHtml(item.unit)}</span>`;
             const unitName = unitNameFor({ unit: item.unit, plural: item.unitPlural }, item.qty);
             const maxQty = maxQtyFor(item);
             const slices = lineSlices(item);
             lineTotal = lineSubtotal(item) - lineDiscount(item, promo);
             if (slices.length > 1) {
-                // Pieces from batches at different prices: one row per price.
                 priceLineHtml = slices.map(slice => promo
                     ? `<p class="cart-price-tier">${formatQty(slice.qty)} × <span class="promo-original-price">${window.formatPeso(slice.price)}</span> <span class="promo-discounted-price">${window.formatPeso(discountedUnitPrice(slice.price, promo))}</span>${perUnitHtml}</p>`
                     : `<p class="cart-price-tier">${formatQty(slice.qty)} × ${window.formatPeso(slice.price)}${perUnitHtml}</p>`
@@ -1271,8 +1164,6 @@
                     </div>
                 `;
             }
-            // Beside the quantity: the unit, which reopens the quantity popup
-            // for a product sold by more than one unit or by decimals.
             const unitHtml = isMeasured(item.units)
                 ? `<button type="button" class="cart-unit-btn" onclick="editCartLine(${item.id})" title="Change quantity or unit">${escapeHtml(unitName)} <i class="fas fa-pen"></i></button>`
                 : `<span class="cart-item-unit">${escapeHtml(unitName)}</span>`;

@@ -1,10 +1,4 @@
-/* ============================================
-   REPORTS MODULE CSS - CCTV Express TACURONG
-   ============================================ */
 
-/* ============================================
-   BASE STYLES (Shared with AdminModules)
-   ============================================ */
 :root {
     color-scheme: dark;
     font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -47,11 +41,6 @@ body { background: linear-gradient(180deg, #020617 0%, #090f1e 100%); }
 .card-title { margin: 0; font-size: 1.3rem; font-weight: 600; color: var(--text-primary); }
 .card-subtitle { margin: 4px 0 0; font-size: 0.9rem; color: var(--text-muted); }
 
-/* The Report filter card and the first results card (Sales, Inventory
-   Items, etc.) sit directly beneath it with no gap -- only that first
-   card's own .mt-4 is zeroed, so a report type with more than one
-   results card (e.g. Inventory Items + Recent Stock Adjustments) keeps
-   its normal spacing between those. */
 #reportBodyContainer > .card:first-child { margin-top: 0; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
@@ -200,14 +189,6 @@ body { background: linear-gradient(180deg, #020617 0%, #090f1e 100%); }
 
 .w-full { width: 100%; }
 
-/* ============================================
-   REPORTS SPECIFIC STYLES
-   ============================================ */
-
-/* The Report Type / Date Range filter card only -- slimmer than the
-   default .card so it doesn't dominate the page above the results
-   table. Scoped to this one card so every other .card in the app
-   (including the results cards right below it) is unaffected. */
 .report-filter-card { padding: 14px 20px; }
 .report-filter-card .form-group { margin-bottom: 10px; }
 .report-filter-card .form-label { margin-bottom: 6px; }

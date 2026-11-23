@@ -1,16 +1,10 @@
-/* ============================================
-   ADMIN MODULES CSS - CCTV Express TACURONG
-   Comprehensive styling for all admin modules
-   ============================================ */
 
-/* ROOT VARIABLES */
 :root {
     color-scheme: dark;
     font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #050816;
     color: #e2e8f0;
 
-    /* Color Palette */
     --primary: #3b82f6;
     --primary-hover: #2563eb;
     --success: #10b981;
@@ -22,17 +16,14 @@
     --info: #06b6d4;
     --info-light: rgba(6, 182, 212, 0.15);
 
-    /* Background Colors */
     --bg-dark: #020617;
     --bg-card: rgba(10, 18, 35, 0.96);
     --bg-input: rgba(9, 16, 33, 0.88);
     --bg-hover: rgba(15, 23, 42, 0.8);
 
-    /* Border Colors */
     --border: rgba(148, 163, 184, 0.12);
     --border-hover: rgba(59, 130, 246, 0.3);
 
-    /* Text Colors */
     --text-primary: #f8fafc;
     --text-secondary: #cbd5e1;
     --text-muted: #94a3b8;
@@ -52,12 +43,6 @@ body {
     background: linear-gradient(180deg, #020617 0%, #090f1e 100%);
 }
 
-/* ============================================
-   DASHBOARD CONTAINER
-   ============================================ */
-/* ============================================
-   MAIN CONTENT
-   ============================================ */
 .main-content {
     padding: 28px 36px;
     display: flex;
@@ -92,9 +77,6 @@ body {
     gap: 12px;
 }
 
-/* ============================================
-   CARDS & SECTIONS
-   ============================================ */
 .card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -125,7 +107,6 @@ body {
     color: var(--text-muted);
 }
 
-/* Stats Grid */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -190,9 +171,6 @@ body {
 .stat-change.positive { color: var(--success); }
 .stat-change.negative { color: var(--danger); }
 
-/* ============================================
-   TABLES
-   ============================================ */
 .table-container {
     overflow-x: auto;
 }
@@ -243,9 +221,6 @@ body {
     border-bottom: none;
 }
 
-/* ============================================
-   BUTTONS
-   ============================================ */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -328,9 +303,6 @@ body {
     min-width: 40px;
 }
 
-/* ============================================
-   FORMS
-   ============================================ */
 .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -395,9 +367,6 @@ body {
     margin-top: 6px;
 }
 
-/* ============================================
-   SEARCH & FILTERS
-   ============================================ */
 .toolbar {
     display: flex;
     justify-content: space-between;
@@ -457,9 +426,6 @@ body {
     outline: none;
 }
 
-/* ============================================
-   BADGES & STATUS
-   ============================================ */
 .badge {
     display: inline-flex;
     align-items: center;
@@ -499,9 +465,6 @@ body {
     color: #cbd5e1;
 }
 
-/* ============================================
-   ALERTS & MESSAGES
-   ============================================ */
 .alert {
     padding: 16px 20px;
     border-radius: 12px;
@@ -535,9 +498,6 @@ body {
     color: #a5f3fc;
 }
 
-/* ============================================
-   PAGINATION
-   ============================================ */
 .pagination {
     display: flex;
     justify-content: center;
@@ -579,9 +539,6 @@ body {
     pointer-events: none;
 }
 
-/* ============================================
-   MODALS
-   ============================================ */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -661,9 +618,6 @@ body {
     border-top: 1px solid var(--border);
 }
 
-/* ============================================
-   EMPTY STATES
-   ============================================ */
 .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -688,9 +642,6 @@ body {
     font-size: 0.95rem;
 }
 
-/* ============================================
-   CHARTS CONTAINER
-   ============================================ */
 .chart-container {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -706,9 +657,6 @@ body {
     color: var(--text-primary);
 }
 
-/* ============================================
-   ACTIVITY LOG
-   ============================================ */
 .activity-list {
     display: flex;
     flex-direction: column;
@@ -750,9 +698,6 @@ body {
     color: var(--text-muted);
 }
 
-/* ============================================
-   PRODUCT GRID
-   ============================================ */
 .product-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -809,9 +754,6 @@ body {
     margin-top: 8px;
 }
 
-/* ============================================
-   ACTION BUTTONS GROUP
-   ============================================ */
 .actions-group {
     display: flex;
     gap: 8px;
@@ -851,9 +793,6 @@ body {
     color: var(--info);
 }
 
-/* ============================================
-   TABS
-   ============================================ */
 .tabs {
     display: flex;
     gap: 4px;
@@ -892,9 +831,6 @@ body {
     border-radius: 2px;
 }
 
-/* ============================================
-   PROGRESS BARS
-   ============================================ */
 .progress-bar {
     height: 8px;
     background: var(--bg-hover);
@@ -913,9 +849,6 @@ body {
 .progress-fill.red { background: linear-gradient(90deg, var(--danger), #f87171); }
 .progress-fill.blue { background: linear-gradient(90deg, var(--primary), #60a5fa); }
 
-/* ============================================
-   RESPONSIVE
-   ============================================ */
 @media (max-width: 1024px) {
     .main-content {
         padding: 24px;
@@ -949,9 +882,6 @@ body {
     }
 }
 
-/* ============================================
-   UTILITY CLASSES
-   ============================================ */
 .text-center { text-align: center; }
 .text-right { text-align: right; }
 .text-left { text-align: left; }

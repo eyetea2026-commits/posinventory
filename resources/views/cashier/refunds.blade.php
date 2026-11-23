@@ -526,9 +526,6 @@ function toggleRefundItem(checkbox, productId, unitPrice, maxQty, allowsDecimals
     updateRefundAmount();
 }
 
-// Whole units only, unless it was sold by part of a unit (1.5 meters);
-// kept between the smallest allowed and what's still returnable. While
-// typing (stillTyping), the box is left as typed and only the amount follows.
 function updateItemQuantity(productId, inputEl, stillTyping) {
     const entry = selectedItems[productId];
     if (!entry) return;
@@ -543,10 +540,6 @@ function updateItemQuantity(productId, inputEl, stillTyping) {
     updateRefundAmount();
 }
 
-// ---- Serial numbers of the returned pieces --------------------------------
-// A serial-numbered product names each returned piece's sticker, so a
-// damaged one is never sold again. When the count leaves no choice (bought
-// 1, returning 1) they're ticked for the cashier.
 function returnSerialBoxes(productId) {
     return Array.from(document.querySelectorAll(`#refund-serials-${productId} .refund-serial-list input[type=checkbox]`));
 }
@@ -604,11 +597,6 @@ document.getElementById('create-refund-form').addEventListener('submit', functio
 
     const submitBtn = document.getElementById('submitRefundRequestBtn');
 
-    // Guard against double-submit (double-click / double-tap): the disabled
-    // button catches the common case client-side; the server also holds a
-    // per-cashier Cache::lock for the rare cases this can't (a second
-    // browser tab, a fast double-tap before disable() takes effect) — same
-    // pattern as the POS checkout's processCheckout() guard.
     if (submitBtn.disabled) {
         return;
     }
