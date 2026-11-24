@@ -132,7 +132,7 @@ class SuperAdminTest extends TestCase
         $this->assertStringContainsString('onchange="handleStatusChange('.$this->cashier->id.', this)"', $html);
         $this->assertStringContainsString('onchange="handleStatusChange('.$this->otherAdmin->id.', this)"', $html);
         $this->assertStringNotContainsString('onchange="handleStatusChange('.$this->admin->id.', this)"', $html);
-        $this->assertStringContainsString('Your account', $html);
+        $this->assertStringContainsString('title="You can\'t deactivate your own account"', $html);
     }
 
     public function test_any_administrator_can_edit_another_administrator_and_change_roles(): void

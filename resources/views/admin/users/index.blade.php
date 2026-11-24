@@ -148,6 +148,7 @@
         border-radius: 20px;
         font-size: 0.75rem;
         font-weight: 600;
+        white-space: nowrap;
     }
 
     .badge-admin { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
@@ -261,6 +262,7 @@
 
     .protected-badge {
         display: inline-flex;
+        white-space: nowrap;
         align-items: center;
         gap: 6px;
         padding: 6px 12px;
@@ -527,7 +529,7 @@
                                 </span>
                             @elseif(! auth()->user()->canManageAccountStatusOf($user))
                                 <span class="protected-badge" title="You can't deactivate your own account">
-                                    <i class="fas fa-lock"></i> Your account
+                                    <i class="fas fa-lock"></i> Locked
                                 </span>
                             @else
                                 <label class="toggle-switch">
