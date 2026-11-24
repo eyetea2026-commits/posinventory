@@ -1,8 +1,7 @@
 @php
     $isProtected = isset($user) && $user->isProtected();
-    $isSuperAdminAccount = isset($user) && $user->isSuperAdmin();
     $isOwnAccount = isset($user) && auth()->id() === $user->id;
-    $roleLocked = $isProtected || $isSuperAdminAccount || $isOwnAccount;
+    $roleLocked = $isProtected || $isOwnAccount;
     $roleDisabledAttr = $roleLocked ? 'disabled' : '';
 
     $canResetPassword = isset($user) && ! $user->isAdmin();
@@ -92,7 +91,7 @@
         @if($roleLocked)
             <input type="hidden" name="role_id" value="{{ $user->role_id }}">
             <span class="form-hint role-locked-hint"><i class="fas fa-lock"></i>
-                {{ $isSuperAdminAccount ? 'The Super Admin\'s role always stays Administrator.' : ($isOwnAccount ? 'You can\'t change your own role.' : 'The last active Administrator\'s role can\'t be changed.') }}
+                {{ $isOwnAccount ? 'You can\'t change your own role.' : 'The last active Administrator\'s role can\'t be changed.' }}
             </span>
         @endif
         <span class="form-error" id="error-role_id">@error('role_id'){{ $message }}@enderror</span>

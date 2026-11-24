@@ -17,7 +17,7 @@ class CredentialsPasswordToggleTest extends TestCase
     {
         parent::setUp();
 
-        $this->admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id, 'is_super_admin' => true]);
+        $this->admin = User::factory()->create(['role_id' => Role::create(['role_name' => 'admin'])->id]);
     }
 
     public function test_the_credentials_password_has_a_show_button_on_user_management(): void

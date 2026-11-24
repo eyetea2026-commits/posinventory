@@ -41,7 +41,6 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
-            'is_super_admin' => 'boolean',
             'birthdate' => 'date',
         ];
     }
@@ -81,40 +80,19 @@ class User extends Authenticatable
         return $this->role && strtolower($this->role->role_name) === 'admin';
     }
 
-    public function isSuperAdmin(): bool
-    {
-        return $this->isAdmin() && (bool) $this->is_super_admin;
-    }
-
     public function getRoleLabelAttribute(): string
     {
-        if ($this->isSuperAdmin()) {
-            return 'Super Admin';
-        }
-
         return $this->isAdmin() ? 'Admin' : ucfirst($this->role?->role_name ?? 'N/A');
     }
 
     public function canManageAccountStatusOf(User $target): bool
     {
-        if (! $this->isAdmin() || $target->isSuperAdmin()) {
-            return false;
-        }
-
-        return $target->isAdmin() ? $this->isSuperAdmin() : true;
+        return $this->isAdmin() && ! $target->is($this);
     }
 
     public function canEditAccountOf(User $target): bool
     {
-        if (! $this->isAdmin()) {
-            return false;
-        }
-
-        if ($target->isAdmin() && $target->id !== $this->id) {
-            return $this->isSuperAdmin() && ! $target->isSuperAdmin();
-        }
-
-        return true;
+        return $this->isAdmin();
     }
 
     public function isCashier(): bool

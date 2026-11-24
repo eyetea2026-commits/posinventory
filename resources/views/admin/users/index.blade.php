@@ -151,7 +151,6 @@
     }
 
     .badge-admin { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
-    .badge-super-admin { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
     .badge-cashier { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
 
     .toggle-switch {
@@ -517,7 +516,7 @@
                         <td>{{ $user->email }}</td>
                         <td><code style="background: rgba(59,130,246,0.15); padding: 4px 8px; border-radius: 6px; font-size: 0.85rem;">{{ $user->name }}</code></td>
                         <td>
-                            <span class="badge {{ $user->isSuperAdmin() ? 'badge-super-admin' : ($user->isAdmin() ? 'badge-admin' : 'badge-cashier') }}">
+                            <span class="badge {{ $user->isAdmin() ? 'badge-admin' : 'badge-cashier' }}">
                                 {{ $user->role_label }}
                             </span>
                         </td>
@@ -527,8 +526,8 @@
                                     <i class="fas fa-lock"></i> Locked
                                 </span>
                             @elseif(! auth()->user()->canManageAccountStatusOf($user))
-                                <span class="protected-badge" title="{{ $user->isSuperAdmin() ? 'The Super Admin account cannot be deactivated' : 'Only the Super Admin can activate or deactivate Administrator accounts' }}">
-                                    <i class="fas fa-lock"></i> {{ $user->isSuperAdmin() ? 'Locked' : 'Super Admin only' }}
+                                <span class="protected-badge" title="You can't deactivate your own account">
+                                    <i class="fas fa-lock"></i> Your account
                                 </span>
                             @else
                                 <label class="toggle-switch">
@@ -818,7 +817,7 @@
 
             const protectedNotice = user.role_name === 'admin' ?
                 '<div class="detail-item full-width" style="background: rgba(239,68,68,0.15);">' +
-                    '<span class="protected-badge"><i class="fas fa-shield-alt"></i> ' + (user.is_super_admin ? 'Super Admin' : 'Protected Administrator') + '</span>' +
+                    '<span class="protected-badge"><i class="fas fa-shield-alt"></i> Protected Administrator</span>' +
                 '</div>' : '';
             updateBtn.style.display = user.can_edit ? '' : 'none';
 
@@ -871,7 +870,7 @@
                         </div>
                         <div class="detail-item">
                             <label>Role</label>
-                            <span class="badge ${user.is_super_admin ? 'badge-super-admin' : (user.role_name === 'admin' ? 'badge-admin' : 'badge-cashier')}">${user.role_label || 'N/A'}</span>
+                            <span class="badge ${user.role_name === 'admin' ? 'badge-admin' : 'badge-cashier'}">${user.role_label || 'N/A'}</span>
                         </div>
                         <div class="detail-item">
                             <label>Status</label>

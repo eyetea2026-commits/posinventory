@@ -159,15 +159,17 @@ class SecurityFixesTest extends TestCase
         $this->assertSame($existsResponse->json('message'), $missingResponse->json('message'));
     }
 
-    public function test_user_store_rejects_a_role_id_other_than_cashier(): void
+    public function test_user_store_rejects_a_role_id_that_cannot_be_assigned(): void
     {
+        $otherRole = Role::create(['role_name' => 'manager']);
+
         $response = $this->actingAs($this->admin)->post(route('admin.users.store'), [
             'first_name' => 'Sneaky', 'last_name' => 'Escalation',
             'birthdate' => '1995-06-15',
             'contact_number' => '09990000001',
             'name' => 'sneakyadmin',
             'email' => 'sneaky@example.com',
-            'role_id' => $this->adminRole->id,
+            'role_id' => $otherRole->id,
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
         ]);
@@ -586,7 +588,6 @@ class SecurityFixesTest extends TestCase
 
     public function test_second_admin_account_can_be_deactivated_normally(): void
     {
-        $this->admin->forceFill(['is_super_admin' => true])->save();
         $secondAdmin = User::factory()->create([
             'name' => 'admin2', 'email' => 'admin2@example.com', 'role_id' => $this->adminRole->id,
             'first_name' => 'Second', 'last_name' => 'Admin',

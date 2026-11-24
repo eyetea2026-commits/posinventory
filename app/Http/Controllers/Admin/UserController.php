@@ -51,7 +51,6 @@ class UserController extends Controller
                         ->orWhere('last_name', 'like', "%{$search}%");
                 });
             })
-            ->orderByDesc('is_super_admin')
             ->orderByRaw('CASE WHEN role_id = ? THEN 0 ELSE 1 END', [$adminRoleId ?? 0])
             ->orderByDesc('id')
             ->paginate(15)
@@ -121,7 +120,7 @@ class UserController extends Controller
             'role_id' => ['required', 'integer', Rule::in($assignableRoleIds)],
             'password' => ['required', 'confirmed', Password::defaults()],
         ], [
-            'role_id.in' => auth()->user()->isSuperAdmin() ? 'Select a valid role.' : 'Only the Super Admin can add Administrator accounts.',
+            'role_id.in' => 'Select a valid role.',
             'name.required' => 'Username is required.',
             'name.unique' => 'This username is already taken.',
             'email.unique' => 'This email is already registered.',
@@ -183,7 +182,7 @@ class UserController extends Controller
     public function edit(Request $request, User $user)
     {
         if (! auth()->user()->canEditAccountOf($user)) {
-            return $this->denyAccountAction('Only the Super Admin can edit Administrator accounts.');
+            return $this->denyAccountAction('Only an Administrator can edit accounts.');
         }
 
         $user->load('role');
@@ -207,7 +206,7 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         if (! auth()->user()->canEditAccountOf($user)) {
-            return $this->denyAccountAction('Only the Super Admin can edit Administrator accounts.');
+            return $this->denyAccountAction('Only an Administrator can edit accounts.');
         }
 
         $data = $request->validate([
@@ -240,18 +239,8 @@ class UserController extends Controller
         $roleChanged = (int) $data['role_id'] !== (int) $user->role_id;
 
         if ($roleChanged) {
-            $adminRoleId = (int) Role::whereRaw('LOWER(role_name) = ?', ['admin'])->value('id');
-
-            if ($user->isSuperAdmin()) {
-                throw ValidationException::withMessages(['role_id' => 'The Super Admin account must stay an Administrator.']);
-            }
-
             if ($user->is(auth()->user())) {
                 throw ValidationException::withMessages(['role_id' => 'You can\'t change your own role.']);
-            }
-
-            if (($user->isAdmin() || (int) $data['role_id'] === $adminRoleId) && ! auth()->user()->isSuperAdmin()) {
-                throw ValidationException::withMessages(['role_id' => 'Only the Super Admin can give or remove the Administrator role.']);
             }
         }
         $passwordChanged = ! empty($data['password']);
@@ -466,18 +455,16 @@ class UserController extends Controller
 
     private function assignableRoles()
     {
-        $roleNames = auth()->user()->isSuperAdmin() ? ['admin', 'cashier'] : ['cashier'];
-
-        return Role::whereIn('role_name', $roleNames)->orderBy('role_name')->get();
+        return Role::whereIn('role_name', ['admin', 'cashier'])->orderBy('role_name')->get();
     }
 
     private function accountStatusDeniedMessage(User $user, string $action): string
     {
-        if ($user->isSuperAdmin()) {
-            return "The Super Admin account cannot be {$action}d.";
+        if ($user->is(auth()->user())) {
+            return "You can't {$action} your own account.";
         }
 
-        return "Only the Super Admin can {$action} Administrator accounts.";
+        return "Only an Administrator can {$action} accounts.";
     }
 
     private function denyAccountAction(string $message)
@@ -558,7 +545,6 @@ class UserController extends Controller
                     'address' => $user->address,
                     'role_name' => $user->role?->role_name,
                     'role_label' => $user->role_label,
-                    'is_super_admin' => $user->isSuperAdmin(),
                     'can_edit' => auth()->user()->canEditAccountOf($user),
                     'role' => $user->role,
                     'is_active' => $user->is_active,
